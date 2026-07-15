@@ -58,13 +58,13 @@ MyLabGuard/
 
 ## Tech stack (แผนเบื้องต้น)
 
-- .NET 8
+- .NET 10 (LTS)
 - Server: Worker Service (`Microsoft.Extensions.Hosting`) + Minimal API + SQLite
 - Client: Worker Service + `System.Management` (WMI) + WinTrust/Authenticode check
 - GUI (Console + Tray): WPF
 - Auth: password hash (PBKDF2/BCrypt + salt) ฝั่ง server, client↔server ผูกด้วย unique GUID ต่อเครื่อง
 
-## เริ่มพัฒนา (บนเครื่อง Windows + Visual Studio)
+## เริ่มพัฒนา (บนเครื่อง Windows, VS Code หรือ Visual Studio)
 
 ยังไม่ได้ scaffold โค้ดจริง — ขั้นตอนถัดไปคือสร้าง solution + projects ใน `src/`
 ตามรายชื่อด้านบน แล้วเริ่มจากฝั่ง Server (API + DB schema) ก่อน
