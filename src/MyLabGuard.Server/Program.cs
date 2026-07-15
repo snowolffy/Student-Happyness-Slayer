@@ -1,6 +1,8 @@
 using Microsoft.EntityFrameworkCore;
 using MyLabGuard.Server.Data;
 using MyLabGuard.Server.Models;
+using MyLabGuard.Server.Services;
+using System.Security.Cryptography;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -40,16 +42,90 @@ using (var scope = app.Services.CreateScope())
 
 app.MapGet("/", () => Results.Ok(new { service = "MyLabGuard.Server", status = "running" }));
 
-// ดึงรายชื่อ client ทั้งหมด + สถานะ
-app.MapGet("/api/clients", async (AppDbContext db) =>
+// ---- Auth Endpoints ----
+
+// สร้าง admin คนแรก - ใช้ได้แค่ตอนยังไม่มี admin เลยในระบบ (กันคนอื่นมาสร้างซ้ำ/แย่งสิทธิ์)
+app.MapPost("/api/auth/setup", async (AdminSetupRequest req, AppDbContext db) =>
 {
+    var existingAdmin = await db.AdminUsers.AnyAsync();
+    if (existingAdmin)
+    {
+        return Results.BadRequest(new { error = "Admin already exists. Setup can only run once." });
+    }
+
+    if (string.IsNullOrWhiteSpace(req.Username) || string.IsNullOrWhiteSpace(req.Password))
+    {
+        return Results.BadRequest(new { error = "Username and password are required." });
+    }
+
+    if (req.Password.Length < 8)
+    {
+        return Results.BadRequest(new { error = "Password must be at least 8 characters." });
+    }
+
+    var salt = PasswordHasher.GenerateSalt();
+    var hash = PasswordHasher.HashPassword(req.Password, salt);
+
+    var admin = new AdminUser
+    {
+        Username = req.Username,
+        PasswordSalt = salt,
+        PasswordHash = hash,
+        CreatedAt = DateTime.UtcNow
+    };
+
+    db.AdminUsers.Add(admin);
+    await db.SaveChangesAsync();
+
+    return Results.Ok(new { message = "Admin created successfully." });
+});
+
+// login - ตรวจ username/password
+app.MapPost("/api/auth/login", async (LoginRequest req, AppDbContext db) =>
+{
+    var admin = await db.AdminUsers.FirstOrDefaultAsync(u => u.Username == req.Username);
+    if (admin is null)
+    {
+        return Results.Unauthorized();
+    }
+
+    var isValid = PasswordHasher.VerifyPassword(req.Password, admin.PasswordSalt, admin.PasswordHash);
+    if (!isValid)
+    {
+        return Results.Unauthorized();
+    }
+
+    admin.LastLoginAt = DateTime.UtcNow;
+
+    // ออก token ใหม่ อายุ 12 ชั่วโมง (พอสำหรับใช้งานหนึ่งวันเรียน)
+    var tokenString = Convert.ToBase64String(RandomNumberGenerator.GetBytes(32));
+    var authToken = new AuthToken
+    {
+        Token = tokenString,
+        AdminUserId = admin.Id,
+        CreatedAt = DateTime.UtcNow,
+        ExpiresAt = DateTime.UtcNow.AddHours(12)
+    };
+    db.AuthTokens.Add(authToken);
+
+    await db.SaveChangesAsync();
+
+    return Results.Ok(new { message = "Login successful.", username = admin.Username, token = tokenString });
+});
+
+// ดึงรายชื่อ client ทั้งหมด + สถานะ
+app.MapGet("/api/clients", async (HttpRequest request, AppDbContext db) =>
+{
+    if (!await IsAuthorized(request, db)) return Results.Unauthorized();
+
     var clients = await db.ClientMachines.OrderBy(c => c.MachineName).ToListAsync();
     return Results.Ok(clients);
 });
 
 // toggle เครื่องใดเครื่องหนึ่ง (per-machine)
-app.MapPost("/api/clients/{id:int}/toggle", async (int id, AppDbContext db) =>
+app.MapPost("/api/clients/{id:int}/toggle", async (int id, HttpRequest request, AppDbContext db) =>
 {
+    if (!await IsAuthorized(request, db)) return Results.Unauthorized();
     var client = await db.ClientMachines.FindAsync(id);
     if (client is null) return Results.NotFound();
 
@@ -59,8 +135,9 @@ app.MapPost("/api/clients/{id:int}/toggle", async (int id, AppDbContext db) =>
 });
 
 // toggle ทั้งห้อง (global)
-app.MapPost("/api/global/toggle", async (AppDbContext db) =>
+app.MapPost("/api/global/toggle", async (HttpRequest request, AppDbContext db) =>
 {
+    if (!await IsAuthorized(request, db)) return Results.Unauthorized();
     var state = await db.GlobalStates.FirstOrDefaultAsync(g => g.Id == 1);
     if (state is null)
     {
@@ -75,15 +152,17 @@ app.MapPost("/api/global/toggle", async (AppDbContext db) =>
 });
 
 // ดึงกฎทั้งหมด
-app.MapGet("/api/rules", async (AppDbContext db) =>
+app.MapGet("/api/rules", async (HttpRequest request, AppDbContext db) =>
 {
+    if (!await IsAuthorized(request, db)) return Results.Unauthorized();
     var rules = await db.Rules.OrderBy(r => r.Name).ToListAsync();
     return Results.Ok(rules);
 });
 
 // เพิ่มกฎใหม่
-app.MapPost("/api/rules", async (Rule rule, AppDbContext db) =>
+app.MapPost("/api/rules", async (Rule rule, HttpRequest request, AppDbContext db) =>
 {
+    if (!await IsAuthorized(request, db)) return Results.Unauthorized();
     rule.CreatedAt = DateTime.UtcNow;
     rule.UpdatedAt = DateTime.UtcNow;
     db.Rules.Add(rule);
@@ -141,8 +220,9 @@ app.MapPost("/api/logs", async (LogEntry log, AppDbContext db) =>
 });
 
 // ดู log ล่าสุด (ไว้ให้ Console GUI แสดงผล)
-app.MapGet("/api/logs", async (AppDbContext db, int take = 100) =>
+app.MapGet("/api/logs", async (HttpRequest request, AppDbContext db, int take = 100) =>
 {
+    if (!await IsAuthorized(request, db)) return Results.Unauthorized();
     var logs = await db.LogEntries
         .OrderByDescending(l => l.Timestamp)
         .Take(take)
@@ -150,4 +230,21 @@ app.MapGet("/api/logs", async (AppDbContext db, int take = 100) =>
     return Results.Ok(logs);
 });
 
+// ---- Helper: เช็คว่า request มี token ที่ valid ไหม ----
+async Task<bool> IsAuthorized(HttpRequest request, AppDbContext db)
+{
+    if (!request.Headers.TryGetValue("X-Auth-Token", out var tokenValue))
+    {
+        return false;
+    }
+
+    var token = await db.AuthTokens
+        .FirstOrDefaultAsync(t => t.Token == tokenValue.ToString() && t.ExpiresAt > DateTime.UtcNow);
+
+    return token is not null;
+}
+
 app.Run();
+// ---- Request DTOs ----
+record AdminSetupRequest(string Username, string Password);
+record LoginRequest(string Username, string Password);
