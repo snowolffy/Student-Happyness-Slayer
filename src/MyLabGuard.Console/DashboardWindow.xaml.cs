@@ -66,6 +66,7 @@ public partial class DashboardWindow : Window
         var name = NewRuleNameBox.Text.Trim();
         var publisher = NewRulePublisherBox.Text.Trim();
         var actionCommand = NewRuleActionBox.Text.Trim();
+        var killProcess = NewRuleKillCheckBox.IsChecked ?? false;
 
         if (string.IsNullOrEmpty(name) || string.IsNullOrEmpty(publisher))
         {
@@ -78,6 +79,7 @@ public partial class DashboardWindow : Window
             Name = name,
             PublisherName = publisher,
             RequireSignedMatch = true,
+            KillProcess = killProcess,
             ActionCommand = string.IsNullOrEmpty(actionCommand) ? null : actionCommand,
             IsEnabled = true
         };
@@ -90,6 +92,7 @@ public partial class DashboardWindow : Window
             NewRuleNameBox.Clear();
             NewRulePublisherBox.Clear();
             NewRuleActionBox.Clear();
+            NewRuleKillCheckBox.IsChecked = false;
         }
 
         await LoadAllDataAsync();

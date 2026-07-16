@@ -95,11 +95,13 @@
 
                         <Border Grid.Row="0" Style="{StaticResource Card}" Background="{StaticResource InputBgBrush}" Padding="12">
                             <StackPanel Orientation="Horizontal">
-                                <TextBox x:Name="NewRuleNameBox" Width="150" Margin="0,0,8,0"
+                                <TextBox x:Name="NewRuleNameBox" Width="130" Margin="0,0,8,0"
                                          ToolTip="ชื่อกฎ" Tag="Rule name"/>
-                                <TextBox x:Name="NewRulePublisherBox" Width="200" Margin="0,0,8,0"
+                                <TextBox x:Name="NewRulePublisherBox" Width="180" Margin="0,0,8,0"
                                          ToolTip="ชื่อ Publisher เช่น Valve Corporation"/>
-                                <TextBox x:Name="NewRuleActionBox" Width="200" Margin="0,0,8,0"
+                                <CheckBox x:Name="NewRuleKillCheckBox" Content="Kill Process"
+                                          VerticalAlignment="Center" Margin="0,0,8,0" Foreground="{StaticResource TextPrimaryBrush}"/>
+                                <TextBox x:Name="NewRuleActionBox" Width="180" Margin="0,0,8,0"
                                          ToolTip="path คำสั่ง/สคริปต์ (ไม่บังคับ)"/>
                                 <Button Content="ADD RULE" Style="{StaticResource PrimaryButton}"
                                         Click="AddRuleButton_Click"/>
@@ -129,6 +131,7 @@
                                 <DataGridTextColumn Header="NAME" Binding="{Binding Name}" Width="150"/>
                                 <DataGridTextColumn Header="PUBLISHER" Binding="{Binding PublisherName}" Width="200"/>
                                 <DataGridTextColumn Header="SIGNED ONLY" Binding="{Binding RequireSignedMatch}" Width="100"/>
+                                <DataGridTextColumn Header="KILL" Binding="{Binding KillProcess}" Width="60"/>
                                 <DataGridTextColumn Header="ACTION COMMAND" Binding="{Binding ActionCommand}" Width="200"/>
                             </DataGrid.Columns>
                         </DataGrid>

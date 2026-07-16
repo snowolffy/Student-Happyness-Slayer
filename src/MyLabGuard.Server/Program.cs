@@ -170,6 +170,33 @@ app.MapPost("/api/rules", async (Rule rule, HttpRequest request, AppDbContext db
     return Results.Created($"/api/rules/{rule.Id}", rule);
 });
 
+// ลบกฎทิ้ง (ใช้เมื่อกฎตั้งผิดหรือกว้างเกินไป - สำคัญมากเพื่อความปลอดภัย)
+app.MapDelete("/api/rules/{id:int}", async (int id, HttpRequest request, AppDbContext db) =>
+{
+    if (!await IsAuthorized(request, db)) return Results.Unauthorized();
+
+    var rule = await db.Rules.FindAsync(id);
+    if (rule is null) return Results.NotFound();
+
+    db.Rules.Remove(rule);
+    await db.SaveChangesAsync();
+    return Results.Ok(new { message = "Rule deleted." });
+});
+
+// toggle เปิด/ปิดกฎ (ไม่ต้องลบทิ้งถาวร แค่ปิดชั่วคราวได้)
+app.MapPost("/api/rules/{id:int}/toggle", async (int id, HttpRequest request, AppDbContext db) =>
+{
+    if (!await IsAuthorized(request, db)) return Results.Unauthorized();
+
+    var rule = await db.Rules.FindAsync(id);
+    if (rule is null) return Results.NotFound();
+
+    rule.IsEnabled = !rule.IsEnabled;
+    rule.UpdatedAt = DateTime.UtcNow;
+    await db.SaveChangesAsync();
+    return Results.Ok(rule);
+});
+
 // client เอาไว้ poll เพื่อดึง rules + สถานะ enabled/disabled ของตัวเอง
 // (endpoint สำคัญที่สุดสำหรับฝั่ง Client Service)
 app.MapGet("/api/poll/{clientGuid}", async (string clientGuid, string machineName, AppDbContext db) =>

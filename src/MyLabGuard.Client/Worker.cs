@@ -108,7 +108,7 @@ public class Worker : BackgroundService
                 return;
             }
 
-            await CheckAndActOnProcess(executablePath);
+            await CheckAndActOnProcess(executablePath, (int)processId);
         }
         catch (Exception ex)
         {
@@ -117,7 +117,7 @@ public class Worker : BackgroundService
         }
     }
 
-    private async Task CheckAndActOnProcess(string executablePath)
+    private async Task CheckAndActOnProcess(string executablePath, int processId)
     {
         var result = PublisherChecker.Check(executablePath);
 
@@ -149,15 +149,39 @@ public class Worker : BackgroundService
             }
 
             // match! รัน action ตามที่กำหนด
-            await ExecuteRuleAction(executablePath, result, rule);
+            await ExecuteRuleAction(executablePath, processId, result, rule);
             return; // match กฎแรกที่เจอแล้วหยุด ไม่ต้องเช็คกฎถัดไป
         }
     }
 
-    private async Task ExecuteRuleAction(string executablePath, PublisherCheckResult result, RuleDto rule)
+    private async Task ExecuteRuleAction(string executablePath, int processId, PublisherCheckResult result, RuleDto rule)
     {
-        var actionTaken = "Logged only";
+        var actionParts = new List<string>();
 
+        // ---- ส่วนที่ 1: Kill process (ถ้ากฎกำหนดไว้) ----
+        if (rule.KillProcess)
+        {
+            try
+            {
+                var process = Process.GetProcessById(processId);
+                process.Kill();
+                actionParts.Add("Killed process");
+                _logger.LogInformation("Rule '{Rule}' matched - kill process สำเร็จ (PID: {Pid})", rule.Name, processId);
+            }
+            catch (ArgumentException)
+            {
+                // process อาจปิดตัวเองไปแล้วก่อนที่เราจะ kill ทัน - ไม่ถือเป็น error ร้ายแรง
+                actionParts.Add("Process already exited");
+                _logger.LogInformation("Rule '{Rule}' matched - process (PID: {Pid}) ปิดตัวเองไปแล้วก่อน kill", rule.Name, processId);
+            }
+            catch (Exception ex)
+            {
+                actionParts.Add($"Kill failed: {ex.Message}");
+                _logger.LogError(ex, "Kill process ของกฎ '{Rule}' ไม่สำเร็จ (PID: {Pid})", rule.Name, processId);
+            }
+        }
+
+        // ---- ส่วนที่ 2: รัน action command (ถ้ากำหนดไว้) ----
         if (!string.IsNullOrWhiteSpace(rule.ActionCommand))
         {
             try
@@ -170,20 +194,24 @@ public class Worker : BackgroundService
                     CreateNoWindow = true
                 };
                 Process.Start(psi);
-                actionTaken = $"Ran action: {rule.ActionCommand}";
+                actionParts.Add($"Ran command: {rule.ActionCommand}");
                 _logger.LogInformation("Rule '{Rule}' matched - รัน action: {Command} {Args}",
                     rule.Name, rule.ActionCommand, rule.ActionArguments);
             }
             catch (Exception ex)
             {
-                actionTaken = $"Action failed: {ex.Message}";
+                actionParts.Add($"Command failed: {ex.Message}");
                 _logger.LogError(ex, "รัน action command ของกฎ '{Rule}' ไม่สำเร็จ", rule.Name);
             }
         }
-        else
+
+        if (actionParts.Count == 0)
         {
-            _logger.LogInformation("Rule '{Rule}' matched - ไม่มี action command กำหนดไว้ (log อย่างเดียว)", rule.Name);
+            actionParts.Add("Logged only");
+            _logger.LogInformation("Rule '{Rule}' matched - ไม่มี action กำหนดไว้ (log อย่างเดียว)", rule.Name);
         }
+
+        var actionTaken = string.Join(" + ", actionParts);
 
         var logEntry = new LogEntryDto
         {

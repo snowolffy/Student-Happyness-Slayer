@@ -23,6 +23,9 @@ public class Rule
     /// </summary>
     public bool RequireSignedMatch { get; set; } = true;
 
+    /// <summary>true = สั่ง kill process ทันทีที่ match (ก่อนรัน ActionCommand ถ้ามี)</summary>
+    public bool KillProcess { get; set; } = false;
+
     /// <summary>คำสั่ง/สคริปต์ที่จะรันเมื่อ match (path ของ .exe หรือ .bat/.ps1)</summary>
     public string? ActionCommand { get; set; }
 
