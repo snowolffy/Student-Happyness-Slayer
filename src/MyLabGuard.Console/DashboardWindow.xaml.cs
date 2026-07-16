@@ -1,0 +1,97 @@
+using System.Windows;
+using System.Windows.Controls;
+using MyLabGuard.Console.Models;
+using MyLabGuard.Console.Services;
+
+namespace MyLabGuard.Console;
+
+public partial class DashboardWindow : Window
+{
+    private readonly ApiClient _apiClient;
+
+    public DashboardWindow(ApiClient apiClient)
+    {
+        InitializeComponent();
+        _apiClient = apiClient;
+        ServerLabel.Text = $"connected to {_apiClient.BaseUrl}";
+        Loaded += async (_, _) => await LoadAllDataAsync();
+    }
+
+    private async Task LoadAllDataAsync()
+    {
+        StatusText.Text = "กำลังโหลดข้อมูล...";
+        try
+        {
+            var clients = await _apiClient.GetClientsAsync();
+            ClientsGrid.ItemsSource = clients;
+
+            var rules = await _apiClient.GetRulesAsync();
+            RulesGrid.ItemsSource = rules;
+
+            var logs = await _apiClient.GetLogsAsync();
+            LogsGrid.ItemsSource = logs;
+
+            StatusText.Text = $"อัพเดตล่าสุด: {DateTime.Now:HH:mm:ss}";
+        }
+        catch (Exception ex)
+        {
+            StatusText.Text = $"โหลดข้อมูลไม่สำเร็จ: {ex.Message}";
+        }
+    }
+
+    private async void RefreshButton_Click(object sender, RoutedEventArgs e)
+    {
+        await LoadAllDataAsync();
+    }
+
+    private async void GlobalToggleButton_Click(object sender, RoutedEventArgs e)
+    {
+        var success = await _apiClient.ToggleGlobalAsync();
+        StatusText.Text = success ? "Toggle global สำเร็จ" : "Toggle global ไม่สำเร็จ";
+        await LoadAllDataAsync();
+    }
+
+    private async void ToggleClientButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button { Tag: int clientId })
+        {
+            var success = await _apiClient.ToggleClientAsync(clientId);
+            StatusText.Text = success ? "Toggle client สำเร็จ" : "Toggle client ไม่สำเร็จ";
+            await LoadAllDataAsync();
+        }
+    }
+
+    private async void AddRuleButton_Click(object sender, RoutedEventArgs e)
+    {
+        var name = NewRuleNameBox.Text.Trim();
+        var publisher = NewRulePublisherBox.Text.Trim();
+        var actionCommand = NewRuleActionBox.Text.Trim();
+
+        if (string.IsNullOrEmpty(name) || string.IsNullOrEmpty(publisher))
+        {
+            StatusText.Text = "กรุณากรอกชื่อกฎและ Publisher อย่างน้อย";
+            return;
+        }
+
+        var rule = new RuleDto
+        {
+            Name = name,
+            PublisherName = publisher,
+            RequireSignedMatch = true,
+            ActionCommand = string.IsNullOrEmpty(actionCommand) ? null : actionCommand,
+            IsEnabled = true
+        };
+
+        var success = await _apiClient.AddRuleAsync(rule);
+        StatusText.Text = success ? "เพิ่มกฎสำเร็จ" : "เพิ่มกฎไม่สำเร็จ";
+
+        if (success)
+        {
+            NewRuleNameBox.Clear();
+            NewRulePublisherBox.Clear();
+            NewRuleActionBox.Clear();
+        }
+
+        await LoadAllDataAsync();
+    }
+}

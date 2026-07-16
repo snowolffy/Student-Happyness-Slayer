@@ -1,0 +1,12 @@
+﻿<Application x:Class="MyLabGuard.ClientTray.App"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             ShutdownMode="OnExplicitShutdown">
+    <!--
+        ShutdownMode="OnExplicitShutdown" สำคัญมาก:
+        ปกติ WPF จะปิดแอปทั้งตัวเมื่อไม่มี window เปิดอยู่เลย
+        แต่ Tray ต้องอยู่ต่อแม้ไม่มี window ไหนเปิดอยู่ (icon ต้องค้างที่ tray ตลอด)
+        ต้อง Shutdown เองผ่านโค้ดเท่านั้น (เช่นตอนกด "Exit" ใน context menu)
+    -->
+    <Application.Resources/>
+</Application>
