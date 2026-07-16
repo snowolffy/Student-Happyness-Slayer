@@ -18,9 +18,12 @@ public partial class MainWindow : Window
         var username = UsernameBox.Text.Trim();
         var password = PasswordBox.Password;
 
-        if (string.IsNullOrEmpty(serverAddress) || string.IsNullOrEmpty(username) || string.IsNullOrEmpty(password))
+        // หมายเหตุ: ไม่เช็ค password ว่างเปล่าที่นี่โดยเจตนา
+        // เพราะ built-in "Administrator" ใช้ password ว่างเปล่าเป็นค่า default ตอนยังไม่เคยเปลี่ยน
+        // (server จะบังคับให้เปลี่ยน password หลัง login สำเร็จอยู่แล้วผ่าน hasDefaultPassword flag)
+        if (string.IsNullOrEmpty(serverAddress) || string.IsNullOrEmpty(username))
         {
-            StatusText.Text = "กรุณากรอกข้อมูลให้ครบ";
+            StatusText.Text = "กรุณากรอก Server address และ Username";
             return;
         }
 
@@ -33,12 +36,24 @@ public partial class MainWindow : Window
 
         if (success)
         {
-            StatusText.Foreground = System.Windows.Media.Brushes.Green;
-            StatusText.Text = "เชื่อมต่อสำเร็จ กำลังเปิด Dashboard...";
+            if (_apiClient.HasDefaultPassword)
+            {
+                StatusText.Foreground = System.Windows.Media.Brushes.Green;
+                StatusText.Text = "เชื่อมต่อสำเร็จ กรุณาเปลี่ยน password ก่อนใช้งาน...";
 
-            var dashboard = new DashboardWindow(_apiClient);
-            dashboard.Show();
-            Close();
+                var forceChangeWindow = new ForceChangePasswordWindow(_apiClient);
+                forceChangeWindow.Show();
+                Close();
+            }
+            else
+            {
+                StatusText.Foreground = System.Windows.Media.Brushes.Green;
+                StatusText.Text = "เชื่อมต่อสำเร็จ กำลังเปิด Dashboard...";
+
+                var dashboard = new DashboardWindow(_apiClient);
+                dashboard.Show();
+                Close();
+            }
         }
         else
         {

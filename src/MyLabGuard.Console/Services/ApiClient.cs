@@ -17,6 +17,12 @@ public class ApiClient
     public string? BaseUrl { get; private set; }
     public bool IsLoggedIn => !string.IsNullOrEmpty(_token);
 
+    /// <summary>true = admin ที่ login อยู่ตอนนี้ยังไม่เคยเปลี่ยน password จาก default</summary>
+    public bool HasDefaultPassword { get; private set; }
+
+    /// <summary>Id ของ admin ที่ login อยู่ตอนนี้ (ใช้เรียก change-password)</summary>
+    public int AdminId { get; private set; }
+
     public ApiClient()
     {
         _httpClient = new HttpClient
@@ -53,6 +59,9 @@ public class ApiClient
             }
 
             _token = result.Token;
+            HasDefaultPassword = result.HasDefaultPassword;
+            AdminId = result.AdminId;
+
             _httpClient.DefaultRequestHeaders.Remove("X-Auth-Token");
             _httpClient.DefaultRequestHeaders.Add("X-Auth-Token", _token);
 
@@ -65,6 +74,47 @@ public class ApiClient
         catch (TaskCanceledException)
         {
             return (false, "หมดเวลาเชื่อมต่อ (timeout) - เช็ค IP:Port อีกครั้ง");
+        }
+    }
+
+    /// <summary>เปลี่ยน password ของ admin ที่ login อยู่ตอนนี้ (ใช้ตอนบังคับเปลี่ยนจาก default หรือเปลี่ยนเองทีหลัง)</summary>
+    public async Task<(bool Success, string Message)> ChangePasswordAsync(string newPassword)
+    {
+        try
+        {
+            var response = await _httpClient.PostAsJsonAsync(
+                $"/api/admin/users/{AdminId}/change-password",
+                new { newPassword });
+
+            if (!response.IsSuccessStatusCode)
+            {
+                string errorMessage = $"เปลี่ยน password ไม่สำเร็จ: {response.StatusCode}";
+                try
+                {
+                    var error = await response.Content.ReadFromJsonAsync<ErrorResponse>();
+                    if (!string.IsNullOrEmpty(error?.Error))
+                    {
+                        errorMessage = error.Error;
+                    }
+                }
+                catch
+                {
+                    // response ไม่ใช่ JSON (เช่น dev exception page เป็น HTML) - ใช้ default message ข้างบนแทน ไม่ throw ต่อ
+                }
+                return (false, errorMessage);
+            }
+
+            // เปลี่ยนสำเร็จแล้ว - อัพเดต flag ในตัวเองด้วย จะได้ไม่ติด 403 ซ้ำใน request ถัดไป
+            HasDefaultPassword = false;
+            return (true, "เปลี่ยน password สำเร็จ");
+        }
+        catch (HttpRequestException ex)
+        {
+            return (false, $"ต่อ server ไม่ได้: {ex.Message}");
+        }
+        catch (TaskCanceledException)
+        {
+            return (false, "หมดเวลาเชื่อมต่อ (timeout)");
         }
     }
 
@@ -115,4 +165,10 @@ public class ApiClient
         var result = await _httpClient.GetFromJsonAsync<List<LogEntryDto>>($"/api/logs?take={take}");
         return result ?? new List<LogEntryDto>();
     }
+}
+
+/// <summary>โครงสร้าง error response ทั่วไปที่ server คืนมา เช่น { "error": "..." }</summary>
+public class ErrorResponse
+{
+    public string? Error { get; set; }
 }

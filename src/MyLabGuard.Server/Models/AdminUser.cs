@@ -16,6 +16,12 @@ public class AdminUser
     /// <summary>salt แบบสุ่มเฉพาะ user คนนี้ ผสมก่อน hash กัน rainbow table</summary>
     public string PasswordSalt { get; set; } = string.Empty;
 
+    /// <summary>true = built-in account ("Administrator") ลบไม่ได้ ป้องกัน lockout</summary>
+    public bool IsBuiltIn { get; set; } = false;
+
+    /// <summary>true = ยังไม่เคยเปลี่ยน password จาก default (ว่างเปล่า) - ต้องบังคับเปลี่ยนก่อนใช้งานอื่น</summary>
+    public bool HasDefaultPassword { get; set; } = false;
+
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime? LastLoginAt { get; set; }
 }
