@@ -443,3 +443,81 @@ password) แทนที่จะต้อง hardcode หรือยิง AP
   environment ทั้งหมด (VS Code, Git, ตอนนี้รวม Inno Setup) อยู่บน external drive เผื่อเปลี่ยนเครื่อง
 - Inno Setup Portable **ไม่มี Thai.isl bundle มาด้วย** - ถ้าต้องการ UI ภาษาไทยจริงๆ ต้องดาวน์โหลด
   language file แยกมาวางเองที่ `Languages\` ของตัว portable app (ยังไม่ได้ทำ - ตอนนี้ใช้ English ทั้งหมด)
+
+  ---
+
+# Update Log (2026-07-16, ต่อจาก Update Log ก่อนหน้า — ตั้งชื่อแบรนด์ใหม่)
+
+## แบรนด์ใหม่: Onion ProcOparetor
+
+ตัดสินใจแล้ว (2026-07-16): โปรแกรมนี้จะใช้ชื่อแบรนด์ **"Onion ProcOparetor"** แทนที่ "MyLabGuard" ในทุก
+เอกสาร/UI ที่ user เห็น โดยมีที่มาของชื่อ (เก็บไว้เป็นบันทึกสนุกๆ): **"Onion" = Oh No, It's Observing Now**
+
+### Mapping ชื่อแบรนด์ ↔ ชื่อโค้ดปัจจุบัน
+
+| ส่วนประกอบ | ชื่อแบรนด์ | ชื่อโค้ด (`.csproj`/namespace ปัจจุบัน) |
+|---|---|---|
+| Server (Windows Service + API + DB) | **Onion Core Service (OCS)** | `MyLabGuard.Server` |
+| Admin GUI | **Onion Console** | `MyLabGuard.Console` |
+| Client Service + ClientTray รวมกัน | **Onion Agent** | `MyLabGuard.Client` + `MyLabGuard.ClientTray` |
+
+- ชื่อ repo บน GitHub **ยังคงเป็น** `Student-Happyness-Slayer` ตามเดิม (ไม่เปลี่ยน)
+- Tagline หน้า About ของโปรแกรม: **"Peeling processes since 2026."**
+
+### สถานะการเปลี่ยนชื่อ
+
+- ✅ `README.md` อัพเดตแล้ว ใช้ชื่อแบรนด์ใหม่ในเอกสารทั้งหมด
+- ⏳ **โค้ดจริงยังไม่ได้เปลี่ยนชื่อเลย** — namespace, ชื่อ Windows Service (`MyLabGuardServer`,
+  `MyLabGuardClient`), ชื่อไฟล์ `.exe`, ชื่อ `.csproj` ทั้งหมดยังเป็น `MyLabGuard.*` เหมือนเดิมทุก
+  ตัวอักษร
+
+## ⚠️ TODO ลำดับสูงสุด (เพิ่มใหม่): Full Rename เป็น Onion ProcOparetor
+
+**นี่คืองานที่ต้องทำก่อนงานอื่นในลิสต์ TODO ทั้งหมด** เพราะยิ่งปล่อยไว้นานเท่าไหร่ โค้ดยิ่งงอกเพิ่มด้วย
+ชื่อเก่า ยิ่งทำทีหลังยิ่งเปลี่ยนยากและเสี่ยงพลาดมากขึ้น
+
+### ขอบเขตงานที่ต้องทำ (คร่าวๆ ยังไม่ได้ลงมือ)
+
+1. **ชื่อโปรเจกต์ (.csproj + โฟลเดอร์)**:
+   - `MyLabGuard.Server` → `OnionProcOparetor.Server` (หรือชื่อที่ยืนยันตอนลงมือจริง)
+   - `MyLabGuard.Console` → `OnionProcOparetor.Console`
+   - `MyLabGuard.Client` → `OnionProcOparetor.Agent` (รวม service ส่วน)
+   - `MyLabGuard.ClientTray` → `OnionProcOparetor.AgentTray` (หรือรวมเป็นโปรเจกต์เดียวกับ Agent - ต้อง
+     ตัดสินใจตอนลงมือจริงว่าจะรวมหรือแยก)
+   - `MyLabGuard.Shared` → `OnionProcOparetor.Shared`
+2. **Namespace ทุกไฟล์** — ต้องเปลี่ยนตาม .csproj (ผลกระทบวงกว้างที่สุด กระทบทุกไฟล์ `.cs` ในทุก
+   โปรเจกต์)
+3. **ชื่อ Windows Service**:
+   - `MyLabGuardServer` → ชื่อใหม่ (ต้องคิดชื่อที่ตรงกับ "Onion Core Service" เช่น `OnionCoreService`)
+   - `MyLabGuardClient` → ชื่อใหม่ (เช่น `OnionAgent`)
+   - **ระวัง**: ถ้าเปลี่ยนชื่อ service ต้องอัพเดต `installer/MyLabGuard.iss` (`sc.exe create` เรียกชื่อ
+     service, `[UninstallRun]` เรียกชื่อเดียวกัน) ด้วย ไม่งั้น uninstall เครื่องเก่าที่ลงด้วยชื่อเก่าจะ
+     หา service ใหม่ไม่เจอ (ต้องคิดเรื่อง backward compatibility ถ้ามีเครื่องที่ลงไปแล้วด้วยชื่อเก่า)
+4. **ชื่อไฟล์ .exe หลัง publish** — จะเปลี่ยนตามชื่อ .csproj อัตโนมัติ (`OnionProcOparetor.Server.exe`
+   แทน `MyLabGuard.Server.exe` เป็นต้น) กระทบทุกจุดที่ hardcode ชื่อไฟล์ไว้ เช่น
+   `installer/MyLabGuard.iss` (`Filename:` ทุกจุด), `RegistryStartup.cs` (ไม่กระทบเพราะใช้
+   `Environment.ProcessPath` ไม่ hardcode อยู่แล้ว)
+5. **UI ที่ user เห็นโดยตรง**:
+   - Title ของทุก Window (`MainWindow.xaml`, `DashboardWindow.xaml`, `LoginWindow.xaml`, ฯลฯ) ที่เขียน
+     "MyLabGuard" ไว้ตรงๆ
+   - Tray icon tooltip ("MyLabGuard - กำลังทำงาน")
+   - เพิ่มหน้า **About** ใหม่ (ยังไม่มีอยู่เลยตอนนี้) ใส่ tagline "Peeling processes since 2026."
+6. **Database path** — `%ProgramData%\MyLabGuard\mylabguard.db` เปลี่ยนเป็น
+   `%ProgramData%\OnionProcOparetor\...` หรือชื่อใหม่ - **ต้องคิดเรื่อง migration ของ data เดิมด้วย** ถ้า
+   มีเครื่องที่มีข้อมูลอยู่แล้วก่อนเปลี่ยนชื่อ
+7. **Registry key ของ ClientIdentity + RegistryStartup**:
+   - `ClientIdentity.cs`: `HKLM\SOFTWARE\MyLabGuard\ClientGuid` → ต้องคิดว่าจะเปลี่ยน path หรือคง
+     ไว้เพื่อไม่ให้ ClientGuid ของเครื่องเดิมหายไป (**สำคัญมาก** - ถ้าเปลี่ยน path เครื่องเก่าจะได้
+     GUID ใหม่ กลายเป็น register ซ้ำที่ server ทั้งที่จริงเป็นเครื่องเดิม)
+   - `RegistryStartup.cs`: ค่า `ValueName = "MyLabGuardClientTray"` ต้องเปลี่ยนตาม
+
+### คำแนะนำสำหรับตอนลงมือจริง (ยังไม่ได้ทำ แค่เตือนไว้ล่วงหน้า)
+
+- ควรทำเป็น**เซสชันแยกต่างหาก** ไม่ปนกับ feature work อื่น เพราะเป็นการเปลี่ยนแปลงวงกว้างที่กระทบ
+  แทบทุกไฟล์ ถ้าทำปนกับงานอื่นจะ debug ยากมากว่าอะไรพังเพราะ rename หรือเพราะ feature ใหม่
+- แนะนำใช้ฟีเจอร์ rename ของ IDE (Visual Studio/Rider "Rename Symbol") แทนการ find-replace ข้อความ
+  ตรงๆ เพื่อกัน rename ผิดจุด (เช่น string literal ที่ไม่ควรเปลี่ยนแต่ดันมีคำว่า "MyLabGuard" ปนอยู่)
+- ต้องทดสอบทุก flow ใหม่ทั้งหมดหลัง rename (setup, login, rule matching, installer ทั้ง 3 โหมด) เพราะ
+  ความเสี่ยง regression สูงมากจากการเปลี่ยนชื่อวงกว้างขนาดนี้
+- ตัดสินใจเรื่อง Registry key ของ `ClientGuid` (ข้อ 7 ด้านบน) **ก่อน** เริ่มลงมือ เพราะถ้าตัดสินใจผิด
+  จะทำให้ client ที่มีอยู่แล้วสูญเสีย identity เดิมไป กลายเป็น register ซ้ำที่ server

@@ -144,6 +144,9 @@ Source: "..\publish\Console\*"; DestDir: "{app}\Console"; Flags: ignoreversion r
 Source: "..\publish\Client\*"; DestDir: "{app}\Client"; Flags: ignoreversion recursesubdirs createallsubdirs; Check: ShouldInstallClient
 Source: "..\publish\ClientTray\*"; DestDir: "{app}\ClientTray"; Flags: ignoreversion recursesubdirs createallsubdirs; Check: ShouldInstallClient
 
+; ---- Helper script (Mode A เท่านั้น) - เรียก /api/auth/setup ให้อัตโนมัติหลัง Server start ----
+Source: "run-setup.ps1"; DestDir: "{app}"; Flags: ignoreversion; Check: ShouldInstallServer
+
 [Icons]
 ; ---- Shortcut ของ Console (Mode A หรือ B) ----
 Name: "{group}\MyLabGuard Console"; Filename: "{app}\Console\MyLabGuard.Console.exe"; Check: ShouldInstallConsole
@@ -158,6 +161,13 @@ Name: "{group}\MyLabGuard Tray"; Filename: "{app}\ClientTray\MyLabGuard.ClientTr
 ; ---- Mode A: install Server เป็น Windows Service หลัง copy ไฟล์เสร็จ ----
 Filename: "sc.exe"; Parameters: "create MyLabGuardServer binPath= ""{app}\Server\MyLabGuard.Server.exe"" start= auto"; Flags: runhidden; Check: ShouldInstallServer
 Filename: "sc.exe"; Parameters: "start MyLabGuardServer"; Flags: runhidden; Check: ShouldInstallServer
+
+; ---- Mode A: เรียก /api/auth/setup ให้อัตโนมัติหลัง Server start เสร็จ ----
+; สำคัญ: ต้องรอ service พร้อมรับ request ก่อน ใช้ retry loop สั้นๆ ผ่าน PowerShell แทนยิงครั้งเดียว
+; เพราะ sc.exe start คืนค่าทันทีที่สั่ง start ไม่ได้รอจน server เปิด port รับ connection จริง
+; แยกเป็นไฟล์ run-setup.ps1 ต่างหาก (ดู [Files] ด้านล่าง) แทนที่จะ inline ใน Parameters ตรงนี้
+; เพราะ inline PowerShell ยาวๆ เสี่ยงเรื่อง escape อักขระพิเศษกับ Inno Setup syntax สูงมาก
+Filename: "powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\run-setup.ps1"""; Flags: runhidden; Check: ShouldInstallServer
 
 ; ---- Mode C: install Client เป็น Windows Service หลัง copy ไฟล์เสร็จ ----
 Filename: "sc.exe"; Parameters: "create MyLabGuardClient binPath= ""{app}\Client\MyLabGuard.Client.exe"" start= auto"; Flags: runhidden; Check: ShouldInstallClient
