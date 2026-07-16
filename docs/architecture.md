@@ -267,3 +267,66 @@ folder เอง — เป็น TODO)
 - Server รันปกติไม่ต้อง admin
 - ทดสอบ local API ต้องรอ poll รอบแรกเสร็จก่อน (`~1-2 วิ` หลัง start) ไม่งั้นจะได้ค่า default
   ว่างๆ กลับมา ไม่ใช่บั๊ก
+
+  ---
+
+# Update Log (2026-07-16, ต่อจาก Current Implementation Status ด้านบน)
+
+## สิ่งที่ทำเสร็จเพิ่มเติมหลังจากบันทึกด้านบน
+
+### Rule Delete/Toggle (เสร็จแล้ว)
+- Server: เพิ่ม `DELETE /api/rules/{id}` และ `POST /api/rules/{id}/toggle` (ต้อง token
+  ทั้งคู่) — build ผ่านแล้ว
+- Console: เพิ่มปุ่ม TOGGLE/DELETE ในตาราง Rules tab, ผูกกับ `ApiClient.DeleteRuleAsync()`
+  และ `ToggleRuleAsync()` — มี confirm dialog ก่อนลบ — build ผ่านแล้ว
+- **ยังไม่ได้ทดสอบใช้งานจริงหลัง build** (ติดปัญหา DB readonly ก่อนจะทดสอบ)
+
+### Incident: Rule กว้างเกินไป kill VS Code
+- Rule "Kill Notepad" ตั้ง publisher = "Microsoft Corporation" (ไม่ narrow พอ) ทำให้ไป kill
+  VS Code ด้วย เพราะ VS Code ก็ signed โดย Microsoft Corporation เหมือนกัน
+- แก้เฉพาะหน้า: ลบ Client Service ทิ้งไปก่อน (ยังไม่ได้ install ใหม่ ณ จุดนี้)
+- **ยังไม่ได้แก้ root cause** (ต้องเพิ่มการ match แบบ narrow กว่านี้ เช่น path/filename
+  ประกอบ — ยังเป็น TODO อยู่)
+
+### DB Permission Issue
+- หลัง build เสร็จแล้วรัน Server เจอ `SQLite Error 8: attempt to write a readonly
+  database` ที่ `C:\ProgramData\MyLabGuard\mylabguard.db`
+- สาเหตุคาดว่า: ไฟล์ DB ถูกสร้าง/แก้ตอนที่ Client Service (รันเป็น SYSTEM) ยังทำงานอยู่
+  ทำให้ ACL ของไฟล์เปลี่ยนเป็นของ SYSTEM/Admin จนกลาย user ปกติเขียนไม่ได้
+- **แก้ไขแล้วโดยลบ DB ทิ้งทั้งก้อน** (`Remove-Item mylabguard.db -Force`) — ข้อมูลเดิม
+  (rules, admin, logs) หายหมด ต้อง setup admin ใหม่
+- **TODO ในอนาคต**: ถ้าเจอปัญหานี้อีก ให้เช็ค `icacls` ของโฟลเดอร์
+  `C:\ProgramData\MyLabGuard` ก่อนลบทิ้ง อาจจะแก้ permission แทนได้โดยไม่ต้องเสียข้อมูล
+
+## กำลังทำอยู่ตอนนี้: User Management System
+
+**เหตุผล**: อยากให้ Console GUI จัดการ admin account ได้เอง (สร้าง/ลบ/list/เปลี่ยน
+password) แทนที่จะต้อง hardcode หรือยิง API เองตอน setup
+
+**การตัดสินใจที่ fix แล้ว**:
+1. มี built-in account ชื่อ `"Administrator"` เสมอ — **ลบไม่ได้** (ป้องกัน lockout)
+2. Setup ครั้งแรก **ไม่ถาม username/password จาก request แล้ว** — สร้าง
+   `"Administrator"` ให้อัตโนมัติพร้อม **password ว่างเปล่า** (empty string)
+3. Login ด้วย password ว่างต้องผ่านได้ (ต้องเช็ค validation logic ที่มีอยู่ไม่บล็อกก่อน)
+4. Response ตอน login ต้องมี field `hasDefaultPassword: true/false` เพื่อให้ Console
+   บังคับเปลี่ยน password ก่อนเข้าหน้า Dashboard ปกติ (ป้องกันความเสี่ยงจาก password ว่าง
+   ที่ไม่ได้เปลี่ยน)
+5. ต้องทำ Console GUI **เต็มรูปแบบ** (ไม่ใช่แค่กันลบ account สุดท้าย) — list users, สร้าง
+   user ใหม่, ลบ user (ยกเว้น built-in), เปลี่ยน password
+
+**ความคืบหน้าจริงในโค้ด ณ จุดนี้**:
+- ✅ แก้ `Models/AdminUser.cs` แล้ว — เพิ่ม `IsBuiltIn` (bool, default false) และ
+  `HasDefaultPassword` (bool, default false)
+- ⏳ ยังไม่ได้แก้: `AppDbContext.cs` (อาจต้อง seed ข้อมูลหรือปรับ index), setup endpoint,
+  login endpoint (เพิ่ม field response), endpoints ใหม่สำหรับ user management
+  (`GET/POST/DELETE /api/admin/users`, `POST /api/admin/users/{id}/change-password`),
+  Console GUI ทั้งหมด (tab ใหม่ "Users", หน้าบังคับเปลี่ยน password ตอน login ครั้งแรก)
+
+**สิ่งที่ต้องระวังตอนทำต่อ**:
+- ทุกครั้งที่แก้ Model ต้องลบ DB ทิ้งอีกครั้ง (`EnsureCreated()` ไม่ auto-migrate) — คราวนี้
+  DB เพิ่งถูกลบไปสดๆ ร้อนๆ เลยยังไม่มีข้อมูลอะไรให้เสียดาย เป็นจังหวะดีที่จะแก้ schema รอบนี้
+  ให้ครบก่อนสร้างข้อมูลใหม่
+- Password ว่างเปล่าต้องเช็คว่า `PasswordHasher.HashPassword("", salt)` ทำงานได้ปกติไม่
+  throw exception (ยังไม่ได้ทดสอบ)
+- Client Service ที่ถูกลบไปตอน incident ก่อนหน้า **ยังไม่ได้ install กลับ** ต้องรอ rule
+  narrow-matching fix เสร็จก่อนค่อย install ใหม่ (กันเหตุการณ์ kill โปรแกรมผิดซ้ำ)

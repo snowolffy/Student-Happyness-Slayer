@@ -98,6 +98,18 @@ public class ApiClient
         return response.IsSuccessStatusCode;
     }
 
+    public async Task<bool> DeleteRuleAsync(int ruleId)
+    {
+        var response = await _httpClient.DeleteAsync($"/api/rules/{ruleId}");
+        return response.IsSuccessStatusCode;
+    }
+
+    public async Task<bool> ToggleRuleAsync(int ruleId)
+    {
+        var response = await _httpClient.PostAsync($"/api/rules/{ruleId}/toggle", null);
+        return response.IsSuccessStatusCode;
+    }
+
     public async Task<List<LogEntryDto>> GetLogsAsync(int take = 100)
     {
         var result = await _httpClient.GetFromJsonAsync<List<LogEntryDto>>($"/api/logs?take={take}");

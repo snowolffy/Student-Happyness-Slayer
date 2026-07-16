@@ -132,7 +132,19 @@
                                 <DataGridTextColumn Header="PUBLISHER" Binding="{Binding PublisherName}" Width="200"/>
                                 <DataGridTextColumn Header="SIGNED ONLY" Binding="{Binding RequireSignedMatch}" Width="100"/>
                                 <DataGridTextColumn Header="KILL" Binding="{Binding KillProcess}" Width="60"/>
-                                <DataGridTextColumn Header="ACTION COMMAND" Binding="{Binding ActionCommand}" Width="200"/>
+                                <DataGridTextColumn Header="ACTION COMMAND" Binding="{Binding ActionCommand}" Width="180"/>
+                                <DataGridTemplateColumn Header="ACTIONS" Width="140">
+                                    <DataGridTemplateColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <StackPanel Orientation="Horizontal">
+                                                <Button Content="TOGGLE" Style="{StaticResource SmallActionButton}"
+                                                        Click="ToggleRuleButton_Click" Tag="{Binding Id}" Margin="0,0,4,0"/>
+                                                <Button Content="DELETE" Style="{StaticResource SmallActionButton}"
+                                                        Click="DeleteRuleButton_Click" Tag="{Binding Id}"/>
+                                            </StackPanel>
+                                        </DataTemplate>
+                                    </DataGridTemplateColumn.CellTemplate>
+                                </DataGridTemplateColumn>
                             </DataGrid.Columns>
                         </DataGrid>
                     </Grid>

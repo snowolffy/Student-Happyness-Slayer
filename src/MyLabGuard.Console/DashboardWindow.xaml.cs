@@ -59,6 +59,38 @@ public partial class DashboardWindow : Window
             StatusText.Text = success ? "Toggle client สำเร็จ" : "Toggle client ไม่สำเร็จ";
             await LoadAllDataAsync();
         }
+        
+    }
+
+    private async void ToggleRuleButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button { Tag: int ruleId })
+        {
+            var success = await _apiClient.ToggleRuleAsync(ruleId);
+            StatusText.Text = success ? "Toggle กฎสำเร็จ" : "Toggle กฎไม่สำเร็จ";
+            await LoadAllDataAsync();
+        }
+    }
+
+    private async void DeleteRuleButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button { Tag: int ruleId })
+        {
+            var confirm = System.Windows.MessageBox.Show(
+                "ยืนยันการลบกฎนี้? การกระทำนี้ย้อนกลับไม่ได้",
+                "ยืนยันการลบ",
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Warning);
+
+            if (confirm != MessageBoxResult.Yes)
+            {
+                return;
+            }
+
+            var success = await _apiClient.DeleteRuleAsync(ruleId);
+            StatusText.Text = success ? "ลบกฎสำเร็จ" : "ลบกฎไม่สำเร็จ";
+            await LoadAllDataAsync();
+        }
     }
 
     private async void AddRuleButton_Click(object sender, RoutedEventArgs e)
