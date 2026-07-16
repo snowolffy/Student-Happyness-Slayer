@@ -45,9 +45,11 @@ public class AppDbContext : DbContext
             .HasIndex(l => new { l.ClientGuid, l.Timestamp });
 
         // Seed ค่าเริ่มต้นของ GlobalState ให้มี row เดียวเสมอ (Id = 1, เปิดใช้งานเป็นค่าเริ่มต้น)
+        // สำคัญ: ต้องใช้ค่า DateTime แบบ fixed/static เท่านั้น ห้ามใช้ DateTime.UtcNow หรือ
+        // Guid.NewGuid() ใน HasData() เด็ดขาด เพราะ EF Core จะมองว่า model "ไม่นิ่ง" (เปลี่ยน
+        // ค่าทุกครั้งที่ build/รัน) แล้ว throw PendingModelChangesWarning ตอน Migrate() ทำงาน
         modelBuilder.Entity<GlobalState>().HasData(
-            new GlobalState { Id = 1, IsEnabled = true, Note = "Default state", UpdatedAt = DateTime.UtcNow }
-            
+            new GlobalState { Id = 1, IsEnabled = true, Note = "Default state", UpdatedAt = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc) }
         );
         
     }

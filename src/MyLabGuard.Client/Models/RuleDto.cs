@@ -8,6 +8,10 @@ public class RuleDto
     public int Id { get; set; }
     public string Name { get; set; } = string.Empty;
     public string PublisherName { get; set; } = string.Empty;
+
+    /// <summary>[OPTIONAL] narrow เพิ่มจาก publisher - ถ้ามีค่า ต้อง contains ในชื่อไฟล์ (case-insensitive) ด้วยถึงจะ match</summary>
+    public string? ProcessNameContains { get; set; }
+
     public bool RequireSignedMatch { get; set; }
     public bool KillProcess { get; set; }
     public string? ActionCommand { get; set; }

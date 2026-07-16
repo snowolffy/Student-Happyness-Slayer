@@ -95,13 +95,15 @@
 
                         <Border Grid.Row="0" Style="{StaticResource Card}" Background="{StaticResource InputBgBrush}" Padding="12">
                             <StackPanel Orientation="Horizontal">
-                                <TextBox x:Name="NewRuleNameBox" Width="130" Margin="0,0,8,0"
+                                <TextBox x:Name="NewRuleNameBox" Width="110" Margin="0,0,8,0"
                                          ToolTip="ชื่อกฎ" Tag="Rule name"/>
-                                <TextBox x:Name="NewRulePublisherBox" Width="180" Margin="0,0,8,0"
+                                <TextBox x:Name="NewRulePublisherBox" Width="160" Margin="0,0,8,0"
                                          ToolTip="ชื่อ Publisher เช่น Valve Corporation"/>
+                                <TextBox x:Name="NewRuleProcessNameContainsBox" Width="130" Margin="0,0,8,0"
+                                         ToolTip="[OPTIONAL] narrow เพิ่มจากชื่อไฟล์ เช่น 'notepad' - เว้นว่างได้ถ้าไม่รู้ชื่อไฟล์ล่วงหน้า"/>
                                 <CheckBox x:Name="NewRuleKillCheckBox" Content="Kill Process"
                                           VerticalAlignment="Center" Margin="0,0,8,0" Foreground="{StaticResource TextPrimaryBrush}"/>
-                                <TextBox x:Name="NewRuleActionBox" Width="180" Margin="0,0,8,0"
+                                <TextBox x:Name="NewRuleActionBox" Width="150" Margin="0,0,8,0"
                                          ToolTip="path คำสั่ง/สคริปต์ (ไม่บังคับ)"/>
                                 <Button Content="ADD RULE" Style="{StaticResource PrimaryButton}"
                                         Click="AddRuleButton_Click"/>
@@ -128,11 +130,12 @@
                                         </DataTemplate>
                                     </DataGridTemplateColumn.CellTemplate>
                                 </DataGridTemplateColumn>
-                                <DataGridTextColumn Header="NAME" Binding="{Binding Name}" Width="150"/>
-                                <DataGridTextColumn Header="PUBLISHER" Binding="{Binding PublisherName}" Width="200"/>
-                                <DataGridTextColumn Header="SIGNED ONLY" Binding="{Binding RequireSignedMatch}" Width="100"/>
-                                <DataGridTextColumn Header="KILL" Binding="{Binding KillProcess}" Width="60"/>
-                                <DataGridTextColumn Header="ACTION COMMAND" Binding="{Binding ActionCommand}" Width="180"/>
+                                <DataGridTextColumn Header="NAME" Binding="{Binding Name}" Width="130"/>
+                                <DataGridTextColumn Header="PUBLISHER" Binding="{Binding PublisherName}" Width="170"/>
+                                <DataGridTextColumn Header="NAME CONTAINS" Binding="{Binding ProcessNameContains}" Width="110"/>
+                                <DataGridTextColumn Header="SIGNED ONLY" Binding="{Binding RequireSignedMatch}" Width="90"/>
+                                <DataGridTextColumn Header="KILL" Binding="{Binding KillProcess}" Width="50"/>
+                                <DataGridTextColumn Header="ACTION COMMAND" Binding="{Binding ActionCommand}" Width="150"/>
                                 <DataGridTemplateColumn Header="ACTIONS" Width="140">
                                     <DataGridTemplateColumn.CellTemplate>
                                         <DataTemplate>
@@ -180,6 +183,61 @@
                             <DataGridTextColumn Header="ACTION TAKEN" Binding="{Binding ActionTaken}" Width="150"/>
                         </DataGrid.Columns>
                     </DataGrid>
+                </TabItem>
+
+                <!-- ========== Users tab ========== -->
+                <TabItem Header="USERS">
+                    <Grid Margin="0,12,0,0">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="12"/>
+                            <RowDefinition Height="*"/>
+                        </Grid.RowDefinitions>
+
+                        <Border Grid.Row="0" Style="{StaticResource Card}" Background="{StaticResource InputBgBrush}" Padding="12">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBox x:Name="NewUserUsernameBox" Width="160" Margin="0,0,8,0"
+                                         ToolTip="Username"/>
+                                <PasswordBox x:Name="NewUserPasswordBox" Width="160" Margin="0,0,8,0"
+                                             ToolTip="Password (อย่างน้อย 8 ตัวอักษร)"/>
+                                <Button Content="ADD USER" Style="{StaticResource PrimaryButton}"
+                                        Click="AddUserButton_Click"/>
+                            </StackPanel>
+                        </Border>
+
+                        <DataGrid Grid.Row="2" x:Name="UsersGrid" AutoGenerateColumns="False" IsReadOnly="True">
+                            <DataGrid.Columns>
+                                <DataGridTextColumn Header="USERNAME" Binding="{Binding Username}" Width="150"/>
+                                <DataGridTextColumn Header="BUILT-IN" Binding="{Binding IsBuiltIn}" Width="80"/>
+                                <DataGridTextColumn Header="DEFAULT PASSWORD" Binding="{Binding HasDefaultPassword}" Width="130"/>
+                                <DataGridTextColumn Header="CREATED (UTC)" Binding="{Binding CreatedAt}" Width="160"/>
+                                <DataGridTextColumn Header="LAST LOGIN (UTC)" Binding="{Binding LastLoginAt}" Width="160"/>
+                                <DataGridTemplateColumn Header="ACTIONS" Width="100">
+                                    <DataGridTemplateColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <!--
+                                                ปุ่ม DELETE: disable ถ้าเป็น built-in account (กัน lockout)
+                                                ใช้ DataTrigger เทียบ IsBuiltIn แทนการเขียน converter class ใหม่
+                                            -->
+                                            <Button Content="DELETE" Tag="{Binding Id}"
+                                                    Click="DeleteUserButton_Click">
+                                                <Button.Style>
+                                                    <Style TargetType="Button" BasedOn="{StaticResource SmallActionButton}">
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding IsBuiltIn}" Value="True">
+                                                                <Setter Property="IsEnabled" Value="False"/>
+                                                                <Setter Property="ToolTip" Value="ลบ built-in account ไม่ได้"/>
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </Button.Style>
+                                            </Button>
+                                        </DataTemplate>
+                                    </DataGridTemplateColumn.CellTemplate>
+                                </DataGridTemplateColumn>
+                            </DataGrid.Columns>
+                        </DataGrid>
+                    </Grid>
                 </TabItem>
 
             </TabControl>

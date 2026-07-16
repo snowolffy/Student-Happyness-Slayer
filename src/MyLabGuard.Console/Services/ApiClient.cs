@@ -165,6 +165,74 @@ public class ApiClient
         var result = await _httpClient.GetFromJsonAsync<List<LogEntryDto>>($"/api/logs?take={take}");
         return result ?? new List<LogEntryDto>();
     }
+
+    public async Task<List<UserDto>> GetUsersAsync()
+    {
+        var result = await _httpClient.GetFromJsonAsync<List<UserDto>>("/api/admin/users");
+        return result ?? new List<UserDto>();
+    }
+
+    public async Task<(bool Success, string Message)> CreateUserAsync(string username, string password)
+    {
+        try
+        {
+            var response = await _httpClient.PostAsJsonAsync("/api/admin/users", new { username, password });
+            if (response.IsSuccessStatusCode)
+            {
+                return (true, "สร้าง user สำเร็จ");
+            }
+
+            string errorMessage = $"สร้าง user ไม่สำเร็จ: {response.StatusCode}";
+            try
+            {
+                var error = await response.Content.ReadFromJsonAsync<ErrorResponse>();
+                if (!string.IsNullOrEmpty(error?.Error))
+                {
+                    errorMessage = error.Error;
+                }
+            }
+            catch
+            {
+                // response ไม่ใช่ JSON - ใช้ default message
+            }
+            return (false, errorMessage);
+        }
+        catch (Exception ex)
+        {
+            return (false, $"เกิดข้อผิดพลาด: {ex.Message}");
+        }
+    }
+
+    public async Task<(bool Success, string Message)> DeleteUserAsync(int userId)
+    {
+        try
+        {
+            var response = await _httpClient.DeleteAsync($"/api/admin/users/{userId}");
+            if (response.IsSuccessStatusCode)
+            {
+                return (true, "ลบ user สำเร็จ");
+            }
+
+            string errorMessage = $"ลบ user ไม่สำเร็จ: {response.StatusCode}";
+            try
+            {
+                var error = await response.Content.ReadFromJsonAsync<ErrorResponse>();
+                if (!string.IsNullOrEmpty(error?.Error))
+                {
+                    errorMessage = error.Error;
+                }
+            }
+            catch
+            {
+                // response ไม่ใช่ JSON - ใช้ default message
+            }
+            return (false, errorMessage);
+        }
+        catch (Exception ex)
+        {
+            return (false, $"เกิดข้อผิดพลาด: {ex.Message}");
+        }
+    }
 }
 
 /// <summary>โครงสร้าง error response ทั่วไปที่ server คืนมา เช่น { "error": "..." }</summary>

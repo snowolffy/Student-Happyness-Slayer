@@ -14,8 +14,18 @@ public class Rule
     /// <summary>
     /// ชื่อ publisher ที่ต้องการจับคู่ (เช่น "Valve Corporation")
     /// รองรับ exact match ก่อน จะเพิ่ม wildcard ทีหลังได้
+    /// เป็นเงื่อนไข "บังคับ" เสมอ - ทุก match ต้องผ่านตัวนี้ก่อน
     /// </summary>
     public string PublisherName { get; set; } = string.Empty;
+
+    /// <summary>
+    /// [OPTIONAL] ตัวกรองเสริมเพื่อ narrow การ match ให้แคบลงกว่าแค่ publisher เฉยๆ
+    /// เช็คแบบ "contains" (case-insensitive) กับชื่อไฟล์ .exe เช่น "notepad" จะ match ทั้ง "notepad.exe", "notepad2.exe"
+    /// ถ้าเว้นว่างไว้ (null/empty) จะ fallback เป็น publisher-only เหมือนเดิมทุกอย่าง (backward compatible)
+    /// ประโยชน์: กันพลาดกรณี publisher เดียวกันมีหลายโปรแกรม (เช่น Microsoft Corporation เซ็นทั้ง Notepad และ VS Code)
+    /// โดยไม่ต้องรู้ชื่อไฟล์แบบเป๊ะๆ ล่วงหน้า (ยังคง fuzzy พอสมควรผ่าน "contains" ไม่ใช่ exact match)
+    /// </summary>
+    public string? ProcessNameContains { get; set; }
 
     /// <summary>
     /// true = ต้อง match จาก digital signature เท่านั้นถึงจะนับ

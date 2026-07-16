@@ -31,11 +31,14 @@ builder.Host.UseWindowsService();
 
 var app = builder.Build();
 
-// ---- สร้าง/migrate DB อัตโนมัติตอน start (สะดวกสำหรับ dev, ทีหลังอาจเปลี่ยนเป็น migration แบบเต็ม) ----
+// ---- สร้าง/migrate DB อัตโนมัติตอน start ----
+// เปลี่ยนจาก EnsureCreated() เป็น Migrate() แล้ว - ตอนนี้แก้ Model ใหม่ (เพิ่ม field)
+// ไม่ต้องลบ mylabguard.db ทิ้งอีกแล้ว แค่รัน `dotnet ef migrations add <ชื่อ>` แล้ว
+// Migrate() จะ apply ให้อัตโนมัติตอน start ครั้งถัดไป โดยข้อมูลเดิมยังอยู่ครบ
 using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-    db.Database.EnsureCreated();
+    db.Database.Migrate();
 }
 
 // ---- API Endpoints ----

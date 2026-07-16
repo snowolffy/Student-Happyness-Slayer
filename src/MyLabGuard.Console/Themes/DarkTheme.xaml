@@ -68,6 +68,36 @@
         <Setter Property="FontSize" Value="13"/>
     </Style>
 
+    <!--
+        ==================== ToolTip ====================
+        WPF ไม่ inherit theme ให้ ToolTip อัตโนมัติ (default เป็นพื้นขาว-ตัวหนังสือดำเสมอ)
+        ถ้าไม่ตั้ง Style ตรงนี้ ToolTip ของทุก control ในแอปจะเป็นสีขาวโดดไม่เข้ากับ dark theme
+        และในบางกรณี (ToolTip ยาว) จะไปบังพื้นหลังช่อง input จนดูเหมือนสีกลืนกัน
+    -->
+    <Style TargetType="ToolTip">
+        <Setter Property="Background" Value="{StaticResource CardBrush}"/>
+        <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
+        <Setter Property="BorderBrush" Value="{StaticResource CardBorderBrush}"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="Padding" Value="8,6"/>
+        <Setter Property="FontSize" Value="12"/>
+        <Setter Property="HasDropShadow" Value="True"/>
+        <Setter Property="MaxWidth" Value="280"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ToolTip">
+                    <Border Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}"
+                            CornerRadius="4">
+                        <ContentPresenter Margin="{TemplateBinding Padding}"
+                                          TextElement.Foreground="{TemplateBinding Foreground}"/>
+                    </Border>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
     <!-- ==================== Buttons ==================== -->
     <Style x:Key="PrimaryButton" TargetType="Button">
         <Setter Property="Background" Value="{StaticResource AccentBlueBrush}"/>

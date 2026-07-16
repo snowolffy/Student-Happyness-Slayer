@@ -13,6 +13,10 @@ public partial class App : Application
     {
         base.OnStartup(e);
 
+        // ตั้งค่า auto-start ผ่าน Registry Run key (HKCU) ให้อัตโนมัติทุกครั้งที่ Tray เริ่มทำงาน
+        // ทำงานแบบ idempotent - เรียกซ้ำได้ไม่มีผลข้างเคียง ถ้าตั้งไว้แล้วและ path ไม่เปลี่ยนจะไม่เขียนซ้ำ
+        RegistryStartup.EnsureAutoStartEnabled();
+
         try
         {
         _trayIcon = new TaskbarIcon

@@ -14,6 +14,18 @@ public class Worker : BackgroundService
     private readonly string _clientGuid;
     private readonly string _machineName;
 
+    // ทุกกี่วินาทีที่จะ scan process ที่รันอยู่ทั้งหมด (แยกอิสระจาก PollIntervalSeconds)
+    // เหตุผล: WMI __InstanceCreationEvent จับได้แค่ process ที่เพิ่ง "สร้างใหม่" เท่านั้น
+    // ถ้า process เปิดค้างอยู่ก่อนแล้ว (ก่อน service เริ่ม หรือก่อน rule ถูกเพิ่ม/เปิดใช้งาน)
+    // จะไม่โดนตรวจจับเลย ต้องมี periodic full-scan มาเสริมด้วย
+    private const int ProcessScanIntervalSeconds = 10;
+
+    // เก็บ (PID, StartTime) ที่เคย action (kill/log) ไปแล้วในรอบ scan ล่าสุด กัน action ซ้ำรัวๆ ทุก 10 วิ
+    // ใช้คู่ (PID, StartTime) แทน PID เดี่ยวๆ เพราะ Windows recycle เลข PID ได้หลัง process เดิมตายไป
+    // ถ้าใช้แค่ PID เดี่ยวๆ จะเสี่ยงเข้าใจผิดว่า process ใหม่ที่ดันได้ PID ซ้ำกับตัวเก่า "เคย action แล้ว"
+    // ทั้งที่จริงเป็นคนละ process กันเลย ทำให้ข้ามไปเฉยๆ ไม่ action ซ้ำ (เงียบและตรวจจับยากมาก)
+    private readonly HashSet<(int Pid, DateTime StartTime)> _alreadyActionedProcesses = new();
+
     // เก็บ rules + enabled state ล่าสุดที่ poll มาได้ ใช้เป็น cache
     // สำคัญมาก: ถ้า server ติดต่อไม่ได้ Worker จะใช้ค่านี้ต่อไป (fail-secure)
     private PollResponse _lastKnownState = new() { Enabled = true, Rules = new() };
@@ -38,8 +50,12 @@ public class Worker : BackgroundService
         _logger.LogInformation("MyLabGuard.Client เริ่มทำงาน - ClientGuid: {Guid}, Machine: {Machine}",
             _clientGuid, _machineName);
 
-        // เริ่ม WMI watcher แยก thread ต่างหาก (มันทำงานแบบ event-driven ของตัวเอง)
+        // เริ่ม WMI watcher แยก thread ต่างหาก (มันทำงานแบบ event-driven ของตัวเอง) - จับ process ใหม่
         StartProcessWatcher();
+
+        // เริ่ม periodic full-scan แยก thread ต่างหากด้วย - จับ process ที่รันอยู่ก่อนแล้ว
+        // ทำงานคู่ขนานไปกับ poll loop หลักด้านล่าง ไม่ผูกกับ poll interval
+        _ = RunPeriodicProcessScanAsync(stoppingToken);
 
         // Loop หลัก: poll server เป็นระยะๆ เพื่ออัพเดต rules + enabled state
         while (!stoppingToken.IsCancellationRequested)
@@ -66,6 +82,116 @@ public class Worker : BackgroundService
 
         _processWatcher?.Stop();
         _processWatcher?.Dispose();
+    }
+
+    /// <summary>
+    /// Loop แยกต่างหาก สแกน process ที่รันอยู่ทั้งหมดทุก ProcessScanIntervalSeconds วินาที
+    /// จับกรณีที่ WMI event พลาดไป (process เปิดค้างอยู่ก่อน service เริ่ม, หรือก่อน rule ถูกเพิ่ม/เปิดใช้งาน)
+    /// </summary>
+    private async Task RunPeriodicProcessScanAsync(CancellationToken stoppingToken)
+    {
+        while (!stoppingToken.IsCancellationRequested)
+        {
+            try
+            {
+                await ScanRunningProcessesAsync();
+            }
+            catch (Exception ex)
+            {
+                // กัน exception จาก scan loop ทำให้ loop นี้ตายไปเฉยๆ (ไม่กระทบ poll loop หลัก)
+                _logger.LogWarning(ex, "เกิดข้อผิดพลาดระหว่าง periodic process scan");
+            }
+
+            try
+            {
+                await Task.Delay(TimeSpan.FromSeconds(ProcessScanIntervalSeconds), stoppingToken);
+            }
+            catch (OperationCanceledException)
+            {
+                break;
+            }
+        }
+    }
+
+    private async Task ScanRunningProcessesAsync()
+    {
+        // ถ้า enforcement ปิดอยู่ (global หรือ per-machine) ไม่ต้อง scan เลย
+        if (!_lastKnownState.Enabled)
+        {
+            return;
+        }
+
+        var currentProcesses = Process.GetProcesses();
+        var currentProcessKeys = new HashSet<(int Pid, DateTime StartTime)>();
+
+        try
+        {
+            foreach (var process in currentProcesses)
+            {
+                try
+                {
+                    DateTime startTime;
+                    try
+                    {
+                        // StartTime อ่านไม่ได้เหมือนกันสำหรับบาง system process (สิทธิ์ไม่พอ)
+                        startTime = process.StartTime;
+                    }
+                    catch
+                    {
+                        continue; // อ่านไม่ได้ ข้ามไปเลย
+                    }
+
+                    var processKey = (process.Id, startTime);
+                    currentProcessKeys.Add(processKey);
+
+                    // ข้าม (PID, StartTime) ที่เคย action ไปแล้วในรอบก่อนหน้า (กัน kill/log ซ้ำรัวๆ
+                    // ทุก 10 วิ ถ้า process นั้นยังไม่ตายจริง เช่น kill ไม่สำเร็จเพราะ access denied)
+                    if (_alreadyActionedProcesses.Contains(processKey))
+                    {
+                        continue;
+                    }
+
+                    string? executablePath;
+                    try
+                    {
+                        // อ่าน MainModule.FileName อาจ throw Win32Exception ได้ถ้าเป็น system
+                        // process ที่สิทธิ์ไม่พอ (แม้รันเป็น Administrator ก็ยังมีบาง process
+                        // ที่อ่านไม่ได้ เช่น process ของ user คนอื่น หรือ protected process)
+                        executablePath = process.MainModule?.FileName;
+                    }
+                    catch
+                    {
+                        continue; // อ่านไม่ได้ ข้ามไปเลย ไม่ถือเป็น error ร้ายแรง
+                    }
+
+                    if (string.IsNullOrWhiteSpace(executablePath) || !File.Exists(executablePath))
+                    {
+                        continue;
+                    }
+
+                    var actioned = await CheckAndActOnProcess(executablePath, process.Id);
+                    if (actioned)
+                    {
+                        _alreadyActionedProcesses.Add(processKey);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    // กัน exception จาก process ตัวใดตัวหนึ่งทำให้ scan รอบนี้หยุดกลางคัน
+                    _logger.LogWarning(ex, "เกิดข้อผิดพลาดระหว่างตรวจสอบ process ระหว่าง periodic scan");
+                }
+            }
+        }
+        finally
+        {
+            foreach (var process in currentProcesses)
+            {
+                process.Dispose();
+            }
+        }
+
+        // เคลียร์ (PID, StartTime) ที่ตายไปแล้วออกจาก cache (ไม่งั้น HashSet จะโตขึ้นเรื่อยๆ ไม่มีที่สิ้นสุด)
+        _alreadyActionedProcesses.RemoveWhere(key => !currentProcessKeys.Contains(key));
     }
 
     private void StartProcessWatcher()
@@ -108,7 +234,20 @@ public class Worker : BackgroundService
                 return;
             }
 
-            await CheckAndActOnProcess(executablePath, (int)processId);
+            var actioned = await CheckAndActOnProcess(executablePath, (int)processId);
+            if (actioned)
+            {
+                try
+                {
+                    using var proc = Process.GetProcessById((int)processId);
+                    _alreadyActionedProcesses.Add(((int)processId, proc.StartTime));
+                }
+                catch
+                {
+                    // process อาจตายไปแล้วก่อนที่จะอ่าน StartTime ทัน (เช่นโดน kill ไปแล้วเร็วมาก)
+                    // ไม่ต้องเก็บ cache ไว้ก็ได้ เพราะ process ตายไปแล้วจริง ไม่มีอะไรให้ scan ซ้ำ
+                }
+            }
         }
         catch (Exception ex)
         {
@@ -117,13 +256,17 @@ public class Worker : BackgroundService
         }
     }
 
-    private async Task CheckAndActOnProcess(string executablePath, int processId)
+    /// <summary>
+    /// เช็ค process ตัวนี้กับทุก rule ที่เปิดใช้งานอยู่ คืน true ถ้ามี rule match และ action ไปแล้ว
+    /// (ใช้บอก caller ว่าควรเก็บ PID นี้ไว้ใน _alreadyActionedPids กันประมวลผลซ้ำ)
+    /// </summary>
+    private async Task<bool> CheckAndActOnProcess(string executablePath, int processId)
     {
         var result = PublisherChecker.Check(executablePath);
 
         if (!result.HasPublisher)
         {
-            return; // หา publisher ไม่เจอเลย ไม่มีอะไรให้เทียบ
+            return false; // หา publisher ไม่เจอเลย ไม่มีอะไรให้เทียบ
         }
 
         // เทียบกับทุก rule ที่เปิดใช้งานอยู่
@@ -139,6 +282,23 @@ public class Worker : BackgroundService
                 continue;
             }
 
+            // [OPTIONAL NARROWING] ถ้ากฎกำหนด ProcessNameContains ไว้ ต้องเช็คว่าชื่อไฟล์มีคำนี้อยู่ด้วย
+            // (case-insensitive contains) ถ้าเว้นว่างไว้ ข้ามการเช็คนี้ไปเลย = publisher-only เหมือนเดิม
+            // ประโยชน์: กัน publisher เดียวกันแต่คนละโปรแกรม (เช่น Microsoft Corporation เซ็นทั้ง Notepad และ VS Code)
+            if (!string.IsNullOrWhiteSpace(rule.ProcessNameContains))
+            {
+                var fileName = Path.GetFileName(executablePath);
+                var containsMatch = fileName.Contains(rule.ProcessNameContains, StringComparison.OrdinalIgnoreCase);
+
+                if (!containsMatch)
+                {
+                    _logger.LogInformation(
+                        "พบ publisher '{Publisher}' ตรงกับกฎ '{Rule}' แต่ชื่อไฟล์ '{FileName}' ไม่มีคำว่า '{Filter}' - ข้ามเพราะกฎกำหนด ProcessNameContains",
+                        result.PublisherName, rule.Name, fileName, rule.ProcessNameContains);
+                    continue;
+                }
+            }
+
             // ถ้ากฎกำหนดว่าต้อง signed เท่านั้น แต่ match นี้มาจาก metadata อย่างเดียว ให้ข้าม
             if (rule.RequireSignedMatch && !result.IsSignedMatch)
             {
@@ -150,8 +310,10 @@ public class Worker : BackgroundService
 
             // match! รัน action ตามที่กำหนด
             await ExecuteRuleAction(executablePath, processId, result, rule);
-            return; // match กฎแรกที่เจอแล้วหยุด ไม่ต้องเช็คกฎถัดไป
+            return true; // match กฎแรกที่เจอแล้วหยุด ไม่ต้องเช็คกฎถัดไป
         }
+
+        return false;
     }
 
     private async Task ExecuteRuleAction(string executablePath, int processId, PublisherCheckResult result, RuleDto rule)

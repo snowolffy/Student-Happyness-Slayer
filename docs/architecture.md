@@ -330,3 +330,116 @@ password) แทนที่จะต้อง hardcode หรือยิง AP
   throw exception (ยังไม่ได้ทดสอบ)
 - Client Service ที่ถูกลบไปตอน incident ก่อนหน้า **ยังไม่ได้ install กลับ** ต้องรอ rule
   narrow-matching fix เสร็จก่อนค่อย install ใหม่ (กันเหตุการณ์ kill โปรแกรมผิดซ้ำ)
+
+
+  ---
+
+# Update Log (2026-07-16, ต่อจาก Update Log ก่อนหน้า — User Management System เสร็จสมบูรณ์ + งานเพิ่มเติม)
+
+## สรุปสถานะหลังจบเซสชันนี้
+
+ทำ 6 เรื่องหลักเสร็จเรียบร้อย เรียงตามลำดับที่ทำ:
+
+### 1. User Management System (เสร็จสมบูรณ์)
+- Server: `/api/auth/setup` สร้าง built-in `"Administrator"` อัตโนมัติ (password ว่างเปล่า, `IsBuiltIn=true`,
+  `HasDefaultPassword=true`) แทนการรับ username/password จาก request
+- `/api/auth/login` เพิ่ม field `hasDefaultPassword` และ `adminId` ใน response
+- `GetAuthorizedAdmin` (คืน `AdminUser?`) แทนที่ `IsAuthorized` (bool) เดิม — ทุก endpoint ที่ต้อง auth
+  เช็ค 2 ชั้น: token valid + `HasDefaultPassword` ต้องเป็น false (ยกเว้น endpoint change-password เอง)
+- Endpoints ใหม่: `GET/POST /api/admin/users`, `DELETE /api/admin/users/{id}`,
+  `POST /api/admin/users/{id}/change-password`
+- Console: `ForceChangePasswordWindow` บังคับเปลี่ยน password ก่อนเข้า Dashboard ถ้า `HasDefaultPassword=true`,
+  tab **USERS** ใหม่ (list/create/delete, built-in account ลบไม่ได้ - ปุ่ม DELETE disable อัตโนมัติ)
+- **บั๊กที่เจอระหว่างทำ**: `Results.Forbid()` throw exception เพราะไม่มี `AddAuthentication()` ใน
+  DI container (เราไม่ได้ใช้ ASP.NET Authentication scheme จริง เช็ค token เองผ่าน header) แก้เป็น
+  `Results.Json(..., statusCode: 403)` แทน
+
+### 2. Rule Narrowing - ProcessNameContains (เสร็จสมบูรณ์)
+- เพิ่ม field `ProcessNameContains` (nullable string) ใน `Rule.cs`/`RuleDto.cs` ทั้ง 3 โปรเจกต์
+- Optional filter: ถ้ากรอกไว้ ต้อง publisher ตรง **และ** ชื่อไฟล์ contains คำนี้ (case-insensitive) ถึงจะ
+  match ถ้าเว้นว่างไว้ fallback เป็น publisher-only เหมือนเดิม (backward compatible)
+- แก้ปัญหาจริงที่เคย kill VS Code ผิดพลาดเพราะ publisher เดียวกับ Notepad (`Microsoft Corporation`)
+- Console: เพิ่มช่องกรอกในฟอร์ม rule + คอลัมน์ในตาราง RULES
+
+### 3. Periodic Process Scan (เสร็จสมบูรณ์)
+- **ปัญหาเดิม**: WMI `__InstanceCreationEvent` จับได้แค่ process ที่เพิ่ง "สร้างใหม่" เท่านั้น process ที่
+  เปิดค้างอยู่ก่อน service เริ่ม หรือก่อน rule ถูกเพิ่ม/เปิดใช้งาน จะไม่โดนตรวจจับเลย
+- เพิ่ม loop ใหม่ `RunPeriodicProcessScanAsync` ทำงานคู่ขนานกับ poll loop เดิม สแกน
+  `Process.GetProcesses()` ทั้งหมดทุก **10 วิ** (`ProcessScanIntervalSeconds`, แยกอิสระจาก
+  `PollIntervalSeconds`)
+- **บั๊กที่เจอระหว่างทำ**: ใช้ PID เดี่ยวๆ เก็บ cache "เคย action แล้ว" ตอนแรก มีความเสี่ยง PID-reuse
+  (Windows recycle เลข PID ได้หลัง process เดิมตายไป) แก้เป็นเก็บคู่ `(PID, StartTime)` แทน
+- `CheckAndActOnProcess` เปลี่ยน return type เป็น `bool` (บอกว่า action ไปหรือยัง) ใช้ร่วมกันทั้ง
+  WMI event handler และ periodic scan
+
+### 4. DB Migration (เสร็จสมบูรณ์ - สำคัญมาก)
+- เปลี่ยนจาก `db.Database.EnsureCreated()` เป็น `db.Database.Migrate()` ใน `Program.cs`
+- เพิ่ม `Microsoft.EntityFrameworkCore.Tools` package + ติดตั้ง `dotnet-ef` CLI tool (global)
+- **บั๊กที่เจอระหว่างทำ**: seed data ของ `GlobalState` ใช้ `DateTime.UtcNow` (non-deterministic) ทำให้
+  เจอ `PendingModelChangesWarning` ตอน `Migrate()` ทำงาน (EF มองว่า model "ไม่นิ่ง" เปลี่ยนค่าทุกครั้งที่
+  build) แก้เป็นใช้ค่า `DateTime` แบบ fixed/static (`new DateTime(2026, 1, 1, ...)`) แทน
+- **ผลลัพธ์สำคัญที่สุด**: ตั้งแต่นี้ไป **แก้ Model (เพิ่ม field ใหม่) ไม่ต้องลบ `mylabguard.db` ทิ้งอีกแล้ว**
+  แค่รัน `dotnet ef migrations add <ชื่อ>` แล้ว restart server ข้อมูลเดิมยังอยู่ครบ (ต่างจากที่ผ่านมาที่
+  ต้องลบ DB ทิ้งทุกรอบที่แก้ schema)
+
+### 5. Auto-start Tray ตอน user login (เสร็จสมบูรณ์ในเชิงโค้ด - รอทดสอบหลัง publish)
+- เพิ่ม `RegistryStartup.cs` (ClientTray/Services/) จัดการ Registry Run key ที่
+  `HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\Run\MyLabGuardClientTray`
+- ใช้ `Environment.ProcessPath` ดึง path ของ .exe ที่กำลังรันอยู่จริง **ห้าม hardcode path** เพราะต่างกัน
+  ระหว่างเครื่อง dev กับเครื่องที่ install จริง
+- ทำงานแบบ idempotent (เรียกซ้ำได้ไม่มีผลเสีย) เรียกจาก `App.xaml.cs` ตอน `OnStartup`
+- มี `DisableAutoStart()` เตรียมไว้เผื่อใช้ตอน uninstall (installer เรียกใช้แล้ว - ดูข้อ 6)
+- **ข้อควรระวัง**: ทดสอบผ่าน `dotnet run` (dev mode) จะไม่เห็นผลถูกต้อง เพราะ `Environment.ProcessPath`
+  จะได้ path เป็น `dotnet.exe` ไม่ใช่ตัว .exe จริง **ต้องทดสอบหลัง publish เป็น standalone .exe เท่านั้น**
+
+### 6. Installer รวม 3-mode ด้วย Inno Setup (compile ผ่านแล้ว - รอทดสอบรันจริง)
+- ใช้ Inno Setup Portable (จาก portableapps.com) เพราะ dev environment ทั้งหมดอยู่บน external drive
+- ไฟล์ `installer/MyLabGuard.iss` - custom wizard page ให้เลือกโหมด (radio button):
+  - Mode A: Server + Console (install `MyLabGuardServer` service)
+  - Mode B: Console only (แค่ copy ไฟล์ + shortcut)
+  - Mode C: Client Agent (install `MyLabGuardClient` service + ClientTray)
+- `[Files]`/`[Icons]`/`[Run]` ทุกตัวผูกกับ `Check:` parameter อ้างอิง `SelectedMode` จากหน้า wizard
+- Uninstall: ถาม `MsgBox` ว่าจะลบข้อมูล (DB, logs ที่ `%ProgramData%\MyLabGuard\`) ด้วยหรือเก็บไว้
+  เลือก Yes จะลบทั้งโฟลเดอร์ data + ลบ Registry Run key ของ Tray ด้วย (`RegDeleteValue`)
+- **บั๊กที่เจอระหว่าง compile**:
+  1. `ArchitecturesInstallIn64BitMode=x64compatible` ไม่รู้จักใน Inno Setup 6.2.0 (syntax ใหม่กว่า)
+     แก้เป็น `x64` เฉยๆ
+  2. `Thai.isl` ไม่ได้ bundle มากับเวอร์ชัน Portable ทำให้ compile fail ตอน include language file
+     แก้โดยตัด `[Languages]` เหลือแค่ English (ข้อความในหน้า wizard ที่เขียนเองใน `[Code]` เปลี่ยนเป็น
+     อังกฤษด้วย เพราะภาษาไทยเจอปัญหา encoding เพี้ยนตอนแสดงผลใน custom wizard page)
+- **Publish command ที่ใช้** (ต้องรันก่อน compile installer ทุกครั้งที่มีการเปลี่ยนแปลงโค้ด):
+  ```powershell
+  dotnet publish src/MyLabGuard.Server -c Release -r win-x64 --self-contained false -o publish/Server
+  dotnet publish src/MyLabGuard.Console -c Release -r win-x64 --self-contained false -o publish/Console
+  dotnet publish src/MyLabGuard.Client -c Release -r win-x64 --self-contained false -o publish/Client
+  dotnet publish src/MyLabGuard.ClientTray -c Release -r win-x64 --self-contained false -o publish/ClientTray
+  ```
+  **สำคัญ**: ใช้ `--self-contained false` แปลว่าเครื่องปลายทางต้องมี .NET 10 Runtime ติดตั้งไว้ก่อน ถ้า
+  service ไม่ start (แม้ install สำเร็จ) ให้เช็คจุดนี้ก่อนเป็นอันดับแรก
+
+## Known Issues / TODO ที่ยังไม่ได้ทำ (อัพเดตลำดับความสำคัญ)
+
+1. **ทดสอบ installer จริง** - ยังไม่เคย install/uninstall จริงสักครั้ง ต้องทดสอบทั้ง 3 โหมดแยกกัน
+   ก่อนเอาไปใช้กับเครื่องนักเรียน 40 เครื่องจริง (แนะนำเริ่มจาก Mode B ก่อน เสี่ยงน้อยสุด)
+2. **Console: offline indicator** - ยังไม่แสดงว่า client ไหน offline อยู่ (เทียบ `lastSeenAt`)
+3. **Icon ของแอปเอง** - ทั้ง Console และ ClientTray ยังใช้ default icon
+4. **Catalog signing support** - พักไว้ตามการตัดสินใจร่วมกัน เพราะ P/Invoke เสี่ยงสูง (พึ่ง
+   `CryptQueryObject`/`CryptMsgGetParam`/`CertFindCertificateInStore` ที่ยังไม่เคย compile/ทดสอบจริง)
+   ปัญหาที่ยังค้าง: ไฟล์ system ของ Windows (เช่น `notepad.exe`) ใช้ Catalog Signing ไม่ใช่ embedded
+   signature ทำให้ `X509Certificate.CreateFromSignedFile()` หา cert ไม่เจอ (แม้ `WinVerifyTrust` จะ
+   verify ผ่าน) ทำให้ rule ที่ require signed match ใช้กับไฟล์ระบบไม่ได้ในบางกรณี
+5. **Debug log ค้างใน Worker.cs** - มี log ขึ้นต้น `[DEBUG]` 3 จุดใน `ScanRunningProcessesAsync` (จากตอน
+   debug ปัญหา rule ไม่ match ที่แท้จริงคือพิมพ์ publisher name ผิด ไม่ใช่บั๊ก) ยังไม่ได้เอาออก ไม่มีผลเสีย
+   แค่ log จะยาวขึ้น
+6. **ClientGuid รอดจาก RRRx restore จริงไหม** - ยังไม่เคยทดสอบบนสภาพแวดล้อมจริงที่มี RRRx
+7. **Auto-start Tray** - เขียนโค้ดเสร็จแล้วแต่ยังไม่เคยทดสอบหลัง publish จริง (ดูข้อควรระวังด้านบน)
+8. **Client Service ต้อง install ใหม่** - ยังค้างจาก incident ก่อนหน้า (rule กว้างเกินไป) ตอนนี้ปัญหาแก้
+   แล้วทั้งคู่ (ProcessNameContains + publisher พิมพ์ผิด) แต่ต้องยืนยันว่า install ผ่าน installer ใหม่
+   หรือยังใช้ script เดิม (`install-client-service.ps1`) อยู่
+
+## Dev Environment Notes (อัพเดต)
+
+- Inno Setup ใช้เวอร์ชัน **Portable** จาก portableapps.com (ไม่ใช่ installer แบบเต็ม) เพราะ dev
+  environment ทั้งหมด (VS Code, Git, ตอนนี้รวม Inno Setup) อยู่บน external drive เผื่อเปลี่ยนเครื่อง
+- Inno Setup Portable **ไม่มี Thai.isl bundle มาด้วย** - ถ้าต้องการ UI ภาษาไทยจริงๆ ต้องดาวน์โหลด
+  language file แยกมาวางเองที่ `Languages\` ของตัว portable app (ยังไม่ได้ทำ - ตอนนี้ใช้ English ทั้งหมด)

@@ -31,6 +31,9 @@ public partial class DashboardWindow : Window
             var logs = await _apiClient.GetLogsAsync();
             LogsGrid.ItemsSource = logs;
 
+            var users = await _apiClient.GetUsersAsync();
+            UsersGrid.ItemsSource = users;
+
             StatusText.Text = $"อัพเดตล่าสุด: {DateTime.Now:HH:mm:ss}";
         }
         catch (Exception ex)
@@ -97,6 +100,7 @@ public partial class DashboardWindow : Window
     {
         var name = NewRuleNameBox.Text.Trim();
         var publisher = NewRulePublisherBox.Text.Trim();
+        var processNameContains = NewRuleProcessNameContainsBox.Text.Trim();
         var actionCommand = NewRuleActionBox.Text.Trim();
         var killProcess = NewRuleKillCheckBox.IsChecked ?? false;
 
@@ -110,6 +114,7 @@ public partial class DashboardWindow : Window
         {
             Name = name,
             PublisherName = publisher,
+            ProcessNameContains = string.IsNullOrEmpty(processNameContains) ? null : processNameContains,
             RequireSignedMatch = true,
             KillProcess = killProcess,
             ActionCommand = string.IsNullOrEmpty(actionCommand) ? null : actionCommand,
@@ -123,10 +128,61 @@ public partial class DashboardWindow : Window
         {
             NewRuleNameBox.Clear();
             NewRulePublisherBox.Clear();
+            NewRuleProcessNameContainsBox.Clear();
             NewRuleActionBox.Clear();
             NewRuleKillCheckBox.IsChecked = false;
         }
 
         await LoadAllDataAsync();
+    }
+
+    private async void AddUserButton_Click(object sender, RoutedEventArgs e)
+    {
+        var username = NewUserUsernameBox.Text.Trim();
+        var password = NewUserPasswordBox.Password;
+
+        if (string.IsNullOrEmpty(username) || string.IsNullOrEmpty(password))
+        {
+            StatusText.Text = "กรุณากรอก Username และ Password";
+            return;
+        }
+
+        if (password.Length < 8)
+        {
+            StatusText.Text = "Password ต้องมีความยาวอย่างน้อย 8 ตัวอักษร";
+            return;
+        }
+
+        var (success, message) = await _apiClient.CreateUserAsync(username, password);
+        StatusText.Text = message;
+
+        if (success)
+        {
+            NewUserUsernameBox.Clear();
+            NewUserPasswordBox.Clear();
+        }
+
+        await LoadAllDataAsync();
+    }
+
+    private async void DeleteUserButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button { Tag: int userId })
+        {
+            var confirm = System.Windows.MessageBox.Show(
+                "ยืนยันการลบ user นี้? การกระทำนี้ย้อนกลับไม่ได้",
+                "ยืนยันการลบ",
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Warning);
+
+            if (confirm != MessageBoxResult.Yes)
+            {
+                return;
+            }
+
+            var (success, message) = await _apiClient.DeleteUserAsync(userId);
+            StatusText.Text = message;
+            await LoadAllDataAsync();
+        }
     }
 }
