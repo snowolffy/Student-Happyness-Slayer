@@ -28,6 +28,25 @@ var
   RadioModeA, RadioModeB, RadioModeC: TRadioButton;
   SelectedMode: Integer;
 
+function IsDotNet10Installed: Boolean;
+var
+  DotNetInstallPath: String;
+begin
+  Result := False;
+
+  if FileExists(ExpandConstant('{sys}\dotnet.exe')) then
+    Result := True
+  else if RegQueryStringValue(HKEY_LOCAL_MACHINE, 'SOFTWARE\dotnet\Setup\InstalledVersions\x64\dotnet', 'InstallLocation', DotNetInstallPath) then
+    Result := True
+  else if RegQueryStringValue(HKEY_LOCAL_MACHINE, 'SOFTWARE\dotnet\Setup\InstalledVersions\x86\dotnet', 'InstallLocation', DotNetInstallPath) then
+    Result := True;
+end;
+
+function InitializeSetup: Boolean;
+begin
+  Result := True;
+end;
+
 procedure InitializeWizard;
 begin
   ModePage := CreateCustomPage(wpSelectDir, 'Select Installation Mode',
@@ -114,10 +133,10 @@ begin
 end;
 
 [Files]
-Source: "..\publish\Server\*"; DestDir: "{app}\Server"; Flags: ignoreversion recursesubdirs createallsubdirs; Check: ShouldInstallServer
-Source: "..\publish\Console\*"; DestDir: "{app}\Console"; Flags: ignoreversion recursesubdirs createallsubdirs; Check: ShouldInstallConsole
-Source: "..\publish\Client\*"; DestDir: "{app}\Client"; Flags: ignoreversion recursesubdirs createallsubdirs; Check: ShouldInstallClient
-Source: "..\publish\ClientTray\*"; DestDir: "{app}\ClientTray"; Flags: ignoreversion recursesubdirs createallsubdirs; Check: ShouldInstallClient
+Source: "..\publish\OnionProcOparetor.Server\*"; DestDir: "{app}\Server"; Flags: ignoreversion recursesubdirs createallsubdirs; Check: ShouldInstallServer
+Source: "..\publish\OnionProcOparetor.Console\*"; DestDir: "{app}\Console"; Flags: ignoreversion recursesubdirs createallsubdirs; Check: ShouldInstallConsole
+Source: "..\publish\OnionProcOparetor.Agent\*"; DestDir: "{app}\Client"; Flags: ignoreversion recursesubdirs createallsubdirs; Check: ShouldInstallClient
+Source: "..\publish\OnionProcOparetor.AgentTray\*"; DestDir: "{app}\ClientTray"; Flags: ignoreversion recursesubdirs createallsubdirs; Check: ShouldInstallClient
 Source: "run-setup.ps1"; DestDir: "{app}"; Flags: ignoreversion; Check: ShouldInstallServer
 
 [Icons]

@@ -458,6 +458,7 @@ password) แทนที่จะต้อง hardcode หรือยิง AP
 
 # Update Log (2026-07-16, ต่อจาก Update Log ก่อนหน้า — ตั้งชื่อแบรนด์ใหม่)
 
+
 ## แบรนด์ใหม่: Onion ProcOparetor
 
 ตัดสินใจแล้ว (2026-07-16): โปรแกรมนี้จะใช้ชื่อแบรนด์ **"Onion ProcOparetor"** แทนที่ "MyLabGuard" ในทุก
@@ -477,49 +478,14 @@ password) แทนที่จะต้อง hardcode หรือยิง AP
 ### สถานะการเปลี่ยนชื่อ
 
 - ✅ `README.md` อัพเดตแล้ว ใช้ชื่อแบรนด์ใหม่ในเอกสารทั้งหมด
-- ⏳ **โค้ดจริงยังไม่ได้เปลี่ยนชื่อเลย** — namespace, ชื่อ Windows Service (`MyLabGuardServer`,
-  `MyLabGuardClient`), ชื่อไฟล์ `.exe`, ชื่อ `.csproj` ทั้งหมดยังเป็น `MyLabGuard.*` เหมือนเดิมทุก
-  ตัวอักษร
+- ✅ **โค้ดจริง rename เสร็จสมบูรณ์แล้ว (17 ก.ค. 2026)** — namespace, ชื่อ Windows Service
+  (`OnionCoreService`, `OnionAgent`), ชื่อไฟล์ `.exe`, ชื่อ `.csproj`/โฟลเดอร์ทั้งหมดเป็น
+  `OnionProcOparetor.*` แล้ว, registry path และ DB path ย้ายไปที่ `OnionProcOparetor` แล้ว
+- ✅ Regression test หลัง rename ผ่านแล้ว (เช็คด้วยมือ)
+- รายละเอียดขั้นตอนที่ทำตอน rename ดูย้อนหลังได้ที่ `docs/RENAME_PLAN.md` (ใช้เป็น reference
+  ประวัติ ไม่ใช่ TODO ค้างแล้ว)
 
-## ⚠️ TODO ลำดับสูงสุด (เพิ่มใหม่): Full Rename เป็น Onion ProcOparetor
-
-**นี่คืองานที่ต้องทำก่อนงานอื่นในลิสต์ TODO ทั้งหมด** เพราะยิ่งปล่อยไว้นานเท่าไหร่ โค้ดยิ่งงอกเพิ่มด้วย
-ชื่อเก่า ยิ่งทำทีหลังยิ่งเปลี่ยนยากและเสี่ยงพลาดมากขึ้น
-
-### ขอบเขตงานที่ต้องทำ (คร่าวๆ ยังไม่ได้ลงมือ)
-
-1. **ชื่อโปรเจกต์ (.csproj + โฟลเดอร์)**:
-   - `MyLabGuard.Server` → `OnionProcOparetor.Server` (หรือชื่อที่ยืนยันตอนลงมือจริง)
-   - `MyLabGuard.Console` → `OnionProcOparetor.Console`
-   - `MyLabGuard.Client` → `OnionProcOparetor.Agent` (รวม service ส่วน)
-   - `MyLabGuard.ClientTray` → `OnionProcOparetor.AgentTray` (หรือรวมเป็นโปรเจกต์เดียวกับ Agent - ต้อง
-     ตัดสินใจตอนลงมือจริงว่าจะรวมหรือแยก)
-   - `MyLabGuard.Shared` → `OnionProcOparetor.Shared`
-2. **Namespace ทุกไฟล์** — ต้องเปลี่ยนตาม .csproj (ผลกระทบวงกว้างที่สุด กระทบทุกไฟล์ `.cs` ในทุก
-   โปรเจกต์)
-3. **ชื่อ Windows Service**:
-   - `MyLabGuardServer` → ชื่อใหม่ (ต้องคิดชื่อที่ตรงกับ "Onion Core Service" เช่น `OnionCoreService`)
-   - `MyLabGuardClient` → ชื่อใหม่ (เช่น `OnionAgent`)
-   - **ระวัง**: ถ้าเปลี่ยนชื่อ service ต้องอัพเดต `installer/MyLabGuard.iss` (`sc.exe create` เรียกชื่อ
-     service, `[UninstallRun]` เรียกชื่อเดียวกัน) ด้วย ไม่งั้น uninstall เครื่องเก่าที่ลงด้วยชื่อเก่าจะ
-     หา service ใหม่ไม่เจอ (ต้องคิดเรื่อง backward compatibility ถ้ามีเครื่องที่ลงไปแล้วด้วยชื่อเก่า)
-4. **ชื่อไฟล์ .exe หลัง publish** — จะเปลี่ยนตามชื่อ .csproj อัตโนมัติ (`OnionProcOparetor.Server.exe`
-   แทน `MyLabGuard.Server.exe` เป็นต้น) กระทบทุกจุดที่ hardcode ชื่อไฟล์ไว้ เช่น
-   `installer/MyLabGuard.iss` (`Filename:` ทุกจุด), `RegistryStartup.cs` (ไม่กระทบเพราะใช้
-   `Environment.ProcessPath` ไม่ hardcode อยู่แล้ว)
-5. **UI ที่ user เห็นโดยตรง**:
-   - Title ของทุก Window (`MainWindow.xaml`, `DashboardWindow.xaml`, `LoginWindow.xaml`, ฯลฯ) ที่เขียน
-     "MyLabGuard" ไว้ตรงๆ
-   - Tray icon tooltip ("MyLabGuard - กำลังทำงาน")
-   - เพิ่มหน้า **About** ใหม่ (ยังไม่มีอยู่เลยตอนนี้) ใส่ tagline "Peeling processes since 2026."
-6. **Database path** — `%ProgramData%\MyLabGuard\mylabguard.db` เปลี่ยนเป็น
-   `%ProgramData%\OnionProcOparetor\...` หรือชื่อใหม่ - **ต้องคิดเรื่อง migration ของ data เดิมด้วย** ถ้า
-   มีเครื่องที่มีข้อมูลอยู่แล้วก่อนเปลี่ยนชื่อ
-7. **Registry key ของ ClientIdentity + RegistryStartup**:
-   - `ClientIdentity.cs`: `HKLM\SOFTWARE\MyLabGuard\ClientGuid` → ต้องคิดว่าจะเปลี่ยน path หรือคง
-     ไว้เพื่อไม่ให้ ClientGuid ของเครื่องเดิมหายไป (**สำคัญมาก** - ถ้าเปลี่ยน path เครื่องเก่าจะได้
-     GUID ใหม่ กลายเป็น register ซ้ำที่ server ทั้งที่จริงเป็นเครื่องเดิม)
-   - `RegistryStartup.cs`: ค่า `ValueName = "MyLabGuardClientTray"` ต้องเปลี่ยนตาม
+> จากนี้งานที่เหลือของโปรเจกต์จะเป็นฟีเจอร์ใหม่และการปรับแต่งจุดต่างๆ (ไม่ใช่งาน rename อีกต่อไป)
 
 ### คำแนะนำสำหรับตอนลงมือจริง (ยังไม่ได้ทำ แค่เตือนไว้ล่วงหน้า)
 
@@ -531,3 +497,46 @@ password) แทนที่จะต้อง hardcode หรือยิง AP
   ความเสี่ยง regression สูงมากจากการเปลี่ยนชื่อวงกว้างขนาดนี้
 - ตัดสินใจเรื่อง Registry key ของ `ClientGuid` (ข้อ 7 ด้านบน) **ก่อน** เริ่มลงมือ เพราะถ้าตัดสินใจผิด
   จะทำให้ client ที่มีอยู่แล้วสูญเสีย identity เดิมไป กลายเป็น register ซ้ำที่ server
+
+  ---
+
+# QoL Roadmap (บันทึกเมื่อ 2026-07-17, หลังจบงาน rename)
+
+> สถานะ: **แค่ spec/แผน ยังไม่ได้ลงมือทำ** — รอรวบรวมให้ครบทุกฟีเจอร์ก่อน แล้วค่อยออกแบบ UI
+> รวดเดียวใน xaml.io (ตัดสินใจแล้วว่าสะดวกกว่าทำทีละอัน)
+
+## Server / Console
+
+| ฟีเจอร์ | รายละเอียด |
+|---|---|
+| Remote client setting | Console แก้ config ของเครื่องใดเครื่องหนึ่งจากศูนย์กลางได้ |
+| View client setting | ดูค่า config ปัจจุบันของเครื่องนั้นๆ ได้ |
+| Rule config เพิ่มเติม | ต่อยอดจากที่มีอยู่ (Name/Publisher/KillProcess/ActionCommand/ProcessNameContains) |
+| Offline indicator | ไฟสถานะเทียบ `lastSeenAt` |
+| Search/filter | ค้นหาในตาราง Clients/Rules/Logs |
+| Bulk action | เลือกหลายแถวแบบ ctrl (เลือกเพิ่มทีละแถว) / shift (เลือกเป็นช่วง) แล้ว apply พร้อมกัน |
+| Sort ตามคอลัมน์ | คลิก header จัดเรียง asc/desc |
+| Client immediately pull | Console สั่งแล้ว client **ลด poll interval ชั่วคราวเหลือ 0.5 วิ นาน 2 วิ** แทนรอรอบปกติ (ไม่ทำ push จริงแบบ SignalR/WebSocket — ตัดสินใจแล้วว่าเกินความจำเป็น) |
+| Account config | จัดการ user/account ของ Console (ต่อยอดจาก User Management System ที่มีอยู่) |
+
+## Agent
+
+| ฟีเจอร์ | รายละเอียด |
+|---|---|
+| Client config | หน้า/ขั้นตอนตั้งค่า Server IP:Port ตอน install (Mode C) + ปุ่ม Test Connection |
+| Uninstall password-gate | ป้องกันระดับเบา — Inno Setup uninstaller ถามรหัสผ่านที่ hardcode ไว้ตอน build ก่อนถอนได้ (เป้าหมาย: กันเด็กเล่น ไม่ใช่กัน IT ตัวจริงที่ตั้งใจเลี่ยง — ไม่ต้องเช็คกับ Server, ไม่ต้อง online) |
+| Output log UI แบบ terminal | หน้าต่าง scroll log สด ต่อยอดจาก local API `/logs/recent` ที่มีอยู่แล้ว (auto-scroll/refresh ต่อเนื่อง) |
+
+## ตัดสินใจแล้วว่า "ไม่ต้องทำ" (กันย้อนคิดซ้ำ)
+
+- ไม่ต้องมี installer reminder เรื่อง update RRRx baseline หลัง config — ผู้ดูแลทำเป็น routine อยู่แล้วทุกครั้งที่ลงของใหม่
+- Config ฝั่ง Agent เก็บใน `appsettings.json` ปกติได้ ไม่ต้องย้ายไป registry ตอนนี้ — เหตุผล: workflow "update baseline หลัง install" ทำให้ค่าที่ตั้งกลายเป็นค่า default ของ baseline เอง ไม่ต้องพึ่ง registry-exclusion
+  - **ทางเลือกเปิดไว้** (ยังไม่ตัดสินใจตายตัว): ถ้าภายหลังอยากได้ความชัวร์กว่านี้โดยไม่พึ่ง discipline อย่างเดียว ค่อยพิจารณาเก็บ config เป็น JSON string ใน registry value เดียว + RRRx Registry Exclusion
+- ไม่ทำ protected process หรือการป้องกัน uninstall ระดับ IT-proof — เกินความจำเป็นของ use case (เป้าหมายแค่กันเด็กถอนเล่นๆ ไม่ใช่กัน admin ตัวจริง)
+- ไม่ทำ push-based communication (SignalR/WebSocket) — คงสถาปัตยกรรม poll-based เดิมไว้ตามที่ตัดสินใจแต่แรก (client ไม่เปิด port, ไม่ต้องกังวล NAT/firewall)
+
+## ขั้นตอนถัดไป
+
+1. รวบรวมไอเดียเพิ่มเติมให้ครบ (ยังเปิดรับ — ผู้ดูแลบอกว่า "อาจมีอย่างอื่นอีกแต่ยังนึกไม่ออก")
+2. เมื่อ spec ครบแล้ว ค่อยออกแบบ UI ทั้งหมดพร้อมกันใน xaml.io (ตัดสินใจแล้วว่าสะดวกกว่าทำทีละฟีเจอร์)
+3. เริ่ม implement ตามลำดับที่ตกลงกันตอนนั้น
