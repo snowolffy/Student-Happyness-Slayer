@@ -1,4 +1,4 @@
-# เรียก POST /api/auth/setup ให้อัตโนมัติหลัง MyLabGuardServer service start เสร็จ
+# เรียก POST /api/auth/setup ให้อัตโนมัติหลัง OnionCoreService service start เสร็จ
 # แยกเป็นไฟล์ .ps1 ต่างหาก (แทนที่จะ inline ใน Inno Setup [Run] Parameters โดยตรง)
 # เพราะ inline PowerShell ใน Inno Setup เสี่ยงเรื่อง escape อักขระพิเศษ ({ } " ') สูงมาก
 # โดยเฉพาะ nested curly braces ของ for/try/catch ที่ชนกับ syntax ของ Inno Setup constants เอง
