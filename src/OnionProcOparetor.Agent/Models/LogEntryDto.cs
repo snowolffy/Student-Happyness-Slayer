@@ -1,9 +1,10 @@
-namespace OnionProcOparetor.Console.Models;
+namespace OnionProcOparetor.Agent.Models;
 
-/// <summary>log ที่ได้จาก GET /api/logs</summary>
+/// <summary>
+/// Log ที่จะส่งกลับไปให้ Server (โครงสร้างต้องตรงกับ LogEntry ฝั่ง Server)
+/// </summary>
 public class LogEntryDto
 {
-    public int Id { get; set; }
     public string ClientGuid { get; set; } = string.Empty;
     public string MachineName { get; set; } = string.Empty;
     public string ProcessPath { get; set; } = string.Empty;
@@ -12,5 +13,4 @@ public class LogEntryDto
     public int? MatchedRuleId { get; set; }
     public string? MatchedRuleName { get; set; }
     public string ActionTaken { get; set; } = string.Empty;
-    public DateTime Timestamp { get; set; }
 }

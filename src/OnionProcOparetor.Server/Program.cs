@@ -4,36 +4,6 @@ using OnionProcOparetor.Server.Models;
 using OnionProcOparetor.Server.Services;
 using System.Security.Cryptography;
 
-static async Task<AdminUser?> GetAuthorizedAdmin(HttpRequest request, AppDbContext db)
-{
-    if (!request.Headers.TryGetValue("Authorization", out var authValues))
-    {
-        return null;
-    }
-
-    var token = authValues.ToString();
-    if (string.IsNullOrWhiteSpace(token))
-    {
-        return null;
-    }
-
-    if (token.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase))
-    {
-        token = token["Bearer ".Length..];
-    }
-
-    var authToken = await db.AuthTokens
-        .AsNoTracking()
-        .FirstOrDefaultAsync(t => t.Token == token && t.ExpiresAt > DateTime.UtcNow);
-
-    if (authToken is null)
-    {
-        return null;
-    }
-
-    return await db.AdminUsers.AsNoTracking().FirstOrDefaultAsync(u => u.Id == authToken.AdminUserId);
-}
-
 var builder = WebApplication.CreateBuilder(args);
 
 // ---- ตั้งค่า Kestrel ให้ฟัง port ตามที่กำหนดใน appsettings.json ----
@@ -74,6 +44,7 @@ app.MapGet("/", () => Results.Ok(new { service = "OnionProcOparetor.Server", sta
 
 // ---- Auth Endpoints ----
 
+// สร้าง admin คนแรก - built-in "Administrator" เสมอ, password ว่างเปล่า (ต้องบังคับเปลี่ยนหลัง login ครั้งแรก)
 app.MapPost("/api/auth/setup", async (AppDbContext db) =>
 {
     var existingAdmin = await db.AdminUsers.AnyAsync();
@@ -105,6 +76,7 @@ app.MapPost("/api/auth/setup", async (AppDbContext db) =>
     });
 });
 
+// login - ตรวจ username/password
 app.MapPost("/api/auth/login", async (LoginRequest req, AppDbContext db) =>
 {
     var admin = await db.AdminUsers.FirstOrDefaultAsync(u => u.Username == req.Username);
@@ -121,6 +93,7 @@ app.MapPost("/api/auth/login", async (LoginRequest req, AppDbContext db) =>
 
     admin.LastLoginAt = DateTime.UtcNow;
 
+    // ออก token ใหม่ อายุ 12 ชั่วโมง (พอสำหรับใช้งานหนึ่งวันเรียน)
     var tokenString = Convert.ToBase64String(RandomNumberGenerator.GetBytes(32));
     var authToken = new AuthToken
     {
@@ -143,6 +116,7 @@ app.MapPost("/api/auth/login", async (LoginRequest req, AppDbContext db) =>
     });
 });
 
+// ดึงรายชื่อ client ทั้งหมด + สถานะ
 app.MapGet("/api/clients", async (HttpRequest request, AppDbContext db) =>
 {
     var admin = await GetAuthorizedAdmin(request, db);
@@ -155,6 +129,7 @@ app.MapGet("/api/clients", async (HttpRequest request, AppDbContext db) =>
     return Results.Ok(clients);
 });
 
+// toggle เครื่องใดเครื่องหนึ่ง (per-machine)
 app.MapPost("/api/clients/{id:int}/toggle", async (int id, HttpRequest request, AppDbContext db) =>
 {
     var admin = await GetAuthorizedAdmin(request, db);
@@ -171,6 +146,7 @@ app.MapPost("/api/clients/{id:int}/toggle", async (int id, HttpRequest request, 
     return Results.Ok(client);
 });
 
+// toggle ทั้งห้อง (global)
 app.MapPost("/api/global/toggle", async (HttpRequest request, AppDbContext db) =>
 {
     var admin = await GetAuthorizedAdmin(request, db);
@@ -192,6 +168,7 @@ app.MapPost("/api/global/toggle", async (HttpRequest request, AppDbContext db) =
     return Results.Ok(state);
 });
 
+// ดึงกฎทั้งหมด
 app.MapGet("/api/rules", async (HttpRequest request, AppDbContext db) =>
 {
     var admin = await GetAuthorizedAdmin(request, db);
@@ -204,6 +181,7 @@ app.MapGet("/api/rules", async (HttpRequest request, AppDbContext db) =>
     return Results.Ok(rules);
 });
 
+// เพิ่มกฎใหม่
 app.MapPost("/api/rules", async (Rule rule, HttpRequest request, AppDbContext db) =>
 {
     var admin = await GetAuthorizedAdmin(request, db);
@@ -219,6 +197,7 @@ app.MapPost("/api/rules", async (Rule rule, HttpRequest request, AppDbContext db
     return Results.Created($"/api/rules/{rule.Id}", rule);
 });
 
+// ลบกฎทิ้ง (ใช้เมื่อกฎตั้งผิดหรือกว้างเกินไป - สำคัญมากเพื่อความปลอดภัย)
 app.MapDelete("/api/rules/{id:int}", async (int id, HttpRequest request, AppDbContext db) =>
 {
     var admin = await GetAuthorizedAdmin(request, db);
@@ -235,4 +214,233 @@ app.MapDelete("/api/rules/{id:int}", async (int id, HttpRequest request, AppDbCo
     return Results.Ok(new { message = "Rule deleted." });
 });
 
+// toggle เปิด/ปิดกฎ (ไม่ต้องลบทิ้งถาวร แค่ปิดชั่วคราวได้)
+app.MapPost("/api/rules/{id:int}/toggle", async (int id, HttpRequest request, AppDbContext db) =>
+{
+    var admin = await GetAuthorizedAdmin(request, db);
+    if (admin is null)
+        return Results.Unauthorized();
+    if (admin.HasDefaultPassword)
+        return Results.Json(new { error = "Password change required before continuing." }, statusCode: 403);
+
+    var rule = await db.Rules.FindAsync(id);
+    if (rule is null) return Results.NotFound();
+
+    rule.IsEnabled = !rule.IsEnabled;
+    rule.UpdatedAt = DateTime.UtcNow;
+    await db.SaveChangesAsync();
+    return Results.Ok(rule);
+});
+
+// client เอาไว้ poll เพื่อดึง rules + สถานะ enabled/disabled ของตัวเอง
+// (endpoint สำคัญที่สุดสำหรับฝั่ง Client Service) - ไม่ต้อง auth เพราะใช้ clientGuid ยืนยันตัวเองแทน
+app.MapGet("/api/poll/{clientGuid}", async (string clientGuid, string machineName, AppDbContext db) =>
+{
+    var client = await db.ClientMachines.FirstOrDefaultAsync(c => c.ClientGuid == clientGuid);
+
+    // ถ้ายังไม่เคยเห็นเครื่องนี้มาก่อน ให้ register อัตโนมัติ (ค่าเริ่มต้น = enabled)
+    if (client is null)
+    {
+        client = new ClientMachine
+        {
+            ClientGuid = clientGuid,
+            MachineName = machineName,
+            IsEnabled = true,
+            RegisteredAt = DateTime.UtcNow,
+            LastSeenAt = DateTime.UtcNow
+        };
+        db.ClientMachines.Add(client);
+    }
+    else
+    {
+        client.LastSeenAt = DateTime.UtcNow;
+        client.MachineName = machineName; // เผื่อเปลี่ยนชื่อเครื่อง
+    }
+
+    var globalState = await db.GlobalStates.FirstOrDefaultAsync(g => g.Id == 1);
+    var globalEnabled = globalState?.IsEnabled ?? true;
+
+    var rules = await db.Rules.Where(r => r.IsEnabled).ToListAsync();
+
+    await db.SaveChangesAsync();
+
+    return Results.Ok(new
+    {
+        // enforcement เปิดจริงๆ ก็ต่อเมื่อทั้ง global และ per-machine เปิดพร้อมกัน
+        enabled = globalEnabled && client.IsEnabled,
+        rules
+    });
+});
+
+// client push log กลับมา - ไม่ต้อง auth (ใช้ในเครือข่ายปิดของโรงเรียนเท่านั้น)
+app.MapPost("/api/logs", async (LogEntry log, AppDbContext db) =>
+{
+    log.Timestamp = DateTime.UtcNow;
+    db.LogEntries.Add(log);
+    await db.SaveChangesAsync();
+    return Results.Created($"/api/logs/{log.Id}", log);
+});
+
+// ดู log ล่าสุด (ไว้ให้ Console GUI แสดงผล)
+app.MapGet("/api/logs", async (HttpRequest request, AppDbContext db, int take = 100) =>
+{
+    var admin = await GetAuthorizedAdmin(request, db);
+    if (admin is null)
+        return Results.Unauthorized();
+    if (admin.HasDefaultPassword)
+        return Results.Json(new { error = "Password change required before continuing." }, statusCode: 403);
+
+    var logs = await db.LogEntries
+        .OrderByDescending(l => l.Timestamp)
+        .Take(take)
+        .ToListAsync();
+    return Results.Ok(logs);
+});
+
+// ---- User Management Endpoints ----
+
+// list admin users ทั้งหมด (ไม่คืน hash/salt ออกไปเด็ดขาด)
+app.MapGet("/api/admin/users", async (HttpRequest request, AppDbContext db) =>
+{
+    var admin = await GetAuthorizedAdmin(request, db);
+    if (admin is null)
+        return Results.Unauthorized();
+    if (admin.HasDefaultPassword)
+        return Results.Json(new { error = "Password change required before continuing." }, statusCode: 403);
+
+    var users = await db.AdminUsers
+        .OrderBy(u => u.Username)
+        .Select(u => new
+        {
+            u.Id,
+            u.Username,
+            u.IsBuiltIn,
+            u.HasDefaultPassword,
+            u.CreatedAt,
+            u.LastLoginAt
+        })
+        .ToListAsync();
+
+    return Results.Ok(users);
+});
+
+// สร้าง admin user ใหม่ (ไม่ใช่ built-in)
+app.MapPost("/api/admin/users", async (CreateUserRequest req, HttpRequest request, AppDbContext db) =>
+{
+    var admin = await GetAuthorizedAdmin(request, db);
+    if (admin is null)
+        return Results.Unauthorized();
+    if (admin.HasDefaultPassword)
+        return Results.Json(new { error = "Password change required before continuing." }, statusCode: 403);
+
+    if (string.IsNullOrWhiteSpace(req.Username) || string.IsNullOrWhiteSpace(req.Password))
+    {
+        return Results.BadRequest(new { error = "Username and password are required." });
+    }
+
+    if (req.Password.Length < 8)
+    {
+        return Results.BadRequest(new { error = "Password must be at least 8 characters." });
+    }
+
+    var usernameTaken = await db.AdminUsers.AnyAsync(u => u.Username == req.Username);
+    if (usernameTaken)
+    {
+        return Results.BadRequest(new { error = "Username already exists." });
+    }
+
+    var salt = PasswordHasher.GenerateSalt();
+    var hash = PasswordHasher.HashPassword(req.Password, salt);
+
+    var newUser = new AdminUser
+    {
+        Username = req.Username,
+        PasswordSalt = salt,
+        PasswordHash = hash,
+        IsBuiltIn = false,
+        HasDefaultPassword = false,
+        CreatedAt = DateTime.UtcNow
+    };
+
+    db.AdminUsers.Add(newUser);
+    await db.SaveChangesAsync();
+
+    return Results.Created($"/api/admin/users/{newUser.Id}", new { newUser.Id, newUser.Username });
+});
+
+// ลบ admin user (ห้ามลบ built-in account - กัน lockout)
+app.MapDelete("/api/admin/users/{id:int}", async (int id, HttpRequest request, AppDbContext db) =>
+{
+    var admin = await GetAuthorizedAdmin(request, db);
+    if (admin is null)
+        return Results.Unauthorized();
+    if (admin.HasDefaultPassword)
+        return Results.Json(new { error = "Password change required before continuing." }, statusCode: 403);
+
+    var target = await db.AdminUsers.FindAsync(id);
+    if (target is null) return Results.NotFound();
+
+    if (target.IsBuiltIn)
+    {
+        return Results.BadRequest(new { error = "Cannot delete the built-in Administrator account." });
+    }
+
+    db.AdminUsers.Remove(target);
+    await db.SaveChangesAsync();
+    return Results.Ok(new { message = "User deleted." });
+});
+
+// เปลี่ยน password ของตัวเอง - endpoint เดียวที่ยกเว้นการเช็ค HasDefaultPassword
+app.MapPost("/api/admin/users/{id:int}/change-password", async (int id, ChangePasswordRequest req, HttpRequest request, AppDbContext db) =>
+{
+    var admin = await GetAuthorizedAdmin(request, db);
+    if (admin is null)
+        return Results.Unauthorized();
+
+    // ให้เปลี่ยนได้เฉพาะ account ของตัวเอง กันแอบเปลี่ยนของคนอื่นผ่าน id
+    if (admin.Id != id)
+    {
+        return Results.Json(new { error = "You can only change your own password." }, statusCode: 403);
+    }
+
+    if (string.IsNullOrEmpty(req.NewPassword) || req.NewPassword.Length < 8)
+    {
+        return Results.BadRequest(new { error = "New password must be at least 8 characters." });
+    }
+
+    var salt = PasswordHasher.GenerateSalt();
+    var hash = PasswordHasher.HashPassword(req.NewPassword, salt);
+
+    admin.PasswordSalt = salt;
+    admin.PasswordHash = hash;
+    admin.HasDefaultPassword = false;
+
+    await db.SaveChangesAsync();
+
+    return Results.Ok(new { message = "Password changed successfully." });
+});
+
+// ---- Helper: เช็คว่า request มี token ที่ valid ไหม คืน AdminUser ถ้า valid, null ถ้าไม่ ----
+async Task<AdminUser?> GetAuthorizedAdmin(HttpRequest request, AppDbContext db)
+{
+    if (!request.Headers.TryGetValue("X-Auth-Token", out var tokenValue))
+    {
+        return null;
+    }
+
+    var token = await db.AuthTokens
+        .FirstOrDefaultAsync(t => t.Token == tokenValue.ToString() && t.ExpiresAt > DateTime.UtcNow);
+
+    if (token is null)
+    {
+        return null;
+    }
+
+    return await db.AdminUsers.FindAsync(token.AdminUserId);
+}
+
 app.Run();
+
+// ---- Request DTOs ----
+record CreateUserRequest(string Username, string Password);
+record ChangePasswordRequest(string NewPassword);

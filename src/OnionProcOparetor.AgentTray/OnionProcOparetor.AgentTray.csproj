@@ -8,4 +8,22 @@
     <AssemblyName>OnionProcOparetor.AgentTray</AssemblyName>
     <RootNamespace>OnionProcOparetor.AgentTray</RootNamespace>
   </PropertyGroup>
+
+  <ItemGroup>
+    <!--
+        ใช้ Hardcodet.NotifyIcon.Wpf (ไม่ใช่ .NetCore) - ตัว .NetCore เจอ
+        MissingMethodException บน .NET 10 ใช้ไม่ได้ (บันทึกไว้จาก dev environment เดิม)
+    -->
+    <PackageReference Include="Hardcodet.NotifyIcon.Wpf" Version="2.0.1" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.FileExtensions" Version="10.0.10" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="10.0.10" />
+    <PackageReference Include="Microsoft.Extensions.Http" Version="10.0.10" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Update="appsettings.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
 </Project>

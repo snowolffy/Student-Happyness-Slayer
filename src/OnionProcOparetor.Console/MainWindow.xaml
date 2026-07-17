@@ -1,8 +1,36 @@
 <Window x:Class="OnionProcOparetor.Console.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Onion ProcOparetor Console" Height="450" Width="800">
+        Title="Onion ProcOparetor Console"
+        Height="480" Width="420"
+        WindowStartupLocation="CenterScreen"
+        ResizeMode="NoResize"
+        Style="{StaticResource DarkWindowStyle}">
     <Grid>
-        <TextBlock Text="Onion ProcOparetor" HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="24"/>
+        <Border Style="{StaticResource Card}" Margin="24" VerticalAlignment="Center">
+            <StackPanel>
+                <TextBlock Text="Onion ProcOparetor" Style="{StaticResource HeaderText}"
+                           HorizontalAlignment="Center"/>
+                <TextBlock Text="Console" Style="{StaticResource LabelText}"
+                           HorizontalAlignment="Center" Margin="0,0,0,24" FontSize="13"/>
+
+                <TextBlock Text="SERVER (IP:PORT)" Style="{StaticResource LabelText}"/>
+                <TextBox x:Name="ServerAddressBox" Text="localhost:8787" Margin="0,0,0,16"/>
+
+                <TextBlock Text="USERNAME" Style="{StaticResource LabelText}"/>
+                <TextBox x:Name="UsernameBox" Margin="0,0,0,16"/>
+
+                <TextBlock Text="PASSWORD" Style="{StaticResource LabelText}"/>
+                <PasswordBox x:Name="PasswordBox" Margin="0,0,0,24"/>
+
+                <Button x:Name="ConnectButton" Content="CONNECT"
+                        Style="{StaticResource PrimaryButton}"
+                        Click="ConnectButton_Click"/>
+
+                <TextBlock x:Name="StatusText" Margin="0,16,0,0"
+                           TextWrapping="Wrap" HorizontalAlignment="Center"
+                           TextAlignment="Center" FontSize="12"/>
+            </StackPanel>
+        </Border>
     </Grid>
 </Window>
