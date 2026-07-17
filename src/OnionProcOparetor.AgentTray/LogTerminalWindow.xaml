@@ -1,0 +1,36 @@
+<Window x:Class="OnionProcOparetor.AgentTray.LogTerminalWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Onion ProcOparetor - Log Terminal"
+        Height="500" Width="720"
+        WindowStartupLocation="CenterScreen"
+        Background="#0F1115"
+        Foreground="#E8E9EB">
+    <Grid Margin="12">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="8"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <StackPanel Grid.Row="0" Orientation="Horizontal">
+            <TextBlock Text="LOG TERMINAL" FontSize="12" FontWeight="Bold"
+                       Foreground="#8A8F98" VerticalAlignment="Center"/>
+            <TextBlock x:Name="AutoRefreshStatusText" FontSize="10" Foreground="#8A8F98"
+                       Margin="12,0,0,0" VerticalAlignment="Center" Text="auto-refresh: on"/>
+            <Button x:Name="PauseButton" Content="PAUSE" Margin="12,0,0,0"
+                    Padding="8,3" FontSize="10" Background="#22252C" Foreground="#E8E9EB"
+                    BorderBrush="#2A2E37" BorderThickness="1" Click="PauseButton_Click"/>
+        </StackPanel>
+
+        <Border Grid.Row="2" Background="#000000" BorderBrush="#2A2E37" BorderThickness="1" CornerRadius="4">
+            <ScrollViewer x:Name="LogScrollViewer" Padding="10"
+                          VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto">
+                <TextBlock x:Name="LogTerminalText"
+                           FontFamily="Consolas" FontSize="12"
+                           Foreground="#3DD68C" Background="Transparent"
+                           TextWrapping="NoWrap"/>
+            </ScrollViewer>
+        </Border>
+    </Grid>
+</Window>

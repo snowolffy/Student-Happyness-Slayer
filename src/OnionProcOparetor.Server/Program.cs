@@ -232,13 +232,30 @@ app.MapPost("/api/rules/{id:int}/toggle", async (int id, HttpRequest request, Ap
     return Results.Ok(rule);
 });
 
+// แก้ setting ของเครื่องใดเครื่องหนึ่งจากศูนย์กลาง (ตอนนี้มีแค่ poll interval override)
+app.MapPut("/api/clients/{id:int}/settings", async (int id, ClientSettingsRequest request, HttpRequest httpRequest, AppDbContext db) =>
+{
+    var admin = await GetAuthorizedAdmin(httpRequest, db);
+    if (admin is null)
+        return Results.Unauthorized();
+    if (admin.HasDefaultPassword)
+        return Results.Json(new { error = "Password change required before continuing." }, statusCode: 403);
+
+    var client = await db.ClientMachines.FindAsync(id);
+    if (client is null) return Results.NotFound();
+
+    client.PollIntervalOverrideSeconds = request.PollIntervalOverrideSeconds;
+    await db.SaveChangesAsync();
+
+    return Results.Ok(client);
+});
+
 // client เอาไว้ poll เพื่อดึง rules + สถานะ enabled/disabled ของตัวเอง
 // (endpoint สำคัญที่สุดสำหรับฝั่ง Client Service) - ไม่ต้อง auth เพราะใช้ clientGuid ยืนยันตัวเองแทน
 app.MapGet("/api/poll/{clientGuid}", async (string clientGuid, string machineName, AppDbContext db) =>
 {
     var client = await db.ClientMachines.FirstOrDefaultAsync(c => c.ClientGuid == clientGuid);
 
-    // ถ้ายังไม่เคยเห็นเครื่องนี้มาก่อน ให้ register อัตโนมัติ (ค่าเริ่มต้น = enabled)
     if (client is null)
     {
         client = new ClientMachine
@@ -254,7 +271,7 @@ app.MapGet("/api/poll/{clientGuid}", async (string clientGuid, string machineNam
     else
     {
         client.LastSeenAt = DateTime.UtcNow;
-        client.MachineName = machineName; // เผื่อเปลี่ยนชื่อเครื่อง
+        client.MachineName = machineName;
     }
 
     var globalState = await db.GlobalStates.FirstOrDefaultAsync(g => g.Id == 1);
@@ -266,9 +283,9 @@ app.MapGet("/api/poll/{clientGuid}", async (string clientGuid, string machineNam
 
     return Results.Ok(new
     {
-        // enforcement เปิดจริงๆ ก็ต่อเมื่อทั้ง global และ per-machine เปิดพร้อมกัน
         enabled = globalEnabled && client.IsEnabled,
-        rules
+        rules,
+        pollIntervalOverrideSeconds = client.PollIntervalOverrideSeconds
     });
 });
 
@@ -419,6 +436,39 @@ app.MapPost("/api/admin/users/{id:int}/change-password", async (int id, ChangePa
 
     return Results.Ok(new { message = "Password changed successfully." });
 });
+
+// admin คนหนึ่ง reset password ให้ user คนอื่น (ต่างจาก change-password ที่จำกัดแค่ตัวเอง)
+// ไม่ต้องรู้ password เดิมของเป้าหมายเลย เหมาะกับกรณีลืม password
+app.MapPost("/api/admin/users/{id:int}/reset-password", async (int id, ChangePasswordRequest req, HttpRequest request, AppDbContext db) =>
+{
+    var admin = await GetAuthorizedAdmin(request, db);
+    if (admin is null)
+        return Results.Unauthorized();
+    if (admin.HasDefaultPassword)
+        return Results.Json(new { error = "Password change required before continuing." }, statusCode: 403);
+
+    var target = await db.AdminUsers.FindAsync(id);
+    if (target is null) return Results.NotFound();
+
+    if (string.IsNullOrEmpty(req.NewPassword) || req.NewPassword.Length < 8)
+    {
+        return Results.BadRequest(new { error = "New password must be at least 8 characters." });
+    }
+
+    var salt = PasswordHasher.GenerateSalt();
+    var hash = PasswordHasher.HashPassword(req.NewPassword, salt);
+
+    target.PasswordSalt = salt;
+    target.PasswordHash = hash;
+    // สำคัญ: ตั้ง HasDefaultPassword = true เพื่อบังคับให้เจ้าของ account เปลี่ยน password
+    // อีกครั้งตอน login ครั้งถัดไป (คนที่ reset ให้ไม่ควรรู้ password ถาวรของอีกคน)
+    target.HasDefaultPassword = true;
+
+    await db.SaveChangesAsync();
+
+    return Results.Ok(new { message = $"Password for '{target.Username}' has been reset. They must change it on next login." });
+});
+
 
 // ---- Helper: เช็คว่า request มี token ที่ valid ไหม คืน AdminUser ถ้า valid, null ถ้าไม่ ----
 async Task<AdminUser?> GetAuthorizedAdmin(HttpRequest request, AppDbContext db)

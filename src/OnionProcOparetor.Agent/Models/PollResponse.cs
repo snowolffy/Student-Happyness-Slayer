@@ -9,4 +9,7 @@ public class PollResponse
     public bool Enabled { get; set; }
 
     public List<RuleDto> Rules { get; set; } = new();
+
+    /// <summary>[OPTIONAL] ถ้า Server ตั้ง override ไว้ ให้ใช้ค่านี้แทน PollIntervalSeconds ใน appsettings.json</summary>
+    public int? PollIntervalOverrideSeconds { get; set; }
 }

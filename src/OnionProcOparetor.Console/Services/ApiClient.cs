@@ -232,6 +232,46 @@ public class ApiClient
             return (false, $"เกิดข้อผิดพลาด: {ex.Message}");
         }
     }
+
+    public async Task<bool> UpdateClientSettingsAsync(int clientId, int? pollIntervalOverrideSeconds)
+    {
+        var response = await _httpClient.PutAsJsonAsync(
+            $"/api/clients/{clientId}/settings",
+            new { pollIntervalOverrideSeconds });
+        return response.IsSuccessStatusCode;
+    }
+
+    public async Task<(bool Success, string Message)> ResetUserPasswordAsync(int userId, string newPassword)
+    {
+        try
+        {
+            var response = await _httpClient.PostAsJsonAsync(
+                $"/api/admin/users/{userId}/reset-password",
+                new { newPassword });
+
+            if (!response.IsSuccessStatusCode)
+            {
+                string errorMessage = $"Reset password ไม่สำเร็จ: {response.StatusCode}";
+                try
+                {
+                    var error = await response.Content.ReadFromJsonAsync<ErrorResponse>();
+                    if (!string.IsNullOrEmpty(error?.Error))
+                    {
+                        errorMessage = error.Error;
+                    }
+                }
+                catch { }
+                return (false, errorMessage);
+            }
+
+            return (true, "Reset password สำเร็จ");
+        }
+        catch (HttpRequestException ex)
+        {
+            return (false, $"ต่อ server ไม่ได้: {ex.Message}");
+        }
+    }
+
 }
 
 /// <summary>โครงสร้าง error response ทั่วไปที่ server คืนมา เช่น { "error": "..." }</summary>

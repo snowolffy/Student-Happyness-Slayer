@@ -66,10 +66,13 @@
 
                 <StackPanel Grid.Row="0" Orientation="Horizontal">
                     <TextBlock Text="RECENT ACTIVITY" FontSize="10" Foreground="#8A8F98"
-                               VerticalAlignment="Center"/>
+                            VerticalAlignment="Center"/>
                     <Button x:Name="RefreshButton" Content="REFRESH" Margin="12,0,0,0"
                             Padding="8,3" FontSize="10" Background="#22252C" Foreground="#E8E9EB"
                             BorderBrush="#2A2E37" BorderThickness="1" Click="RefreshButton_Click"/>
+                    <Button x:Name="OpenTerminalButton" Content="OPEN LOG TERMINAL" Margin="8,0,0,0"
+                            Padding="8,3" FontSize="10" Background="#22252C" Foreground="#E8E9EB"
+                            BorderBrush="#2A2E37" BorderThickness="1" Click="OpenTerminalButton_Click"/>
                 </StackPanel>
 
                 <ListView Grid.Row="2" x:Name="LogsListView" Background="Transparent"

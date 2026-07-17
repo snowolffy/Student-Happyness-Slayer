@@ -10,4 +10,8 @@ public class ClientMachineDto
     public bool IsEnabled { get; set; }
     public DateTime LastSeenAt { get; set; }
     public DateTime RegisteredAt { get; set; }
+
+    /// <summary>ถือว่า offline ถ้าไม่ poll เข้ามาเกิน 90 วิ (3 เท่าของ PollIntervalSeconds ปกติ 30 วิ)</summary>
+    public bool IsOffline => (DateTime.UtcNow - LastSeenAt).TotalSeconds > 90;
+    public int? PollIntervalOverrideSeconds { get; set; }
 }

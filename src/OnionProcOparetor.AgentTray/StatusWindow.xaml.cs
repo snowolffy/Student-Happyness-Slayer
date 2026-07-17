@@ -52,4 +52,11 @@ public partial class StatusWindow : Window
     {
         await RefreshDataAsync();
     }
+
+    private void OpenTerminalButton_Click(object sender, RoutedEventArgs e)
+    {
+        var terminalWindow = new LogTerminalWindow(_apiClient);
+        terminalWindow.Show();
+    }
+    
 }

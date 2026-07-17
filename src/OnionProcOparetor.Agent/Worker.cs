@@ -89,24 +89,22 @@ public class Worker : BackgroundService
     {
         while (!stoppingToken.IsCancellationRequested)
         {
-            try
+            var polled = await _serverClient.PollAsync(_clientGuid, _machineName, stoppingToken);
+            if (polled is not null)
             {
-                await ScanRunningProcessesAsync();
+                _lastKnownState = polled;
+                _state.UpdatePollResult(polled.Enabled, polled.Rules.Count, succeeded: true);
+                _logger.LogInformation("Poll สำเร็จ - Enabled: {Enabled}, Rules: {Count} ข้อ",
+                    polled.Enabled, polled.Rules.Count);
             }
-            catch (Exception ex)
+            else
             {
-                // กัน exception จาก scan loop ทำให้ loop นี้ตายไปเฉยๆ (ไม่กระทบ poll loop หลัก)
-                _logger.LogWarning(ex, "เกิดข้อผิดพลาดระหว่าง periodic process scan");
+                _state.UpdatePollResult(_lastKnownState.Enabled, _lastKnownState.Rules.Count, succeeded: false);
             }
 
-            try
-            {
-                await Task.Delay(TimeSpan.FromSeconds(ProcessScanIntervalSeconds), stoppingToken);
-            }
-            catch (OperationCanceledException)
-            {
-                break;
-            }
+            // ใช้ override จาก Server ถ้ามีตั้งไว้ ไม่งั้นใช้ค่า default จาก appsettings.json ตามเดิม
+            var effectiveIntervalSeconds = _lastKnownState.PollIntervalOverrideSeconds ?? _settings.PollIntervalSeconds;
+            await Task.Delay(TimeSpan.FromSeconds(effectiveIntervalSeconds), stoppingToken);
         }
     }
 

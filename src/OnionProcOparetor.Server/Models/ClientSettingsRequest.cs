@@ -1,0 +1,1 @@
+public record ClientSettingsRequest(int? PollIntervalOverrideSeconds);

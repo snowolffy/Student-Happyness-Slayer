@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
@@ -57,7 +57,8 @@ namespace OnionProcOparetor.Server.Migrations
                     LastKnownIp = table.Column<string>(type: "TEXT", nullable: true),
                     IsEnabled = table.Column<bool>(type: "INTEGER", nullable: false),
                     LastSeenAt = table.Column<DateTime>(type: "TEXT", nullable: false),
-                    RegisteredAt = table.Column<DateTime>(type: "TEXT", nullable: false)
+                    RegisteredAt = table.Column<DateTime>(type: "TEXT", nullable: false),
+                    PollIntervalOverrideSeconds = table.Column<int>(type: "INTEGER", nullable: true)
                 },
                 constraints: table =>
                 {
@@ -154,12 +155,23 @@ namespace OnionProcOparetor.Server.Migrations
         /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.DropTable(name: "AdminUsers");
-            migrationBuilder.DropTable(name: "AuthTokens");
-            migrationBuilder.DropTable(name: "ClientMachines");
-            migrationBuilder.DropTable(name: "GlobalStates");
-            migrationBuilder.DropTable(name: "LogEntries");
-            migrationBuilder.DropTable(name: "Rules");
+            migrationBuilder.DropTable(
+                name: "AdminUsers");
+
+            migrationBuilder.DropTable(
+                name: "AuthTokens");
+
+            migrationBuilder.DropTable(
+                name: "ClientMachines");
+
+            migrationBuilder.DropTable(
+                name: "GlobalStates");
+
+            migrationBuilder.DropTable(
+                name: "LogEntries");
+
+            migrationBuilder.DropTable(
+                name: "Rules");
         }
     }
 }

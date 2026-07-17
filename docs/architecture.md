@@ -540,3 +540,36 @@ password) แทนที่จะต้อง hardcode หรือยิง AP
 1. รวบรวมไอเดียเพิ่มเติมให้ครบ (ยังเปิดรับ — ผู้ดูแลบอกว่า "อาจมีอย่างอื่นอีกแต่ยังนึกไม่ออก")
 2. เมื่อ spec ครบแล้ว ค่อยออกแบบ UI ทั้งหมดพร้อมกันใน xaml.io (ตัดสินใจแล้วว่าสะดวกกว่าทำทีละฟีเจอร์)
 3. เริ่ม implement ตามลำดับที่ตกลงกันตอนนั้น
+
+---
+
+# QoL Implementation Log (2026-07-17, สรุปงานที่ทำเสร็จจริงจาก QoL Roadmap)
+
+> อัปเดตสถานะ: งานส่วนใหญ่ใน QoL Roadmap เสร็จสมบูรณ์แล้ว รายละเอียดตามนี้
+
+## Server / Console — เสร็จแล้ว
+
+- **Sort ตามคอลัมน์** — เพิ่ม `SortMemberPath` ให้ template columns (STATUS, SIGNED) ที่เหลือ sort ได้เองอัตโนมัติจาก WPF DataGrid
+- **Search/filter** — ทั้ง 3 ตาราง (Clients/Rules/Logs) มี TextBox ค้นหาแยกต่อตาราง, filter แบบ client-side จาก master list ที่เก็บไว้ (`_allClients`/`_allRules`/`_allLogs`)
+- **Bulk action** — `ClientsGrid` เปิด `SelectionMode="Extended"` รองรับ ctrl/shift multi-select, ปุ่ม TOGGLE SELECTED ยิง toggle ทีละเครื่องตามลำดับ (ไม่ parallel กันปัญหา SQLite lock)
+- **Offline indicator** — เพิ่ม computed property `IsOffline` ใน `ClientMachineDto` (เทียบ `LastSeenAt` เกิน 90 วิ = offline), STATUS column มี 3 สี (เขียว/แดง/เทา)
+- **Remote/View client setting** — เพิ่ม `PollIntervalOverrideSeconds` (nullable) ใน `ClientMachine` model + migration `AddPollIntervalOverride`, endpoint `PUT /api/clients/{id}/settings`, Console มีปุ่ม SETTINGS เปิด `ClientSettingsWindow` แยกต่างหาก
+- **Account management เพิ่มเติม** — endpoint ใหม่ `POST /api/admin/users/{id}/reset-password` (ต่างจาก `change-password` เดิมที่จำกัดแค่ตัวเอง) ให้ admin คนหนึ่ง reset password ให้ user อื่นได้ โดยตั้ง `HasDefaultPassword = true` บังคับให้เจ้าของ account เปลี่ยนเองอีกครั้งตอน login ถัดไป, Console มีปุ่ม RESET PW คู่กับ DELETE ในตาราง USERS
+
+## Agent — เสร็จแล้ว
+
+- **Client config ตอน install** — Inno Setup installer (Mode C) มีหน้า wizard ใหม่ถาม Server IP:Port พร้อมปุ่ม Test Connection (เช็คผ่าน `Test-NetConnection` ทาง PowerShell), เขียนค่าลง `appsettings.json` ของ Agent อัตโนมัติหลัง install เสร็จ (`CurStepChanged` ที่ `ssPostInstall`)
+- **Uninstall password-gate** — Inno Setup uninstaller มี custom form ถามรหัสผ่านก่อนถอนการติดตั้งได้ (ป้องกันระดับเบา กันเด็กเล่น ไม่ใช่กัน IT ตัวจริง)
+- **Output log UI แบบ terminal** — เพิ่มหน้าต่างใหม่ `LogTerminalWindow` (เปิดจากปุ่ม "OPEN LOG TERMINAL" ใน `StatusWindow`) แสดง log แบบ scroll ต่อเนื่อง auto-refresh ทุก 3 วิ พร้อมปุ่ม PAUSE/RESUME
+
+## ยังไม่ได้ทำ (ข้ามไปตามที่ตกลงกัน)
+
+- **Client immediately pull** — แนวคิดคือลด poll interval ชั่วคราวเหลือ 0.5 วิ นาน 2 วิ ผ่าน `PollIntervalOverrideSeconds` ที่มีอยู่แล้ว แต่ยังไม่ได้ตัดสินใจเรื่องกลไก auto-reset ค่ากลับ (Server ใช้ timer เอง vs. เก็บ `PollIntervalOverrideExpiresAt` ใน DB แล้วให้ `/api/poll` เช็ค expiry เอง) — พักไว้เป็น TODO ในอนาคต
+
+## บั๊กที่เจอระหว่างทำรอบนี้ (กันเจอซ้ำ)
+
+1. **Inno Setup ไม่มี `Format()`/array literal แบบ Delphi เต็มรูปแบบ** — ต้องต่อ string ด้วย `+` แทน
+2. **ปีกกา `{ }` ใน Pascal string literal ธรรมดาไม่ต้อง escape เป็น `{{ }}`** — กฎ escape ใช้เฉพาะ string ที่ผ่าน `ExpandConstant()` เท่านั้น ถ้า escape ผิดที่ (เช่นใน command string ที่ยิง PowerShell) จะทำให้ logic ข้างในไม่ทำงานเงียบๆ (กรณีนี้ทำให้ `exit 0`/`exit 1` ไม่ถูกเรียกจริง ส่งผลให้ Test Connection คืนค่า "สำเร็จ" เสมอไม่ว่าจะ reachable จริงหรือไม่)
+3. **`LoadStringFromFile`/`SaveStringToFile` ใช้ `AnsiString`, `StringChangeEx` ใช้ `String` (Unicode)** — เป็นคนละ type กัน ต้อง cast ไปมาเมื่อใช้ร่วมกัน
+4. **EF Core migration ordering ผูกกับ timestamp ในชื่อไฟล์** — ถ้านาฬิกาเครื่อง dev คลาดเคลื่อนระหว่างสร้าง migration 2 ตัว อาจได้ migration ใหม่ที่ timestamp เก่ากว่าตัวก่อนหน้า ทำให้ EF สับสนเรื่องลำดับ (แก้ด้วยการลบ DB + migrations ทั้งหมดแล้วสร้างใหม่ในเซสชันนี้)
+5. **ไฟล์ `.iss` ต้อง save เป็น UTF-8 with BOM** ถ้ามีข้อความภาษาไทยปนอยู่ ไม่งั้น encoding จะเพี้ยน (เหมือนปัญหาที่เคยเจอกับ `.ps1` มาก่อน)

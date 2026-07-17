@@ -1,4 +1,4 @@
-; OnionProcOparetor Installer - supports 3 installation modes
+﻿; OnionProcOparetor Installer - supports 3 installation modes
 #define MyAppName "Onion ProcOparetor"
 #define MyAppVersion "1.0"
 #define MyAppPublisher "OnionProcOparetor"
@@ -27,6 +27,7 @@ var
   ModePage: TWizardPage;
   RadioModeA, RadioModeB, RadioModeC: TRadioButton;
   SelectedMode: Integer;
+  ServerConfigPage: TInputQueryWizardPage;
 
 function IsDotNet10Installed: Boolean;
 var
@@ -73,9 +74,63 @@ begin
   RadioModeC.Left := 0;
   RadioModeC.Top := RadioModeB.Top + RadioModeB.Height + 16;
   RadioModeC.Width := ModePage.SurfaceWidth;
+
+  // ---- หน้าใหม่: ถาม Server IP:Port เฉพาะ Mode C (Client Agent) ----
+  ServerConfigPage := CreateInputQueryPage(ModePage.ID,
+    'Server Connection', 'Configure the Onion Core Service address',
+    'Enter the IP address and port of the Onion Core Service (the Server machine). ' +
+    'Default port is 8787 unless changed.');
+  ServerConfigPage.Add('Server address (IP:Port):', False);
+  ServerConfigPage.Values[0] := 'localhost:8787';
+end;
+
+// ---- ซ่อนหน้า ServerConfigPage ถ้าไม่ได้เลือก Mode C ----
+function ShouldSkipPage(PageID: Integer): Boolean;
+begin
+  Result := False;
+  if PageID = ServerConfigPage.ID then
+    Result := (SelectedMode <> 3);
+end;
+
+// ---- แยก host กับ port จาก string "IP:Port" ----
+procedure SplitHostPort(const Input: String; var HostOut: String; var PortOut: String);
+var
+  ColonPos: Integer;
+begin
+  ColonPos := Pos(':', Input);
+  if ColonPos > 0 then
+  begin
+    HostOut := Copy(Input, 1, ColonPos - 1);
+    PortOut := Copy(Input, ColonPos + 1, Length(Input) - ColonPos);
+  end
+  else
+  begin
+    HostOut := Input;
+    PortOut := '8787'; // ไม่ใส่ port มา ใช้ default
+  end;
+end;
+
+// ---- ปุ่ม Test Connection: เช็คว่า port เปิดรับ connection ไหม (ผ่าน PowerShell Test-NetConnection) ----
+function TestServerConnection(const HostPort: String): Boolean;
+var
+  HostPart, PortPart: String;
+  ResultCode: Integer;
+  Command: String;
+begin
+  SplitHostPort(HostPort, HostPart, PortPart);
+
+  Command := '-NoProfile -Command "$r = Test-NetConnection -ComputerName ''' + HostPart +
+    ''' -Port ' + PortPart +
+    ' -InformationLevel Quiet -WarningAction SilentlyContinue; if ($r) { exit 0 } else { exit 1 }"';
+
+  Result := Exec('powershell.exe', Command, '', SW_HIDE, ewWaitUntilTerminated, ResultCode)
+            and (ResultCode = 0);
 end;
 
 function NextButtonClick(CurPageID: Integer): Boolean;
+var
+  TestOk: Boolean;
+  Proceed: Integer;
 begin
   Result := True;
   if CurPageID = ModePage.ID then
@@ -86,6 +141,34 @@ begin
       SelectedMode := 2
     else
       SelectedMode := 3;
+  end;
+
+  if CurPageID = ServerConfigPage.ID then
+  begin
+    if Trim(ServerConfigPage.Values[0]) = '' then
+    begin
+      MsgBox('Please enter the Server address (IP:Port).', mbError, MB_OK);
+      Result := False;
+      Exit;
+    end;
+
+    TestOk := TestServerConnection(ServerConfigPage.Values[0]);
+
+    if TestOk then
+      MsgBox('Connection successful! The Server is reachable.', mbInformation, MB_OK)
+    else
+    begin
+      Proceed := MsgBox(
+        'Could not reach the Server at this address.' + #13#10 +
+        'This may be normal if the Server is not running yet, or firewall is blocking it.' + #13#10#13#10 +
+        'Continue installation anyway with this address?',
+        mbConfirmation, MB_YESNO);
+      if Proceed = IDNO then
+      begin
+        Result := False;
+        Exit;
+      end;
+    end;
   end;
 end;
 
@@ -102,6 +185,30 @@ end;
 function ShouldInstallClient: Boolean;
 begin
   Result := (SelectedMode = 3);
+end;
+
+// ---- หลัง install เสร็จ (เฉพาะ Mode C): เขียน Server address ที่กรอกไว้ลง appsettings.json ----
+procedure CurStepChanged(CurStep: TSetupStep);
+var
+  AppSettingsPath: String;
+  FileContentAnsi: AnsiString;
+  FileContentUnicode: String;
+  NewBaseUrl: String;
+begin
+  if (CurStep = ssPostInstall) and ShouldInstallClient then
+  begin
+    AppSettingsPath := ExpandConstant('{app}\Client\appsettings.json');
+    NewBaseUrl := 'http://' + ServerConfigPage.Values[0];
+
+    if LoadStringFromFile(AppSettingsPath, FileContentAnsi) then
+    begin
+      FileContentUnicode := String(FileContentAnsi);
+      StringChangeEx(FileContentUnicode, '"BaseUrl": "http://localhost:8787"',
+        '"BaseUrl": "' + NewBaseUrl + '"', True);
+      FileContentAnsi := AnsiString(FileContentUnicode);
+      SaveStringToFile(AppSettingsPath, FileContentAnsi, False);
+    end;
+  end;
 end;
 
 var
@@ -130,6 +237,84 @@ begin
       RegDeleteValue(HKEY_CURRENT_USER, 'SOFTWARE\Microsoft\Windows\CurrentVersion\Run', 'OnionProcOparetorAgentTray');
     end;
   end;
+end;
+
+const
+  UninstallPassword = '036439339';  // เปลี่ยนเป็นรหัสที่ต้องการก่อน build จริง
+
+function AskUninstallPassword(): Boolean;
+var
+  PasswordForm: TSetupForm;
+  PasswordEdit: TPasswordEdit;
+  PromptLabel: TNewStaticText;
+  OKButton, CancelButton: TNewButton;
+  ModalResultValue: Integer;
+begin
+  Result := False;
+
+  PasswordForm := CreateCustomForm();
+  try
+    PasswordForm.ClientWidth := ScaleX(320);
+    PasswordForm.ClientHeight := ScaleY(140);
+    PasswordForm.Caption := 'ยืนยันการถอนการติดตั้ง';
+    PasswordForm.Position := poScreenCenter;
+    PasswordForm.BorderStyle := bsDialog;
+
+    PromptLabel := TNewStaticText.Create(PasswordForm);
+    PromptLabel.Parent := PasswordForm;
+    PromptLabel.Left := ScaleX(16);
+    PromptLabel.Top := ScaleY(16);
+    PromptLabel.Width := PasswordForm.ClientWidth - ScaleX(32);
+    PromptLabel.AutoSize := True;
+    PromptLabel.WordWrap := True;
+    PromptLabel.Caption := 'กรุณากรอกรหัสผ่านของผู้ดูแลระบบเพื่อถอนการติดตั้ง Onion ProcOparetor:';
+
+    PasswordEdit := TPasswordEdit.Create(PasswordForm);
+    PasswordEdit.Parent := PasswordForm;
+    PasswordEdit.Left := ScaleX(16);
+    PasswordEdit.Top := PromptLabel.Top + PromptLabel.Height + ScaleY(12);
+    PasswordEdit.Width := PasswordForm.ClientWidth - ScaleX(32);
+    //PasswordEdit.PasswordChar := '*';
+
+    OKButton := TNewButton.Create(PasswordForm);
+    OKButton.Parent := PasswordForm;
+    OKButton.Width := ScaleX(75);
+    OKButton.Height := ScaleY(23);
+    OKButton.Top := PasswordEdit.Top + PasswordEdit.Height + ScaleY(16);
+    OKButton.Left := PasswordForm.ClientWidth - ScaleX(16) - ScaleX(75) - ScaleX(8) - ScaleX(75);
+    OKButton.Caption := 'ตกลง';
+    OKButton.ModalResult := mrOk;
+    OKButton.Default := True;
+
+    CancelButton := TNewButton.Create(PasswordForm);
+    CancelButton.Parent := PasswordForm;
+    CancelButton.Width := ScaleX(75);
+    CancelButton.Height := ScaleY(23);
+    CancelButton.Top := OKButton.Top;
+    CancelButton.Left := PasswordForm.ClientWidth - ScaleX(16) - ScaleX(75);
+    CancelButton.Caption := 'ยกเลิก';
+    CancelButton.ModalResult := mrCancel;
+    CancelButton.Cancel := True;
+
+    PasswordForm.ActiveControl := PasswordEdit;
+
+    ModalResultValue := PasswordForm.ShowModal();
+
+    if ModalResultValue = mrOk then
+    begin
+      if PasswordEdit.Text = UninstallPassword then
+        Result := True
+      else
+        MsgBox('รหัสผ่านไม่ถูกต้อง ยกเลิกการถอนการติดตั้ง', mbError, MB_OK);
+    end;
+  finally
+    PasswordForm.Free;
+  end;
+end;
+
+function InitializeUninstall(): Boolean;
+begin
+  Result := AskUninstallPassword();
 end;
 
 [Files]

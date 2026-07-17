@@ -24,4 +24,11 @@ public class ClientMachine
     public DateTime LastSeenAt { get; set; } = DateTime.UtcNow;
 
     public DateTime RegisteredAt { get; set; } = DateTime.UtcNow;
+
+    /// <summary>
+    /// [OPTIONAL] Override ค่า PollIntervalSeconds ของเครื่องนี้จากศูนย์กลาง
+    /// null = ใช้ค่า default ใน appsettings.json ของ Agent เอง (ปกติ 30 วิ)
+    /// ตั้งค่านี้ไว้เพื่อใช้กับฟีเจอร์ "Remote client setting" และ "Immediately pull" ในอนาคต
+    /// </summary>
+    public int? PollIntervalOverrideSeconds { get; set; }
 }
