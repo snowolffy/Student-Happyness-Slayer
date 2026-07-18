@@ -462,7 +462,7 @@ app.MapPost("/api/admin/users/{id:int}/reset-password", async (int id, ChangePas
     target.PasswordHash = hash;
     // สำคัญ: ตั้ง HasDefaultPassword = true เพื่อบังคับให้เจ้าของ account เปลี่ยน password
     // อีกครั้งตอน login ครั้งถัดไป (คนที่ reset ให้ไม่ควรรู้ password ถาวรของอีกคน)
-    target.HasDefaultPassword = true;
+    //target.HasDefaultPassword = true;
 
     await db.SaveChangesAsync();
 

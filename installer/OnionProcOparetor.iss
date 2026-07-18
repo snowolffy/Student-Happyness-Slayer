@@ -187,27 +187,54 @@ begin
   Result := (SelectedMode = 3);
 end;
 
-// ---- หลัง install เสร็จ (เฉพาะ Mode C): เขียน Server address ที่กรอกไว้ลง appsettings.json ----
-procedure CurStepChanged(CurStep: TSetupStep);
+// ---- Helper: แก้ "BaseUrl": "http://localhost:8787" ในไฟล์ appsettings.json ที่ path ที่กำหนด
+// ให้เป็น NewBaseUrl - ใช้ร่วมกันทั้ง Client (Agent Service) และ ClientTray (login window)
+// เพราะทั้งสองมี appsettings.json แยกไฟล์กันคนละชุด ไม่ใช้ค่าเดียวกันอัตโนมัติ
+procedure PatchServerBaseUrl(const AppSettingsPath, NewBaseUrl: String);
 var
-  AppSettingsPath: String;
   FileContentAnsi: AnsiString;
   FileContentUnicode: String;
+begin
+  if LoadStringFromFile(AppSettingsPath, FileContentAnsi) then
+  begin
+    FileContentUnicode := String(FileContentAnsi);
+    StringChangeEx(FileContentUnicode, '"BaseUrl": "http://localhost:8787"',
+      '"BaseUrl": "' + NewBaseUrl + '"', True);
+    FileContentAnsi := AnsiString(FileContentUnicode);
+    SaveStringToFile(AppSettingsPath, FileContentAnsi, False);
+  end;
+end;
+
+// ---- หลัง install เสร็จ (เฉพาะ Mode C): เขียน Server address ที่กรอกไว้ลง appsettings.json ----
+// สำคัญ: create/patch config/start service ทั้งหมดต้องทำ "ในนี้" ตามลำดับนี้เท่านั้น ห้ามแยก
+// "sc.exe start OnionAgent" ไปเป็น [Run] entry ต่างหากอีก เพราะเคยเจอ race condition จริงตอน
+// deploy: [Run] กับ CurStepChanged(ssPostInstall) ไม่การันตีลำดับก่อนหลังกัน ทำให้ service
+// เคย start ไปก่อนไฟล์ appsettings.json จะถูกแก้ BaseUrl เสร็จ - agent เลยอ่านค่า default
+// (localhost) ไปใช้รอบแรก กว่าจะได้ค่าที่ถูกต้องต้อง restart service เองอีกรอบ
+procedure CurStepChanged(CurStep: TSetupStep);
+var
   NewBaseUrl: String;
+  ResultCode: Integer;
 begin
   if (CurStep = ssPostInstall) and ShouldInstallClient then
   begin
-    AppSettingsPath := ExpandConstant('{app}\Client\appsettings.json');
     NewBaseUrl := 'http://' + ServerConfigPage.Values[0];
 
-    if LoadStringFromFile(AppSettingsPath, FileContentAnsi) then
-    begin
-      FileContentUnicode := String(FileContentAnsi);
-      StringChangeEx(FileContentUnicode, '"BaseUrl": "http://localhost:8787"',
-        '"BaseUrl": "' + NewBaseUrl + '"', True);
-      FileContentAnsi := AnsiString(FileContentUnicode);
-      SaveStringToFile(AppSettingsPath, FileContentAnsi, False);
-    end;
+    // 1) สร้าง service ก่อน (ยังไม่ start)
+    Exec('sc.exe',
+      'create OnionAgent binPath= "' + ExpandConstant('{app}\Client\OnionProcOparetor.Agent.exe') + '" start= auto',
+      '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+
+    // 2) แก้ appsettings.json ของทั้ง Client (Agent Service) และ ClientTray (login window) -
+    // สองไฟล์แยกกันคนละชุด ลืมแก้ตัวใดตัวหนึ่งจะทำให้ Tray login เข้า Server ไม่ได้ทั้งที่ Service
+    // ทำงานถูกต้องแล้ว (เจอปัญหานี้จริง - Tray appsettings.json ไม่เคยถูกแก้เลยตั้งแต่แรก)
+    PatchServerBaseUrl(ExpandConstant('{app}\Client\appsettings.json'), NewBaseUrl);
+    PatchServerBaseUrl(ExpandConstant('{app}\ClientTray\appsettings.json'), NewBaseUrl);
+
+    // 3) ตั้งค่า recovery แล้วค่อย start เป็นลำดับสุดท้าย - รับประกันว่า config ถูกแล้วแน่นอน
+    Exec('sc.exe', 'failure OnionAgent reset= 86400 actions= restart/0/restart/0/restart/0',
+      '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+    Exec('sc.exe', 'start OnionAgent', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
   end;
 end;
 
@@ -332,9 +359,9 @@ Name: "{group}\Onion ProcOparetor Tray"; Filename: "{app}\ClientTray\OnionProcOp
 Filename: "sc.exe"; Parameters: "create OnionCoreService binPath= ""{app}\Server\OnionProcOparetor.Server.exe"" start= auto"; Flags: runhidden; Check: ShouldInstallServer
 Filename: "sc.exe"; Parameters: "start OnionCoreService"; Flags: runhidden; Check: ShouldInstallServer
 Filename: "powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\run-setup.ps1"""; Flags: runhidden; Check: ShouldInstallServer
-Filename: "sc.exe"; Parameters: "create OnionAgent binPath= ""{app}\Client\OnionProcOparetor.Agent.exe"" start= auto"; Flags: runhidden; Check: ShouldInstallClient
-Filename: "sc.exe"; Parameters: "start OnionAgent"; Flags: runhidden; Check: ShouldInstallClient
-Filename: "sc.exe"; Parameters: "failure OnionAgent reset= 86400 actions= restart/0/restart/0/restart/0"; Flags: runhidden; Check: ShouldInstallClient
+; หมายเหตุ: OnionAgent create/patch-config/start/failure ทั้งหมดถูกย้ายไปทำใน CurStepChanged
+; (ssPostInstall) ใน [Code] ด้านบนแล้ว เพื่อรับประกันลำดับ create -> patch config -> start
+; ไม่ให้เกิด race condition ที่ service start ไปก่อน appsettings.json จะถูกแก้ค่า BaseUrl เสร็จ
 Filename: "{app}\ClientTray\OnionProcOparetor.AgentTray.exe"; Description: "Launch Onion ProcOparetor Tray"; Flags: postinstall nowait skipifsilent; Check: ShouldInstallClient
 Filename: "{app}\Console\OnionProcOparetor.Console.exe"; Description: "Launch Onion ProcOparetor Console"; Flags: postinstall nowait skipifsilent; Check: ShouldInstallConsole
 

@@ -573,3 +573,76 @@ password) แทนที่จะต้อง hardcode หรือยิง AP
 3. **`LoadStringFromFile`/`SaveStringToFile` ใช้ `AnsiString`, `StringChangeEx` ใช้ `String` (Unicode)** — เป็นคนละ type กัน ต้อง cast ไปมาเมื่อใช้ร่วมกัน
 4. **EF Core migration ordering ผูกกับ timestamp ในชื่อไฟล์** — ถ้านาฬิกาเครื่อง dev คลาดเคลื่อนระหว่างสร้าง migration 2 ตัว อาจได้ migration ใหม่ที่ timestamp เก่ากว่าตัวก่อนหน้า ทำให้ EF สับสนเรื่องลำดับ (แก้ด้วยการลบ DB + migrations ทั้งหมดแล้วสร้างใหม่ในเซสชันนี้)
 5. **ไฟล์ `.iss` ต้อง save เป็น UTF-8 with BOM** ถ้ามีข้อความภาษาไทยปนอยู่ ไม่งั้น encoding จะเพี้ยน (เหมือนปัญหาที่เคยเจอกับ `.ps1` มาก่อน)
+
+---
+
+# Update Log (2026-07-18, Agent poll bug — เจอ root cause + แก้เสร็จ)
+
+> รายละเอียดเต็มของการไล่ debug อยู่ที่ `docs/debug-notes-agent-poll.md` — ส่วนนี้สรุปแค่ผลลัพธ์
+> สุดท้ายสำหรับภาพรวมสถานะโปรเจกต์
+
+## บริบท
+
+หลังจากพบว่า `OnionProcOparetor.Agent` (Windows Service `OnionAgent`) poll ไป Server ไม่สำเร็จ
+(`lastPollSucceeded` ค้างเป็น `false` ตลอด) เมื่อ deploy คนละเครื่องกับ Server จึง uninstall
+Agent/Server ออกจากทุกเครื่องเพื่อไล่ debug ใหม่ตั้งแต่ต้น
+
+## Root cause: Windows Service content root ผิด ทำให้หา `appsettings.json` ไม่เจอ
+
+`Program.cs` เดิมอ่าน `appsettings.json` ตอน `WebApplication.CreateBuilder(args)` โดยอิง
+`Directory.GetCurrentDirectory()` ณ ตอนนั้น แต่ Windows SCM จะสั่ง start service ด้วย working
+directory เป็น `%SystemRoot%\System32` เสมอ (ไม่ใช่ install path — `sc.exe create` **ไม่มี option
+ตั้ง working directory ได้เลย**) ทำให้ config หาไฟล์ไม่เจอ (โหลดแบบ `optional: true` เงียบๆ ไม่
+throw) แล้ว `ServerSettings` fallback ไปใช้ default ในโค้ด (`BaseUrl = "http://localhost:8787"`)
+แทนค่าจริงที่ installer เขียนไว้ให้ตอน install เสมอ — ไฟล์ `appsettings.json` เองมีค่าถูกต้องอยู่
+แล้ว (installer patch ให้ถูกตั้งแต่ต้น) แต่ process ไม่เคยไปเปิดไฟล์ตำแหน่งนั้นจริง
+
+**Verify แล้วจริง** (ไม่ใช่แค่เดา): รัน `.exe` ที่ build แล้วโดยตั้ง `-WorkingDirectory "C:\Windows"`
+(จำลอง SCM) พร้อมตั้งค่าทดสอบใน `appsettings.json` → `startup-debug.log` ยืนยันว่า resolved
+BaseUrl อ่านค่าถูกต้องจาก config ไม่ fallback ไป localhost
+
+## แก้แล้วใน `OnionProcOparetor.Agent`
+
+- `Program.cs` — ล็อค `WebApplicationOptions.ContentRootPath = AppContext.BaseDirectory` ตอนสร้าง
+  builder (ก่อน config จะถูกอ่านเลย) บังคับให้หา `appsettings.json` จากตำแหน่ง .exe จริงเสมอ ไม่ว่า
+  SCM จะตั้ง current directory เป็นอะไร
+- `Services/StartupDiagnostics.cs` (ใหม่) — log ตรงไฟล์ ไม่พึ่ง ILogger/DI เลย เขียนที่
+  `%ProgramData%\OnionProcOparetor\Agent\logs\startup-debug.log` (CurrentDirectory,
+  ContentRootPath, appsettings.json เจอไหม, BaseUrl ที่อ่านได้แต่ละขั้น)
+- `Services/FileLoggerProvider.cs` (ใหม่) — ILoggerProvider เขียนไฟล์ เสริมจาก console/debug/eventlog
+  เดิม เขียนที่ `%ProgramData%\OnionProcOparetor\Agent\logs\agent.log` — จำเป็นเพราะรันเป็น Windows
+  Service ไม่มี console ให้ดู log
+- `/status` local API endpoint เพิ่ม field `serverBaseUrl` เช็คได้ตรงๆ ผ่าน `GET
+  http://localhost:8788/status` ไม่ต้องเดาจากไฟล์ config
+
+**เช็คแล้วว่าไม่ใช่ปัญหา**: publish process/`.iss` — `dotnet publish` copy `appsettings.json` ไปที่
+output ถูกต้อง (verify ด้วยการ publish จริง), `.iss` copy ทั้งโฟลเดอร์ถูกต้องอยู่แล้ว ไม่ต้องแก้
+
+## ✅ สถานะสุดท้าย: ยืนยันแล้วว่าแก้จบจริง (2026-07-18 บ่าย)
+
+Publish ทั้ง 4 โปรเจกต์ + compile `.iss` (ผ่าน `ISCC.exe` ที่ `F:\innosetup-portable\app\ISCC.exe`
+เพื่อความชัวร์ว่า build ล่าสุดจริง) + install บนเครื่อง client จริง (COM-22, ข้ามเครื่องกับ Server
+ที่ `192.168.200.106:8787` ผ่าน Ethernet) แล้ว:
+
+- `startup-debug.log` ยืนยันว่า `ContentRootPath` resolve ถูกไปที่ install path จริงแม้ SCM จะตั้ง
+  `CurrentDirectory` เป็น `C:\Windows\system32` ก็ตาม และ `resolvedBaseUrl` อ่านค่าได้ถูกต้อง
+- `GET http://localhost:8788/status` → `lastPollSucceeded: true` — **poll สำเร็จจริงข้ามเครื่อง**
+
+**บทเรียนเพิ่มเติมที่เจอระหว่าง verify แล้วแก้ต่อจนจบ** (รายละเอียดเต็มอยู่ที่
+`docs/debug-notes-agent-poll.md`):
+
+- **Race condition ใน `.iss` (เจอ + แก้แล้ว)**: `CurStepChanged(ssPostInstall)` (patch
+  `appsettings.json` ให้ตรงกับ IP ที่กรอกตอน install) กับ `[Run]` entry `sc.exe start OnionAgent`
+  ไม่มีอะไรการันตีลำดับก่อนหลังกัน ทำให้บาง run service start ไปอ่านค่า default (`localhost`) ก่อน
+  patch จะเสร็จ (ดูคล้ายบั๊ก config ตอนแรก แต่จริงๆ เป็น race condition) — แก้โดยย้าย
+  create/patch config/start ทั้งหมดเข้าไปเรียงลำดับชัดเจนใน Pascal เดียวกัน
+- **`OnionProcOparetor.AgentTray` มี `appsettings.json` แยกจาก `Client` (เจอ + แก้แล้ว)**: `.iss`
+  เดิม patch แค่ไฟล์ของ Agent Service เท่านั้น ไม่เคย patch ของ Tray เลย ทำให้ Tray login window
+  ต่อ Server ไม่ได้เสมอ (ยังชี้ localhost อยู่) เพิ่ม helper `PatchServerBaseUrl()` แล้วเรียกกับทั้ง
+  สองไฟล์ + แก้ `ClientApiClient.LoginToServerAsync` ไม่ให้โชว์ raw exception message ยาวเกินไป
+  จนล้นกรอบ `LoginWindow` (fixed-size, ไม่มี scroll)
+- Inno Setup ไม่ touch timestamp ตอน extract ไฟล์ ทำให้เทียบ `LastWriteTime` เพื่อดูว่า
+  installer/exe ตัวไหนใหม่กว่ากันไม่ชัวร์ 100% — ใช้ `Get-FileHash` เทียบ หรือ compile installer
+  ใหม่สดๆ ผ่าน `ISCC.exe` (พบที่ `F:\innosetup-portable\app\ISCC.exe`) ก่อนทดสอบทุกครั้งแทนจะแม่นกว่า
+
+**ผู้ใช้ยืนยันแล้วว่า deploy จริงใช้งานได้ครบทุกส่วน** (Agent poll + Tray login) ณ 2026-07-18 บ่าย

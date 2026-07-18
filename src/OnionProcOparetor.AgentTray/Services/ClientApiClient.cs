@@ -63,9 +63,11 @@ public class ClientApiClient
 
             return (true, "Login สำเร็จ");
         }
-        catch (Exception ex)
+        catch (Exception)
         {
-            return (false, $"ต่อ Server ไม่ได้: {ex.Message}");
+            // ไม่โชว์ ex.Message ตรงๆ เพราะ HttpRequestException ของ .NET มักยาวเกินกว่าจะแสดงใน
+            // LoginWindow ที่เป็นหน้าต่างขนาดคงที่ (ResizeMode="NoResize") ทำให้ข้อความล้นออกนอกกรอบ
+            return (false, "ต่อ Server ไม่ได้ - เช็คว่า Server เปิดอยู่และตั้งค่า IP:Port ถูกต้อง");
         }
     }
 }

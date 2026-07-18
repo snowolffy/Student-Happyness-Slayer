@@ -41,6 +41,15 @@ public class Worker : BackgroundService
         _clientGuid = ClientIdentity.GetOrCreateClientGuid();
         _machineName = ClientIdentity.GetMachineName();
         _state.ClientGuid = _clientGuid;
+
+        _logger.LogInformation("Agent จะใช้ Server BaseUrl: {BaseUrl}", _settings.BaseUrl);
+
+        if (Uri.TryCreate(_settings.BaseUrl, UriKind.Absolute, out var serverUri) &&
+            (serverUri.Host.Equals("localhost", StringComparison.OrdinalIgnoreCase) ||
+             serverUri.Host.Equals("127.0.0.1", StringComparison.OrdinalIgnoreCase)))
+        {
+            _logger.LogWarning("ServerSettings.BaseUrl ยังชี้ไปที่ localhost/127.0.0.1 ซึ่งจะทำให้ agent เรียกตัวเองแทน server จริง หากต้องการเชื่อมจากเครื่องอื่น ให้ตั้งค่า ServerSettings:BaseUrl เป็น IP/hostname ของ server");
+        }
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)

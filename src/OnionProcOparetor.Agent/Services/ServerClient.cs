@@ -30,7 +30,9 @@ public class ServerClient
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Poll failed - server อาจ offline อยู่ (fail-secure: ใช้กฎล่าสุดที่มีต่อไป)");
+            _logger.LogWarning(ex,
+                "Poll failed - server อาจ offline อยู่หรือ BaseUrl ไม่ถูกต้อง (BaseUrl: {BaseUrl}) (fail-secure: ใช้กฎล่าสุดที่มีต่อไป)",
+                _httpClient.BaseAddress);
             return null;
         }
     }
