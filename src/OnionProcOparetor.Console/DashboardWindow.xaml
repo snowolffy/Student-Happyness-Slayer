@@ -6,6 +6,46 @@
         WindowStartupLocation="CenterScreen"
         Style="{StaticResource AppWindowStyle}"
         Background="{StaticResource Brush.Background.Primary}">
+    <Window.Resources>
+        <!-- Shared DataGrid look for all 4 tabs (Clients/Rules/Logs/Users) - kept here instead of
+             repeating the same header/row/cell styling inline in every DataGrid.Resources block. -->
+        <Style x:Key="ConsoleGridColumnHeaderStyle" TargetType="DataGridColumnHeader">
+            <Setter Property="Background" Value="{StaticResource Brush.Background.Primary}"/>
+            <Setter Property="Foreground" Value="{StaticResource Brush.Text.Secondary}"/>
+            <Setter Property="FontFamily" Value="{StaticResource FontFamily.Primary}"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="Padding" Value="10,8"/>
+            <Setter Property="BorderBrush" Value="{StaticResource Brush.Border.Default}"/>
+            <Setter Property="BorderThickness" Value="0,0,1,1"/>
+        </Style>
+        <Style x:Key="ConsoleGridRowStyle" TargetType="DataGridRow">
+            <Setter Property="Background" Value="Transparent"/>
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background">
+                        <Setter.Value>
+                            <SolidColorBrush Color="{StaticResource Color.Accent.Light}" Opacity="0.15"/>
+                        </Setter.Value>
+                    </Setter>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+        <Style x:Key="ConsoleGridCellStyle" TargetType="DataGridCell">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Foreground" Value="{StaticResource Brush.Text.Primary}"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding" Value="10,4"/>
+            <Setter Property="FontFamily" Value="{StaticResource FontFamily.Primary}"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Style.Triggers>
+                <Trigger Property="IsSelected" Value="True">
+                    <Setter Property="Background" Value="{StaticResource Brush.Background.Primary}"/>
+                    <Setter Property="Foreground" Value="{StaticResource Brush.Text.Primary}"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+    </Window.Resources>
     <Grid Margin="16">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
@@ -131,7 +171,10 @@
                                 AlternatingRowBackground="{StaticResource Brush.Background.Card}"
                                 HorizontalGridLinesBrush="{StaticResource Brush.Border.Default}"
                                 VerticalGridLinesBrush="{StaticResource Brush.Border.Default}"
-                                RowHeight="40" CanUserAddRows="False">
+                                RowHeight="40" CanUserAddRows="False"
+                                ColumnHeaderStyle="{StaticResource ConsoleGridColumnHeaderStyle}"
+                                RowStyle="{StaticResource ConsoleGridRowStyle}"
+                                CellStyle="{StaticResource ConsoleGridCellStyle}">
                             <DataGrid.Resources>
                                 <!-- Status badge: no "Status" string property exists on ClientMachineDto (only
                                      IsEnabled/IsOffline booleans) - this reproduces the exact 3-state logic the
@@ -149,42 +192,6 @@
                                             <Setter Property="Tag" Value="Offline"/>
                                             <Setter Property="Content" Value="OFFLINE"/>
                                         </DataTrigger>
-                                    </Style.Triggers>
-                                </Style>
-                                <Style TargetType="DataGridColumnHeader">
-                                    <Setter Property="Background" Value="{StaticResource Brush.Background.Primary}"/>
-                                    <Setter Property="Foreground" Value="{StaticResource Brush.Text.Secondary}"/>
-                                    <Setter Property="FontFamily" Value="{StaticResource FontFamily.Primary}"/>
-                                    <Setter Property="FontWeight" Value="SemiBold"/>
-                                    <Setter Property="FontSize" Value="11"/>
-                                    <Setter Property="Padding" Value="10,8"/>
-                                    <Setter Property="BorderBrush" Value="{StaticResource Brush.Border.Default}"/>
-                                    <Setter Property="BorderThickness" Value="0,0,1,1"/>
-                                </Style>
-                                <Style TargetType="DataGridRow">
-                                    <Setter Property="Background" Value="Transparent"/>
-                                    <Style.Triggers>
-                                        <Trigger Property="IsMouseOver" Value="True">
-                                            <Setter Property="Background">
-                                                <Setter.Value>
-                                                    <SolidColorBrush Color="{StaticResource Color.Accent.Light}" Opacity="0.15"/>
-                                                </Setter.Value>
-                                            </Setter>
-                                        </Trigger>
-                                    </Style.Triggers>
-                                </Style>
-                                <Style TargetType="DataGridCell">
-                                    <Setter Property="Background" Value="Transparent"/>
-                                    <Setter Property="Foreground" Value="{StaticResource Brush.Text.Primary}"/>
-                                    <Setter Property="BorderThickness" Value="0"/>
-                                    <Setter Property="Padding" Value="10,4"/>
-                                    <Setter Property="FontFamily" Value="{StaticResource FontFamily.Primary}"/>
-                                    <Setter Property="FontSize" Value="12"/>
-                                    <Style.Triggers>
-                                        <Trigger Property="IsSelected" Value="True">
-                                            <Setter Property="Background" Value="{StaticResource Brush.Background.Primary}"/>
-                                            <Setter Property="Foreground" Value="{StaticResource Brush.Text.Primary}"/>
-                                        </Trigger>
                                     </Style.Triggers>
                                 </Style>
                             </DataGrid.Resources>
@@ -244,46 +251,69 @@
                             <RowDefinition Height="12"/>
                             <RowDefinition Height="Auto"/>
                             <RowDefinition Height="8"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="8"/>
                             <RowDefinition Height="*"/>
                         </Grid.RowDefinitions>
 
-                        <Border Grid.Row="0" Style="{StaticResource Card}" Background="{StaticResource TableHeaderBgBrush}" Padding="12">
+                        <TextBlock Grid.Row="0" Text="Rule Management" Style="{StaticResource Heading2}"/>
+
+                        <Border Grid.Row="2" CornerRadius="10"
+                                Background="{StaticResource Brush.Background.Primary}"
+                                BorderBrush="{StaticResource Brush.Border.Default}"
+                                BorderThickness="1" Padding="12">
                             <StackPanel Orientation="Horizontal">
                                 <TextBox x:Name="NewRuleNameBox" Width="110" Margin="0,0,8,0"
+                                        Style="{StaticResource RoundedTextBox}"
                                         ToolTip="ชื่อกฎ" Tag="Rule name"/>
                                 <TextBox x:Name="NewRulePublisherBox" Width="160" Margin="0,0,8,0"
+                                        Style="{StaticResource RoundedTextBox}"
                                         ToolTip="ชื่อ Publisher เช่น Valve Corporation"/>
                                 <TextBox x:Name="NewRuleProcessNameContainsBox" Width="130" Margin="0,0,8,0"
+                                        Style="{StaticResource RoundedTextBox}"
                                         ToolTip="[OPTIONAL] narrow เพิ่มจากชื่อไฟล์ เช่น 'notepad' - เว้นว่างได้ถ้าไม่รู้ชื่อไฟล์ล่วงหน้า"/>
                                 <CheckBox x:Name="NewRuleKillCheckBox" Content="Kill Process"
-                                        VerticalAlignment="Center" Margin="0,0,8,0" Foreground="{StaticResource TextPrimaryBrush}"/>
+                                        VerticalAlignment="Center" Margin="0,0,8,0" Foreground="{StaticResource Brush.Text.Primary}"/>
                                 <TextBox x:Name="NewRuleActionBox" Width="150" Margin="0,0,8,0"
+                                        Style="{StaticResource RoundedTextBox}"
                                         ToolTip="path คำสั่ง/สคริปต์ (ไม่บังคับ)"/>
-                                <Button Content="ADD RULE" Style="{StaticResource PrimaryButton}"
+                                <Button Content="ADD RULE" Style="{StaticResource ButtonPrimary}"
                                         Click="AddRuleButton_Click"/>
                             </StackPanel>
                         </Border>
 
-                        <TextBox Grid.Row="2" x:Name="RulesSearchBox" Width="250" HorizontalAlignment="Left"
+                        <TextBox Grid.Row="4" x:Name="RulesSearchBox" Width="250" HorizontalAlignment="Left"
+                                Style="{StaticResource RoundedTextBox}"
                                 Tag="ค้นหาชื่อกฎ/publisher..." TextChanged="RulesSearchBox_TextChanged"/>
 
-                        <DataGrid Grid.Row="4" x:Name="RulesGrid" AutoGenerateColumns="False" IsReadOnly="True">
+                        <DataGrid Grid.Row="6" x:Name="RulesGrid" AutoGenerateColumns="False" IsReadOnly="True"
+                                Background="{StaticResource Brush.Background.Card}"
+                                BorderBrush="{StaticResource Brush.Border.Default}" BorderThickness="1"
+                                RowBackground="{StaticResource Brush.Background.Card}"
+                                AlternatingRowBackground="{StaticResource Brush.Background.Card}"
+                                HorizontalGridLinesBrush="{StaticResource Brush.Border.Default}"
+                                VerticalGridLinesBrush="{StaticResource Brush.Border.Default}"
+                                RowHeight="40" CanUserAddRows="False"
+                                ColumnHeaderStyle="{StaticResource ConsoleGridColumnHeaderStyle}"
+                                RowStyle="{StaticResource ConsoleGridRowStyle}"
+                                CellStyle="{StaticResource ConsoleGridCellStyle}">
+                            <DataGrid.Resources>
+                                <Style x:Key="RuleStatusBadge" TargetType="ContentControl" BasedOn="{StaticResource StatusBadge}">
+                                    <Setter Property="Tag" Value="Danger"/>
+                                    <Setter Property="Content" Value="DISABLED"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsEnabled}" Value="True">
+                                            <Setter Property="Tag" Value="Online"/>
+                                            <Setter Property="Content" Value="ENABLED"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </DataGrid.Resources>
                             <DataGrid.Columns>
-                                <DataGridTemplateColumn Header="STATUS" Width="80" SortMemberPath="IsEnabled">
+                                <DataGridTemplateColumn Header="STATUS" Width="90" SortMemberPath="IsEnabled">
                                     <DataGridTemplateColumn.CellTemplate>
                                         <DataTemplate>
-                                            <Ellipse Width="10" Height="10" HorizontalAlignment="Center">
-                                                <Ellipse.Style>
-                                                    <Style TargetType="Ellipse">
-                                                        <Setter Property="Fill" Value="{StaticResource AccentRedBrush}"/>
-                                                        <Style.Triggers>
-                                                            <DataTrigger Binding="{Binding IsEnabled}" Value="True">
-                                                                <Setter Property="Fill" Value="{StaticResource AccentGreenBrush}"/>
-                                                            </DataTrigger>
-                                                        </Style.Triggers>
-                                                    </Style>
-                                                </Ellipse.Style>
-                                            </Ellipse>
+                                            <ContentControl Style="{StaticResource RuleStatusBadge}"/>
                                         </DataTemplate>
                                     </DataGridTemplateColumn.CellTemplate>
                                 </DataGridTemplateColumn>
@@ -293,13 +323,15 @@
                                 <DataGridTextColumn Header="SIGNED ONLY" Binding="{Binding RequireSignedMatch}" Width="90"/>
                                 <DataGridTextColumn Header="KILL" Binding="{Binding KillProcess}" Width="50"/>
                                 <DataGridTextColumn Header="ACTION COMMAND" Binding="{Binding ActionCommand}" Width="150"/>
-                                <DataGridTemplateColumn Header="ACTIONS" Width="140">
+                                <DataGridTemplateColumn Header="ACTIONS" Width="160">
                                     <DataGridTemplateColumn.CellTemplate>
                                         <DataTemplate>
                                             <StackPanel Orientation="Horizontal">
-                                                <Button Content="TOGGLE" Style="{StaticResource SmallActionButton}"
+                                                <Button Content="TOGGLE" Style="{StaticResource ButtonSecondary}"
+                                                        Padding="10,5" FontSize="11"
                                                         Click="ToggleRuleButton_Click" Tag="{Binding Id}" Margin="0,0,4,0"/>
-                                                <Button Content="DELETE" Style="{StaticResource DangerSmallActionButton}"
+                                                <Button Content="DELETE" Style="{StaticResource ButtonDanger}"
+                                                        Padding="10,5" FontSize="11"
                                                         Click="DeleteRuleButton_Click" Tag="{Binding Id}"/>
                                             </StackPanel>
                                         </DataTemplate>
@@ -315,34 +347,50 @@
                     <Grid Margin="0,12,0,0">
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="12"/>
+                            <RowDefinition Height="Auto"/>
                             <RowDefinition Height="8"/>
                             <RowDefinition Height="*"/>
                         </Grid.RowDefinitions>
 
-                        <TextBox Grid.Row="0" x:Name="LogsSearchBox" Width="250" HorizontalAlignment="Left"
+                        <TextBlock Grid.Row="0" Text="Activity Logs" Style="{StaticResource Heading2}"/>
+
+                        <TextBox Grid.Row="2" x:Name="LogsSearchBox" Width="250" HorizontalAlignment="Left"
+                                Style="{StaticResource RoundedTextBox}"
                                 Tag="ค้นหา machine/process/publisher..." TextChanged="LogsSearchBox_TextChanged"/>
 
-                        <DataGrid Grid.Row="2" x:Name="LogsGrid" AutoGenerateColumns="False" IsReadOnly="True">
+                        <DataGrid Grid.Row="4" x:Name="LogsGrid" AutoGenerateColumns="False" IsReadOnly="True"
+                                Background="{StaticResource Brush.Background.Card}"
+                                BorderBrush="{StaticResource Brush.Border.Default}" BorderThickness="1"
+                                RowBackground="{StaticResource Brush.Background.Card}"
+                                AlternatingRowBackground="{StaticResource Brush.Background.Card}"
+                                HorizontalGridLinesBrush="{StaticResource Brush.Border.Default}"
+                                VerticalGridLinesBrush="{StaticResource Brush.Border.Default}"
+                                RowHeight="40" CanUserAddRows="False"
+                                ColumnHeaderStyle="{StaticResource ConsoleGridColumnHeaderStyle}"
+                                RowStyle="{StaticResource ConsoleGridRowStyle}"
+                                CellStyle="{StaticResource ConsoleGridCellStyle}">
+                            <DataGrid.Resources>
+                                <Style x:Key="LogSignedBadge" TargetType="ContentControl" BasedOn="{StaticResource StatusBadge}">
+                                    <Setter Property="Tag" Value="Danger"/>
+                                    <Setter Property="Content" Value="UNSIGNED"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding WasSignedMatch}" Value="True">
+                                            <Setter Property="Tag" Value="Online"/>
+                                            <Setter Property="Content" Value="SIGNED"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </DataGrid.Resources>
                             <DataGrid.Columns>
                                 <DataGridTextColumn Header="TIME (UTC)" Binding="{Binding Timestamp}" Width="150"/>
                                 <DataGridTextColumn Header="MACHINE" Binding="{Binding MachineName}" Width="130"/>
                                 <DataGridTextColumn Header="PROCESS" Binding="{Binding ProcessPath}" Width="220"/>
                                 <DataGridTextColumn Header="PUBLISHER" Binding="{Binding DetectedPublisher}" Width="160"/>
-                                <DataGridTemplateColumn Header="SIGNED" Width="70" SortMemberPath="WasSignedMatch">
+                                <DataGridTemplateColumn Header="SIGNED" Width="90" SortMemberPath="WasSignedMatch">
                                     <DataGridTemplateColumn.CellTemplate>
                                         <DataTemplate>
-                                            <Ellipse Width="10" Height="10" HorizontalAlignment="Center">
-                                                <Ellipse.Style>
-                                                    <Style TargetType="Ellipse">
-                                                        <Setter Property="Fill" Value="{StaticResource AccentRedBrush}"/>
-                                                        <Style.Triggers>
-                                                            <DataTrigger Binding="{Binding WasSignedMatch}" Value="True">
-                                                                <Setter Property="Fill" Value="{StaticResource AccentGreenBrush}"/>
-                                                            </DataTrigger>
-                                                        </Style.Triggers>
-                                                    </Style>
-                                                </Ellipse.Style>
-                                            </Ellipse>
+                                            <ContentControl Style="{StaticResource LogSignedBadge}"/>
                                         </DataTemplate>
                                     </DataGridTemplateColumn.CellTemplate>
                                 </DataGridTemplateColumn>
@@ -359,28 +407,47 @@
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto"/>
                             <RowDefinition Height="12"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="8"/>
                             <RowDefinition Height="*"/>
                         </Grid.RowDefinitions>
 
-                        <Border Grid.Row="0" Style="{StaticResource Card}" Background="{StaticResource TableHeaderBgBrush}" Padding="12">
+                        <TextBlock Grid.Row="0" Text="User Management" Style="{StaticResource Heading2}"/>
+
+                        <Border Grid.Row="2" CornerRadius="10"
+                                Background="{StaticResource Brush.Background.Primary}"
+                                BorderBrush="{StaticResource Brush.Border.Default}"
+                                BorderThickness="1" Padding="12">
                             <StackPanel Orientation="Horizontal">
                                 <TextBox x:Name="NewUserUsernameBox" Width="160" Margin="0,0,8,0"
+                                         Style="{StaticResource RoundedTextBox}"
                                          ToolTip="Username"/>
                                 <PasswordBox x:Name="NewUserPasswordBox" Width="160" Margin="0,0,8,0"
+                                             Style="{StaticResource RoundedPasswordBox}"
                                              ToolTip="Password (อย่างน้อย 8 ตัวอักษร)"/>
-                                <Button Content="ADD USER" Style="{StaticResource PrimaryButton}"
+                                <Button Content="ADD USER" Style="{StaticResource ButtonPrimary}"
                                         Click="AddUserButton_Click"/>
                             </StackPanel>
                         </Border>
 
-                        <DataGrid Grid.Row="2" x:Name="UsersGrid" AutoGenerateColumns="False" IsReadOnly="True">
+                        <DataGrid Grid.Row="4" x:Name="UsersGrid" AutoGenerateColumns="False" IsReadOnly="True"
+                                Background="{StaticResource Brush.Background.Card}"
+                                BorderBrush="{StaticResource Brush.Border.Default}" BorderThickness="1"
+                                RowBackground="{StaticResource Brush.Background.Card}"
+                                AlternatingRowBackground="{StaticResource Brush.Background.Card}"
+                                HorizontalGridLinesBrush="{StaticResource Brush.Border.Default}"
+                                VerticalGridLinesBrush="{StaticResource Brush.Border.Default}"
+                                RowHeight="40" CanUserAddRows="False"
+                                ColumnHeaderStyle="{StaticResource ConsoleGridColumnHeaderStyle}"
+                                RowStyle="{StaticResource ConsoleGridRowStyle}"
+                                CellStyle="{StaticResource ConsoleGridCellStyle}">
                             <DataGrid.Columns>
                                 <DataGridTextColumn Header="USERNAME" Binding="{Binding Username}" Width="150"/>
                                 <DataGridTextColumn Header="BUILT-IN" Binding="{Binding IsBuiltIn}" Width="80"/>
                                 <DataGridTextColumn Header="DEFAULT PASSWORD" Binding="{Binding HasDefaultPassword}" Width="130"/>
                                 <DataGridTextColumn Header="CREATED (UTC)" Binding="{Binding CreatedAt}" Width="160"/>
                                 <DataGridTextColumn Header="LAST LOGIN (UTC)" Binding="{Binding LastLoginAt}" Width="160"/>
-                                <DataGridTemplateColumn Header="ACTIONS" Width="200">
+                                <DataGridTemplateColumn Header="ACTIONS" Width="220">
                                     <DataGridTemplateColumn.CellTemplate>
                                         <DataTemplate>
                                             <StackPanel Orientation="Horizontal">
@@ -390,7 +457,8 @@
                                                 -->
                                                 <Button Content="RESET PW" Tag="{Binding}"
                                                         Click="ResetUserPasswordButton_Click"
-                                                        Style="{StaticResource SmallActionButton}"
+                                                        Style="{StaticResource ButtonSecondary}"
+                                                        Padding="10,5" FontSize="11"
                                                         Margin="0,0,4,0"/>
 
                                                 <!--
@@ -398,9 +466,10 @@
                                                     ใช้ DataTrigger เทียบ IsBuiltIn แทนการเขียน converter class ใหม่
                                                 -->
                                                 <Button Content="DELETE" Tag="{Binding Id}"
-                                                        Click="DeleteUserButton_Click">
+                                                        Click="DeleteUserButton_Click"
+                                                        Padding="10,5" FontSize="11">
                                                     <Button.Style>
-                                                        <Style TargetType="Button" BasedOn="{StaticResource DangerSmallActionButton}">
+                                                        <Style TargetType="Button" BasedOn="{StaticResource ButtonDanger}">
                                                             <Style.Triggers>
                                                                 <DataTrigger Binding="{Binding IsBuiltIn}" Value="True">
                                                                     <Setter Property="IsEnabled" Value="False"/>
