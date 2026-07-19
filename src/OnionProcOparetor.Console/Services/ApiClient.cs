@@ -14,6 +14,7 @@ public class ApiClient
     private string? _token;
 
     public string? BaseUrl { get; private set; }
+    public string? Username { get; private set; }
     public bool IsLoggedIn => !string.IsNullOrEmpty(_token);
 
     /// <summary>true = admin ที่ login อยู่ตอนนี้ยังไม่เคยเปลี่ยน password จาก default</summary>
@@ -60,6 +61,7 @@ public class ApiClient
             _token = result.Token;
             HasDefaultPassword = result.HasDefaultPassword;
             AdminId = result.AdminId;
+            Username = username;
 
             _httpClient.DefaultRequestHeaders.Remove("X-Auth-Token");
             _httpClient.DefaultRequestHeaders.Add("X-Auth-Token", _token);

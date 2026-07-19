@@ -35,12 +35,12 @@ public partial class ClientSettingsWindow : Window
         else
         {
             StatusText.Text = "กรุณากรอกตัวเลขจำนวนเต็มบวก หรือเว้นว่างไว้เพื่อใช้ค่า default";
-            StatusText.Foreground = System.Windows.Media.Brushes.OrangeRed;
+            StatusText.Foreground = (System.Windows.Media.Brush)FindResource("AccentRedBrush");
             return;
         }
 
         StatusText.Text = "กำลังบันทึก...";
-        StatusText.Foreground = System.Windows.Media.Brushes.Gray;
+        StatusText.Foreground = (System.Windows.Media.Brush)FindResource("AccentNeutralBrush");
 
         var success = await _apiClient.UpdateClientSettingsAsync(_client.Id, overrideSeconds);
 
@@ -52,7 +52,7 @@ public partial class ClientSettingsWindow : Window
         else
         {
             StatusText.Text = "บันทึกไม่สำเร็จ ลองใหม่อีกครั้ง";
-            StatusText.Foreground = System.Windows.Media.Brushes.Red;
+            StatusText.Foreground = (System.Windows.Media.Brush)FindResource("AccentRedBrush");
         }
     }
 
@@ -69,7 +69,7 @@ public partial class ClientSettingsWindow : Window
         else
         {
             StatusText.Text = "ล้างค่าไม่สำเร็จ ลองใหม่อีกครั้ง";
-            StatusText.Foreground = System.Windows.Media.Brushes.Red;
+            StatusText.Foreground = (System.Windows.Media.Brush)FindResource("AccentRedBrush");
         }
     }
 

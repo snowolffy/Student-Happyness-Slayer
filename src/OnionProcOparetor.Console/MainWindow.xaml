@@ -2,17 +2,36 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Onion ProcOparetor Console"
-        Height="480" Width="420"
+        Height="520" Width="420"
         WindowStartupLocation="CenterScreen"
         ResizeMode="NoResize"
-        Style="{StaticResource DarkWindowStyle}">
+        Style="{StaticResource AppWindowStyle}">
     <Grid>
-        <Border Style="{StaticResource Card}" Margin="24" VerticalAlignment="Center">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <!-- ==================== Brand header ==================== -->
+        <Border Grid.Row="0" Style="{StaticResource BrandHeaderBar}">
+            <StackPanel Orientation="Horizontal">
+                <Border Style="{StaticResource LogoPlaceholder}">
+                    <TextBlock Style="{StaticResource LogoPlaceholderText}"/>
+                </Border>
+                <StackPanel Margin="10,0,0,0" VerticalAlignment="Center">
+                    <TextBlock Text="Onion ProcOparetor" Style="{StaticResource BrandHeaderTitleText}"/>
+                    <TextBlock Text="Server Console" Style="{StaticResource BrandHeaderSubText}"/>
+                </StackPanel>
+            </StackPanel>
+        </Border>
+
+        <!-- ==================== Connect form ==================== -->
+        <Border Grid.Row="1" Style="{StaticResource Card}" BorderThickness="0" Margin="24" VerticalAlignment="Center">
             <StackPanel>
-                <TextBlock Text="Onion ProcOparetor" Style="{StaticResource HeaderText}"
-                           HorizontalAlignment="Center"/>
-                <TextBlock Text="Console" Style="{StaticResource LabelText}"
-                           HorizontalAlignment="Center" Margin="0,0,0,24" FontSize="13"/>
+                <TextBlock Text="กรุณากรอก Server IP, Username และ Password เพื่อเชื่อมต่อ"
+                           Style="{StaticResource LabelText}" TextWrapping="Wrap"
+                           HorizontalAlignment="Center" TextAlignment="Center"
+                           Margin="0,0,0,20" FontSize="12"/>
 
                 <TextBlock Text="SERVER (IP:PORT)" Style="{StaticResource LabelText}"/>
                 <TextBox x:Name="ServerAddressBox" Text="localhost:8787" Margin="0,0,0,16"/>

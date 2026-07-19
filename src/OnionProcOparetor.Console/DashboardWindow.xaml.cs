@@ -14,6 +14,8 @@ public partial class DashboardWindow : Window
         InitializeComponent();
         _apiClient = apiClient;
         ServerLabel.Text = $"connected to {_apiClient.BaseUrl}";
+        FooterServerText.Text = _apiClient.BaseUrl ?? "-";
+        FooterUserText.Text = _apiClient.Username ?? "-";
         Loaded += async (_, _) => await LoadAllDataAsync();
     }
 

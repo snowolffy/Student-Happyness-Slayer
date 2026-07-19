@@ -22,7 +22,7 @@ public partial class StatusWindow : Window
         if (status is null)
         {
             MachineNameText.Text = "ไม่สามารถเชื่อมต่อ Onion ProcOparetor Agent Service ได้";
-            EnabledDot.Fill = new SolidColorBrush(Color.FromRgb(0xF0, 0x55, 0x5A));
+            EnabledDot.Fill = (Brush)FindResource("AccentNeutralBrush");
             EnabledText.Text = "Unknown";
             return;
         }
@@ -35,12 +35,12 @@ public partial class StatusWindow : Window
 
         if (status.IsEnabled)
         {
-            EnabledDot.Fill = new SolidColorBrush(Color.FromRgb(0x3D, 0xD6, 0x8C));
+            EnabledDot.Fill = (Brush)FindResource("AccentGreenBrush");
             EnabledText.Text = "Enabled";
         }
         else
         {
-            EnabledDot.Fill = new SolidColorBrush(Color.FromRgb(0xF0, 0x55, 0x5A));
+            EnabledDot.Fill = (Brush)FindResource("AccentRedBrush");
             EnabledText.Text = "Disabled";
         }
 

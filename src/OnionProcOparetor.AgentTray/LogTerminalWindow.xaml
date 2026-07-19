@@ -4,8 +4,7 @@
         Title="Onion ProcOparetor - Log Terminal"
         Height="500" Width="720"
         WindowStartupLocation="CenterScreen"
-        Background="#0F1115"
-        Foreground="#E8E9EB">
+        Style="{StaticResource AppWindowStyle}">
     <Grid Margin="12">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
@@ -14,16 +13,16 @@
         </Grid.RowDefinitions>
 
         <StackPanel Grid.Row="0" Orientation="Horizontal">
-            <TextBlock Text="LOG TERMINAL" FontSize="12" FontWeight="Bold"
-                       Foreground="#8A8F98" VerticalAlignment="Center"/>
-            <TextBlock x:Name="AutoRefreshStatusText" FontSize="10" Foreground="#8A8F98"
+            <TextBlock Text="LOG TERMINAL" FontWeight="Bold" Style="{StaticResource LabelText}"
+                       VerticalAlignment="Center" Margin="0"/>
+            <TextBlock x:Name="AutoRefreshStatusText" Style="{StaticResource LabelText}"
                        Margin="12,0,0,0" VerticalAlignment="Center" Text="auto-refresh: on"/>
             <Button x:Name="PauseButton" Content="PAUSE" Margin="12,0,0,0"
-                    Padding="8,3" FontSize="10" Background="#22252C" Foreground="#E8E9EB"
-                    BorderBrush="#2A2E37" BorderThickness="1" Click="PauseButton_Click"/>
+                    Style="{StaticResource SecondaryButton}" Click="PauseButton_Click"/>
         </StackPanel>
 
-        <Border Grid.Row="2" Background="#000000" BorderBrush="#2A2E37" BorderThickness="1" CornerRadius="4">
+        <!-- แผงเทอร์มินัลจงใจให้เป็นพื้นดำ/ตัวหนังสือเขียวเหมือนคอนโซลจริง ต่างจากธีมหลักของแอปโดยตั้งใจ -->
+        <Border Grid.Row="2" Background="#0A0A0A" BorderBrush="{StaticResource CardBorderBrush}" BorderThickness="1">
             <ScrollViewer x:Name="LogScrollViewer" Padding="10"
                           VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto">
                 <TextBlock x:Name="LogTerminalText"

@@ -8,5 +8,11 @@
         แต่ Tray ต้องอยู่ต่อแม้ไม่มี window ไหนเปิดอยู่ (icon ต้องค้างที่ tray ตลอด)
         ต้อง Shutdown เองผ่านโค้ดเท่านั้น (เช่นตอนกด "Exit" ใน context menu)
     -->
-    <Application.Resources/>
+    <Application.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="Themes/AppTheme.xaml"/>
+            </ResourceDictionary.MergedDictionaries>
+        </ResourceDictionary>
+    </Application.Resources>
 </Application>

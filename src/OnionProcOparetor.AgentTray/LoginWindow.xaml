@@ -2,33 +2,46 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Onion ProcOparetor - Login"
-        Height="340" Width="360"
+        Height="380" Width="360"
         WindowStartupLocation="CenterScreen"
         ResizeMode="NoResize"
-        Background="#0F1115"
-        Foreground="#E8E9EB">
-    <Grid Margin="24">
-        <StackPanel VerticalAlignment="Center">
-            <TextBlock Text="Onion ProcOparetor" FontSize="20" FontWeight="Bold"
-                       HorizontalAlignment="Center" Margin="0,0,0,4"/>
-            <TextBlock Text="เข้าสู่ระบบเพื่อดูสถานะ" FontSize="12" Foreground="#8A8F98"
-                       HorizontalAlignment="Center" Margin="0,0,0,20"/>
+        Style="{StaticResource AppWindowStyle}">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
 
-            <TextBlock Text="USERNAME" FontSize="11" Foreground="#8A8F98" Margin="0,0,0,4"/>
-            <TextBox x:Name="UsernameBox" Padding="8,6" Background="#22252C"
-                     Foreground="#E8E9EB" BorderBrush="#2A2E37" Margin="0,0,0,16"/>
+        <Border Grid.Row="0" Style="{StaticResource BrandHeaderBar}">
+            <StackPanel Orientation="Horizontal">
+                <Border Style="{StaticResource LogoPlaceholder}">
+                    <TextBlock Style="{StaticResource LogoPlaceholderText}"/>
+                </Border>
+                <StackPanel Margin="10,0,0,0" VerticalAlignment="Center">
+                    <TextBlock Text="Onion ProcOparetor" Style="{StaticResource BrandHeaderTitleText}"/>
+                    <TextBlock Text="Agent Status Login" Style="{StaticResource BrandHeaderSubText}"/>
+                </StackPanel>
+            </StackPanel>
+        </Border>
 
-            <TextBlock Text="PASSWORD" FontSize="11" Foreground="#8A8F98" Margin="0,0,0,4"/>
-            <PasswordBox x:Name="PasswordBox" Padding="8,6" Background="#22252C"
-                         Foreground="#E8E9EB" BorderBrush="#2A2E37" Margin="0,0,0,16"/>
+        <Grid Grid.Row="1" Margin="24">
+            <StackPanel VerticalAlignment="Center">
+                <TextBlock Text="เข้าสู่ระบบเพื่อดูสถานะ" FontSize="12" Style="{StaticResource LabelText}"
+                           HorizontalAlignment="Center" Margin="0,0,0,20"/>
 
-            <Button x:Name="LoginButton" Content="LOGIN" Height="36"
-                    Background="#4C8DFF" Foreground="White" BorderThickness="0"
-                    FontWeight="SemiBold" Click="LoginButton_Click"/>
+                <TextBlock Text="USERNAME" Style="{StaticResource LabelText}"/>
+                <TextBox x:Name="UsernameBox" Margin="0,0,0,16"/>
 
-            <TextBlock x:Name="StatusText" Margin="0,12,0,0" TextWrapping="Wrap"
-                       HorizontalAlignment="Center" TextAlignment="Center"
-                       FontSize="11" Foreground="#F0555A"/>
-        </StackPanel>
+                <TextBlock Text="PASSWORD" Style="{StaticResource LabelText}"/>
+                <PasswordBox x:Name="PasswordBox" Margin="0,0,0,16"/>
+
+                <Button x:Name="LoginButton" Content="LOGIN" Height="36"
+                        Style="{StaticResource PrimaryButton}" Click="LoginButton_Click"/>
+
+                <TextBlock x:Name="StatusText" Margin="0,12,0,0" TextWrapping="Wrap"
+                           HorizontalAlignment="Center" TextAlignment="Center"
+                           FontSize="11" Foreground="{StaticResource AccentRedBrush}"/>
+            </StackPanel>
+        </Grid>
     </Grid>
 </Window>
