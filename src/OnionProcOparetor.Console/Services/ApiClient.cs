@@ -131,6 +131,12 @@ public class ApiClient
         return response.IsSuccessStatusCode;
     }
 
+    public async Task<bool> DeleteClientAsync(int clientId)
+    {
+        var response = await _httpClient.DeleteAsync($"/api/clients/{clientId}");
+        return response.IsSuccessStatusCode;
+    }
+
     public async Task<bool> ToggleGlobalAsync()
     {
         var response = await _httpClient.PostAsync("/api/global/toggle", null);

@@ -1,5 +1,6 @@
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Threading;
 using OnionProcOparetor.Console.Models;
 using OnionProcOparetor.Console.Services;
 
@@ -8,6 +9,7 @@ namespace OnionProcOparetor.Console;
 public partial class DashboardWindow : Window
 {
     private readonly ApiClient _apiClient;
+    private readonly DispatcherTimer _autoRefreshTimer;
 
     public DashboardWindow(ApiClient apiClient)
     {
@@ -17,6 +19,13 @@ public partial class DashboardWindow : Window
         FooterServerText.Text = _apiClient.BaseUrl ?? "-";
         FooterUserText.Text = _apiClient.Username ?? "-";
         Loaded += async (_, _) => await LoadAllDataAsync();
+
+        // auto refresh ทุก 10 วิ จะได้ไม่ต้องกด REFRESH เอง - หยุดเองตอนปิดหน้าต่างกัน
+        // เรียก LoadAllDataAsync ทับ ApiClient ที่ปิดไปแล้ว
+        _autoRefreshTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(10) };
+        _autoRefreshTimer.Tick += async (_, _) => await LoadAllDataAsync();
+        _autoRefreshTimer.Start();
+        Closed += (_, _) => _autoRefreshTimer.Stop();
     }
 
     private async Task LoadAllDataAsync()
@@ -65,6 +74,27 @@ public partial class DashboardWindow : Window
             await LoadAllDataAsync();
         }
 
+    }
+
+    private async void DeleteClientButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button { Tag: int clientId })
+        {
+            var confirm = System.Windows.MessageBox.Show(
+                "ยืนยันการลบเครื่องนี้? การกระทำนี้ย้อนกลับไม่ได้",
+                "ยืนยันการลบ",
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Warning);
+
+            if (confirm != MessageBoxResult.Yes)
+            {
+                return;
+            }
+
+            var success = await _apiClient.DeleteClientAsync(clientId);
+            StatusText.Text = success ? "ลบเครื่องสำเร็จ" : "ลบเครื่องไม่สำเร็จ";
+            await LoadAllDataAsync();
+        }
     }
 
     private async void ToggleRuleButton_Click(object sender, RoutedEventArgs e)
@@ -274,10 +304,21 @@ public partial class DashboardWindow : Window
 
     private void ApplyClientsFilter()
     {
+        // จำ selection เดิมไว้ก่อนเปลี่ยน ItemsSource (ไม่งั้นจะหลุดทุกครั้งที่ reload ข้อมูล
+        // เช่นตอน auto-refresh ทุก 10 วิ หรือตอนพิมพ์ค้นหา) แล้วเลือกคืนให้ตาม Id หลังโหลดเสร็จ
+        var selectedIds = ClientsGrid.SelectedItems.Cast<ClientMachineDto>().Select(c => c.Id).ToHashSet();
+
         var keyword = ClientsSearchBox.Text.Trim();
-        ClientsGrid.ItemsSource = string.IsNullOrEmpty(keyword)
+        var filtered = string.IsNullOrEmpty(keyword)
             ? _allClients
             : _allClients.Where(c => c.MachineName.Contains(keyword, StringComparison.OrdinalIgnoreCase)).ToList();
+
+        ClientsGrid.ItemsSource = filtered;
+
+        foreach (var client in filtered.Where(c => selectedIds.Contains(c.Id)))
+        {
+            ClientsGrid.SelectedItems.Add(client);
+        }
     }
 
     private void ApplyRulesFilter()

@@ -14,18 +14,21 @@ public partial class MainWindow : Window
 
     private async void ConnectButton_Click(object sender, RoutedEventArgs e)
     {
-        var serverAddress = ServerAddressBox.Text.Trim();
+        var serverIp = ServerIpBox.Text.Trim();
+        var port = PortBox.Text.Trim();
         var username = UsernameBox.Text.Trim();
         var password = PasswordBox.Password;
 
         // หมายเหตุ: ไม่เช็ค password ว่างเปล่าที่นี่โดยเจตนา
         // เพราะ built-in "Administrator" ใช้ password ว่างเปล่าเป็นค่า default ตอนยังไม่เคยเปลี่ยน
         // (server จะบังคับให้เปลี่ยน password หลัง login สำเร็จอยู่แล้วผ่าน hasDefaultPassword flag)
-        if (string.IsNullOrEmpty(serverAddress) || string.IsNullOrEmpty(username))
+        if (string.IsNullOrEmpty(serverIp) || string.IsNullOrEmpty(username))
         {
-            StatusText.Text = "กรุณากรอก Server address และ Username";
+            StatusText.Text = "กรุณากรอก Server IP และ Username";
             return;
         }
+
+        var serverAddress = string.IsNullOrEmpty(port) ? serverIp : $"{serverIp}:{port}";
 
         ConnectButton.IsEnabled = false;
         StatusText.Foreground = (System.Windows.Media.Brush)FindResource("AccentNeutralBrush");

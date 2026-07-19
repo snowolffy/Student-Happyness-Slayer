@@ -1,0 +1,47 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!-- ==================== Background / Surface / Border ==================== -->
+    <Color x:Key="Color.Background.Primary">#F1F2F5</Color>
+    <Color x:Key="Color.Background.Card">#FFFFFF</Color>
+    <Color x:Key="Color.Border.Default">#D7DBE2</Color>
+
+    <SolidColorBrush x:Key="Brush.Background.Primary" Color="{StaticResource Color.Background.Primary}"/>
+    <SolidColorBrush x:Key="Brush.Background.Card" Color="{StaticResource Color.Background.Card}"/>
+    <SolidColorBrush x:Key="Brush.Border.Default" Color="{StaticResource Color.Border.Default}"/>
+
+    <!-- ==================== Accent (amber/orange) ==================== -->
+    <Color x:Key="Color.Accent.Default">#F5A623</Color>
+    <Color x:Key="Color.Accent.Light">#F7B84D</Color>
+    <Color x:Key="Color.Accent.Dark">#D6890F</Color>
+
+    <SolidColorBrush x:Key="Brush.Accent.Default" Color="{StaticResource Color.Accent.Default}"/>
+    <SolidColorBrush x:Key="Brush.Accent.Light" Color="{StaticResource Color.Accent.Light}"/>
+    <SolidColorBrush x:Key="Brush.Accent.Dark" Color="{StaticResource Color.Accent.Dark}"/>
+
+    <!-- ==================== Status ==================== -->
+    <Color x:Key="Color.Status.Online">#2E9B5D</Color>
+    <Color x:Key="Color.Status.Offline">#9AA1AC</Color>
+    <Color x:Key="Color.Status.Warning">#EAB308</Color>
+
+    <SolidColorBrush x:Key="Brush.Status.Online" Color="{StaticResource Color.Status.Online}"/>
+    <SolidColorBrush x:Key="Brush.Status.Offline" Color="{StaticResource Color.Status.Offline}"/>
+    <SolidColorBrush x:Key="Brush.Status.Warning" Color="{StaticResource Color.Status.Warning}"/>
+
+    <!-- ==================== Danger (destructive actions, e.g. Delete) ==================== -->
+    <Color x:Key="Color.Danger.Default">#D64545</Color>
+    <Color x:Key="Color.Danger.Light">#E67373</Color>
+    <Color x:Key="Color.Danger.Dark">#B23636</Color>
+
+    <SolidColorBrush x:Key="Brush.Danger.Default" Color="{StaticResource Color.Danger.Default}"/>
+    <SolidColorBrush x:Key="Brush.Danger.Light" Color="{StaticResource Color.Danger.Light}"/>
+    <SolidColorBrush x:Key="Brush.Danger.Dark" Color="{StaticResource Color.Danger.Dark}"/>
+
+    <!-- ==================== Text ==================== -->
+    <Color x:Key="Color.Text.Primary">#1F2430</Color>
+    <Color x:Key="Color.Text.Secondary">#6B7280</Color>
+
+    <SolidColorBrush x:Key="Brush.Text.Primary" Color="{StaticResource Color.Text.Primary}"/>
+    <SolidColorBrush x:Key="Brush.Text.Secondary" Color="{StaticResource Color.Text.Secondary}"/>
+
+</ResourceDictionary>

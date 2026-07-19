@@ -646,3 +646,64 @@ Publish ทั้ง 4 โปรเจกต์ + compile `.iss` (ผ่าน `
   ใหม่สดๆ ผ่าน `ISCC.exe` (พบที่ `F:\innosetup-portable\app\ISCC.exe`) ก่อนทดสอบทุกครั้งแทนจะแม่นกว่า
 
 **ผู้ใช้ยืนยันแล้วว่า deploy จริงใช้งานได้ครบทุกส่วน** (Agent poll + Tray login) ณ 2026-07-18 บ่าย
+
+---
+
+# Update Log (2026-07-19, Console UI rebuild — design system ใหม่ + Login/Dashboard restyle)
+
+> เริ่ม rebuild UI ของ `OnionProcOparetor.Console` ใหม่ทั้งหมด แยก design system ออกจาก
+> `Themes/AppTheme.xaml` เดิม (ยังไม่ลบของเดิม อยู่คู่กันไปก่อนจน migration ครบทุกหน้า)
+
+## Theme/ — design system ใหม่ (light + amber accent)
+
+3 ไฟล์ resource dictionary ใหม่ใน `src/OnionProcOparetor.Console/Theme/` (คนละโฟลเดอร์กับ
+`Themes/` เดิม), merge เพิ่มใน `App.xaml` ต่อจาก `Themes/AppTheme.xaml`:
+
+- `Theme/Colors.xaml` — สี BEM-style key (`Brush.Background.Primary/Card`, `Brush.Border.Default`,
+  `Brush.Accent.Default/Light/Dark`, `Brush.Status.Online/Offline/Warning`, `Brush.Danger.*`,
+  `Brush.Text.Primary/Secondary`)
+- `Theme/Typography.xaml` — `Heading1`, `Heading2`, `Body`, `Caption`, `Label` (Segoe UI)
+- `Theme/Controls.xaml` — `RoundedTextBox`, `RoundedPasswordBox`, `ButtonPrimary`, `ButtonSecondary`,
+  `ButtonDanger`, `PillTabButton`, `StatusBadge` (Tag-driven: `Online`/`Offline`/`Warning`/`Danger`)
+
+**เปลี่ยนใจกลางทาง**: เริ่มต้นขอ dark theme (`#0F1115` ฯลฯ) แต่ยกเลิกระหว่างทาง เปลี่ยนเป็น light
+theme + amber accent (`#F5A623`) แทน — ค่าสีทั้งหมดใน `Theme/Colors.xaml` คือค่าที่ confirm แล้ว
+
+## MainWindow.xaml (หน้า Login) — restyle เต็มหน้า ไม่แตะ logic
+
+โลโก้+หัวข้อจัดกึ่งกลางเหนือการ์ดโค้งมน, ใช้ `RoundedTextBox`/`RoundedPasswordBox`/`ButtonPrimary`
+ทั้งหมด — ภายหลังแยกช่อง `SERVER (IP:PORT)` เดิมเป็น `ServerIpBox` + `PortBox` สองช่องจริงตาม
+mockup (รวม `ip:port` ก่อนส่งเข้า `ApiClient.SetServer()` ใน code-behind เหมือนเดิม)
+
+## DashboardWindow.xaml (Server Console) — restyle toolbar/footer + Client tab
+
+Rule/Logs/User tab **ยังไม่ได้ restyle เนื้อหา** (ยังใช้ style เก่าจาก `AppTheme.xaml` อยู่) — แก้
+เฉพาะ toolbar บนสุด, footer, และ tab "CLIENTS" ทั้งหมด ตาม `docs/Ref-page-1.png`:
+
+- Tab header ทั้ง 4 tab กลายเป็น pill style ไปด้วย (ผูก scope ที่ `TabControl.Resources` เลย
+  กระทบทุก tab แม้เนื้อหาข้างในยังไม่ได้แก้)
+- Client status badge (`ClientStatusBadge`, local style ใน `DataGrid.Resources`) จำลอง logic 3
+  สถานะเดิมของ status ellipse (`IsEnabled`/`IsOffline`, ไม่มี property `Status` จริงใน
+  `ClientMachineDto`) ผ่าน `StatusBadge`'s `Tag`: Online (เขียว) / Offline (เทา) / Danger (แดง — เพิ่ม
+  Tag `"Danger"` ใหม่ใน `Theme/Controls.xaml` เพื่อแทนสถานะ "reachable แต่ถูก disable" เดิม)
+
+**เพิ่มฟีเจอร์ Delete client จริง** (เดิมไม่มีเลย ไม่ใช่แค่ restyle):
+
+- `OnionProcOparetor.Server/Program.cs` — เพิ่ม `DELETE /api/clients/{id}` (pattern เดียวกับ
+  `DeleteRule`/`DeleteUser`) ปลอดภัยเพราะ `LogEntry.ClientGuid` ไม่มี FK ผูกกับ `ClientMachine`
+  โดยตั้งใจ (comment เดิมในโค้ดบอกไว้ตรงๆ ว่าเผื่อ client ถูกลบ) ลบแล้ว log เก่ายังอยู่ครบ
+- `ApiClient.DeleteClientAsync()` + `DashboardWindow.DeleteClientButton_Click` (confirm dialog
+  แบบเดียวกับปุ่ม Delete อื่น) + ปุ่ม DELETE กลับเข้า Action column ของ Clients tab
+
+**Auto-refresh + selection fix**: `DashboardWindow` มี `DispatcherTimer` เรียก `LoadAllDataAsync()`
+ทุก 10 วิ (หยุดเองตอนปิดหน้าต่าง) ตามคำขอ ไม่ต้องกด REFRESH เอง — ผลข้างเคียงที่เจอคือ multi-select
+ใน Clients grid (ใช้กับ "TOGGLE SELECTED") หลุดทุกครั้งที่ reload ข้อมูล แก้ใน
+`ApplyClientsFilter()` ให้จำ `Id` ของแถวที่เลือกไว้ก่อน reload แล้วเลือกคืนให้หลัง `ItemsSource`
+เปลี่ยน (ครอบคลุมทั้ง auto-refresh, กด REFRESH เอง, และตอนพิมพ์ค้นหา)
+
+## สถานะ ณ ตอนนี้ (2026-07-19)
+
+Login page + Dashboard toolbar/footer/Client tab ใช้ design system ใหม่ครบแล้ว, build ผ่านทั้ง
+solution 0 error. **ยังไม่ได้ทำ**: restyle เนื้อหา Rule/Logs/User tab (รอบถัดไป), small button
+style variant (`ButtonSecondarySmall`/`ButtonDangerSmall` — ตอนนี้ override Padding/FontSize
+ตรงจุดใช้งานแทน), ลบ `Themes/AppTheme.xaml` เดิมออก (รอ migration ครบทุกหน้าก่อน)

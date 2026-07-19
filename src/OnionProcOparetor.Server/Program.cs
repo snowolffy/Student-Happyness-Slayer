@@ -146,6 +146,24 @@ app.MapPost("/api/clients/{id:int}/toggle", async (int id, HttpRequest request, 
     return Results.Ok(client);
 });
 
+// ลบเครื่อง client ออกจากระบบ (LogEntry.ClientGuid ไม่มี FK ผูกกับ ClientMachine โดยตั้งใจ
+// จึงลบ ClientMachine ได้โดย log เก่าของเครื่องนั้นยังอยู่ครบ ไม่ต้อง cascade)
+app.MapDelete("/api/clients/{id:int}", async (int id, HttpRequest request, AppDbContext db) =>
+{
+    var admin = await GetAuthorizedAdmin(request, db);
+    if (admin is null)
+        return Results.Unauthorized();
+    if (admin.HasDefaultPassword)
+        return Results.Json(new { error = "Password change required before continuing." }, statusCode: 403);
+
+    var client = await db.ClientMachines.FindAsync(id);
+    if (client is null) return Results.NotFound();
+
+    db.ClientMachines.Remove(client);
+    await db.SaveChangesAsync();
+    return Results.Ok(new { message = "Client deleted." });
+});
+
 // toggle ทั้งห้อง (global)
 app.MapPost("/api/global/toggle", async (HttpRequest request, AppDbContext db) =>
 {
