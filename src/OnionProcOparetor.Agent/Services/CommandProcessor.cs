@@ -1,3 +1,6 @@
+using System.Text.Json;
+using OnionProcOparetor.Agent.Models;
+
 namespace OnionProcOparetor.Agent.Services;
 
 /// <summary>
@@ -11,6 +14,7 @@ public class CommandProcessor
 {
     private readonly ILogger<CommandProcessor> _logger;
     private readonly ServerClient _serverClient;
+    private readonly AgentTrayNotifier _agentTrayNotifier;
 
     // เก็บ commandId ที่ process ไปแล้วล่าสุด กันประมวลผลซ้ำตอน network race
     // (เช่น SignalR ReceiveCommand กับ poll loop เห็น command เดียวกันเกือบพร้อมกัน หรือ ExecuteAsync
@@ -21,10 +25,11 @@ public class CommandProcessor
     private readonly Queue<int> _processedCommandIdOrder = new();
     private readonly HashSet<int> _processedCommandIds = new();
 
-    public CommandProcessor(ILogger<CommandProcessor> logger, ServerClient serverClient)
+    public CommandProcessor(ILogger<CommandProcessor> logger, ServerClient serverClient, AgentTrayNotifier agentTrayNotifier)
     {
         _logger = logger;
         _serverClient = serverClient;
+        _agentTrayNotifier = agentTrayNotifier;
     }
 
     /// <summary>
@@ -63,7 +68,10 @@ public class CommandProcessor
     {
         switch (commandType)
         {
-            // TODO Phase 3/4: ใส่ command จริงตรงนี้ เช่น "RefreshRules", "Kill", "RunCommand"
+            case "BroadcastMessage":
+                return HandleBroadcastMessageAsync(payloadJson, ct);
+
+            // TODO Phase 3/4: ใส่ command อื่นๆ ตรงนี้เพิ่ม เช่น "Kill", "RunCommand"
             default:
                 _logger.LogWarning(
                     "ได้รับ command ชนิดที่ยังไม่รู้จัก: '{CommandType}' (payload: {Payload}) - ยังไม่ implement (Phase 3/4)",
@@ -72,6 +80,40 @@ public class CommandProcessor
         }
 
         return Task.CompletedTask;
+    }
+
+    /// <summary>
+    /// ครูพิมพ์ข้อความจาก Console ส่งมาโชว์เป็น popup บนเครื่อง client - payload คาดว่าเป็น
+    /// { "message": string, "title": string? } ส่งต่อให้ AgentTray แสดงผลจริง (ดู AgentTrayNotifier)
+    /// </summary>
+    private async Task HandleBroadcastMessageAsync(string? payloadJson, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(payloadJson))
+        {
+            _logger.LogWarning("BroadcastMessage command ไม่มี payload มาด้วย - ข้าม");
+            return;
+        }
+
+        BroadcastMessagePayload? payload;
+        try
+        {
+            payload = JsonSerializer.Deserialize<BroadcastMessagePayload>(
+                payloadJson, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "แปลง payload ของ BroadcastMessage ไม่สำเร็จ: {Payload}", payloadJson);
+            return;
+        }
+
+        if (payload is null || string.IsNullOrWhiteSpace(payload.Message))
+        {
+            _logger.LogWarning("BroadcastMessage payload ไม่มีข้อความ - ข้าม");
+            return;
+        }
+
+        _logger.LogInformation("ได้รับ BroadcastMessage: '{Message}' (title: {Title})", payload.Message, payload.Title);
+        await _agentTrayNotifier.SendBroadcastMessageAsync(payload, ct);
     }
 
     private bool TryMarkAsProcessed(int commandId)

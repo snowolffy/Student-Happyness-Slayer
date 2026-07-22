@@ -1,5 +1,6 @@
 using System.Windows;
 using Hardcodet.Wpf.TaskbarNotification;
+using OnionProcOparetor.AgentTray.Models;
 using OnionProcOparetor.AgentTray.Services;
 
 namespace OnionProcOparetor.AgentTray;
@@ -8,6 +9,8 @@ public partial class App : Application
 {
     private TaskbarIcon? _trayIcon;
     private readonly ClientApiClient _apiClient = new();
+    private readonly BroadcastPipeListener _broadcastListener = new();
+    private readonly CancellationTokenSource _broadcastListenerCts = new();
 
     protected override void OnStartup(StartupEventArgs e)
     {
@@ -16,6 +19,11 @@ public partial class App : Application
         // ตั้งค่า auto-start ผ่าน Registry Run key (HKCU) ให้อัตโนมัติทุกครั้งที่ Tray เริ่มทำงาน
         // ทำงานแบบ idempotent - เรียกซ้ำได้ไม่มีผลข้างเคียง ถ้าตั้งไว้แล้วและ path ไม่เปลี่ยนจะไม่เขียนซ้ำ
         RegistryStartup.EnsureAutoStartEnabled();
+
+        // เริ่มฟัง broadcast message จาก Agent (named pipe) - ทำงานอยู่ตลอดอายุของ Tray
+        // ไม่ต้องเปิดหน้า Status ก่อนก็รับ popup ได้
+        _broadcastListener.MessageReceived += OnBroadcastMessageReceived;
+        _broadcastListener.Start(_broadcastListenerCts.Token);
 
         try
         {
@@ -66,8 +74,19 @@ public partial class App : Application
         loginWindow.Show();
     }
 
+    private void OnBroadcastMessageReceived(BroadcastMessageDto message)
+    {
+        // เรียกจาก background thread ของ pipe listener - ต้อง marshal เข้า UI thread ก่อนสร้าง Window
+        Dispatcher.Invoke(() =>
+        {
+            var popup = new BroadcastPopupWindow(message.Title, message.Message);
+            popup.Show();
+        });
+    }
+
     protected override void OnExit(ExitEventArgs e)
     {
+        _broadcastListenerCts.Cancel();
         _trayIcon?.Dispose();
         base.OnExit(e);
     }

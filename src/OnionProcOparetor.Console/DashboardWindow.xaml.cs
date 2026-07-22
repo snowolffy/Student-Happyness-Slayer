@@ -264,6 +264,44 @@ public partial class DashboardWindow : Window
         SelectedClientsCountText.Text = count > 0 ? $"เลือกไว้ {count} เครื่อง" : "";
     }
 
+    private async void BroadcastMessageButton_Click(object sender, RoutedEventArgs e)
+    {
+        var selected = ClientsGrid.SelectedItems.Cast<ClientMachineDto>().ToList();
+
+        var dialog = new BroadcastMessageWindow(selected.Count) { Owner = this };
+        var result = dialog.ShowDialog();
+
+        if (result != true)
+        {
+            return;
+        }
+
+        var targets = dialog.SendToAll ? _allClients : selected;
+
+        if (targets.Count == 0)
+        {
+            StatusText.Text = "ไม่มีเครื่องให้ส่งข้อความ";
+            return;
+        }
+
+        StatusText.Text = $"กำลังส่งข้อความไป {targets.Count} เครื่อง...";
+
+        var successCount = 0;
+        foreach (var client in targets)
+        {
+            var payload = new
+            {
+                message = dialog.MessageText,
+                title = string.IsNullOrEmpty(dialog.MessageTitle) ? null : dialog.MessageTitle
+            };
+
+            var success = await _apiClient.SendCommandAsync(client.ClientGuid, "BroadcastMessage", payload);
+            if (success) successCount++;
+        }
+
+        StatusText.Text = $"ส่งข้อความสำเร็จ {successCount}/{targets.Count} เครื่อง";
+    }
+
     private async void ToggleSelectedClientsButton_Click(object sender, RoutedEventArgs e)
     {
         var selected = ClientsGrid.SelectedItems.Cast<ClientMachineDto>().ToList();

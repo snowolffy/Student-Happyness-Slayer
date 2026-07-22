@@ -79,6 +79,7 @@ builder.Services.AddHttpClient<ServerClient>((serviceProvider, client) =>
 builder.Services.AddSingleton<ClientState>();
 
 // ---- Command processing (SignalR real-time + poll fallback ใช้ logic เดียวกัน) ----
+builder.Services.AddSingleton<AgentTrayNotifier>();
 builder.Services.AddSingleton<CommandProcessor>();
 
 // ---- SignalR hub connection - ชั้นเสริมคู่ขนานกับ poll loop เดิม (ไม่แทนที่) ----

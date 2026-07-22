@@ -1,0 +1,42 @@
+<Window x:Class="OnionProcOparetor.AgentTray.BroadcastPopupWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="ข้อความจากครู"
+        Width="420" SizeToContent="Height"
+        WindowStartupLocation="CenterScreen"
+        Topmost="True"
+        ResizeMode="NoResize"
+        Style="{StaticResource AppWindowStyle}">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- ==================== Brand header ==================== -->
+        <Border Grid.Row="0" Style="{StaticResource BrandHeaderBar}">
+            <StackPanel Orientation="Horizontal">
+                <Border Style="{StaticResource LogoPlaceholder}">
+                    <TextBlock Style="{StaticResource LogoPlaceholderText}"/>
+                </Border>
+                <TextBlock x:Name="TitleText" Text="ข้อความจากครู" Margin="10,0,0,0"
+                           Style="{StaticResource BrandHeaderTitleText}"/>
+            </StackPanel>
+        </Border>
+
+        <Border Grid.Row="1" Style="{StaticResource Card}" Margin="16">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="16"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+
+                <TextBlock Grid.Row="0" x:Name="MessageText" TextWrapping="Wrap" FontSize="14" MaxWidth="380"/>
+
+                <Button Grid.Row="2" x:Name="CloseButton" Content="ปิด" HorizontalAlignment="Right"
+                        Style="{StaticResource PrimaryButton}" Click="CloseButton_Click"/>
+            </Grid>
+        </Border>
+    </Grid>
+</Window>
