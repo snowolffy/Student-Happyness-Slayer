@@ -8,4 +8,7 @@
     <AssemblyName>OnionProcOparetor.Console</AssemblyName>
     <RootNamespace>OnionProcOparetor.Console</RootNamespace>
   </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.SignalR.Client" Version="10.0.10" />
+  </ItemGroup>
 </Project>

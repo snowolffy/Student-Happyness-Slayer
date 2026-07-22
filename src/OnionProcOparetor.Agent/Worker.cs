@@ -31,13 +31,23 @@ public class Worker : BackgroundService
     private ManagementEventWatcher? _processWatcher;
 
     private readonly ClientState _state;
+    private readonly CommandProcessor _commandProcessor;
+    private readonly LabHubConnection _labHubConnection;
 
-    public Worker(ILogger<Worker> logger, ServerClient serverClient, IOptions<ServerSettings> settings, ClientState state)
+    public Worker(
+        ILogger<Worker> logger,
+        ServerClient serverClient,
+        IOptions<ServerSettings> settings,
+        ClientState state,
+        CommandProcessor commandProcessor,
+        LabHubConnection labHubConnection)
     {
         _logger = logger;
         _serverClient = serverClient;
         _settings = settings.Value;
         _state = state;
+        _commandProcessor = commandProcessor;
+        _labHubConnection = labHubConnection;
         _clientGuid = ClientIdentity.GetOrCreateClientGuid();
         _machineName = ClientIdentity.GetMachineName();
         _state.ClientGuid = _clientGuid;
@@ -63,6 +73,10 @@ public class Worker : BackgroundService
         // เริ่ม periodic full-scan แยก thread ต่างหากด้วย - จับ process ที่รันอยู่ก่อนแล้ว
         _ = RunPeriodicProcessScanAsync(stoppingToken);
 
+        // เริ่มต่อ SignalR แบบ fire-and-forget - เป็นชั้นเสริมคู่ขนานกับ poll loop เดิม ไม่แทนที่
+        // มี retry loop ของตัวเองอยู่แล้วข้างใน ไม่ throw ออกมาแม้ server จะยังไม่พร้อม/offline
+        _ = _labHubConnection.StartAsync(_clientGuid, stoppingToken);
+
         // Loop หลัก: poll server เป็นระยะๆ เพื่ออัพเดต rules + enabled state
         while (!stoppingToken.IsCancellationRequested)
         {
@@ -73,6 +87,8 @@ public class Worker : BackgroundService
                 _state.UpdatePollResult(polled.Enabled, polled.Rules.Count, succeeded: true);
                 _logger.LogInformation("Poll สำเร็จ - Enabled: {Enabled}, Rules: {Count} ข้อ",
                     polled.Enabled, polled.Rules.Count);
+
+                await ProcessPendingCommandsAsync(polled.PendingCommands, stoppingToken);
             }
             else
             {
@@ -91,6 +107,29 @@ public class Worker : BackgroundService
     }
 
     /// <summary>
+    /// วน process command ที่ได้จาก pendingCommands ของ poll response (fallback path คู่ขนานกับ SignalR
+    /// ReceiveCommand) - เรียก CommandProcessor เดียวกับที่ SignalR ใช้ (มี dedup + ack ในตัวอยู่แล้ว
+    /// ไม่ต้อง ack ซ้ำที่นี่อีก)
+    /// </summary>
+    private async Task ProcessPendingCommandsAsync(List<PendingCommandDto> pendingCommands, CancellationToken ct)
+    {
+        foreach (var command in pendingCommands)
+        {
+            await _commandProcessor.ProcessPendingCommandAsync(command.Id, command.CommandType, command.PayloadJson, ct);
+        }
+    }
+
+    /// <summary>
+    /// เรียกตอน service กำลังจะหยุด (ก่อน ExecuteAsync ถูกยกเลิกเสร็จสมบูรณ์) - ปิด SignalR connection
+    /// ให้เรียบร้อยคู่กับตอน start ใน ExecuteAsync (ไม่กระทบ poll loop ที่หยุดผ่าน stoppingToken ตามปกติอยู่แล้ว)
+    /// </summary>
+    public override async Task StopAsync(CancellationToken cancellationToken)
+    {
+        await _labHubConnection.DisposeAsync();
+        await base.StopAsync(cancellationToken);
+    }
+
+    /// <summary>
     /// Loop แยกต่างหาก สแกน process ที่รันอยู่ทั้งหมดทุก ProcessScanIntervalSeconds วินาที
     /// จับกรณีที่ WMI event พลาดไป (process เปิดค้างอยู่ก่อน service เริ่ม, หรือก่อน rule ถูกเพิ่ม/เปิดใช้งาน)
     /// </summary>
@@ -105,6 +144,8 @@ public class Worker : BackgroundService
                 _state.UpdatePollResult(polled.Enabled, polled.Rules.Count, succeeded: true);
                 _logger.LogInformation("Poll สำเร็จ - Enabled: {Enabled}, Rules: {Count} ข้อ",
                     polled.Enabled, polled.Rules.Count);
+
+                await ProcessPendingCommandsAsync(polled.PendingCommands, stoppingToken);
             }
             else
             {

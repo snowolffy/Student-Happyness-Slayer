@@ -10,6 +10,7 @@ public partial class DashboardWindow : Window
 {
     private readonly ApiClient _apiClient;
     private readonly DispatcherTimer _autoRefreshTimer;
+    private readonly LabHubClient _labHubClient = new();
 
     public DashboardWindow(ApiClient apiClient)
     {
@@ -25,7 +26,46 @@ public partial class DashboardWindow : Window
         _autoRefreshTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(10) };
         _autoRefreshTimer.Tick += async (_, _) => await LoadAllDataAsync();
         _autoRefreshTimer.Start();
-        Closed += (_, _) => _autoRefreshTimer.Stop();
+
+        // SignalR เป็นชั้นเสริมคู่ขนานกับ DispatcherTimer ข้างบน (ไม่แทนที่) - ทำให้ตารางเครื่องอัปเดต
+        // ไวขึ้นโดยไม่ต้องรอรอบ poll ถ้า SignalR หลุด/ต่อไม่ได้ ตาราง ยังอัปเดตปกติผ่าน auto refresh เดิม
+        _labHubClient.ClientStatusChanged += OnClientStatusChangedFromHub;
+        _ = _labHubClient.StartAsync(_apiClient.BaseUrl!, CancellationToken.None);
+
+        Closed += async (_, _) =>
+        {
+            _autoRefreshTimer.Stop();
+            _labHubClient.ClientStatusChanged -= OnClientStatusChangedFromHub;
+            await _labHubClient.DisposeAsync();
+        };
+    }
+
+    /// <summary>
+    /// เรียกจาก SignalR background thread ตอนได้ ClientStatusChanged - update item ที่มีอยู่ใน
+    /// _allClients ตาม ClientGuid ที่ match แล้วรีเฟรชตารางผ่าน ApplyClientsFilter เดิม
+    /// (ไม่สร้าง binding ใหม่ - ใช้ List + ItemsSource reassign แบบเดียวกับที่ LoadAllDataAsync ทำอยู่แล้ว)
+    /// </summary>
+    private void OnClientStatusChangedFromHub(ClientMachineDto updated)
+    {
+        Dispatcher.Invoke(() =>
+        {
+            var existing = _allClients.FirstOrDefault(c => c.ClientGuid == updated.ClientGuid);
+            if (existing is not null)
+            {
+                existing.MachineName = updated.MachineName;
+                existing.LastKnownIp = updated.LastKnownIp;
+                existing.IsEnabled = updated.IsEnabled;
+                existing.LastSeenAt = updated.LastSeenAt;
+                existing.RegisteredAt = updated.RegisteredAt;
+                existing.PollIntervalOverrideSeconds = updated.PollIntervalOverrideSeconds;
+            }
+            else
+            {
+                _allClients.Add(updated);
+            }
+
+            ApplyClientsFilter();
+        });
     }
 
     private async Task LoadAllDataAsync()

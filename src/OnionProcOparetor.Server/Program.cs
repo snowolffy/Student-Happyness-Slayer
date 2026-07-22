@@ -1,5 +1,7 @@
+using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using OnionProcOparetor.Server.Data;
+using OnionProcOparetor.Server.Hubs;
 using OnionProcOparetor.Server.Models;
 using OnionProcOparetor.Server.Services;
 using System.Security.Cryptography;
@@ -26,6 +28,9 @@ if (!string.IsNullOrEmpty(dbDir) && !Directory.Exists(dbDir))
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseSqlite(connectionString));
 
+// ---- SignalR: real-time push คู่ขนานกับ HTTP polling เดิม (ไม่แทนที่ poll) ----
+builder.Services.AddSignalR();
+
 // ---- รองรับ Windows Service host (ให้ publish เป็น service ได้ทีหลัง) ----
 builder.Host.UseWindowsService();
 
@@ -41,6 +46,9 @@ using (var scope = app.Services.CreateScope())
 // ---- API Endpoints ----
 
 app.MapGet("/", () => Results.Ok(new { service = "OnionProcOparetor.Server", status = "running" }));
+
+// ---- SignalR hub: real-time command push + live status (ชั้นเสริมคู่ขนานกับ poll เดิม) ----
+app.MapHub<LabHub>("/hubs/lab");
 
 // ---- Auth Endpoints ----
 
@@ -270,7 +278,7 @@ app.MapPut("/api/clients/{id:int}/settings", async (int id, ClientSettingsReques
 
 // client เอาไว้ poll เพื่อดึง rules + สถานะ enabled/disabled ของตัวเอง
 // (endpoint สำคัญที่สุดสำหรับฝั่ง Client Service) - ไม่ต้อง auth เพราะใช้ clientGuid ยืนยันตัวเองแทน
-app.MapGet("/api/poll/{clientGuid}", async (string clientGuid, string machineName, AppDbContext db) =>
+app.MapGet("/api/poll/{clientGuid}", async (string clientGuid, string machineName, AppDbContext db, IHubContext<LabHub> hub) =>
 {
     var client = await db.ClientMachines.FirstOrDefaultAsync(c => c.ClientGuid == clientGuid);
 
@@ -297,14 +305,72 @@ app.MapGet("/api/poll/{clientGuid}", async (string clientGuid, string machineNam
 
     var rules = await db.Rules.Where(r => r.IsEnabled).ToListAsync();
 
+    // fallback path สำหรับ command ที่ยังไม่ถึง Agent ผ่าน SignalR (เช่น เครื่อง disconnect อยู่ตอนที่ถูกสั่ง)
+    // Agent จะเห็น command เหล่านี้ผ่าน poll รอบถัดไปเสมอ ไม่ว่า SignalR จะต่อติดอยู่หรือไม่ก็ตาม
+    var pendingCommands = await db.ClientCommands
+        .Where(c => c.ClientGuid == clientGuid && c.Status == ClientCommandStatus.Pending)
+        .OrderBy(c => c.CreatedAt)
+        .Select(c => new { c.Id, c.CommandType, c.PayloadJson, c.CreatedAt })
+        .ToListAsync();
+
     await db.SaveChangesAsync();
+
+    // เสริม real-time status ให้ console ที่เปิดอยู่ - ไม่กระทบ response ที่คืนให้ agent เลย
+    await hub.Clients.BroadcastClientStatus(client);
 
     return Results.Ok(new
     {
         enabled = globalEnabled && client.IsEnabled,
         rules,
-        pollIntervalOverrideSeconds = client.PollIntervalOverrideSeconds
+        pollIntervalOverrideSeconds = client.PollIntervalOverrideSeconds,
+        pendingCommands
     });
+});
+
+// Console สั่ง command ไปยัง Agent เครื่องใดเครื่องหนึ่ง - บันทึกลง DB เป็น pending เสมอ (fallback ผ่าน poll)
+// แล้ว push ทันทีผ่าน SignalR ถ้า Agent เครื่องนั้น connected อยู่ตอนนี้
+app.MapPost("/api/commands/{clientGuid}", async (string clientGuid, CommandRequest req, HttpRequest request, AppDbContext db, IHubContext<LabHub> hub) =>
+{
+    var admin = await GetAuthorizedAdmin(request, db);
+    if (admin is null)
+        return Results.Unauthorized();
+    if (admin.HasDefaultPassword)
+        return Results.Json(new { error = "Password change required before continuing." }, statusCode: 403);
+
+    var command = new ClientCommand
+    {
+        ClientGuid = clientGuid,
+        CommandType = req.CommandType,
+        PayloadJson = req.Payload,
+        CreatedAt = DateTime.UtcNow,
+        Status = ClientCommandStatus.Pending
+    };
+    db.ClientCommands.Add(command);
+    await db.SaveChangesAsync(); // ต้อง save ก่อนถึงจะได้ command.Id จริง (SQLite autoincrement) เอาไปส่งต่อให้ SignalR ได้
+
+    await hub.Clients.SendCommandToAgent(clientGuid, command.Id, command.CommandType, command.PayloadJson);
+
+    return Results.Created($"/api/commands/{command.Id}", command);
+});
+
+// Agent เรียก ack กลับมาหลังได้รับ command แล้ว (ไม่ว่าจะรับผ่าน SignalR หรือเจอผ่าน poll fallback ก็ตาม)
+// กัน command เดิมถูกส่งซ้ำไปเรื่อยๆ ทุกรอบ poll - ไม่ต้อง auth เหมือน /api/poll และ /api/logs (ใช้เครือข่ายปิดของโรงเรียนเท่านั้น)
+app.MapPost("/api/commands/{commandId:int}/ack", async (int commandId, AppDbContext db) =>
+{
+    var command = await db.ClientCommands.FindAsync(commandId);
+    if (command is null) return Results.NotFound();
+
+    // idempotent โดยตั้งใจ: ต้องเรียกซ้ำได้ปลอดภัย เพราะ Agent อาจ ack command เดียวกันมาทั้งจาก
+    // SignalR path และ poll path พร้อมกัน (race) - ถ้า deliver ไปแล้วไม่ต้อง overwrite DeliveredAt ซ้ำ
+    // (ไม่งั้น DeliveredAt จะขยับเวลาไปเรื่อยๆ ทุกครั้งที่ ack ซ้ำ ทั้งที่จริงควรเป็นเวลาส่งมอบครั้งแรก)
+    if (command.Status != ClientCommandStatus.Delivered)
+    {
+        command.Status = ClientCommandStatus.Delivered;
+        command.DeliveredAt = DateTime.UtcNow;
+        await db.SaveChangesAsync();
+    }
+
+    return Results.Ok(command);
 });
 
 // client push log กลับมา - ไม่ต้อง auth (ใช้ในเครือข่ายปิดของโรงเรียนเท่านั้น)
@@ -512,3 +578,4 @@ app.Run();
 // ---- Request DTOs ----
 record CreateUserRequest(string Username, string Password);
 record ChangePasswordRequest(string NewPassword);
+record CommandRequest(string CommandType, string? Payload);

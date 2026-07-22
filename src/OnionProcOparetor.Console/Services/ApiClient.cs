@@ -249,6 +249,20 @@ public class ApiClient
         return response.IsSuccessStatusCode;
     }
 
+    /// <summary>
+    /// สั่ง command ไปยัง Agent เครื่องใดเครื่องหนึ่งผ่าน POST /api/commands/{clientGuid}
+    /// (Server จะ push ทันทีผ่าน SignalR ถ้า Agent เครื่องนั้น connected อยู่ ไม่งั้น Agent จะเจอผ่าน poll fallback)
+    /// payload ถูก serialize เป็น JSON string ก่อนส่ง เพราะ Server เก็บเป็น PayloadJson (string) ไม่ใช่ object ดิบ
+    /// </summary>
+    public async Task<bool> SendCommandAsync(string clientGuid, string commandType, object? payload)
+    {
+        var payloadJson = payload is null ? null : System.Text.Json.JsonSerializer.Serialize(payload);
+        var response = await _httpClient.PostAsJsonAsync(
+            $"/api/commands/{clientGuid}",
+            new { commandType, payload = payloadJson });
+        return response.IsSuccessStatusCode;
+    }
+
     public async Task<(bool Success, string Message)> ResetUserPasswordAsync(int userId, string newPassword)
     {
         try

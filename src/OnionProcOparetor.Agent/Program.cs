@@ -78,6 +78,12 @@ builder.Services.AddHttpClient<ServerClient>((serviceProvider, client) =>
 // ---- State แบบ in-memory ที่ Worker เขียน, local API อ่าน ----
 builder.Services.AddSingleton<ClientState>();
 
+// ---- Command processing (SignalR real-time + poll fallback ใช้ logic เดียวกัน) ----
+builder.Services.AddSingleton<CommandProcessor>();
+
+// ---- SignalR hub connection - ชั้นเสริมคู่ขนานกับ poll loop เดิม (ไม่แทนที่) ----
+builder.Services.AddSingleton<LabHubConnection>();
+
 // ---- รองรับ Windows Service host ----
 builder.Services.AddWindowsService();
 

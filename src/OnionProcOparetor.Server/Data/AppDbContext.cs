@@ -20,6 +20,7 @@ public class AppDbContext : DbContext
     public DbSet<GlobalState> GlobalStates => Set<GlobalState>();
     public DbSet<AdminUser> AdminUsers => Set<AdminUser>();
     public DbSet<AuthToken> AuthTokens => Set<AuthToken>();
+    public DbSet<ClientCommand> ClientCommands => Set<ClientCommand>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -43,6 +44,10 @@ public class AppDbContext : DbContext
         // ทำ index ให้ query log ตาม client + เวลาได้เร็ว (จะมี log เยอะสุดในบรรดา table ทั้งหมด)
         modelBuilder.Entity<LogEntry>()
             .HasIndex(l => new { l.ClientGuid, l.Timestamp });
+
+        // ทำ index ให้ query pending command ตาม client ได้เร็ว (ใช้ทุกครั้งที่ poll)
+        modelBuilder.Entity<ClientCommand>()
+            .HasIndex(c => new { c.ClientGuid, c.Status });
 
         // Seed ค่าเริ่มต้นของ GlobalState ให้มี row เดียวเสมอ (Id = 1, เปิดใช้งานเป็นค่าเริ่มต้น)
         // สำคัญ: ต้องใช้ค่า DateTime แบบ fixed/static เท่านั้น ห้ามใช้ DateTime.UtcNow หรือ

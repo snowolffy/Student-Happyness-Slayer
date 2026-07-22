@@ -49,4 +49,21 @@ public class ServerClient
             _logger.LogWarning(ex, "ส่ง log กลับ server ไม่สำเร็จ (จะไม่ retry - log ถัดไปจะพยายามใหม่)");
         }
     }
+
+    /// <summary>
+    /// ยืนยันกับ server ว่า command นี้ได้รับ/ประมวลผลแล้ว (กัน command เดิมถูกส่งซ้ำไปเรื่อยๆ ทุกรอบ poll)
+    /// ไม่ throw ถ้า fail - ถ้า ack ไม่สำเร็จ command จะยังเป็น Pending ต่อไป และจะเจอผ่าน poll รอบถัดไปอีก
+    /// (ไม่เป็นไร เพราะ CommandProcessor กัน process ซ้ำด้วย commandId ไว้แล้ว)
+    /// </summary>
+    public async Task AckCommandAsync(int commandId, CancellationToken ct)
+    {
+        try
+        {
+            await _httpClient.PostAsync($"/api/commands/{commandId}/ack", null, ct);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Ack command {CommandId} ไม่สำเร็จ (จะเจอ command นี้ซ้ำในรอบ poll ถัดไป)", commandId);
+        }
+    }
 }
