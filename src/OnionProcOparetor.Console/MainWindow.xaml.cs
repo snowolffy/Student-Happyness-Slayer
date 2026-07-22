@@ -31,7 +31,7 @@ public partial class MainWindow : Window
         var serverAddress = string.IsNullOrEmpty(port) ? serverIp : $"{serverIp}:{port}";
 
         ConnectButton.IsEnabled = false;
-        StatusText.Foreground = (System.Windows.Media.Brush)FindResource("AccentNeutralBrush");
+        StatusText.Foreground = (System.Windows.Media.Brush)FindResource("Brush.Status.Offline");
         StatusText.Text = "กำลังเชื่อมต่อ...";
 
         _apiClient.SetServer(serverAddress);
@@ -41,7 +41,7 @@ public partial class MainWindow : Window
         {
             if (_apiClient.HasDefaultPassword)
             {
-                StatusText.Foreground = (System.Windows.Media.Brush)FindResource("AccentGreenBrush");
+                StatusText.Foreground = (System.Windows.Media.Brush)FindResource("Brush.Status.Online");
                 StatusText.Text = "เชื่อมต่อสำเร็จ กรุณาเปลี่ยน password ก่อนใช้งาน...";
 
                 var forceChangeWindow = new ForceChangePasswordWindow(_apiClient);
@@ -50,7 +50,7 @@ public partial class MainWindow : Window
             }
             else
             {
-                StatusText.Foreground = (System.Windows.Media.Brush)FindResource("AccentGreenBrush");
+                StatusText.Foreground = (System.Windows.Media.Brush)FindResource("Brush.Status.Online");
                 StatusText.Text = "เชื่อมต่อสำเร็จ กำลังเปิด Dashboard...";
 
                 var dashboard = new DashboardWindow(_apiClient);
@@ -60,7 +60,7 @@ public partial class MainWindow : Window
         }
         else
         {
-            StatusText.Foreground = (System.Windows.Media.Brush)FindResource("AccentRedBrush");
+            StatusText.Foreground = (System.Windows.Media.Brush)FindResource("Brush.Danger.Default");
             StatusText.Text = message;
             ConnectButton.IsEnabled = true;
         }

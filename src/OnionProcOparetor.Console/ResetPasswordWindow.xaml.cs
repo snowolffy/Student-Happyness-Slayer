@@ -19,7 +19,7 @@ public partial class ResetPasswordWindow : Window
         if (string.IsNullOrEmpty(password) || password.Length < 8)
         {
             StatusText.Text = "Password ต้องมีความยาวอย่างน้อย 8 ตัวอักษร";
-            StatusText.Foreground = (System.Windows.Media.Brush)FindResource("AccentRedBrush");
+            StatusText.Foreground = (System.Windows.Media.Brush)FindResource("Brush.Danger.Default");
             return;
         }
 

@@ -20,27 +20,27 @@ public partial class ForceChangePasswordWindow : Window
 
         if (string.IsNullOrEmpty(newPassword) || newPassword.Length < 8)
         {
-            StatusText.Foreground = (System.Windows.Media.Brush)FindResource("AccentRedBrush");
+            StatusText.Foreground = (System.Windows.Media.Brush)FindResource("Brush.Danger.Default");
             StatusText.Text = "Password ต้องมีความยาวอย่างน้อย 8 ตัวอักษร";
             return;
         }
 
         if (newPassword != confirmPassword)
         {
-            StatusText.Foreground = (System.Windows.Media.Brush)FindResource("AccentRedBrush");
+            StatusText.Foreground = (System.Windows.Media.Brush)FindResource("Brush.Danger.Default");
             StatusText.Text = "Password ทั้งสองช่องไม่ตรงกัน";
             return;
         }
 
         ChangePasswordButton.IsEnabled = false;
-        StatusText.Foreground = (System.Windows.Media.Brush)FindResource("AccentNeutralBrush");
+        StatusText.Foreground = (System.Windows.Media.Brush)FindResource("Brush.Status.Offline");
         StatusText.Text = "กำลังเปลี่ยน password...";
 
         var (success, message) = await _apiClient.ChangePasswordAsync(newPassword);
 
         if (success)
         {
-            StatusText.Foreground = (System.Windows.Media.Brush)FindResource("AccentGreenBrush");
+            StatusText.Foreground = (System.Windows.Media.Brush)FindResource("Brush.Status.Online");
             StatusText.Text = "เปลี่ยน password สำเร็จ กำลังเปิด Dashboard...";
 
             var dashboard = new DashboardWindow(_apiClient);
@@ -49,7 +49,7 @@ public partial class ForceChangePasswordWindow : Window
         }
         else
         {
-            StatusText.Foreground = (System.Windows.Media.Brush)FindResource("AccentRedBrush");
+            StatusText.Foreground = (System.Windows.Media.Brush)FindResource("Brush.Danger.Default");
             StatusText.Text = message;
             ChangePasswordButton.IsEnabled = true;
         }

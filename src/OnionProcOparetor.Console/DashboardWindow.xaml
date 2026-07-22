@@ -4,8 +4,18 @@
         Title="Onion ProcOparetor Console - Dashboard"
         Height="680" Width="1000"
         WindowStartupLocation="CenterScreen"
+        ResizeMode="NoResize"
         Style="{StaticResource AppWindowStyle}"
         Background="{StaticResource Brush.Background.Primary}">
+    <!--
+        Layout: Toolbar -> TabControl with 4 tabs: CLIENTS / RULES / LOGS / USERS -> footer status bar, all
+        positioned on a free-form Canvas (drag any element to reposition it in the VS Designer). Each tab is
+        self-contained (its own Canvas + DataGrid) with its own search/filter box and action buttons wired to
+        handlers of the same name in DashboardWindow.xaml.cs. Shared DataGrid header/row/cell styles for all 4
+        grids are defined once below in Window.Resources instead of repeating them per DataGrid.
+        Window is fixed-size (ResizeMode=NoResize) because Canvas positions/sizes are pixel-fixed and would not
+        reflow if the window were resized - if you need a resizable Dashboard again, switch back to Grid.
+    -->
     <Window.Resources>
         <!-- Shared DataGrid look for all 4 tabs (Clients/Rules/Logs/Users) - kept here instead of
              repeating the same header/row/cell styling inline in every DataGrid.Resources block. -->
@@ -46,60 +56,40 @@
             </Style.Triggers>
         </Style>
     </Window.Resources>
-    <Grid Margin="16">
-        <Grid.RowDefinitions>
-            <RowDefinition Height="Auto"/>
-            <RowDefinition Height="12"/>
-            <RowDefinition Height="*"/>
-            <RowDefinition Height="8"/>
-            <RowDefinition Height="Auto"/>
-        </Grid.RowDefinitions>
+    <!-- Free-form Canvas layout - drag any element to reposition it in the VS Designer. -->
+    <Canvas Margin="16">
 
         <!-- ==================== Toolbar (logo/title, last-updated, global actions) ==================== -->
-        <Border Grid.Row="0" CornerRadius="12"
+        <Border Canvas.Left="0" Canvas.Top="0" Width="968" Height="60" CornerRadius="12"
                 Background="{StaticResource Brush.Background.Card}"
                 BorderBrush="{StaticResource Brush.Border.Default}"
                 BorderThickness="1" Padding="16,12">
-            <Grid>
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="Auto"/>
-                    <ColumnDefinition Width="*"/>
-                    <ColumnDefinition Width="Auto"/>
-                    <ColumnDefinition Width="Auto"/>
-                </Grid.ColumnDefinitions>
+            <Canvas>
+                <Border Canvas.Left="0" Canvas.Top="0" Width="36" Height="36" CornerRadius="10"
+                        Background="{StaticResource Brush.Accent.Default}">
+                    <TextBlock Text="O" FontSize="16" FontWeight="Bold" Foreground="White"
+                               HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                </Border>
+                <TextBlock Canvas.Left="46" Canvas.Top="0" Text="Onion ProcOparetor" Style="{StaticResource Heading2}"/>
+                <TextBlock Canvas.Left="46" Canvas.Top="20" x:Name="ServerLabel" Text="" Style="{StaticResource Caption}"/>
 
-                <StackPanel Grid.Column="0" Orientation="Horizontal">
-                    <Border Width="36" Height="36" CornerRadius="10"
-                            Background="{StaticResource Brush.Accent.Default}">
-                        <TextBlock Text="O" FontSize="16" FontWeight="Bold" Foreground="White"
-                                   HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                    </Border>
-                    <StackPanel Margin="10,0,0,0" VerticalAlignment="Center">
-                        <TextBlock Text="Onion ProcOparetor" Style="{StaticResource Heading2}"/>
-                        <TextBlock x:Name="ServerLabel" Text="" Style="{StaticResource Caption}"/>
-                    </StackPanel>
-                </StackPanel>
+                <TextBlock Canvas.Left="542" Canvas.Top="10" Width="150" x:Name="StatusText" Style="{StaticResource Caption}"/>
 
-                <TextBlock Grid.Column="2" x:Name="StatusText" Style="{StaticResource Caption}"
-                           VerticalAlignment="Center" Margin="0,0,16,0"/>
-
-                <StackPanel Grid.Column="3" Orientation="Horizontal">
-                    <Button x:Name="GlobalToggleButton" Content="TOGGLE GLOBAL"
-                            Style="{StaticResource ButtonSecondary}" Margin="0,0,8,0"
-                            Click="GlobalToggleButton_Click"/>
-                    <Button x:Name="RefreshButton" Content="REFRESH"
-                            Style="{StaticResource ButtonSecondary}"
-                            Click="RefreshButton_Click"/>
-                </StackPanel>
-            </Grid>
+                <Button Canvas.Left="708" Canvas.Top="2" Width="130" x:Name="GlobalToggleButton" Content="TOGGLE GLOBAL"
+                        Style="{StaticResource ButtonSecondary}"
+                        Click="GlobalToggleButton_Click"/>
+                <Button Canvas.Left="846" Canvas.Top="2" Width="90" x:Name="RefreshButton" Content="REFRESH"
+                        Style="{StaticResource ButtonSecondary}"
+                        Click="RefreshButton_Click"/>
+            </Canvas>
         </Border>
 
         <!-- ==================== Main content ==================== -->
-        <Border Grid.Row="2" CornerRadius="12"
+        <Border Canvas.Left="0" Canvas.Top="72" Width="968" Height="516" CornerRadius="12"
                 Background="{StaticResource Brush.Background.Card}"
                 BorderBrush="{StaticResource Brush.Border.Default}"
                 BorderThickness="1" Padding="0">
-            <TabControl Background="Transparent" BorderThickness="0" Margin="16">
+            <TabControl Width="936" Height="484" Background="Transparent" BorderThickness="0" Margin="16">
 
                 <!-- Local pill-look TabItem template, scoped to this TabControl only.
                      PillTabButton (Theme/Controls.xaml) targets ToggleButton and cannot be applied
@@ -140,29 +130,19 @@
 
                 <!-- ========== Clients tab ========== -->
                 <TabItem Header="CLIENTS">
-                    <Grid Margin="0,12,0,0">
-                        <Grid.RowDefinitions>
-                            <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="12"/>
-                            <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="8"/>
-                            <RowDefinition Height="*"/>
-                        </Grid.RowDefinitions>
+                    <Canvas Margin="0,12,0,0">
+                        <TextBlock Canvas.Left="0" Canvas.Top="0" Text="Client Management" Style="{StaticResource Heading2}"/>
+                        <Button Canvas.Left="170" Canvas.Top="-4" Width="150" Content="TOGGLE SELECTED" Style="{StaticResource ButtonSecondary}"
+                                Padding="10,5" FontSize="11"
+                                Click="ToggleSelectedClientsButton_Click"/>
+                        <TextBlock Canvas.Left="330" Canvas.Top="2" x:Name="SelectedClientsCountText"
+                                Foreground="{StaticResource Brush.Text.Secondary}" Text=""/>
 
-                        <StackPanel Grid.Row="0" Orientation="Horizontal">
-                            <TextBlock Text="Client Management" Style="{StaticResource Heading2}" VerticalAlignment="Center"/>
-                            <Button Content="TOGGLE SELECTED" Style="{StaticResource ButtonSecondary}"
-                                    Padding="10,5" FontSize="11"
-                                    Margin="16,0,0,0" Click="ToggleSelectedClientsButton_Click"/>
-                            <TextBlock x:Name="SelectedClientsCountText" VerticalAlignment="Center" Margin="8,0,0,0"
-                                    Foreground="{StaticResource Brush.Text.Secondary}" Text=""/>
-                        </StackPanel>
-
-                        <TextBox Grid.Row="2" x:Name="ClientsSearchBox" Width="250" HorizontalAlignment="Left"
+                        <TextBox Canvas.Left="0" Canvas.Top="44" x:Name="ClientsSearchBox" Width="250"
                                 Style="{StaticResource RoundedTextBox}"
                                 Tag="ค้นหา machine name..." TextChanged="ClientsSearchBox_TextChanged"/>
 
-                        <DataGrid Grid.Row="4" x:Name="ClientsGrid" AutoGenerateColumns="False" IsReadOnly="True"
+                        <DataGrid Canvas.Left="0" Canvas.Top="84" Width="936" Height="356" x:Name="ClientsGrid" AutoGenerateColumns="False" IsReadOnly="True"
                                 SelectionMode="Extended" SelectionUnit="FullRow"
                                 SelectionChanged="ClientsGrid_SelectionChanged"
                                 Background="{StaticResource Brush.Background.Card}"
@@ -240,53 +220,43 @@
                                 </DataGridTemplateColumn>
                             </DataGrid.Columns>
                         </DataGrid>
-                    </Grid>
+                    </Canvas>
                 </TabItem>
 
                 <!-- ========== Rules tab ========== -->
                 <TabItem Header="RULES">
-                    <Grid Margin="0,12,0,0">
-                        <Grid.RowDefinitions>
-                            <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="12"/>
-                            <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="8"/>
-                            <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="8"/>
-                            <RowDefinition Height="*"/>
-                        </Grid.RowDefinitions>
+                    <Canvas Margin="0,12,0,0">
+                        <TextBlock Canvas.Left="0" Canvas.Top="0" Text="Rule Management" Style="{StaticResource Heading2}"/>
 
-                        <TextBlock Grid.Row="0" Text="Rule Management" Style="{StaticResource Heading2}"/>
-
-                        <Border Grid.Row="2" CornerRadius="10"
+                        <Border Canvas.Left="0" Canvas.Top="32" Width="936" Height="56" CornerRadius="10"
                                 Background="{StaticResource Brush.Background.Primary}"
                                 BorderBrush="{StaticResource Brush.Border.Default}"
                                 BorderThickness="1" Padding="12">
-                            <StackPanel Orientation="Horizontal">
-                                <TextBox x:Name="NewRuleNameBox" Width="110" Margin="0,0,8,0"
+                            <Canvas>
+                                <TextBox Canvas.Left="0" Canvas.Top="0" x:Name="NewRuleNameBox" Width="110"
                                         Style="{StaticResource RoundedTextBox}"
                                         ToolTip="ชื่อกฎ" Tag="Rule name"/>
-                                <TextBox x:Name="NewRulePublisherBox" Width="160" Margin="0,0,8,0"
+                                <TextBox Canvas.Left="118" Canvas.Top="0" x:Name="NewRulePublisherBox" Width="160"
                                         Style="{StaticResource RoundedTextBox}"
                                         ToolTip="ชื่อ Publisher เช่น Valve Corporation"/>
-                                <TextBox x:Name="NewRuleProcessNameContainsBox" Width="130" Margin="0,0,8,0"
+                                <TextBox Canvas.Left="286" Canvas.Top="0" x:Name="NewRuleProcessNameContainsBox" Width="130"
                                         Style="{StaticResource RoundedTextBox}"
                                         ToolTip="[OPTIONAL] narrow เพิ่มจากชื่อไฟล์ เช่น 'notepad' - เว้นว่างได้ถ้าไม่รู้ชื่อไฟล์ล่วงหน้า"/>
-                                <CheckBox x:Name="NewRuleKillCheckBox" Content="Kill Process"
-                                        VerticalAlignment="Center" Margin="0,0,8,0" Foreground="{StaticResource Brush.Text.Primary}"/>
-                                <TextBox x:Name="NewRuleActionBox" Width="150" Margin="0,0,8,0"
+                                <CheckBox Canvas.Left="424" Canvas.Top="8" x:Name="NewRuleKillCheckBox" Content="Kill Process"
+                                        Foreground="{StaticResource Brush.Text.Primary}"/>
+                                <TextBox Canvas.Left="542" Canvas.Top="0" x:Name="NewRuleActionBox" Width="150"
                                         Style="{StaticResource RoundedTextBox}"
                                         ToolTip="path คำสั่ง/สคริปต์ (ไม่บังคับ)"/>
-                                <Button Content="ADD RULE" Style="{StaticResource ButtonPrimary}"
+                                <Button Canvas.Left="700" Canvas.Top="0" Content="ADD RULE" Style="{StaticResource ButtonPrimary}"
                                         Click="AddRuleButton_Click"/>
-                            </StackPanel>
+                            </Canvas>
                         </Border>
 
-                        <TextBox Grid.Row="4" x:Name="RulesSearchBox" Width="250" HorizontalAlignment="Left"
+                        <TextBox Canvas.Left="0" Canvas.Top="104" x:Name="RulesSearchBox" Width="250"
                                 Style="{StaticResource RoundedTextBox}"
                                 Tag="ค้นหาชื่อกฎ/publisher..." TextChanged="RulesSearchBox_TextChanged"/>
 
-                        <DataGrid Grid.Row="6" x:Name="RulesGrid" AutoGenerateColumns="False" IsReadOnly="True"
+                        <DataGrid Canvas.Left="0" Canvas.Top="144" Width="936" Height="296" x:Name="RulesGrid" AutoGenerateColumns="False" IsReadOnly="True"
                                 Background="{StaticResource Brush.Background.Card}"
                                 BorderBrush="{StaticResource Brush.Border.Default}" BorderThickness="1"
                                 RowBackground="{StaticResource Brush.Background.Card}"
@@ -339,27 +309,19 @@
                                 </DataGridTemplateColumn>
                              </DataGrid.Columns>
                         </DataGrid>
-                    </Grid>
+                    </Canvas>
                 </TabItem>
 
                 <!-- ========== Logs tab ========== -->
                 <TabItem Header="LOGS">
-                    <Grid Margin="0,12,0,0">
-                        <Grid.RowDefinitions>
-                            <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="12"/>
-                            <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="8"/>
-                            <RowDefinition Height="*"/>
-                        </Grid.RowDefinitions>
+                    <Canvas Margin="0,12,0,0">
+                        <TextBlock Canvas.Left="0" Canvas.Top="0" Text="Activity Logs" Style="{StaticResource Heading2}"/>
 
-                        <TextBlock Grid.Row="0" Text="Activity Logs" Style="{StaticResource Heading2}"/>
-
-                        <TextBox Grid.Row="2" x:Name="LogsSearchBox" Width="250" HorizontalAlignment="Left"
+                        <TextBox Canvas.Left="0" Canvas.Top="32" x:Name="LogsSearchBox" Width="250"
                                 Style="{StaticResource RoundedTextBox}"
                                 Tag="ค้นหา machine/process/publisher..." TextChanged="LogsSearchBox_TextChanged"/>
 
-                        <DataGrid Grid.Row="4" x:Name="LogsGrid" AutoGenerateColumns="False" IsReadOnly="True"
+                        <DataGrid Canvas.Left="0" Canvas.Top="72" Width="936" Height="368" x:Name="LogsGrid" AutoGenerateColumns="False" IsReadOnly="True"
                                 Background="{StaticResource Brush.Background.Card}"
                                 BorderBrush="{StaticResource Brush.Border.Default}" BorderThickness="1"
                                 RowBackground="{StaticResource Brush.Background.Card}"
@@ -398,39 +360,31 @@
                                 <DataGridTextColumn Header="ACTION TAKEN" Binding="{Binding ActionTaken}" Width="150"/>
                             </DataGrid.Columns>
                         </DataGrid>
-                    </Grid>
+                    </Canvas>
                 </TabItem>
 
                 <!-- ========== Users tab ========== -->
                 <TabItem Header="USERS">
-                    <Grid Margin="0,12,0,0">
-                        <Grid.RowDefinitions>
-                            <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="12"/>
-                            <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="8"/>
-                            <RowDefinition Height="*"/>
-                        </Grid.RowDefinitions>
+                    <Canvas Margin="0,12,0,0">
+                        <TextBlock Canvas.Left="0" Canvas.Top="0" Text="User Management" Style="{StaticResource Heading2}"/>
 
-                        <TextBlock Grid.Row="0" Text="User Management" Style="{StaticResource Heading2}"/>
-
-                        <Border Grid.Row="2" CornerRadius="10"
+                        <Border Canvas.Left="0" Canvas.Top="32" Width="936" Height="56" CornerRadius="10"
                                 Background="{StaticResource Brush.Background.Primary}"
                                 BorderBrush="{StaticResource Brush.Border.Default}"
                                 BorderThickness="1" Padding="12">
-                            <StackPanel Orientation="Horizontal">
-                                <TextBox x:Name="NewUserUsernameBox" Width="160" Margin="0,0,8,0"
+                            <Canvas>
+                                <TextBox Canvas.Left="0" Canvas.Top="0" x:Name="NewUserUsernameBox" Width="160"
                                          Style="{StaticResource RoundedTextBox}"
                                          ToolTip="Username"/>
-                                <PasswordBox x:Name="NewUserPasswordBox" Width="160" Margin="0,0,8,0"
+                                <PasswordBox Canvas.Left="168" Canvas.Top="0" x:Name="NewUserPasswordBox" Width="160"
                                              Style="{StaticResource RoundedPasswordBox}"
                                              ToolTip="Password (อย่างน้อย 8 ตัวอักษร)"/>
-                                <Button Content="ADD USER" Style="{StaticResource ButtonPrimary}"
+                                <Button Canvas.Left="336" Canvas.Top="0" Content="ADD USER" Style="{StaticResource ButtonPrimary}"
                                         Click="AddUserButton_Click"/>
-                            </StackPanel>
+                            </Canvas>
                         </Border>
 
-                        <DataGrid Grid.Row="4" x:Name="UsersGrid" AutoGenerateColumns="False" IsReadOnly="True"
+                        <DataGrid Canvas.Left="0" Canvas.Top="104" Width="936" Height="336" x:Name="UsersGrid" AutoGenerateColumns="False" IsReadOnly="True"
                                 Background="{StaticResource Brush.Background.Card}"
                                 BorderBrush="{StaticResource Brush.Border.Default}" BorderThickness="1"
                                 RowBackground="{StaticResource Brush.Background.Card}"
@@ -485,23 +439,23 @@
                                 </DataGridTemplateColumn>
                             </DataGrid.Columns>
                         </DataGrid>
-                    </Grid>
+                    </Canvas>
                 </TabItem>
 
             </TabControl>
         </Border>
 
         <!-- ==================== Footer status bar ==================== -->
-        <Border Grid.Row="4" CornerRadius="12"
+        <Border Canvas.Left="0" Canvas.Top="596" Width="968" Height="52" CornerRadius="12"
                 Background="{StaticResource Brush.Background.Card}"
                 BorderBrush="{StaticResource Brush.Border.Default}"
                 BorderThickness="1" Padding="16,10">
-            <StackPanel Orientation="Horizontal">
-                <TextBlock Text="Server:" Style="{StaticResource Label}" Margin="0,0,4,0"/>
-                <TextBlock x:Name="FooterServerText" Style="{StaticResource Caption}" VerticalAlignment="Center"/>
-                <TextBlock Text="User:" Style="{StaticResource Label}" Margin="24,0,4,0"/>
-                <TextBlock x:Name="FooterUserText" Style="{StaticResource Caption}" VerticalAlignment="Center"/>
-            </StackPanel>
+            <Canvas>
+                <TextBlock Canvas.Left="0" Canvas.Top="8" Text="Server:" Style="{StaticResource Label}"/>
+                <TextBlock Canvas.Left="46" Canvas.Top="8" Width="300" x:Name="FooterServerText" Style="{StaticResource Caption}"/>
+                <TextBlock Canvas.Left="360" Canvas.Top="8" Text="User:" Style="{StaticResource Label}"/>
+                <TextBlock Canvas.Left="400" Canvas.Top="8" Width="200" x:Name="FooterUserText" Style="{StaticResource Caption}"/>
+            </Canvas>
         </Border>
-    </Grid>
+    </Canvas>
 </Window>

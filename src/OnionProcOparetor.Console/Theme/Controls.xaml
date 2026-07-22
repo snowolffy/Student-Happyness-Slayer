@@ -6,6 +6,23 @@
         <ResourceDictionary Source="Typography.xaml"/>
     </ResourceDictionary.MergedDictionaries>
 
+    <!-- ==================== Window base ==================== -->
+    <Style x:Key="AppWindowStyle" TargetType="Window">
+        <Setter Property="Background" Value="{StaticResource Brush.Background.Primary}"/>
+        <Setter Property="Foreground" Value="{StaticResource Brush.Text.Primary}"/>
+        <Setter Property="FontFamily" Value="{StaticResource FontFamily.Primary}"/>
+        <Setter Property="FontSize" Value="13"/>
+    </Style>
+
+    <!-- ==================== Card (Border) ==================== -->
+    <Style x:Key="Card" TargetType="Border">
+        <Setter Property="Background" Value="{StaticResource Brush.Background.Card}"/>
+        <Setter Property="BorderBrush" Value="{StaticResource Brush.Border.Default}"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="CornerRadius" Value="12"/>
+        <Setter Property="Padding" Value="16"/>
+    </Style>
+
     <!-- ==================== RoundedTextBox ==================== -->
     <Style x:Key="RoundedTextBox" TargetType="TextBox">
         <Setter Property="Background" Value="{StaticResource Brush.Background.Card}"/>
