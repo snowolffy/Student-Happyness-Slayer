@@ -1,0 +1,14 @@
+<Project>
+  <!-- Keep this in sync with installer\OnionProcOparetor.wxs's <Package Version="...">.
+       Without an explicit version, every dotnet build/publish embeds FileVersion 1.0.0.0
+       (the SDK default) regardless of source changes. Windows Installer's InstallFiles
+       action skips overwriting a target file whose Version+date don't look older than the
+       one being installed - with every build stamped identically at 1.0.0.0, it could never
+       tell a new build apart from whatever was already on disk, so upgrades silently kept
+       old binaries in place even when the MSI reported success. -->
+  <PropertyGroup>
+    <Version>1.1.2.0</Version>
+    <AssemblyVersion>1.1.2.0</AssemblyVersion>
+    <FileVersion>1.1.2.0</FileVersion>
+  </PropertyGroup>
+</Project>

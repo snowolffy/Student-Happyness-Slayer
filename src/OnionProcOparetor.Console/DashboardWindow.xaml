@@ -132,13 +132,13 @@
                 <TabItem Header="CLIENTS">
                     <Canvas Margin="0,12,0,0">
                         <TextBlock Canvas.Left="0" Canvas.Top="0" Text="Client Management" Style="{StaticResource Heading2}"/>
-                        <Button Canvas.Left="170" Canvas.Top="-4" Width="150" Content="TOGGLE SELECTED" Style="{StaticResource ButtonSecondary}"
+                        <Button Canvas.Left="170" Canvas.Top="-4" Width="110" Content="ACTIONS" Style="{StaticResource ButtonSecondary}"
                                 Padding="10,5" FontSize="11"
-                                Click="ToggleSelectedClientsButton_Click"/>
-                        <Button Canvas.Left="330" Canvas.Top="-4" Width="180" Content="BROADCAST MESSAGE" Style="{StaticResource ButtonSecondary}"
+                                Click="BulkActionsButton_Click"/>
+                        <Button Canvas.Left="290" Canvas.Top="-4" Width="180" Content="BROADCAST MESSAGE" Style="{StaticResource ButtonSecondary}"
                                 Padding="10,5" FontSize="11"
                                 Click="BroadcastMessageButton_Click"/>
-                        <TextBlock Canvas.Left="520" Canvas.Top="2" x:Name="SelectedClientsCountText"
+                        <TextBlock Canvas.Left="480" Canvas.Top="2" x:Name="SelectedClientsCountText"
                                 Foreground="{StaticResource Brush.Text.Secondary}" Text=""/>
 
                         <TextBox Canvas.Left="0" Canvas.Top="44" x:Name="ClientsSearchBox" Width="250"
@@ -175,6 +175,24 @@
                                             <Setter Property="Tag" Value="Offline"/>
                                             <Setter Property="Content" Value="OFFLINE"/>
                                         </DataTrigger>
+                                        <!-- ต้องอยู่หลัง IsOffline trigger เสมอ - IsMissingUnexpectedly (>5 นาที) เป็น
+                                             superset ของ IsOffline (>90 วิ) เลยต้อง match ทีหลังเพื่อ override สี/ข้อความ
+                                             ให้เด่นกว่า OFFLINE ธรรมดา (กระพริบแดง แทนที่จะเป็นเทาเฉยๆ) -->
+                                        <DataTrigger Binding="{Binding IsMissingUnexpectedly}" Value="True">
+                                            <Setter Property="Tag" Value="Danger"/>
+                                            <Setter Property="Content" Value="MISSING"/>
+                                            <DataTrigger.EnterActions>
+                                                <BeginStoryboard x:Name="MissingBlinkStoryboard">
+                                                    <Storyboard RepeatBehavior="Forever" AutoReverse="True">
+                                                        <DoubleAnimation Storyboard.TargetProperty="Opacity"
+                                                                         From="1.0" To="0.35" Duration="0:0:0.6"/>
+                                                    </Storyboard>
+                                                </BeginStoryboard>
+                                            </DataTrigger.EnterActions>
+                                            <DataTrigger.ExitActions>
+                                                <StopStoryboard BeginStoryboardName="MissingBlinkStoryboard"/>
+                                            </DataTrigger.ExitActions>
+                                        </DataTrigger>
                                     </Style.Triggers>
                                 </Style>
                             </DataGrid.Resources>
@@ -204,20 +222,12 @@
                                     </DataGridTemplateColumn.CellTemplate>
                                 </DataGridTemplateColumn>
                                 <DataGridTextColumn Header="LAST SEEN (UTC)" Binding="{Binding LastSeenAt}" Width="170"/>
-                                <DataGridTemplateColumn Header="ACTION" Width="240">
+                                <DataGridTemplateColumn Header="ACTIONS" Width="120">
                                     <DataGridTemplateColumn.CellTemplate>
                                         <DataTemplate>
-                                            <StackPanel Orientation="Horizontal">
-                                                <Button Content="TOGGLE" Style="{StaticResource ButtonSecondary}"
-                                                        Padding="10,5" FontSize="11"
-                                                        Click="ToggleClientButton_Click" Tag="{Binding Id}" Margin="0,0,4,0"/>
-                                                <Button Content="SETTINGS" Style="{StaticResource ButtonSecondary}"
-                                                        Padding="10,5" FontSize="11"
-                                                        Click="ClientSettingsButton_Click" Tag="{Binding}" Margin="0,0,4,0"/>
-                                                <Button Content="DELETE" Style="{StaticResource ButtonDanger}"
-                                                        Padding="10,5" FontSize="11"
-                                                        Click="DeleteClientButton_Click" Tag="{Binding Id}"/>
-                                            </StackPanel>
+                                            <Button Content="ACTIONS ▾" Style="{StaticResource ButtonSecondary}"
+                                                    Padding="10,5" FontSize="11"
+                                                    Click="ClientActionsButton_Click" Tag="{Binding}"/>
                                         </DataTemplate>
                                     </DataGridTemplateColumn.CellTemplate>
                                 </DataGridTemplateColumn>

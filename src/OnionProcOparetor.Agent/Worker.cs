@@ -85,6 +85,7 @@ public class Worker : BackgroundService
             {
                 _lastKnownState = polled;
                 _state.UpdatePollResult(polled.Enabled, polled.Rules.Count, succeeded: true);
+                _state.SetPollIntervalOverride(polled.PollIntervalOverrideSeconds);
                 _logger.LogInformation("Poll สำเร็จ - Enabled: {Enabled}, Rules: {Count} ข้อ",
                     polled.Enabled, polled.Rules.Count);
 
@@ -142,6 +143,7 @@ public class Worker : BackgroundService
             {
                 _lastKnownState = polled;
                 _state.UpdatePollResult(polled.Enabled, polled.Rules.Count, succeeded: true);
+                _state.SetPollIntervalOverride(polled.PollIntervalOverrideSeconds);
                 _logger.LogInformation("Poll สำเร็จ - Enabled: {Enabled}, Rules: {Count} ข้อ",
                     polled.Enabled, polled.Rules.Count);
 
@@ -152,8 +154,9 @@ public class Worker : BackgroundService
                 _state.UpdatePollResult(_lastKnownState.Enabled, _lastKnownState.Rules.Count, succeeded: false);
             }
 
-            // ใช้ override จาก Server ถ้ามีตั้งไว้ ไม่งั้นใช้ค่า default จาก appsettings.json ตามเดิม
-            var effectiveIntervalSeconds = _lastKnownState.PollIntervalOverrideSeconds ?? _settings.PollIntervalSeconds;
+            // ใช้ override จาก ClientState (sync จาก DB ทุก poll หรือถูก command "UpdateSettings" เขียนทับ
+            // ทันทีก็ได้ - ดู CommandProcessor.HandleUpdateSettingsAsync) ไม่งั้นใช้ค่า default จาก appsettings.json
+            var effectiveIntervalSeconds = _state.PollIntervalOverrideSeconds ?? _settings.PollIntervalSeconds;
             await Task.Delay(TimeSpan.FromSeconds(effectiveIntervalSeconds), stoppingToken);
         }
     }
@@ -387,22 +390,23 @@ public class Worker : BackgroundService
         {
             try
             {
-                var psi = new ProcessStartInfo
-                {
-                    FileName = rule.ActionCommand,
-                    Arguments = rule.ActionArguments ?? string.Empty,
-                    UseShellExecute = false,
-                    CreateNoWindow = true
-                };
+                var psi = BuildActionCommandProcessStartInfo(rule.ActionCommand, rule.ActionArguments);
+
+                // log ก่อนรันเสมอเพื่อ audit trail (ActionCommand ตั้งได้จาก Console โดยครู - ต้องเห็นได้
+                // ชัดเจนว่ากำลังจะรันอะไรจริงๆ ก่อนที่ Process.Start จะถูกเรียก ไม่ใช่แค่ log ผลหลังรันเสร็จ)
+                _logger.LogInformation(
+                    "Rule '{Rule}' matched - กำลังจะรัน action command: \"{FileName}\" {Arguments}",
+                    rule.Name, psi.FileName, psi.Arguments);
+
                 Process.Start(psi);
                 actionParts.Add($"Ran command: {rule.ActionCommand}");
-                _logger.LogInformation("Rule '{Rule}' matched - รัน action: {Command} {Args}",
+                _logger.LogInformation("Rule '{Rule}' matched - รัน action สำเร็จ: {Command} {Args}",
                     rule.Name, rule.ActionCommand, rule.ActionArguments);
             }
             catch (Exception ex)
             {
                 actionParts.Add($"Command failed: {ex.Message}");
-                _logger.LogError(ex, "รัน action command ของกฎ '{Rule}' ไม่สำเร็จ", rule.Name);
+                _logger.LogError(ex, "รัน action command ของกฎ '{Rule}' ไม่สำเร็จ ({Command})", rule.Name, rule.ActionCommand);
             }
         }
 
@@ -428,6 +432,55 @@ public class Worker : BackgroundService
 
         _state.AddLog(logEntry);
         await _serverClient.SendLogAsync(logEntry, CancellationToken.None);
+    }
+
+    /// <summary>
+    /// สร้าง ProcessStartInfo สำหรับรัน ActionCommand ของกฎ - แก้บั๊กที่ custom command เป็น script
+    /// (.bat/.cmd/.ps1) ไม่เคยรันจริงเลย: ก่อนหน้านี้เรียก Process.Start ตรงด้วย UseShellExecute=false
+    /// เสมอ ซึ่งเบื้องหลังเรียก CreateProcess ตรงๆ - รันได้แค่ native executable (.exe/.com) เท่านั้น
+    /// ไฟล์ script ไม่มี PE header ให้ CreateProcess โหลด ต้องผ่าน interpreter ของมันเอง (cmd.exe /c
+    /// หรือ powershell.exe -File) ไม่งั้นจะโดน Win32Exception "not a valid Win32 application" ทันที
+    /// (ถูก catch ไว้เงียบๆ แค่ log เป็น "Command failed" ในไฟล์ log ของ Agent เอง - ไม่มีอะไร error
+    /// กลับไปให้ครูเห็นที่ Console เลย เท่ากับ "ไม่ถูกรันจริง" จากมุมมองของคนตั้งกฎ)
+    /// UI ฝั่ง Console (NewRuleActionBox) ระบุ tooltip ไว้ชัดว่ารับ "path คำสั่ง/สคริปต์" ทั้งคู่
+    /// จึงต้อง dispatch ตาม extension แทนที่จะรันตรงเสมอ
+    /// </summary>
+    private static ProcessStartInfo BuildActionCommandProcessStartInfo(string actionCommand, string? actionArguments)
+    {
+        var userArguments = actionArguments ?? string.Empty;
+        var extension = Path.GetExtension(actionCommand).ToLowerInvariant();
+
+        switch (extension)
+        {
+            case ".bat":
+            case ".cmd":
+                return new ProcessStartInfo
+                {
+                    FileName = Environment.ExpandEnvironmentVariables("%ComSpec%"),
+                    Arguments = $"/c \"{actionCommand}\" {userArguments}".TrimEnd(),
+                    UseShellExecute = false,
+                    CreateNoWindow = true
+                };
+
+            case ".ps1":
+                return new ProcessStartInfo
+                {
+                    FileName = "powershell.exe",
+                    Arguments = $"-NoProfile -ExecutionPolicy Bypass -File \"{actionCommand}\" {userArguments}".TrimEnd(),
+                    UseShellExecute = false,
+                    CreateNoWindow = true
+                };
+
+            default:
+                // .exe/.com หรือ path อื่นที่ CreateProcess รันตรงได้อยู่แล้ว - พฤติกรรมเดิม ไม่เปลี่ยน
+                return new ProcessStartInfo
+                {
+                    FileName = actionCommand,
+                    Arguments = userArguments,
+                    UseShellExecute = false,
+                    CreateNoWindow = true
+                };
+        }
     }
 }
 

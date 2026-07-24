@@ -1,0 +1,17 @@
+<Window x:Class="OnionProcOparetor.AgentTray.LockScreenWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Locked"
+        WindowStyle="None"
+        WindowState="Maximized"
+        Topmost="True"
+        ResizeMode="NoResize"
+        ShowInTaskbar="False"
+        Background="Black">
+    <Grid>
+        <TextBlock x:Name="LockMessageText"
+                   Foreground="White" FontSize="34" FontWeight="Bold"
+                   HorizontalAlignment="Center" VerticalAlignment="Center"
+                   TextAlignment="Center" TextWrapping="Wrap" MaxWidth="900"/>
+    </Grid>
+</Window>

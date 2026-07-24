@@ -20,6 +20,12 @@ public class ClientState
     public string MachineName { get; private set; } = Environment.MachineName;
     public string ClientGuid { get; set; } = ClientIdentity.GetOrCreateClientGuid();
 
+    /// <summary>
+    /// Poll interval override ปัจจุบัน - sync จาก poll response ทุกรอบ (DB เป็นที่มาหลัก) หรือถูก
+    /// เขียนทับทันทีจาก CommandProcessor ตอนได้รับ "UpdateSettings" command (ให้มีผลก่อนรอบ poll ถัดไป)
+    /// </summary>
+    public int? PollIntervalOverrideSeconds { get; private set; }
+
     public void UpdatePollResult(bool enabled, int rulesCount, bool succeeded)
     {
         IsEnabled = enabled;
@@ -27,6 +33,8 @@ public class ClientState
         LastPollAt = DateTime.UtcNow;
         LastPollSucceeded = succeeded;
     }
+
+    public void SetPollIntervalOverride(int? seconds) => PollIntervalOverrideSeconds = seconds;
 
     public void AddLog(LogEntryDto log)
     {

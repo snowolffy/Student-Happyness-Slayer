@@ -1,6 +1,6 @@
 ﻿; OnionProcOparetor Installer - supports 3 installation modes
 #define MyAppName "Onion ProcOparetor"
-#define MyAppVersion "1.0"
+#define MyAppVersion "1.1"
 #define MyAppPublisher "OnionProcOparetor"
 
 [Setup]
@@ -17,7 +17,7 @@ Compression=lzma
 SolidCompression=yes
 WizardStyle=modern
 PrivilegesRequired=admin
-ArchitecturesInstallIn64BitMode=x64
+ArchitecturesInstallIn64BitMode=x64compatible
 
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"
@@ -28,6 +28,7 @@ var
   RadioModeA, RadioModeB, RadioModeC: TRadioButton;
   SelectedMode: Integer;
   ServerConfigPage: TInputQueryWizardPage;
+  UninstallPasswordPage: TInputQueryWizardPage;
 
 function IsDotNet10Installed: Boolean;
 var
@@ -82,13 +83,31 @@ begin
     'Default port is 8787 unless changed.');
   ServerConfigPage.Add('Server address (IP:Port):', False);
   ServerConfigPage.Values[0] := 'localhost:8787';
+
+  // ---- หน้าใหม่: ตั้ง uninstall password (optional) เฉพาะ Mode C (Client Agent) ----
+  // เฉพาะ Mode C เท่านั้น เพราะ threat model ของฟีเจอร์นี้คือ "นักเรียนใช้ shared admin account
+  // บนเครื่อง lab เปิด Control Panel ถอนโปรแกรมเอง" - Server/Console เป็นเครื่องของครู/IT ไม่ใช่
+  // เป้าหมายของ threat นี้ ไม่จำเป็นต้องมี gate นี้
+  UninstallPasswordPage := CreateInputQueryPage(ServerConfigPage.ID,
+    'Uninstall Protection (Optional)',
+    'Set an uninstall password for this client machine',
+    'Lab machines share one admin account, so any student can normally remove this program ' +
+    'from Control Panel. Setting a password here will require it before the program can be ' +
+    'uninstalled. This is optional - leave both fields blank to skip.'#13#10#13#10 +
+    'Note: this only blocks the normal uninstaller. A student with admin access can still stop ' +
+    'the service directly (Task Manager / services.msc) - use the Console''s "Missing ' +
+    'Unexpectedly" alert to catch that case.');
+  UninstallPasswordPage.Add('Uninstall password (leave blank to skip):', True);
+  UninstallPasswordPage.Add('Confirm password:', True);
 end;
 
-// ---- ซ่อนหน้า ServerConfigPage ถ้าไม่ได้เลือก Mode C ----
+// ---- ซ่อนหน้า ServerConfigPage/UninstallPasswordPage ถ้าไม่ได้เลือก Mode C ----
 function ShouldSkipPage(PageID: Integer): Boolean;
 begin
   Result := False;
   if PageID = ServerConfigPage.ID then
+    Result := (SelectedMode <> 3)
+  else if PageID = UninstallPasswordPage.ID then
     Result := (SelectedMode <> 3);
 end;
 
@@ -170,6 +189,16 @@ begin
       end;
     end;
   end;
+
+  if CurPageID = UninstallPasswordPage.ID then
+  begin
+    if UninstallPasswordPage.Values[0] <> UninstallPasswordPage.Values[1] then
+    begin
+      MsgBox('Passwords do not match. Please re-enter, or leave both fields blank to skip.', mbError, MB_OK);
+      Result := False;
+      Exit;
+    end;
+  end;
 end;
 
 function ShouldInstallServer: Boolean;
@@ -205,6 +234,60 @@ begin
   end;
 end;
 
+// ---- สร้าง salt แบบสุ่มพอสมควร (ไม่ต้อง cryptographically secure - แค่ทำให้ hash ไม่ซ้ำกัน
+// ต่อเครื่อง กัน rainbow table แบบง่ายๆ) แล้ว hash ด้วย SHA256 ผ่าน Inno Setup built-in
+// GetSHA256OfUnicodeString (มีมาตั้งแต่ Inno Setup 6.1) เก็บ salt+hash ลงไฟล์ที่ {app} -
+// ไม่ใช่ PBKDF2 แบบ PasswordHasher.cs ฝั่ง Server เพราะ Inno Setup Pascal Script ไม่มี PBKDF2
+// built-in และไม่อยากให้ installer ต้อง shell out ไปพึ่ง Agent.exe แค่เพื่อ hash รหัสผ่าน
+// (เพิ่มจุดที่ install จะ fail ได้โดยไม่จำเป็น) SHA256 + salt สุ่มต่อเครื่องเพียงพอสำหรับ
+// threat model นี้ (กันนักเรียนเปิด Control Panel ถอนโปรแกรมเอง ไม่ใช่กัน nation-state attacker)
+procedure SaveUninstallGuard(const Password: String);
+var
+  Salt, Hash, GuardJson, GuardPath: String;
+begin
+  Salt := GetDateTimeString('yyyymmddhhnnss', '-', '-') + '-' +
+    IntToStr(Random(2147483647)) + '-' + IntToStr(Random(2147483647));
+  Hash := GetSHA256OfUnicodeString(Salt + Password);
+
+  GuardJson := '{"salt":"' + Salt + '","hash":"' + Hash + '"}';
+  GuardPath := ExpandConstant('{app}\uninstall-guard.json');
+  SaveStringToFile(GuardPath, GuardJson, False);
+end;
+
+// ---- อ่าน guard file กลับมาตอน uninstall - format คุมเองทั้งหมด (เขียนจาก SaveUninstallGuard
+// ด้านบนเท่านั้น) เลย parse ด้วย Pos/Copy ธรรมดาได้ ไม่ต้องพึ่ง JSON parser จริง (salt/hash
+// เป็น digit/hex/hyphen ล้วน ไม่มีอักขระที่ต้อง escape) ----
+function TryLoadUninstallGuard(var Salt, Hash: String): Boolean;
+var
+  RawFile: AnsiString;
+  Json: String;
+  SaltStart, SaltEnd, HashStart, HashEnd: Integer;
+begin
+  Result := False;
+
+  if not LoadStringFromFile(ExpandConstant('{app}\uninstall-guard.json'), RawFile) then
+    Exit; // ไม่เคยตั้ง uninstall password ไว้ (ไฟล์ไม่มีเลย) - ถือว่าไม่ต้อง gate
+
+  Json := String(RawFile);
+
+  SaltStart := Pos('"salt":"', Json);
+  HashStart := Pos('"hash":"', Json);
+  if (SaltStart = 0) or (HashStart = 0) then
+    Exit;
+
+  SaltStart := SaltStart + Length('"salt":"');
+  SaltEnd := Pos('"', Copy(Json, SaltStart, Length(Json) - SaltStart + 1));
+  if SaltEnd = 0 then Exit;
+  Salt := Copy(Json, SaltStart, SaltEnd - 1);
+
+  HashStart := HashStart + Length('"hash":"');
+  HashEnd := Pos('"', Copy(Json, HashStart, Length(Json) - HashStart + 1));
+  if HashEnd = 0 then Exit;
+  Hash := Copy(Json, HashStart, HashEnd - 1);
+
+  Result := (Salt <> '') and (Hash <> '');
+end;
+
 // ---- หลัง install เสร็จ (เฉพาะ Mode C): เขียน Server address ที่กรอกไว้ลง appsettings.json ----
 // สำคัญ: create/patch config/start service ทั้งหมดต้องทำ "ในนี้" ตามลำดับนี้เท่านั้น ห้ามแยก
 // "sc.exe start OnionAgent" ไปเป็น [Run] entry ต่างหากอีก เพราะเคยเจอ race condition จริงตอน
@@ -235,6 +318,12 @@ begin
     Exec('sc.exe', 'failure OnionAgent reset= 86400 actions= restart/0/restart/0/restart/0',
       '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
     Exec('sc.exe', 'start OnionAgent', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+
+    // 4) ถ้าผู้ติดตั้งกรอก uninstall password ไว้ (ไม่ได้ skip) - hash แล้วเก็บลง guard file
+    if Trim(UninstallPasswordPage.Values[0]) <> '' then
+    begin
+      SaveUninstallGuard(UninstallPasswordPage.Values[0]);
+    end;
   end;
 end;
 
@@ -251,6 +340,12 @@ begin
       'Do you also want to delete all Onion ProcOparetor data (database, logs, rules)?' + #13#10 +
       'Choose No if you plan to reinstall later and want to keep your existing data.',
       mbConfirmation, MB_YESNO) = IDYES);
+
+    // ลบ guard file ก่อนเสมอ (ไม่ผูกกับ DeleteAllData) - เป็นไฟล์ของตัวติดตั้งเอง ไม่ใช่ user
+    // data แบบ database/logs/rules และไม่ได้อยู่ใน [Files] section ที่ Inno track อัตโนมัติ
+    // ถ้าไม่ลบเอง จะค้างอยู่ใน {app} แล้วกัน Inno Setup ลบโฟลเดอร์ {app} ทิ้งตอนจบ (เพราะเห็นว่า
+    // ยังไม่ว่างเปล่า)
+    DeleteFile(ExpandConstant('{app}\uninstall-guard.json'));
   end;
 
   if CurUninstallStep = usPostUninstall then
@@ -266,10 +361,11 @@ begin
   end;
 end;
 
-const
-  UninstallPassword = '036439339';  // เปลี่ยนเป็นรหัสที่ต้องการก่อน build จริง
-
-function AskUninstallPassword(): Boolean;
+// ถาม uninstall password จริง - เทียบกับ Salt/ExpectedHash ที่อ่านมาจาก guard file (เขียนไว้
+// ตอน install โดย SaveUninstallGuard) ไม่มี hardcoded password ใดๆ ในซอร์สหรือ compiled
+// installer อีกต่อไป (ของเดิมมี password constant ฝังตรงในซอร์ส .iss นี้ - เป็นสาเหตุหลักที่
+// Microsoft Defender ยืนยันว่า installer นี้ meets criteria for malware)
+function AskUninstallPassword(const Salt, ExpectedHash: String): Boolean;
 var
   PasswordForm: TSetupForm;
   PasswordEdit: TPasswordEdit;
@@ -279,10 +375,11 @@ var
 begin
   Result := False;
 
-  PasswordForm := CreateCustomForm();
+  // ตั้งแต่ Inno Setup 6.6.0 เป็นต้นมา CreateCustomForm ต้องระบุ ClientWidth/ClientHeight
+  // (+ KeepSizeX/KeepSizeY) เป็น parameter ตอนสร้างเลย แก้เป็น property ทีหลังไม่ได้อีกต่อไป
+  // (ของเดิมเขียนไว้ตาม API เก่าก่อน 6.6.0 ที่ยังเป็น property เขียนได้ - พังกับ compiler 6.7.3 ที่ใช้จริงตอนนี้)
+  PasswordForm := CreateCustomForm(ScaleX(320), ScaleY(140), False, False);
   try
-    PasswordForm.ClientWidth := ScaleX(320);
-    PasswordForm.ClientHeight := ScaleY(140);
     PasswordForm.Caption := 'ยืนยันการถอนการติดตั้ง';
     PasswordForm.Position := poScreenCenter;
     PasswordForm.BorderStyle := bsDialog;
@@ -329,7 +426,7 @@ begin
 
     if ModalResultValue = mrOk then
     begin
-      if PasswordEdit.Text = UninstallPassword then
+      if GetSHA256OfUnicodeString(Salt + PasswordEdit.Text) = ExpectedHash then
         Result := True
       else
         MsgBox('รหัสผ่านไม่ถูกต้อง ยกเลิกการถอนการติดตั้ง', mbError, MB_OK);
@@ -340,8 +437,13 @@ begin
 end;
 
 function InitializeUninstall(): Boolean;
+var
+  Salt, Hash: String;
 begin
-  Result := AskUninstallPassword();
+  if TryLoadUninstallGuard(Salt, Hash) then
+    Result := AskUninstallPassword(Salt, Hash)
+  else
+    Result := True; // ไม่เคยตั้ง uninstall password ไว้ตอน install (เลือก skip) - uninstall ได้ปกติไม่ต้องถาม
 end;
 
 [Files]
@@ -358,6 +460,13 @@ Name: "{group}\Onion ProcOparetor Tray"; Filename: "{app}\ClientTray\OnionProcOp
 [Run]
 Filename: "sc.exe"; Parameters: "create OnionCoreService binPath= ""{app}\Server\OnionProcOparetor.Server.exe"" start= auto"; Flags: runhidden; Check: ShouldInstallServer
 Filename: "sc.exe"; Parameters: "start OnionCoreService"; Flags: runhidden; Check: ShouldInstallServer
+; เปิด inbound port 8787 ผ่าน Windows Firewall - จำเป็นเพราะ OnionCoreService รันเป็น Windows
+; Service ไม่ใช่ interactive exe เลยไม่มี prompt "Allow access?" แบบที่ Windows โชว์ให้ตอน
+; โปรแกรมทั่วไปเปิด port ครั้งแรก (ต่างจาก exe ที่ user ดับเบิลคลิกเปิดเอง) ถ้าไม่เปิด rule นี้
+; ให้เอง ทั้ง HTTP poll เดิมและ SignalR ใหม่จาก Agent/Console เครื่องอื่นจะต่อเข้ามาไม่ได้เลย
+; ไม่ throw error ให้ install ล้มเหลวถ้า netsh error (เช่น Firewall service ปิดอยู่) - Inno Setup
+; ไม่เช็ค exit code ของ [Run] entry อยู่แล้วโดย default (ต่างจาก flags อื่นที่เช็ค เช่น file exists)
+Filename: "netsh.exe"; Parameters: "advfirewall firewall add rule name=""OnionProcOparetor Server"" dir=in action=allow protocol=TCP localport=8787"; Flags: runhidden; Check: ShouldInstallServer
 Filename: "powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\run-setup.ps1"""; Flags: runhidden; Check: ShouldInstallServer
 ; หมายเหตุ: OnionAgent create/patch-config/start/failure ทั้งหมดถูกย้ายไปทำใน CurStepChanged
 ; (ssPostInstall) ใน [Code] ด้านบนแล้ว เพื่อรับประกันลำดับ create -> patch config -> start
@@ -370,3 +479,7 @@ Filename: "sc.exe"; Parameters: "stop OnionCoreService"; Flags: runhidden; RunOn
 Filename: "sc.exe"; Parameters: "delete OnionCoreService"; Flags: runhidden; RunOnceId: "DeleteServerService"
 Filename: "sc.exe"; Parameters: "stop OnionAgent"; Flags: runhidden; RunOnceId: "StopClientService"
 Filename: "sc.exe"; Parameters: "delete OnionAgent"; Flags: runhidden; RunOnceId: "DeleteClientService"
+; ลบ firewall rule คู่กับตอนติดตั้ง - ไม่ gate ด้วย Check (เหมือน sc.exe entries ด้านบน) เพราะ
+; wizard state (SelectedMode) ไม่ได้ set ระหว่าง uninstall flow อยู่แล้ว - netsh delete เป็น
+; harmless no-op เองถ้า rule นี้ไม่เคยถูกสร้างไว้ตั้งแต่แรก (เช่น ติดตั้งโหมด Client/Console-only)
+Filename: "netsh.exe"; Parameters: "advfirewall firewall delete rule name=""OnionProcOparetor Server"""; Flags: runhidden; RunOnceId: "DeleteFirewallRule"

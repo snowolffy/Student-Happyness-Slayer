@@ -6,7 +6,31 @@ using OnionProcOparetor.Server.Models;
 using OnionProcOparetor.Server.Services;
 using System.Security.Cryptography;
 
-var builder = WebApplication.CreateBuilder(args);
+// ---- Diagnostic เขียนไฟล์ตรงๆ ตั้งแต่บรรทัดแรกสุด (ก่อน WebApplication.CreateBuilder) ----
+// เหตุผลเดียวกับ OnionProcOparetor.Agent: ตอนรันเป็น Windows Service ไม่มี console ให้ดู
+// เลยต้องมีที่เขียน diagnostic ไว้ก่อน ILogger จะพร้อมใช้งาน
+StartupDiagnostics.WriteLine("==================================================");
+StartupDiagnostics.WriteLine($"OnionProcOparetor.Server starting - PID {Environment.ProcessId}");
+StartupDiagnostics.WriteLine($"Environment.CurrentDirectory (raw, ตอน process เริ่ม): {Environment.CurrentDirectory}");
+StartupDiagnostics.WriteLine($"AppContext.BaseDirectory (ตำแหน่ง .exe จริงเสมอ): {AppContext.BaseDirectory}");
+
+var builder = WebApplication.CreateBuilder(new WebApplicationOptions
+{
+    Args = args,
+    // บังคับ ContentRootPath ให้เป็นตำแหน่ง .exe จริงเสมอ (เหมือน Agent) กัน appsettings.json
+    // หาไม่เจอเงียบๆ ถ้า Windows Service ตั้ง working directory เป็นอย่างอื่น
+    ContentRootPath = AppContext.BaseDirectory
+});
+
+StartupDiagnostics.WriteLine($"builder.Environment.ContentRootPath: {builder.Environment.ContentRootPath}");
+
+// ---- เสริม file logger เข้ากับ logging pipeline ปกติ - เปิดดูได้เสมอไม่ว่าจะรันแบบ console
+// ตรงๆ หรือเป็น Windows Service จริง (ต่างจาก console/debug provider ที่หายไปเงียบๆ ตอนเป็น service) ----
+var serverLogPath = Path.Combine(
+    Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData),
+    "OnionProcOparetor", "Server", "logs", "server.log");
+builder.Logging.AddProvider(new FileLoggerProvider(serverLogPath));
+StartupDiagnostics.WriteLine($"ILogger ทั้งหมดจะถูกเขียนไปที่ไฟล์นี้ด้วย: {serverLogPath}");
 
 // ---- ตั้งค่า Kestrel ให้ฟัง port ตามที่กำหนดใน appsettings.json ----
 var serverPort = builder.Configuration.GetValue<int>("Server:Port", 8787);
@@ -31,17 +55,32 @@ builder.Services.AddDbContext<AppDbContext>(options =>
 // ---- SignalR: real-time push คู่ขนานกับ HTTP polling เดิม (ไม่แทนที่ poll) ----
 builder.Services.AddSignalR();
 
+// ---- Background scan หาเครื่องที่ IsEnabled=true แต่ Agent หายไปผิดปกติ (ดู
+// MissingClientMonitorService) - ชั้นป้องกันที่สองเผื่อนักเรียนหลบ uninstall password gate
+// ด้วยการ kill service ตรงผ่าน Task Manager/services.msc ----
+builder.Services.AddHostedService<MissingClientMonitorService>();
+
 // ---- รองรับ Windows Service host (ให้ publish เป็น service ได้ทีหลัง) ----
 builder.Host.UseWindowsService();
+
+StartupDiagnostics.WriteLine("Host build เสร็จแล้ว");
 
 var app = builder.Build();
 
 // ---- สร้าง/migrate DB อัตโนมัติตอน start ----
+// StartupDiagnostics คร่อม Migrate() ไว้ทั้งสองด้านโดยตั้งใจ: ถ้า log ค้างอยู่ที่บรรทัด
+// "กำลัง migrate..." โดยไม่มี "migrate เสร็จแล้ว" ตามมา แปลว่า Migrate() เองค้าง (เช่น SQLite
+// file lock ค้างจาก process ก่อนหน้าที่ถูก kill แบบไม่ graceful, หรือ disk-freeze/restore
+// software บางตัวไปแทรกแซง OS-level file locking ของ SQLite ทำให้ hang แบบไม่มี exception -
+// ยืนยันจาก incident จริงที่เจอ SCM error 1053/7009 (timeout 30 วิ) ตอนรันบนเครื่องที่มี
+// freeze software โดยไม่มี Application-log exception ใดๆ เลย
+StartupDiagnostics.WriteLine($"กำลัง migrate database: {builder.Configuration.GetConnectionString("DefaultConnection")}");
 using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
     db.Database.Migrate();
 }
+StartupDiagnostics.WriteLine("Migrate เสร็จแล้ว กำลัง Run()...");
 
 // ---- API Endpoints ----
 

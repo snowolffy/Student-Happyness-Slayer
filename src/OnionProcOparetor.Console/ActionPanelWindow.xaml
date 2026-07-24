@@ -1,0 +1,49 @@
+<Window x:Class="OnionProcOparetor.Console.ActionPanelWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Actions"
+        Height="520" Width="420"
+        WindowStartupLocation="CenterOwner"
+        ResizeMode="NoResize"
+        Style="{StaticResource AppWindowStyle}">
+    <!-- Free-form Canvas layout - drag any element to reposition it in the VS Designer. -->
+    <Canvas Margin="20">
+        <TextBlock Canvas.Left="0" Canvas.Top="0" Width="380" x:Name="HeaderText" Style="{StaticResource Heading2}" TextWrapping="Wrap"/>
+
+        <!-- Target picker - แสดงเฉพาะ bulk mode (ให้เลือกได้ว่าจะ apply กับ "เครื่องที่เลือกไว้" หรือ "ทุกเครื่อง") -->
+        <StackPanel Canvas.Left="0" Canvas.Top="40" x:Name="TargetPanel">
+            <RadioButton x:Name="ApplyToSelectedRadio" GroupName="ActionTarget" Content="เครื่องที่เลือกไว้" Margin="0,0,0,4"/>
+            <RadioButton x:Name="ApplyToAllRadio" GroupName="ActionTarget" Content="ทุกเครื่อง"/>
+        </StackPanel>
+
+        <Border Canvas.Left="0" Canvas.Top="92" Width="380" Height="304" CornerRadius="10" Padding="14"
+                Background="{StaticResource Brush.Background.Primary}"
+                BorderBrush="{StaticResource Brush.Border.Default}" BorderThickness="1">
+            <Canvas>
+                <Button Canvas.Left="0" Canvas.Top="0" Width="352" x:Name="ToggleButton" Content="TOGGLE ENFORCEMENT"
+                        Style="{StaticResource ButtonSecondary}" Click="ToggleButton_Click"/>
+
+                <Button Canvas.Left="0" Canvas.Top="48" Width="352" x:Name="SettingsButton" Content="SETTINGS..."
+                        Style="{StaticResource ButtonSecondary}" Click="SettingsButton_Click"/>
+
+                <Button Canvas.Left="0" Canvas.Top="104" Width="172" x:Name="LockButton" Content="LOCK WORKSTATION"
+                        Style="{StaticResource ButtonSecondary}" Padding="10,9" FontSize="12" Click="LockButton_Click"/>
+                <Button Canvas.Left="180" Canvas.Top="104" Width="172" x:Name="UnlockButton" Content="UNLOCK WORKSTATION"
+                        Style="{StaticResource ButtonSecondary}" Padding="10,9" FontSize="12" Click="UnlockButton_Click"/>
+
+                <Button Canvas.Left="0" Canvas.Top="152" Width="172" x:Name="RestartButton" Content="RESTART"
+                        Style="{StaticResource ButtonSecondary}" Click="RestartButton_Click"/>
+                <Button Canvas.Left="180" Canvas.Top="152" Width="172" x:Name="ShutdownButton" Content="SHUTDOWN"
+                        Style="{StaticResource ButtonDanger}" Click="ShutdownButton_Click"/>
+
+                <Button Canvas.Left="0" Canvas.Top="248" Width="352" x:Name="DeleteButton" Content="DELETE"
+                        Style="{StaticResource ButtonDanger}" Click="DeleteButton_Click"/>
+            </Canvas>
+        </Border>
+
+        <TextBlock Canvas.Left="0" Canvas.Top="410" Width="380" x:Name="StatusText" Style="{StaticResource Caption}" TextWrapping="Wrap"/>
+
+        <Button Canvas.Left="300" Canvas.Top="452" Width="80" Content="CLOSE" Style="{StaticResource ButtonSecondary}"
+                Padding="10,5" FontSize="11" Click="CloseButton_Click"/>
+    </Canvas>
+</Window>

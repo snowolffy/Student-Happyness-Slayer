@@ -11,6 +11,7 @@ public partial class App : Application
     private readonly ClientApiClient _apiClient = new();
     private readonly BroadcastPipeListener _broadcastListener = new();
     private readonly CancellationTokenSource _broadcastListenerCts = new();
+    private LockScreenWindow? _lockScreenWindow;
 
     protected override void OnStartup(StartupEventArgs e)
     {
@@ -20,9 +21,11 @@ public partial class App : Application
         // ทำงานแบบ idempotent - เรียกซ้ำได้ไม่มีผลข้างเคียง ถ้าตั้งไว้แล้วและ path ไม่เปลี่ยนจะไม่เขียนซ้ำ
         RegistryStartup.EnsureAutoStartEnabled();
 
-        // เริ่มฟัง broadcast message จาก Agent (named pipe) - ทำงานอยู่ตลอดอายุของ Tray
-        // ไม่ต้องเปิดหน้า Status ก่อนก็รับ popup ได้
+        // เริ่มฟัง message จาก Agent (named pipe) - ทำงานอยู่ตลอดอายุของ Tray
+        // ไม่ต้องเปิดหน้า Status ก่อนก็รับ popup/lock command ได้
         _broadcastListener.MessageReceived += OnBroadcastMessageReceived;
+        _broadcastListener.ShowLockScreenRequested += OnShowLockScreenRequested;
+        _broadcastListener.HideLockScreenRequested += OnHideLockScreenRequested;
         _broadcastListener.Start(_broadcastListenerCts.Token);
 
         try
@@ -84,9 +87,36 @@ public partial class App : Application
         });
     }
 
+    /// <summary>เรียกจาก background thread ของ pipe listener - idempotent (เรียกซ้ำตอนล็อกอยู่แล้วไม่มีผล)</summary>
+    private void OnShowLockScreenRequested()
+    {
+        Dispatcher.Invoke(() =>
+        {
+            if (_lockScreenWindow is not null)
+            {
+                return; // ล็อกอยู่แล้ว - ไม่ต้องเปิดซ้อน
+            }
+
+            _lockScreenWindow = new LockScreenWindow();
+            _lockScreenWindow.Show();
+            _lockScreenWindow.Activate();
+        });
+    }
+
+    /// <summary>เรียกจาก background thread ของ pipe listener - idempotent (เรียกซ้ำตอนไม่ได้ล็อกอยู่ไม่มีผล)</summary>
+    private void OnHideLockScreenRequested()
+    {
+        Dispatcher.Invoke(() =>
+        {
+            _lockScreenWindow?.ForceClose();
+            _lockScreenWindow = null;
+        });
+    }
+
     protected override void OnExit(ExitEventArgs e)
     {
         _broadcastListenerCts.Cancel();
+        _lockScreenWindow?.ForceClose();
         _trayIcon?.Dispose();
         base.OnExit(e);
     }

@@ -58,6 +58,7 @@ public partial class DashboardWindow : Window
                 existing.LastSeenAt = updated.LastSeenAt;
                 existing.RegisteredAt = updated.RegisteredAt;
                 existing.PollIntervalOverrideSeconds = updated.PollIntervalOverrideSeconds;
+                existing.IsMissingUnexpectedly = updated.IsMissingUnexpectedly;
             }
             else
             {
@@ -105,34 +106,23 @@ public partial class DashboardWindow : Window
         await LoadAllDataAsync();
     }
 
-    private async void ToggleClientButton_Click(object sender, RoutedEventArgs e)
+    /// <summary>
+    /// ปุ่มเดียวใน DataGrid row - เปิด ActionPanelWindow โหมด single-client รวม action ทั้งหมดของ
+    /// เครื่องนั้น (toggle/settings/lock-unlock/restart/shutdown/delete) แทนที่ ContextMenu เดิม
+    /// เพื่อใช้ panel เดียวกับที่ปุ่ม ACTIONS แบบ bulk บน header เปิด (ดู BulkActionsButton_Click)
+    /// </summary>
+    private async void ClientActionsButton_Click(object sender, RoutedEventArgs e)
     {
-        if (sender is Button { Tag: int clientId })
+        if (sender is not Button { Tag: ClientMachineDto client })
         {
-            var success = await _apiClient.ToggleClientAsync(clientId);
-            StatusText.Text = success ? "Toggle client สำเร็จ" : "Toggle client ไม่สำเร็จ";
-            await LoadAllDataAsync();
+            return;
         }
 
-    }
+        var panel = new ActionPanelWindow(_apiClient, client) { Owner = this };
+        panel.ShowDialog();
 
-    private async void DeleteClientButton_Click(object sender, RoutedEventArgs e)
-    {
-        if (sender is Button { Tag: int clientId })
+        if (panel.DataChanged)
         {
-            var confirm = System.Windows.MessageBox.Show(
-                "ยืนยันการลบเครื่องนี้? การกระทำนี้ย้อนกลับไม่ได้",
-                "ยืนยันการลบ",
-                MessageBoxButton.YesNo,
-                MessageBoxImage.Warning);
-
-            if (confirm != MessageBoxResult.Yes)
-            {
-                return;
-            }
-
-            var success = await _apiClient.DeleteClientAsync(clientId);
-            StatusText.Text = success ? "ลบเครื่องสำเร็จ" : "ลบเครื่องไม่สำเร็จ";
             await LoadAllDataAsync();
         }
     }
@@ -302,7 +292,12 @@ public partial class DashboardWindow : Window
         StatusText.Text = $"ส่งข้อความสำเร็จ {successCount}/{targets.Count} เครื่อง";
     }
 
-    private async void ToggleSelectedClientsButton_Click(object sender, RoutedEventArgs e)
+    /// <summary>
+    /// ปุ่ม ACTIONS เดียวบน header (แทนที่ Toggle/Shutdown/Restart Selected เดิม 3 ปุ่มแยก) - เปิด
+    /// ActionPanelWindow เดียวกับที่ปุ่ม ACTIONS ต่อแถวใช้ (ดู ClientActionsButton_Click) แต่ปรับเป็น
+    /// bulk mode ครอบคลุมทั้ง selected-multiple และ all-clients (เลือกได้ใน panel เอง)
+    /// </summary>
+    private async void BulkActionsButton_Click(object sender, RoutedEventArgs e)
     {
         var selected = ClientsGrid.SelectedItems.Cast<ClientMachineDto>().ToList();
 
@@ -312,45 +307,12 @@ public partial class DashboardWindow : Window
             return;
         }
 
-        var confirm = System.Windows.MessageBox.Show(
-            $"ยืนยัน toggle สถานะของ {selected.Count} เครื่องที่เลือกไว้?",
-            "ยืนยัน Bulk Toggle",
-            MessageBoxButton.YesNo,
-            MessageBoxImage.Question);
+        var panel = new ActionPanelWindow(_apiClient, selected, _allClients) { Owner = this };
+        panel.ShowDialog();
 
-        if (confirm != MessageBoxResult.Yes)
+        if (panel.DataChanged)
         {
-            return;
-        }
-
-        StatusText.Text = $"กำลัง toggle {selected.Count} เครื่อง...";
-
-        var successCount = 0;
-        foreach (var client in selected)
-        {
-            var success = await _apiClient.ToggleClientAsync(client.Id);
-            if (success) successCount++;
-        }
-
-        StatusText.Text = $"Toggle สำเร็จ {successCount}/{selected.Count} เครื่อง";
-        await LoadAllDataAsync();
-    }
-
-    private async void ClientSettingsButton_Click(object sender, RoutedEventArgs e)
-    {
-        if (sender is Button { Tag: ClientMachineDto client })
-        {
-            var settingsWindow = new ClientSettingsWindow(_apiClient, client)
-            {
-                Owner = this
-            };
-
-            var result = settingsWindow.ShowDialog();
-
-            if (result == true)
-            {
-                await LoadAllDataAsync();
-            }
+            await LoadAllDataAsync();
         }
     }
 

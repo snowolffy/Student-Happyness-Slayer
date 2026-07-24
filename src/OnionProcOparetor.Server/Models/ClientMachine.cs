@@ -1,3 +1,5 @@
+using System.ComponentModel.DataAnnotations.Schema;
+
 namespace OnionProcOparetor.Server.Models;
 
 /// <summary>
@@ -31,4 +33,21 @@ public class ClientMachine
     /// ตั้งค่านี้ไว้เพื่อใช้กับฟีเจอร์ "Remote client setting" และ "Immediately pull" ในอนาคต
     /// </summary>
     public int? PollIntervalOverrideSeconds { get; set; }
+
+    /// <summary>
+    /// เกิน threshold นี้ (วินาที) โดยที่ IsEnabled=true ถือว่า "หายไปผิดปกติ" - มากกว่า threshold
+    /// "offline ปกติ" ของ Console (90 วิ = 3 เท่าของ PollIntervalSeconds ปกติ) มาก เพื่อกัน false
+    /// alarm จากเครื่อง sleep สั้นๆ หรือ network กระตุกชั่วคราว ก่อนจะถือว่าน่าสงสัยจริงๆ
+    /// </summary>
+    public const int MissingUnexpectedlyThresholdSeconds = 300; // 5 นาที
+
+    /// <summary>
+    /// true = เครื่องนี้ยังถูก enforce อยู่ (IsEnabled) แต่ Agent หายไปนานเกิน threshold ข้างบน -
+    /// ต่างจาก "Offline" ธรรมดา (ปิดเครื่องปกติตอนเลิกเรียน) เพราะเครื่องกลุ่มนี้ควรจะเปิด Agent
+    /// อยู่ตลอด การหายไปกลางคันจึงน่าสงสัยกว่า (เช่น นักเรียนหลบ uninstall password gate ด้วยการ
+    /// kill service ตรงผ่าน Task Manager/services.msc) ไม่ map ลง DB - คำนวณสดทุกครั้งที่ serialize
+    /// </summary>
+    [NotMapped]
+    public bool IsMissingUnexpectedly =>
+        IsEnabled && (DateTime.UtcNow - LastSeenAt).TotalSeconds > MissingUnexpectedlyThresholdSeconds;
 }

@@ -8,9 +8,10 @@ using OnionProcOparetor.AgentTray.Models;
 namespace OnionProcOparetor.AgentTray.Services;
 
 /// <summary>
-/// ฟัง named pipe รอรับ broadcast message จาก OnionProcOparetor.Agent (Windows Service ที่รันใน
-/// Session 0) - วนรับ connection ทีละอันไม่มีที่สิ้นสุด (ฝั่ง Agent ต่อมา ส่ง 1 message แล้วตัด
-/// การเชื่อมต่อทันที ไม่ใช่ connection ค้างยาว)
+/// ฟัง named pipe รอรับ message จาก OnionProcOparetor.Agent (Windows Service ที่รันใน Session 0)
+/// - วนรับ connection ทีละอันไม่มีที่สิ้นสุด (ฝั่ง Agent ต่อมา ส่ง 1 message แล้วตัดการเชื่อมต่อทันที
+/// ไม่ใช่ connection ค้างยาว) ใช้ envelope { Type, Message?, Title? } เดียวกันสำหรับทุก message
+/// เพื่อขยาย Type ใหม่ๆ ต่อได้ง่าย (ตอนนี้รองรับ "Broadcast", "ShowLockScreen", "HideLockScreen")
 ///
 /// ต้องเปิด ACL ให้ "Everyone" อ่าน/เขียนได้ เพราะ Agent (client) รันเป็น Windows Service
 /// (มักเป็นบัญชีคนละตัวกับ user session นี้ เช่น LocalSystem) การเชื่อมต่อข้าม session/account
@@ -23,6 +24,12 @@ public class BroadcastPipeListener
 
     /// <summary>เรียกทุกครั้งที่ได้ broadcast message ใหม่ - เรียกจาก background thread ไม่ใช่ UI thread</summary>
     public event Action<BroadcastMessageDto>? MessageReceived;
+
+    /// <summary>เรียกทุกครั้งที่ Agent สั่งแสดงหน้าจอล็อก - เรียกจาก background thread ไม่ใช่ UI thread</summary>
+    public event Action? ShowLockScreenRequested;
+
+    /// <summary>เรียกทุกครั้งที่ Agent สั่งปิดหน้าจอล็อก - เรียกจาก background thread ไม่ใช่ UI thread</summary>
+    public event Action? HideLockScreenRequested;
 
     /// <summary>เริ่มฟัง pipe แบบ fire-and-forget - มี retry loop ในตัว ไม่ throw ออกมาแม้เปิด pipe ไม่สำเร็จ</summary>
     public void Start(CancellationToken ct)
@@ -79,12 +86,34 @@ public class BroadcastPipeListener
     {
         try
         {
-            var dto = JsonSerializer.Deserialize<BroadcastMessageDto>(
+            var envelope = JsonSerializer.Deserialize<AgentTrayPipeMessage>(
                 line, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
 
-            if (dto is not null && !string.IsNullOrWhiteSpace(dto.Message))
+            if (envelope is null)
             {
-                MessageReceived?.Invoke(dto);
+                return;
+            }
+
+            switch (envelope.Type)
+            {
+                case "Broadcast":
+                    if (!string.IsNullOrWhiteSpace(envelope.Message))
+                    {
+                        MessageReceived?.Invoke(new BroadcastMessageDto { Message = envelope.Message, Title = envelope.Title });
+                    }
+                    break;
+
+                case "ShowLockScreen":
+                    ShowLockScreenRequested?.Invoke();
+                    break;
+
+                case "HideLockScreen":
+                    HideLockScreenRequested?.Invoke();
+                    break;
+
+                default:
+                    System.Diagnostics.Debug.WriteLine($"[BroadcastPipeListener] ไม่รู้จัก message type: '{envelope.Type}'");
+                    break;
             }
         }
         catch (Exception ex)

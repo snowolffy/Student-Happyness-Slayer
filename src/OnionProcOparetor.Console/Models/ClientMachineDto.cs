@@ -14,4 +14,11 @@ public class ClientMachineDto
     /// <summary>ถือว่า offline ถ้าไม่ poll เข้ามาเกิน 90 วิ (3 เท่าของ PollIntervalSeconds ปกติ 30 วิ)</summary>
     public bool IsOffline => (DateTime.UtcNow - LastSeenAt).TotalSeconds > 90;
     public int? PollIntervalOverrideSeconds { get; set; }
+
+    /// <summary>
+    /// คำนวณฝั่ง Server (ClientMachine.IsMissingUnexpectedly) ส่งมาเป็น field นี้ตรงๆ ทั้งจาก
+    /// GET /api/clients และ SignalR ClientStatusChanged - true = เครื่องนี้ IsEnabled อยู่แต่ Agent
+    /// หายไปนานผิดปกติ (เกิน 5 นาที) น่าสงสัยกว่า Offline ธรรมดา (ปิดเครื่องตอนเลิกเรียน)
+    /// </summary>
+    public bool IsMissingUnexpectedly { get; set; }
 }
