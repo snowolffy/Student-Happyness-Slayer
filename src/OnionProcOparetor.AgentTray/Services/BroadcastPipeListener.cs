@@ -31,6 +31,9 @@ public class BroadcastPipeListener
     /// <summary>เรียกทุกครั้งที่ Agent สั่งปิดหน้าจอล็อก - เรียกจาก background thread ไม่ใช่ UI thread</summary>
     public event Action? HideLockScreenRequested;
 
+    /// <summary>เรียกทุกครั้งที่ Agent สั่งเปิด VNC session (payload = RequestingConsoleSessionId) - เรียกจาก background thread ไม่ใช่ UI thread</summary>
+    public event Action<string>? StartVncSessionRequested;
+
     /// <summary>เริ่มฟัง pipe แบบ fire-and-forget - มี retry loop ในตัว ไม่ throw ออกมาแม้เปิด pipe ไม่สำเร็จ</summary>
     public void Start(CancellationToken ct)
     {
@@ -109,6 +112,13 @@ public class BroadcastPipeListener
 
                 case "HideLockScreen":
                     HideLockScreenRequested?.Invoke();
+                    break;
+
+                case "StartVncSession":
+                    if (!string.IsNullOrWhiteSpace(envelope.RequestingConsoleSessionId))
+                    {
+                        StartVncSessionRequested?.Invoke(envelope.RequestingConsoleSessionId);
+                    }
                     break;
 
                 default:

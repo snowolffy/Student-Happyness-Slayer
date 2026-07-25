@@ -85,6 +85,12 @@ builder.Services.AddSingleton<CommandProcessor>();
 // ---- SignalR hub connection - ชั้นเสริมคู่ขนานกับ poll loop เดิม (ไม่แทนที่) ----
 builder.Services.AddSingleton<LabHubConnection>();
 
+// ---- VNC session "หลังบ้าน" ฝั่ง Agent (port discovery + firewall + state เท่านั้น - ไม่ spawn
+// winvnc.exe เองอีกต่อไป ย้ายไปที่ AgentTray แล้วเพราะ Session 0 isolation ทำให้ Agent capture หน้าจอ
+// ไม่ได้เลย ดู comment เต็มใน VncSessionManager.cs) ไม่ใช่ IHostedService อีกต่อไปเช่นกัน (ไม่มี
+// subprocess ให้ต้อง stop ตอน Agent หยุดแล้ว) ----
+builder.Services.AddSingleton<VncSessionManager>();
+
 // ---- รองรับ Windows Service host ----
 builder.Services.AddWindowsService();
 
@@ -118,4 +124,16 @@ app.MapGet("/logs/recent", (ClientState state) =>
     return Results.Ok(state.GetRecentLogs());
 });
 
+// ---- AgentTray เรียกกลับมาที่นี่หลัง start winvnc.exe เอง (ต้องทำจาก AgentTray เพราะรันใน user
+// session จริง - Agent เอง Session 0 capture หน้าจอไม่ได้เลย ดู comment เต็มใน VncSessionManager.cs) -
+// loopback เท่านั้น (ConfigureKestrel ผูก 127.0.0.1 ไว้แล้วด้านบน) ไม่มีทางถูกเรียกจากเครื่องอื่น ----
+app.MapPost("/vnc/session-result", async (VncSessionResultRequest request, CommandProcessor commandProcessor, CancellationToken ct) =>
+{
+    await commandProcessor.HandleVncSessionResultAsync(
+        request.RequestingConsoleSessionId, request.Success, request.Pid, request.Password, request.FailureReason, ct);
+    return Results.Ok();
+});
+
 app.Run();
+
+internal sealed record VncSessionResultRequest(string RequestingConsoleSessionId, bool Success, int Pid, string? Password, string? FailureReason);

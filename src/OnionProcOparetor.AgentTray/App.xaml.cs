@@ -11,6 +11,7 @@ public partial class App : Application
     private readonly ClientApiClient _apiClient = new();
     private readonly BroadcastPipeListener _broadcastListener = new();
     private readonly CancellationTokenSource _broadcastListenerCts = new();
+    private readonly VncProcessManager _vncProcessManager = new();
     private LockScreenWindow? _lockScreenWindow;
 
     protected override void OnStartup(StartupEventArgs e)
@@ -26,6 +27,7 @@ public partial class App : Application
         _broadcastListener.MessageReceived += OnBroadcastMessageReceived;
         _broadcastListener.ShowLockScreenRequested += OnShowLockScreenRequested;
         _broadcastListener.HideLockScreenRequested += OnHideLockScreenRequested;
+        _broadcastListener.StartVncSessionRequested += OnStartVncSessionRequested;
         _broadcastListener.Start(_broadcastListenerCts.Token);
 
         try
@@ -113,10 +115,23 @@ public partial class App : Application
         });
     }
 
+    /// <summary>
+    /// เรียกจาก background thread ของ pipe listener - start winvnc.exe เอง (ที่นี่เท่านั้นที่ capture
+    /// หน้าจอ user session ได้จริง - ดู comment ใน VncProcessManager) แล้วรายงานผลกลับ Agent ผ่าน local
+    /// HTTP callback ให้ Agent (มีสิทธิ์ LocalSystem) ไปทำ port discovery/firewall/relay ต่อ ไม่ต้อง
+    /// marshal เข้า UI thread เพราะไม่ได้แตะ WPF UI element ใดๆ เลย
+    /// </summary>
+    private async void OnStartVncSessionRequested(string requestingConsoleSessionId)
+    {
+        var (success, pid, password, failureReason) = await _vncProcessManager.EnsureStartedAsync(CancellationToken.None);
+        await _apiClient.PostVncSessionResultAsync(requestingConsoleSessionId, success, pid, password, failureReason);
+    }
+
     protected override void OnExit(ExitEventArgs e)
     {
         _broadcastListenerCts.Cancel();
         _lockScreenWindow?.ForceClose();
+        _vncProcessManager.Stop();
         _trayIcon?.Dispose();
         base.OnExit(e);
     }

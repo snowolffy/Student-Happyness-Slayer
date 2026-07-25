@@ -950,3 +950,72 @@ Global/Refresh — ไม่ถูกแตะ เพราะเป็นคน
 `dotnet build` ทั้ง solution ผ่าน 0 error (warning เดิมเท่านั้น) — rebuild installer แล้ว
 (`installer\output\OnionProcOparetor-Setup.msi`, v1.1.2.0 เดิม เพราะ `Directory.Build.props`'s
 FileVersion fix ครอบคลุมไฟล์เหล่านี้อยู่แล้ว ไม่ต้อง bump version ซ้ำ)
+
+## Update Log: VNC remote-view feature (Step 4a/4b) — 2026-07-24/25
+
+เป้าหมาย: ให้ครูดูหน้าจอเครื่องนักเรียนสดๆ ได้จาก Console โดย bundle UltraVNC server เข้ากับ Agent
+เอง (ไม่พึ่ง VNC ที่อาจติดตั้งอยู่แล้วบนเครื่อง) แบ่งเป็น Step 4a (bundle+lifecycle) และ Step 4b
+(RFB handshake: connect+auth เท่านั้น ยังไม่ render framebuffer — 4c/4d ทำต่อทีหลัง)
+
+### Step 4a — bundle winvnc.exe เป็น subprocess
+
+Copy ไฟล์ UltraVNC 1.4.3.6 ทั้งชุดจาก install จริงมาเป็น `VncBundle/` (ยกเว้น `unins000.*` และ
+`ultravnc.ini` เดิมที่มี password hash จริงติดมา) จัดการ lifecycle แบบ lazy-start (ไม่รันตั้งแต่
+Agent เริ่ม) + crash-restart + circuit breaker (เลิก auto-restart ถ้า crash เกิน 5 ครั้งใน 5 นาที)
+password สุ่มใหม่ทุก session ไม่ hardcode/reuse
+
+### Step 4b — RFB client (`RfbClient.cs`, Console)
+
+Implement ตาม RFC 6143 ตรงๆ ไม่พึ่ง library ภายนอก: ProtocolVersion handshake (รองรับเฉพาะ RFB
+003.008), Security handshake (VNC Authentication type 2 เท่านั้น), VNC Auth (DES-ECB, key มาจาก
+password reverse-bit ต่อ byte — RFC ไม่ได้เขียนไว้ชัด มี Errata 4951 ยืนยันเป็นช่องโหว่เอกสารเอง
+ไม่ใช่ UltraVNC extension เฉพาะตัว), ClientInit/ServerInit ระบบ SignalR ส่ง port/password จาก Agent
+ไปยัง Console ที่ request ผ่าน per-console-session group (ไม่ broadcast) Console ต่อ TCP ตรงไปยัง
+Agent เอง (Server ไม่ relay traffic)
+
+### Bug ที่เจอระหว่าง debug (เรียงตามลำดับที่เจอจริง — ทุกข้อ verify จาก log/evidence จริง ไม่เดา)
+
+1. **`createpassword.exe` password ยาวเกิน 8 ตัว** → stack buffer overrun crash (exit code
+   `-1073740791` = `0xC0000409`) — VNC password ยาวได้แค่ 8 ไบต์ตาม RFB spec อยู่แล้ว (ใช้เป็น DES
+   key ตรงๆ) ลด `PasswordLength` เหลือ 8
+2. **Console-side logging ถูก compile ออกหมดใน Release build** — `Debug.WriteLine` มี
+   `[Conditional("DEBUG")]` ในตัว แต่ publish ด้วย `-c Release` เสมอ ทำให้ debug ต่อไม่ได้เลยจนกว่า
+   จะเพิ่ม `ConsoleDiagnostics.cs` (เขียนไฟล์จริง ไม่ผ่าน `Debug.WriteLine`)
+3. **Silent MSI install (`/qn`) ไม่ติดตั้งอะไรเลยสักไฟล์** (แต่ exit code 0 เหมือนสำเร็จ) — สาเหตุ
+   จริงคือ Windows Installer internal registration ตกค้าง (`HKLM:\...\Installer\Classes\
+   UpgradeCodes\<code>` มี stale value entries จาก test cycle ก่อนหน้าที่ Revo Uninstaller โหมด
+   Moderate ไม่ได้ลบลึกถึงขนาดนั้น) ทำให้ `FindRelatedProducts` อ่านข้อมูลไม่ครบแล้ว engine
+   fallback ไปตั้ง `REMOVE=ALL` กลางอากาศ — **ไม่ใช่บั๊กใน `.wxs` authoring** เคลียร์ registration
+   เก่าแล้วยืนยันด้วย `Feature: ...; Request: Local; Action: Local` ใน verbose MSI log
+4. **Firewall rule ตายตัว (port 5950) ผิด port จริง** — winvnc.exe ไม่ honor `PortNumber`/
+   `AutoPortSelect` ใน ini ถ้ามี UltraVNC ตัวอื่นรันอยู่ก่อนบนเครื่อง (auto-negotiate display slot
+   เอง) แก้โดยเช็ค listening port จริงหลัง start ผ่าน `netstat -ano` แล้วเปิด firewall rule แบบ
+   dynamic ตาม port จริงที่เจอ (ไม่ใช่ port ตายตัวใน `.wxs` อีกต่อไป)
+5. **`-secure` flag ของ `createpassword.exe`** ไม่ได้แค่ทำให้ hash แข็งแรงขึ้น แต่เขียน `[admin]
+   Secure=1` ลง ini ซึ่งเปิด UltraVNC's Secure Mode (DSM plugin extension นอกเหนือ RFB มาตรฐาน) ทำ
+   ให้ server ปิด connection ทันทีหลัง ClientInit (Auth ผ่านแต่ ServerInit อ่านไม่ได้) — เอา
+   `-secure` ออก ใช้ plain VNC Auth ตาม RFC 6143 ตรงๆ (scope นี้ไม่มี framebuffer encryption อยู่แล้ว)
+6. **`-multi` flag จำเป็น** — เครื่องทดสอบมี UltraVNC ติดตั้งแบบ system-wide อยู่ก่อนแล้ว (น่าจะเกี่ยว
+   กับ Reboot Restore Rx Pro) ทำให้ winvnc.exe ของเรามี "running check" ชนกัน ต้องใส่ `-multi`
+   ("Allow multiple instances (disables running check)" — ยืนยันจาก UltraVNC official docs)
+7. **Root cause แท้จริงตัวสุดท้าย: Windows Session 0 Isolation** — Agent รันเป็น Windows Service
+   (Session 0) ซึ่งไม่มีทาง capture หน้าจอของ user session ได้เลยไม่ว่าจะแก้ config ยังไง (ยืนยันจาก
+   UltraVNC official driver design เอง ที่ต้อง bundle `UVncVirtualDisplay` driver แก้ปัญหานี้
+   โดยเฉพาะ — เราไม่เคยติดตั้ง driver ตัวนี้จริง มีแค่ไฟล์เฉยๆ) แก้ด้วยการ **ย้าย winvnc.exe ไปรัน
+   ผ่าน `OnionProcOparetor.AgentTray` แทน** (per-user tray app ที่รันอยู่ใน user session จริงอยู่แล้ว
+   สำหรับ Lock/Unlock/Broadcast) — สถาปัตยกรรมใหม่: Agent สั่ง AgentTray ผ่าน named pipe เดิม (เพิ่ม
+   message type `StartVncSession`) → AgentTray spawn winvnc.exe เอง + รายงาน PID/password กลับ Agent
+   ผ่าน local HTTP callback ใหม่ (`POST /vnc/session-result`, loopback only) → Agent (มีสิทธิ์
+   LocalSystem) ทำ port discovery + firewall rule ต่อ (AgentTray เป็น user ธรรมดามักไม่มีสิทธิ์แก้
+   firewall) → relay ไป Console ผ่าน SignalR เหมือนเดิม `VncBundle/` ย้ายจาก Agent ไป AgentTray
+   project จริง (ไฟล์+csproj reference) พร้อมเพิ่ม `util:PermissionEx User="Users" GenericAll="yes"`
+   ใน `.wxs` ให้ user ธรรมดาเขียน `ultravnc.ini` ใน `Program Files\...\ClientTray\VncBundle\` ได้
+   (verify attribute names จาก WiX util.xsd source จริงก่อนใช้)
+
+### ผลทดสอบสุดท้าย (2026-07-25, บนเครื่อง COM-23 จริง)
+
+Handshake ผ่านครบทุกขั้นตอน: TCP connect → ProtocolVersion → Security (VNC Auth type 2) → Auth
+challenge/response → **Auth result: OK** → ClientInit → **ServerInit: 1920x1080, desktop name
+"com-23 (192.168.201.16, 192.168.200.188) - application mode"** — ยืนยันว่า winvnc.exe (ผ่าน
+AgentTray) เห็น desktop จริงของ user แล้ว Step 4b เสร็จสมบูรณ์ตาม scope ที่ตกลงไว้ (connect+auth+
+ServerInit เท่านั้น ยังไม่ FramebufferUpdate/render — Step 4c/4d)

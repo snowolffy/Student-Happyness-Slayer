@@ -26,4 +26,16 @@
     </None>
   </ItemGroup>
 
+  <!-- UltraVNC server (winvnc.exe + DLLs/plugins it may load at runtime) bundled as-is from an
+       official install - ย้ายมาจาก OnionProcOparetor.Agent เพราะ Windows Session 0 Isolation ทำให้
+       Agent (Windows Service) capture หน้าจอของ user session ไม่ได้เลย ต้อง start จาก AgentTray
+       (รันใน user session จริง) แทน - ดู Services/VncProcessManager.cs (ultravnc.ini deliberately
+       NOT bundled here - เขียนใหม่ทุกครั้งที่ start จริง ไม่เก็บ password hash ไว้ใน source control). -->
+  <ItemGroup>
+    <None Include="VncBundle\**">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+    </None>
+  </ItemGroup>
+
 </Project>

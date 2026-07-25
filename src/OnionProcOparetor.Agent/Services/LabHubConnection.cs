@@ -111,6 +111,49 @@ public class LabHubConnection : IAsyncDisposable
         }
     }
 
+    /// <summary>
+    /// ส่ง port/password ของ VNC session ที่เพิ่ง start สำเร็จกลับไปยัง Console ตัวที่ request เท่านั้น
+    /// (ผ่าน LabHub.RelayVncSessionReady -> group ส่วนตัวของ consoleSessionId นั้น) - ถ้า SignalR ไม่
+    /// connected อยู่ตอนนี้ก็แค่ log warning ไม่ throw (ไม่มี poll fallback สำหรับ VNC เพราะเป็นข้อมูล
+    /// ที่ต้องส่งสดๆ ตอนนั้นเท่านั้น ไม่ควร cache/persist password ไว้ที่ไหนเพิ่ม)
+    /// </summary>
+    public async Task NotifyVncSessionReadyAsync(string consoleSessionId, int port, string password, CancellationToken ct)
+    {
+        if (_connection is null || _connection.State != HubConnectionState.Connected)
+        {
+            _logger.LogWarning("VNC session พร้อมใช้งานแล้วแต่ SignalR ไม่ connected อยู่ - ส่งผลกลับ Console ไม่ได้ (ConsoleSessionId: {SessionId})", consoleSessionId);
+            return;
+        }
+
+        try
+        {
+            await _connection.InvokeAsync("RelayVncSessionReady", consoleSessionId, port, password, ct);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "ส่ง VncSessionReady กลับ Console ไม่สำเร็จ (ConsoleSessionId: {SessionId})", consoleSessionId);
+        }
+    }
+
+    /// <summary>เหมือน NotifyVncSessionReadyAsync แต่สำหรับกรณี start VNC session ไม่สำเร็จ - ส่งเหตุผลกลับไปด้วย</summary>
+    public async Task NotifyVncSessionFailedAsync(string consoleSessionId, string reason, CancellationToken ct)
+    {
+        if (_connection is null || _connection.State != HubConnectionState.Connected)
+        {
+            _logger.LogWarning("VNC session start ไม่สำเร็จ ({Reason}) แต่ SignalR ก็ไม่ connected อยู่ด้วย - ส่งผลกลับ Console ไม่ได้ (ConsoleSessionId: {SessionId})", reason, consoleSessionId);
+            return;
+        }
+
+        try
+        {
+            await _connection.InvokeAsync("RelayVncSessionFailed", consoleSessionId, reason, ct);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "ส่ง VncSessionFailed กลับ Console ไม่สำเร็จ (ConsoleSessionId: {SessionId})", consoleSessionId);
+        }
+    }
+
     private async Task RegisterAgentSafeAsync()
     {
         try

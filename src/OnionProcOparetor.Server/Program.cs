@@ -317,9 +317,14 @@ app.MapPut("/api/clients/{id:int}/settings", async (int id, ClientSettingsReques
 
 // client เอาไว้ poll เพื่อดึง rules + สถานะ enabled/disabled ของตัวเอง
 // (endpoint สำคัญที่สุดสำหรับฝั่ง Client Service) - ไม่ต้อง auth เพราะใช้ clientGuid ยืนยันตัวเองแทน
-app.MapGet("/api/poll/{clientGuid}", async (string clientGuid, string machineName, AppDbContext db, IHubContext<LabHub> hub) =>
+app.MapGet("/api/poll/{clientGuid}", async (string clientGuid, string machineName, HttpContext httpContext, AppDbContext db, IHubContext<LabHub> hub) =>
 {
     var client = await db.ClientMachines.FirstOrDefaultAsync(c => c.ClientGuid == clientGuid);
+
+    // เก็บ IP ล่าสุดที่ client นี้ poll เข้ามา - แต่เดิมเป็น field ที่มีอยู่ใน model/DTO แล้วแต่ไม่เคยถูก
+    // set จริงที่ไหนเลย (dead field) จำเป็นต้อง populate ให้ใช้งานได้จริงตอนนี้เพราะ Console ต้องใช้ IP
+    // นี้เชื่อม TCP ตรงไปยัง Agent เพื่อทำ RFB handshake (VNC data plane ไม่ผ่าน Server เป็น relay)
+    var remoteIp = httpContext.Connection.RemoteIpAddress?.ToString();
 
     if (client is null)
     {
@@ -329,7 +334,8 @@ app.MapGet("/api/poll/{clientGuid}", async (string clientGuid, string machineNam
             MachineName = machineName,
             IsEnabled = true,
             RegisteredAt = DateTime.UtcNow,
-            LastSeenAt = DateTime.UtcNow
+            LastSeenAt = DateTime.UtcNow,
+            LastKnownIp = remoteIp
         };
         db.ClientMachines.Add(client);
     }
@@ -337,6 +343,7 @@ app.MapGet("/api/poll/{clientGuid}", async (string clientGuid, string machineNam
     {
         client.LastSeenAt = DateTime.UtcNow;
         client.MachineName = machineName;
+        client.LastKnownIp = remoteIp;
     }
 
     var globalState = await db.GlobalStates.FirstOrDefaultAsync(g => g.Id == 1);

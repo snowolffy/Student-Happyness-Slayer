@@ -40,8 +40,30 @@ public class LabHub : Hub
         }
     }
 
-    /// <summary>Console เรียกทันทีหลัง connect เสร็จ เพื่อ join group "console" รับ status update แบบ broadcast</summary>
-    public Task RegisterConsole() => Groups.AddToGroupAsync(Context.ConnectionId, ConsoleGroupName);
+    /// <summary>
+    /// Console เรียกทันทีหลัง connect เสร็จ เพื่อ join group "console" (broadcast status ปกติ) และ
+    /// group ส่วนตัวชื่อ consoleSessionId (GUID สุ่มต่อ Console instance หนึ่งตัว ไม่ persist) - group
+    /// ส่วนตัวนี้ใช้เป็นปลายทางตอบกลับแบบเจาะจง (เช่น VncSessionReady) ที่ต้องส่งกลับไปยัง Console
+    /// ตัวที่ request เท่านั้น ไม่ broadcast ให้ Console ตัวอื่นเห็นข้อมูล session/password คนอื่น
+    /// </summary>
+    public Task RegisterConsole(string consoleSessionId)
+    {
+        var joinBroadcastGroup = Groups.AddToGroupAsync(Context.ConnectionId, ConsoleGroupName);
+        var joinSessionGroup = Groups.AddToGroupAsync(Context.ConnectionId, consoleSessionId);
+        return Task.WhenAll(joinBroadcastGroup, joinSessionGroup);
+    }
+
+    /// <summary>
+    /// Agent เรียกหลัง VncSessionManager.HandleAgentTrayStartedAsync() สำเร็จ เพื่อส่ง port/password กลับไปยัง
+    /// Console ตัวที่ request เท่านั้น (ผ่าน group ส่วนตัวที่ join ไว้ใน RegisterConsole) - ไม่ log
+    /// password ฝั่ง server เลย (แค่ relay ผ่านมือ ไม่เก็บ ไม่ persist ลง DB)
+    /// </summary>
+    public Task RelayVncSessionReady(string consoleSessionId, int port, string password) =>
+        Clients.Group(consoleSessionId).SendAsync("VncSessionReady", port, password);
+
+    /// <summary>เหมือน RelayVncSessionReady แต่สำหรับกรณี Agent เปิด VNC session ไม่สำเร็จ - ส่งเหตุผลกลับไปด้วย</summary>
+    public Task RelayVncSessionFailed(string consoleSessionId, string reason) =>
+        Clients.Group(consoleSessionId).SendAsync("VncSessionFailed", reason);
 }
 
 /// <summary>

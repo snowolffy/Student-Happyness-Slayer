@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Microsoft.Extensions.DependencyInjection;
 using OnionProcOparetor.Agent.Models;
 
 namespace OnionProcOparetor.Agent.Services;
@@ -19,6 +20,12 @@ public class CommandProcessor
     private readonly ServerClient _serverClient;
     private readonly AgentTrayNotifier _agentTrayNotifier;
     private readonly ClientState _clientState;
+    private readonly VncSessionManager _vncSessionManager;
+
+    // ดึง LabHubConnection แบบ lazy ผ่าน IServiceProvider แทน constructor injection ตรงๆ เพราะ
+    // LabHubConnection เองก็ต้องพึ่ง CommandProcessor อยู่แล้ว (รับ "ReceiveCommand" แล้วส่งต่อมาที่นี่)
+    // - inject ตรงๆ ทั้งคู่จะเกิด circular DI dependency ที่ container resolve ไม่ได้ตอน startup
+    private readonly IServiceProvider _serviceProvider;
 
     // เก็บ commandId ที่ process ไปแล้วล่าสุด กันประมวลผลซ้ำตอน network race
     // (เช่น SignalR ReceiveCommand กับ poll loop เห็น command เดียวกันเกือบพร้อมกัน หรือ ExecuteAsync
@@ -29,12 +36,20 @@ public class CommandProcessor
     private readonly Queue<int> _processedCommandIdOrder = new();
     private readonly HashSet<int> _processedCommandIds = new();
 
-    public CommandProcessor(ILogger<CommandProcessor> logger, ServerClient serverClient, AgentTrayNotifier agentTrayNotifier, ClientState clientState)
+    public CommandProcessor(
+        ILogger<CommandProcessor> logger,
+        ServerClient serverClient,
+        AgentTrayNotifier agentTrayNotifier,
+        ClientState clientState,
+        VncSessionManager vncSessionManager,
+        IServiceProvider serviceProvider)
     {
         _logger = logger;
         _serverClient = serverClient;
         _agentTrayNotifier = agentTrayNotifier;
         _clientState = clientState;
+        _vncSessionManager = vncSessionManager;
+        _serviceProvider = serviceProvider;
     }
 
     /// <summary>
@@ -90,6 +105,9 @@ public class CommandProcessor
 
             case "UpdateSettings":
                 return HandleUpdateSettingsAsync(payloadJson, ct);
+
+            case "StartVncSession":
+                return HandleStartVncSessionAsync(payloadJson, ct);
 
             // TODO Phase 3/4: ใส่ command อื่นๆ ตรงนี้เพิ่ม เช่น "Kill", "RunCommand"
             default:
@@ -193,6 +211,78 @@ public class CommandProcessor
         _clientState.SetPollIntervalOverride(payload.PollIntervalOverrideSeconds);
 
         return Task.CompletedTask;
+    }
+
+    /// <summary>
+    /// สั่ง AgentTray (ผ่าน named pipe) ให้ start winvnc.exe เอง - ต้องทำจาก AgentTray เท่านั้น (รันใน
+    /// user session จริง) ไม่ใช่ Agent เอง (Session 0 - capture หน้าจอไม่ได้เลย ยืนยันจากการ debug จริง)
+    /// method นี้แค่ "ยิงคำสั่งออกไป" เท่านั้น - ผลจริง (สำเร็จ/ไม่สำเร็จ) จะย้อนกลับมาทาง local HTTP
+    /// callback /vnc/session-result (ดู Program.cs) แยกต่างหาก เพราะ AgentTray ต้อง start process จริง
+    /// ซึ่งใช้เวลา ถ้า pipe ส่งไม่ถึง AgentTray เลย (เช่นไม่มี user login อยู่หน้าเครื่อง) ค่อย fail ทันที
+    /// ตรงนี้เพราะรู้อยู่แล้วว่าไม่มีทางสำเร็จแน่นอน ไม่ต้องรอ callback ที่ไม่มีวันมา
+    /// </summary>
+    private async Task HandleStartVncSessionAsync(string? payloadJson, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(payloadJson))
+        {
+            _logger.LogWarning("StartVncSession command ไม่มี payload มาด้วย (ต้องมี RequestingConsoleSessionId) - ข้าม");
+            return;
+        }
+
+        StartVncSessionPayload? payload;
+        try
+        {
+            payload = JsonSerializer.Deserialize<StartVncSessionPayload>(
+                payloadJson, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "แปลง payload ของ StartVncSession ไม่สำเร็จ: {Payload}", payloadJson);
+            return;
+        }
+
+        if (payload is null || string.IsNullOrWhiteSpace(payload.RequestingConsoleSessionId))
+        {
+            _logger.LogWarning("StartVncSession payload ไม่มี RequestingConsoleSessionId - ข้าม (ไม่รู้จะตอบกลับใคร)");
+            return;
+        }
+
+        _logger.LogInformation("ได้รับ StartVncSession command จาก Console session {SessionId} - กำลังสั่ง AgentTray ให้ start winvnc.exe", payload.RequestingConsoleSessionId);
+
+        var sentToTray = await _agentTrayNotifier.SendStartVncSessionAsync(payload.RequestingConsoleSessionId, ct);
+        if (!sentToTray)
+        {
+            var labHubConnection = _serviceProvider.GetRequiredService<LabHubConnection>();
+            _logger.LogWarning("StartVncSession: ส่งคำสั่งให้ AgentTray ไม่สำเร็จ (อาจไม่มี user login อยู่หน้าเครื่อง) - แจ้งกลับ Console session {SessionId} ทันที", payload.RequestingConsoleSessionId);
+            await labHubConnection.NotifyVncSessionFailedAsync(payload.RequestingConsoleSessionId, "ไม่สามารถเปิด VNC ได้ - ไม่มี user login อยู่หน้าเครื่องนี้ (ต้องมีคน login ถึงจะเปิด VNC ได้)", ct);
+        }
+    }
+
+    /// <summary>
+    /// เรียกจาก /vnc/session-result (local HTTP endpoint ใน Program.cs) หลัง AgentTray รายงานผลกลับมา
+    /// - แยกจาก HandleStartVncSessionAsync เพราะผลจริงมาช้ากว่า command processing ปกติมาก (ต้องรอ
+    /// AgentTray start process จริง) ไม่ผ่าน pipe/command queue เดิมเลย เป็น flow คู่ขนานที่ผูกกันด้วย
+    /// RequestingConsoleSessionId เท่านั้น
+    /// </summary>
+    public async Task HandleVncSessionResultAsync(string requestingConsoleSessionId, bool success, int pid, string? password, string? failureReason, CancellationToken ct)
+    {
+        var labHubConnection = _serviceProvider.GetRequiredService<LabHubConnection>();
+
+        if (!success || password is null)
+        {
+            _logger.LogWarning("VncSessionResult: AgentTray start winvnc.exe ไม่สำเร็จ ({Reason}) - แจ้งกลับ Console session {SessionId}", failureReason, requestingConsoleSessionId);
+            await labHubConnection.NotifyVncSessionFailedAsync(requestingConsoleSessionId, failureReason ?? "เปิด VNC session บนเครื่องนี้ไม่สำเร็จ", ct);
+            return;
+        }
+
+        var (portFound, port, portFailureReason) = await _vncSessionManager.HandleAgentTrayStartedAsync(pid, password, ct);
+        if (!portFound)
+        {
+            await labHubConnection.NotifyVncSessionFailedAsync(requestingConsoleSessionId, portFailureReason ?? "เปิด VNC session บนเครื่องนี้ไม่สำเร็จ", ct);
+            return;
+        }
+
+        await labHubConnection.NotifyVncSessionReadyAsync(requestingConsoleSessionId, port, password, ct);
     }
 
     /// <summary>

@@ -18,7 +18,7 @@
 
   <Package Name="Onion ProcOparetor"
             Manufacturer="OnionProcOparetor"
-            Version="1.1.2.0"
+            Version="1.2.0.0"
             UpgradeCode="8C2D41E6-5A6D-4D1A-95E2-FB74C37A6E5A"
             Scope="perMachine"
             InstallerVersion="500">
@@ -180,6 +180,11 @@
       <ServiceInstall Id="OnionAgentServiceInstall" Name="OnionAgent" DisplayName="Onion Agent"
                        Type="ownProcess" Start="auto" ErrorControl="normal" />
       <ServiceControl Id="OnionAgentServiceControl" Name="OnionAgent" Stop="both" Remove="uninstall" Wait="yes" />
+      <!-- ไม่มี static firewall rule ตรงนี้อีกต่อไป (เคยเปิด port 5950 ตายตัว) - พิสูจน์แล้วจริงจาก
+           เครื่องทดสอบว่า winvnc.exe อาจไม่ listen ที่ port ที่ตั้งไว้ใน ini เลยถ้ามี UltraVNC ตัวอื่น
+           รันอยู่ก่อนบนเครื่อง (auto-negotiate display slot ของตัวเอง) port ตายตัวจึงใช้ไม่ได้จริง -
+           ย้ายไปเปิด/ปิด firewall rule แบบ dynamic ตาม port จริงที่เจอแทน ดู
+           VncSessionManager.EnsureFirewallExceptionAsync -->
     </Component>
 
     <Component Id="AgentTrayExeComponent" Directory="ClientTrayDir" Guid="*">
@@ -188,6 +193,17 @@
                    WorkingDirectory="ClientTrayDir" Advertise="no" />
       </File>
       <RemoveFolder Id="RemoveAppProgramMenuFolder_Tray" Directory="AppProgramMenuFolder" On="uninstall" />
+      <!-- AgentTray รันเป็น user ธรรมดาที่ login อยู่หน้าเครื่อง (ไม่ใช่ LocalSystem แบบ Agent) ต้อง
+           เขียน ultravnc.ini ใหม่ทุกครั้งที่เปิด VNC session (ดู VncProcessManager.cs) แต่ Program
+           Files ปกติ user ธรรมดาเขียนไม่ได้เลย - เปิดสิทธิ์ Modify ให้กลุ่ม "Users" เฉพาะโฟลเดอร์นี้
+           (ClientTrayDir ทั้งโฟลเดอร์ ครอบคลุม VncBundle ที่เป็น subfolder ด้วยผ่าน NTFS inheritance -
+           CreateFolders ใน MSI sequence รันก่อน InstallFiles เสมอ ไฟล์ที่ copy เข้ามาทีหลังจะ inherit
+           ACL นี้อัตโนมัติ) ไม่ได้เปิดกว้างเกินจำเป็นเพราะเป็นโฟลเดอร์ของ user session เดียวกันอยู่แล้ว -
+           verify attribute names จาก WiX util.xsd จริงก่อนใช้ (User required, GenericAll ถูกต้องตาม
+           schema v5) ไม่ได้เดา -->
+      <CreateFolder>
+        <util:PermissionEx User="Users" GenericAll="yes" />
+      </CreateFolder>
     </Component>
 
     <!-- run-setup.ps1 (unchanged from the .iss-era file) + our own CustomAction scripts +

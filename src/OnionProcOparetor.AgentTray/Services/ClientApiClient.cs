@@ -47,6 +47,31 @@ public class ClientApiClient
         }
     }
 
+    /// <summary>
+    /// แจ้งผลกลับ Agent หลัง start winvnc.exe เอง (เพราะ AgentTray เป็นที่เดียวที่ capture หน้าจอได้
+    /// - ดู VncProcessManager) - Agent (LocalSystem) เป็นคนทำ port discovery/firewall rule/relay ไป
+    /// Console ต่อ เพราะมีสิทธิ์เต็ม ไม่เหมือน AgentTray ที่รันเป็น user ธรรมดา ยิงแบบ fire-and-forget
+    /// (ไม่ throw ถ้า Agent local API ไม่ตอบ - ไม่มีอะไรทำต่อได้อยู่ดีถ้า Agent ไม่รับ)
+    /// </summary>
+    public async Task PostVncSessionResultAsync(string requestingConsoleSessionId, bool success, int pid, string? password, string? failureReason)
+    {
+        try
+        {
+            await _httpClient.PostAsJsonAsync("/vnc/session-result", new
+            {
+                requestingConsoleSessionId,
+                success,
+                pid,
+                password,
+                failureReason
+            });
+        }
+        catch
+        {
+            // Agent local API ไม่ตอบก็ปล่อยผ่าน - ไม่มีอะไรทำต่อได้อยู่ดี (Console จะเห็น timeout เอง)
+        }
+    }
+
     /// <summary>Login ผ่าน Server กลาง (ใช้ account เดียวกับ Console GUI)</summary>
     public async Task<(bool Success, string Message)> LoginToServerAsync(string serverBaseUrl, string username, string password)
     {

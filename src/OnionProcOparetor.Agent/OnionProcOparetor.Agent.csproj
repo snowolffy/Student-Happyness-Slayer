@@ -23,4 +23,8 @@
     </None>
   </ItemGroup>
 
+  <!-- VncBundle ย้ายไป OnionProcOparetor.AgentTray แล้ว (Agent เอง Session 0 capture หน้าจอ user
+       session ไม่ได้เลย ต้อง start winvnc.exe จาก AgentTray ที่รันใน user session จริงแทน - ดู
+       comment เต็มใน Services/VncSessionManager.cs) -->
+
 </Project>

@@ -13,11 +13,24 @@ public class LabHubClient : IAsyncDisposable
     private HubConnection? _connection;
 
     /// <summary>
+    /// GUID สุ่มต่อ Console instance หนึ่งตัว (ไม่ persist ข้าม run) ใช้เป็นชื่อ group ส่วนตัวบน
+    /// SignalR hub (ดู LabHub.RegisterConsole) เพื่อให้ Agent ตอบกลับข้อมูลที่ต้องเจาะจง Console
+    /// ตัวนี้เท่านั้น (เช่น VncSessionReady) โดยไม่ broadcast ให้ Console เครื่องอื่นเห็น
+    /// </summary>
+    public string SessionId { get; } = Guid.NewGuid().ToString();
+
+    /// <summary>
     /// เรียกทุกครั้งที่ได้ status update ของ client เครื่องใดเครื่องหนึ่งจาก server
     /// หมายเหตุ: เรียกจาก SignalR background thread ไม่ใช่ UI thread - ผู้ subscribe ต้อง
     /// marshal เข้า UI thread เอง (เช่นผ่าน Dispatcher.Invoke)
     /// </summary>
     public event Action<ClientMachineDto>? ClientStatusChanged;
+
+    /// <summary>เรียกตอน Agent เปิด VNC session สำเร็จ (port, password) - background thread เหมือนกัน ต้อง marshal เข้า UI thread เอง</summary>
+    public event Action<int, string>? VncSessionReady;
+
+    /// <summary>เรียกตอน Agent เปิด VNC session ไม่สำเร็จ (reason) - background thread เหมือนกัน</summary>
+    public event Action<string>? VncSessionFailed;
 
     /// <summary>
     /// เริ่มต่อ SignalR ไปยัง {baseUrl}/hubs/lab - ไม่ throw ออกไปแม้ server จะยังไม่พร้อม/offline
@@ -33,25 +46,36 @@ public class LabHubClient : IAsyncDisposable
             .Build();
 
         _connection.On<ClientMachineDto>("ClientStatusChanged", dto => ClientStatusChanged?.Invoke(dto));
+        _connection.On<int, string>("VncSessionReady", (port, password) =>
+        {
+            ConsoleDiagnostics.WriteLine($"[LabHubClient] ได้รับ VncSessionReady จาก hub - Port: {port} (SessionId ของเรา: {SessionId})");
+            VncSessionReady?.Invoke(port, password);
+        });
+        _connection.On<string>("VncSessionFailed", reason =>
+        {
+            ConsoleDiagnostics.WriteLine($"[LabHubClient] ได้รับ VncSessionFailed จาก hub - Reason: {reason} (SessionId ของเรา: {SessionId})");
+            VncSessionFailed?.Invoke(reason);
+        });
 
         _connection.Reconnecting += ex =>
         {
-            System.Diagnostics.Debug.WriteLine($"[LabHubClient] Reconnecting: {ex?.Message}");
+            ConsoleDiagnostics.WriteLine($"[LabHubClient] Reconnecting: {ex?.Message}");
             return Task.CompletedTask;
         };
 
         _connection.Reconnected += async _ =>
         {
-            System.Diagnostics.Debug.WriteLine("[LabHubClient] Reconnected - join group \"console\" อีกครั้ง");
+            ConsoleDiagnostics.WriteLine("[LabHubClient] Reconnected - join group \"console\" + session group อีกครั้ง");
             await RegisterConsoleSafeAsync();
         };
 
         _connection.Closed += ex =>
         {
-            System.Diagnostics.Debug.WriteLine($"[LabHubClient] Closed: {ex?.Message} - Dashboard ยังอัปเดตผ่าน poll ตามปกติ");
+            ConsoleDiagnostics.WriteLine($"[LabHubClient] Closed: {ex?.Message} - Dashboard ยังอัปเดตผ่าน poll ตามปกติ");
             return Task.CompletedTask;
         };
 
+        ConsoleDiagnostics.WriteLine($"[LabHubClient] กำลังเชื่อมต่อ {hubUrl} (SessionId: {SessionId})");
         await ConnectWithRetryAsync(ct);
     }
 
@@ -67,14 +91,14 @@ public class LabHubClient : IAsyncDisposable
             try
             {
                 await _connection!.StartAsync(ct);
-                System.Diagnostics.Debug.WriteLine("[LabHubClient] Connected");
+                ConsoleDiagnostics.WriteLine($"[LabHubClient] Connected (ConnectionId: {_connection.ConnectionId})");
                 await RegisterConsoleSafeAsync();
                 return;
             }
             catch (Exception ex)
             {
                 var delay = ExponentialBackoffRetryPolicy.GetDelay(attempt);
-                System.Diagnostics.Debug.WriteLine(
+                ConsoleDiagnostics.WriteLine(
                     $"[LabHubClient] Connect failed ({ex.Message}) - retry in {delay.TotalSeconds}s");
                 attempt++;
 
@@ -94,11 +118,12 @@ public class LabHubClient : IAsyncDisposable
     {
         try
         {
-            await _connection!.InvokeAsync("RegisterConsole");
+            await _connection!.InvokeAsync("RegisterConsole", SessionId);
+            ConsoleDiagnostics.WriteLine($"[LabHubClient] RegisterConsole สำเร็จ - เข้า group \"console\" + group '{SessionId}' บน SignalR hub แล้ว");
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"[LabHubClient] RegisterConsole failed: {ex.Message}");
+            ConsoleDiagnostics.WriteLine($"[LabHubClient] RegisterConsole failed: {ex.Message}");
         }
     }
 

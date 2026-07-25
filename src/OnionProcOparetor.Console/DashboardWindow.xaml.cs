@@ -118,7 +118,7 @@ public partial class DashboardWindow : Window
             return;
         }
 
-        var panel = new ActionPanelWindow(_apiClient, client) { Owner = this };
+        var panel = new ActionPanelWindow(_apiClient, client, _labHubClient) { Owner = this };
         panel.ShowDialog();
 
         if (panel.DataChanged)

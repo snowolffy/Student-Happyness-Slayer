@@ -63,7 +63,20 @@ public class AgentTrayNotifier
         return SendAsync(envelope, "HideLockScreen", ct);
     }
 
-    private async Task SendAsync(AgentTrayPipeMessage envelope, string logContext, CancellationToken ct)
+    /// <summary>
+    /// สั่งให้ AgentTray start winvnc.exe เอง (ต้องทำจาก AgentTray เท่านั้น - รันใน user session จริง
+    /// ต่างจาก Agent เอง (Session 0) ที่ capture หน้าจอไม่ได้เลย - ดู comment ยาวใน AgentTrayPipeMessage)
+    /// คืนค่า bool บอกว่า "ส่งคำสั่งถึง AgentTray สำเร็จไหม" เท่านั้น (ไม่ใช่ว่า VNC session เปิดสำเร็จไหม -
+    /// อันนั้นมาทาง local HTTP callback /vnc/session-result แยกต่างหาก เพราะ start จริงใช้เวลา) ถ้าคืน
+    /// false (เช่นไม่มี user login อยู่หน้าเครื่อง) ผู้เรียกต้องแจ้ง Console ว่าล้มเหลวทันที ไม่ต้องรอ callback
+    /// </summary>
+    public Task<bool> SendStartVncSessionAsync(string requestingConsoleSessionId, CancellationToken ct)
+    {
+        var envelope = new AgentTrayPipeMessage { Type = "StartVncSession", RequestingConsoleSessionId = requestingConsoleSessionId };
+        return SendAsync(envelope, "StartVncSession", ct);
+    }
+
+    private async Task<bool> SendAsync(AgentTrayPipeMessage envelope, string logContext, CancellationToken ct)
     {
         try
         {
@@ -80,12 +93,14 @@ public class AgentTrayNotifier
             await client.FlushAsync(ct);
 
             _logger.LogInformation("ส่ง {LogContext} ให้ AgentTray สำเร็จ", logContext);
+            return true;
         }
         catch (Exception ex)
         {
             _logger.LogWarning(ex,
                 "ส่ง {LogContext} ให้ AgentTray ไม่สำเร็จ (Tray อาจไม่ได้รันอยู่ - เช่นไม่มี user login อยู่หน้าเครื่อง) - ข้ามไป",
                 logContext);
+            return false;
         }
     }
 }
