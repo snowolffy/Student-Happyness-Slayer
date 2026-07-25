@@ -18,5 +18,8 @@ public partial class App : Application
 
         var version = Assembly.GetExecutingAssembly().GetName().Version;
         ConsoleDiagnostics.WriteLine($"=== Console เริ่มทำงาน === Version: {version}, ProcessPath: {Environment.ProcessPath}, PID: {Environment.ProcessId}");
+
+        // โหลด console-settings.json (หรือ default ถ้ายังไม่มี) แล้ว apply ค่า VNC limit ให้ทันก่อนหน้าต่างไหนเปิดขึ้นมา
+        SettingsService.EnsureLoaded();
     }
 }

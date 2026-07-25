@@ -1,5 +1,6 @@
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
@@ -28,6 +29,30 @@ public partial class DashboardWindow : Window
     private WriteableBitmap? _vncBitmap;
     private CancellationTokenSource? _vncStreamCts;
 
+    // ==================== Step 4f: Live View grid (LIVE VIEW tab) ====================
+    // pool แยกต่างหากจาก Step 4d โดยตั้งใจ (ไม่ migrate SCREEN VIEW tab มาใช้ pool นี้ - เก็บของเดิมไว้
+    // ทำงานเหมือนเดิมทุกประการ ลดความเสี่ยง regression) เหมือน Step 4d ทุก field ตรงนี้แตะจาก UI thread
+    // เท่านั้น (background thread ของแต่ละ handle เขียนกลับผ่าน Dispatcher.Invoke เสมอ)
+    private readonly VncSessionPool _liveViewPool;
+    private readonly Dictionary<string, LiveViewCell> _liveViewCells = new();
+
+    // ไม่ null = เครื่องนี้กำลังแสดง full-screen overlay อยู่ (ดู ExpandLiveViewCell/BackToGridButton_Click)
+    // - session อื่นใน grid ยังรันเบื้องหลังต่อปกติ แค่ถูกโอเวอร์เลย์บังไว้เฉยๆ ไม่ pause/reconnect
+    private string? _liveViewFullscreenClientGuid;
+    private WriteableBitmap? _liveViewFullscreenBitmap;
+    private VncViewMode? _liveViewFullscreenBitmapMode;
+
+    private sealed class LiveViewCell
+    {
+        public required Border Border { get; init; }
+        public required Image Image { get; init; }
+        public required TextBlock StatusOverlayText { get; init; }
+        public required ClientMachineDto Client { get; init; }
+        public WriteableBitmap? Bitmap { get; set; }
+        public VncViewMode? BitmapMode { get; set; }
+        public VncSessionHandle? Handle { get; set; }
+    }
+
     public DashboardWindow(ApiClient apiClient)
     {
         InitializeComponent();
@@ -37,11 +62,19 @@ public partial class DashboardWindow : Window
         FooterUserText.Text = _apiClient.Username ?? "-";
         Loaded += async (_, _) => await LoadAllDataAsync();
 
-        // auto refresh ทุก 10 วิ จะได้ไม่ต้องกด REFRESH เอง - หยุดเองตอนปิดหน้าต่างกัน
-        // เรียก LoadAllDataAsync ทับ ApiClient ที่ปิดไปแล้ว
-        _autoRefreshTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(10) };
+        _liveViewPool = new VncSessionPool(_apiClient, _labHubClient);
+
+        // auto refresh ทุกกี่วิตาม Settings (ค่า default เดิมคือ 10 วิ) จะได้ไม่ต้องกด REFRESH เอง -
+        // หยุดเองตอนปิดหน้าต่างกันเรียก LoadAllDataAsync ทับ ApiClient ที่ปิดไปแล้ว
+        _autoRefreshTimer = new DispatcherTimer
+        {
+            Interval = TimeSpan.FromSeconds(SettingsService.Current.Connection.DashboardPollIntervalSeconds)
+        };
         _autoRefreshTimer.Tick += async (_, _) => await LoadAllDataAsync();
         _autoRefreshTimer.Start();
+
+        // อัพเดต interval แบบ live ทันทีที่บันทึก Settings ใหม่ - ไม่ต้อง restart Console (ดู SettingsWindow)
+        SettingsService.Changed += OnSettingsChanged;
 
         // SignalR เป็นชั้นเสริมคู่ขนานกับ DispatcherTimer ข้างบน (ไม่แทนที่) - ทำให้ตารางเครื่องอัปเดต
         // ไวขึ้นโดยไม่ต้องรอรอบ poll ถ้า SignalR หลุด/ต่อไม่ได้ ตาราง ยังอัปเดตปกติผ่าน auto refresh เดิม
@@ -51,10 +84,17 @@ public partial class DashboardWindow : Window
         Closed += async (_, _) =>
         {
             _autoRefreshTimer.Stop();
+            SettingsService.Changed -= OnSettingsChanged;
             DisconnectVncView();
+            await CloseAllLiveViewSessionsAsync();
             _labHubClient.ClientStatusChanged -= OnClientStatusChangedFromHub;
             await _labHubClient.DisposeAsync();
         };
+    }
+
+    private void OnSettingsChanged(ConsoleSettings settings)
+    {
+        Dispatcher.Invoke(() => _autoRefreshTimer.Interval = TimeSpan.FromSeconds(settings.Connection.DashboardPollIntervalSeconds));
     }
 
     /// <summary>
@@ -93,6 +133,7 @@ public partial class DashboardWindow : Window
         {
             _allClients = await _apiClient.GetClientsAsync();
             ApplyClientsFilter();
+            ApplyLiveViewClientList();
 
             _allRules = await _apiClient.GetRulesAsync();
             ApplyRulesFilter();
@@ -116,11 +157,28 @@ public partial class DashboardWindow : Window
         await LoadAllDataAsync();
     }
 
-    private async void GlobalToggleButton_Click(object sender, RoutedEventArgs e)
+    /// <summary>
+    /// ปุ่มเกียร์บน toolbar (แทนที่ TOGGLE GLOBAL เดิม - ลบออกเพราะ effect เดียวกัน (ปิด/เปิดทุกเครื่อง
+    /// พร้อมกัน) ทำได้อยู่แล้วผ่านปุ่ม ACTIONS > เลือก "ทุกเครื่อง" > TOGGLE ENFORCEMENT ใน
+    /// ActionPanelWindow - ดู BulkActionsButton_Click ไม่ได้ลบ ApiClient.ToggleGlobalAsync()/Server
+    /// endpoint ออก เพราะยังเป็น mechanism จริงที่ผูกกับ GlobalState ฝั่ง Server อยู่) เปิด ContextMenu
+    /// ให้เลือก Settings/About แทนที่จะแยกปุ่มคนละจุด
+    /// </summary>
+    private void SettingsMenuButton_Click(object sender, RoutedEventArgs e)
     {
-        var success = await _apiClient.ToggleGlobalAsync();
-        StatusText.Text = success ? "Toggle global สำเร็จ" : "Toggle global ไม่สำเร็จ";
-        await LoadAllDataAsync();
+        var menu = new ContextMenu();
+
+        var settingsItem = new MenuItem { Header = "Settings..." };
+        settingsItem.Click += (_, _) => new SettingsWindow { Owner = this }.ShowDialog();
+        menu.Items.Add(settingsItem);
+
+        var aboutItem = new MenuItem { Header = "About..." };
+        aboutItem.Click += (_, _) => new AboutWindow { Owner = this }.ShowDialog();
+        menu.Items.Add(aboutItem);
+
+        menu.PlacementTarget = (Button)sender;
+        menu.Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom;
+        menu.IsOpen = true;
     }
 
     /// <summary>
@@ -523,7 +581,7 @@ public partial class DashboardWindow : Window
     /// ขึ้นมาจาก control ข้างในแท็บได้ (เช่น ClientsGrid) - เช็ค OriginalSource ตรงกับ MainTabControl เอง
     /// เท่านั้นถึงจะถือว่าเป็นการสลับแท็บจริง กันเรียก DisconnectVncView ผิดจังหวะ (เช่นแค่คลิกแถวใน DataGrid)
     /// </summary>
-    private void MainTabControl_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    private async void MainTabControl_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
         if (!ReferenceEquals(e.OriginalSource, MainTabControl))
         {
@@ -535,6 +593,11 @@ public partial class DashboardWindow : Window
             DisconnectVncView();
             VncHeaderText.Text = "ยังไม่ได้เลือกเครื่อง - กด VIEW SCREEN จากรายการ Clients";
             VncStatusText.Text = "";
+        }
+
+        if (e.RemovedItems.Contains(LiveViewTabItem) && !SettingsService.Current.Vnc.KeepLiveViewOpenOnTabLeave)
+        {
+            await CloseAllLiveViewSessionsAsync();
         }
     }
 
@@ -641,5 +704,323 @@ public partial class DashboardWindow : Window
             _labHubClient.VncSessionReady -= OnReady;
             _labHubClient.VncSessionFailed -= OnFailed;
         }
+    }
+
+    // ==================== Step 4f: Live View grid (CCTV wall) ====================
+
+    /// <summary>เรียกจาก LoadAllDataAsync ทุกครั้งที่ _allClients เปลี่ยน (poll 10 วิ/SignalR/REFRESH) - จำ selection เดิมไว้ก่อนเปลี่ยน ItemsSource เหมือน ApplyClientsFilter กันเลือกหลุดกลางคันตอนกำลังจะกด ADD</summary>
+    private void ApplyLiveViewClientList()
+    {
+        var selectedIds = LiveViewClientListBox.SelectedItems.Cast<ClientMachineDto>().Select(c => c.Id).ToHashSet();
+
+        LiveViewClientListBox.ItemsSource = _allClients;
+
+        foreach (var client in _allClients.Where(c => selectedIds.Contains(c.Id)))
+        {
+            LiveViewClientListBox.SelectedItems.Add(client);
+        }
+    }
+
+    /// <summary>
+    /// เปิด session แบบ Thumbnail mode เฉพาะเครื่องที่เลือกไว้ (lazy - ไม่ auto-connect ทั้งหมดตั้งแต่เปิด
+    /// หน้า ตามที่ตกลง) ข้ามเครื่องที่เปิดอยู่ใน grid แล้ว เช็ค MaxConcurrentSessions ก่อนเสมอ (single
+    /// source - ดู VncSessionPool.MaxConcurrentSessions) ไม่ปล่อยให้เงียบๆ ล้มเหลวถ้าเกิน limit
+    /// </summary>
+    private void AddSelectedToGridButton_Click(object sender, RoutedEventArgs e)
+    {
+        var selected = LiveViewClientListBox.SelectedItems.Cast<ClientMachineDto>()
+            .Where(c => !_liveViewCells.ContainsKey(c.ClientGuid))
+            .ToList();
+
+        if (selected.Count == 0)
+        {
+            LiveViewStatusText.Text = _liveViewCells.Count == 0
+                ? "กรุณาเลือกเครื่องอย่างน้อย 1 เครื่อง"
+                : "เครื่องที่เลือกเปิดอยู่ใน grid แล้วทั้งหมด";
+            return;
+        }
+
+        var remaining = VncSessionPool.MaxConcurrentSessions - _liveViewCells.Count;
+        if (selected.Count > remaining)
+        {
+            LiveViewStatusText.Text = remaining <= 0
+                ? $"Grid เต็มแล้ว (สูงสุด {VncSessionPool.MaxConcurrentSessions} เครื่อง) - เอาเครื่องออกก่อนเพิ่มใหม่"
+                : $"เลือกเกินจำนวนที่เพิ่มได้ (เหลือที่ว่างอีก {remaining} เครื่อง จากทั้งหมด {VncSessionPool.MaxConcurrentSessions}) - เลือกน้อยลง";
+            return;
+        }
+
+        foreach (var client in selected)
+        {
+            AddCellToGrid(client);
+        }
+
+        UpdateLiveViewStatusAndButtonState();
+    }
+
+    private void AddCellToGrid(ClientMachineDto client)
+    {
+        var cell = CreateLiveViewCell(client);
+        LiveViewGrid.Children.Add(cell.Border);
+        _liveViewCells[client.ClientGuid] = cell;
+
+        _ = OpenLiveViewSessionAsync(client, cell);
+    }
+
+    /// <summary>
+    /// เรียกจาก UI-thread continuation เสมอ (AddCellToGrid ไม่ผ่าน Task.Run) - เหมือน Step 4d
+    /// ShowVncViewAsync เลยแตะ UI ตรงๆ ได้หลัง await โดยไม่ต้อง Dispatcher.Invoke เช็ค _liveViewCells
+    /// ก่อนเสมอหลัง await กันกรณีผู้ใช้กด X เอา cell นี้ออกไปแล้วระหว่างที่ยังรอ connect อยู่ (ทิ้งผลลัพธ์
+    /// ที่มาช้าไป ไม่งั้นจะไปแก้ cell ที่หลุดจาก grid ไปแล้ว)
+    /// </summary>
+    private async Task OpenLiveViewSessionAsync(ClientMachineDto client, LiveViewCell cell)
+    {
+        var (success, handle, failureReason) = await _liveViewPool.OpenAsync(client, VncViewMode.Thumbnail);
+
+        if (!_liveViewCells.TryGetValue(client.ClientGuid, out var currentCell) || !ReferenceEquals(currentCell, cell))
+        {
+            return; // ถูกเอาออกจาก grid ไปแล้วระหว่างรอ (หรือถูกเพิ่มใหม่กลายเป็นคนละ cell object) - ทิ้งผลลัพธ์นี้
+        }
+
+        if (!success || handle is null)
+        {
+            cell.StatusOverlayText.Text = $"Failed: {failureReason}";
+            cell.StatusOverlayText.Visibility = Visibility.Visible;
+            return;
+        }
+
+        cell.Handle = handle;
+        handle.StatusChanged += () => Dispatcher.Invoke(() => OnLiveViewStatusChanged(cell, handle));
+        handle.RectangleDecoded += rect => OnLiveViewRectangleDecoded(cell, handle, rect);
+
+        OnLiveViewStatusChanged(cell, handle);
+    }
+
+    private void OnLiveViewStatusChanged(LiveViewCell cell, VncSessionHandle handle)
+    {
+        cell.StatusOverlayText.Text = handle.Status switch
+        {
+            VncSessionStatus.Connecting => "Connecting...",
+            VncSessionStatus.Connected => "",
+            VncSessionStatus.Failed => $"Failed: {handle.FailureReason}",
+            VncSessionStatus.Closed => "Closed",
+            _ => ""
+        };
+        cell.StatusOverlayText.Visibility = string.IsNullOrEmpty(cell.StatusOverlayText.Text) ? Visibility.Collapsed : Visibility.Visible;
+    }
+
+    /// <summary>
+    /// เรียกจาก background thread ของ VncSessionHandle (RfbClient framebuffer loop) เสมอ - ต้อง
+    /// marshal เข้า UI thread เองผ่าน Dispatcher (เหมือน Step 4d/4e ทุกจุด) ตัดสินใจว่าจะเขียนลง
+    /// thumbnail bitmap ของ cell ใน grid หรือ fullscreen bitmap จาก _liveViewFullscreenClientGuid ปัจจุบัน
+    /// - สร้าง/resize WriteableBitmap ใหม่ถ้ายังไม่มีหรือ mode เปลี่ยนไปจากตอนสร้างครั้งล่าสุด (สลับ
+    /// Thumbnail/FullRes เปลี่ยนขนาดภาพเสมอ)
+    /// </summary>
+    private void OnLiveViewRectangleDecoded(LiveViewCell cell, VncSessionHandle handle, RfbRectangle rect)
+    {
+        if (rect.Width == 0 || rect.Height == 0)
+        {
+            return;
+        }
+
+        Dispatcher.Invoke(() =>
+        {
+            if (_liveViewFullscreenClientGuid == handle.Client.ClientGuid)
+            {
+                if (_liveViewFullscreenBitmap is null || _liveViewFullscreenBitmapMode != handle.Mode)
+                {
+                    var width = handle.DisplayWidth ?? rect.Width;
+                    var height = handle.DisplayHeight ?? rect.Height;
+                    _liveViewFullscreenBitmap = new WriteableBitmap(width, height, 96, 96, PixelFormats.Bgr32, null);
+                    _liveViewFullscreenBitmapMode = handle.Mode;
+                    FullscreenImage.Source = _liveViewFullscreenBitmap;
+                }
+
+                WriteLiveViewRectSafely(_liveViewFullscreenBitmap, rect);
+            }
+            else
+            {
+                if (cell.Bitmap is null || cell.BitmapMode != handle.Mode)
+                {
+                    var width = handle.DisplayWidth ?? rect.Width;
+                    var height = handle.DisplayHeight ?? rect.Height;
+                    cell.Bitmap = new WriteableBitmap(width, height, 96, 96, PixelFormats.Bgr32, null);
+                    cell.BitmapMode = handle.Mode;
+                    cell.Image.Source = cell.Bitmap;
+                }
+
+                WriteLiveViewRectSafely(cell.Bitmap, rect);
+            }
+        });
+    }
+
+    private static void WriteLiveViewRectSafely(WriteableBitmap bitmap, RfbRectangle rect)
+    {
+        if (rect.X + rect.Width > bitmap.PixelWidth || rect.Y + rect.Height > bitmap.PixelHeight)
+        {
+            return; // ขนาดยังไม่ตรงกับ mode ปัจจุบันพอดี (ไม่ควรเกิดได้จริงในทางทฤษฎี - กันไว้เฉยๆ)
+        }
+
+        var area = new Int32Rect(rect.X, rect.Y, rect.Width, rect.Height);
+        bitmap.WritePixels(area, rect.PixelData, rect.Width * 4, 0);
+    }
+
+    /// <summary>สร้าง UI ของ cell หนึ่งช่องใน grid แบบ code-behind (เหมือน pattern เดียวกับ VncPoolTestWindow) - layer ซ้อนกันใน Grid เดียว: ภาพ -> ข้อความสถานะกลางจอ -> ป้ายชื่อเครื่องมุมล่าง -> ปุ่ม X มุมบน คลิกที่ไหนก็ได้ใน Border (ยกเว้นปุ่ม X) เพื่อขยายเต็มจอ</summary>
+    private LiveViewCell CreateLiveViewCell(ClientMachineDto client)
+    {
+        var image = new Image { Stretch = Stretch.Uniform };
+
+        var statusText = new TextBlock
+        {
+            Text = "Connecting...",
+            Foreground = Brushes.White,
+            FontSize = 12,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center,
+            TextAlignment = TextAlignment.Center,
+            TextWrapping = TextWrapping.Wrap,
+            MaxWidth = 200
+        };
+
+        var nameLabel = new Border
+        {
+            Background = new SolidColorBrush(Color.FromArgb(160, 0, 0, 0)),
+            VerticalAlignment = VerticalAlignment.Bottom,
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            Child = new TextBlock
+            {
+                Text = client.MachineName,
+                Foreground = Brushes.White,
+                FontSize = 11,
+                FontWeight = FontWeights.SemiBold,
+                Margin = new Thickness(6, 3, 6, 3),
+                TextTrimming = TextTrimming.CharacterEllipsis
+            }
+        };
+
+        var removeButton = new Button
+        {
+            Content = "✕",
+            Width = 22,
+            Height = 22,
+            Padding = new Thickness(0),
+            FontSize = 11,
+            HorizontalAlignment = HorizontalAlignment.Right,
+            VerticalAlignment = VerticalAlignment.Top,
+            Margin = new Thickness(0, 4, 4, 0),
+            Tag = client.ClientGuid
+        };
+        removeButton.Click += RemoveGridCellButton_Click;
+
+        var overlayGrid = new Grid();
+        overlayGrid.Children.Add(image);
+        overlayGrid.Children.Add(statusText);
+        overlayGrid.Children.Add(nameLabel);
+        overlayGrid.Children.Add(removeButton);
+
+        var border = new Border
+        {
+            Background = Brushes.Black,
+            BorderBrush = (Brush)FindResource("Brush.Border.Default"),
+            BorderThickness = new Thickness(1),
+            Margin = new Thickness(3),
+            Child = overlayGrid,
+            Cursor = Cursors.Hand
+        };
+
+        // Button.Click กิน MouseLeftButtonUp ที่ trigger มันไปแล้ว (ButtonBase mark e.Handled ให้เอง) เลย
+        // ไม่ bubble มาถึง handler นี้ตอนกดปุ่ม X - คลิกที่ไหนอื่นใน cell จะ trigger ขยายเต็มจอ
+        border.MouseLeftButtonUp += (_, _) => ExpandLiveViewCell(client.ClientGuid);
+
+        return new LiveViewCell
+        {
+            Border = border,
+            Image = image,
+            StatusOverlayText = statusText,
+            Client = client
+        };
+    }
+
+    /// <summary>คลิกที่ thumbnail ใน grid - สลับ session นั้นเป็น FullRes mode (ไม่ reconnect) แล้วแสดง full-screen overlay ทับทั้งหน้า Dashboard - session อื่นใน grid ยังรันเบื้องหลังต่อปกติ ไม่ pause/reconnect (ตามที่ตกลง)</summary>
+    private void ExpandLiveViewCell(string clientGuid)
+    {
+        if (!_liveViewCells.TryGetValue(clientGuid, out var cell) || cell.Handle is not { Status: VncSessionStatus.Connected } handle)
+        {
+            return; // ยังไม่ connect เสร็จ (ยัง Connecting/Failed) - ขยายไม่ได้
+        }
+
+        _liveViewFullscreenClientGuid = clientGuid;
+        _liveViewFullscreenBitmap = null;
+        _liveViewFullscreenBitmapMode = null;
+        FullscreenImage.Source = null;
+        FullscreenHeaderText.Text = cell.Client.MachineName;
+
+        LiveViewFullscreenOverlay.Visibility = Visibility.Visible;
+
+        handle.RequestModeSwitch(VncViewMode.FullRes);
+    }
+
+    /// <summary>กลับไป grid - สลับ mode คืนเป็น Thumbnail (ไม่ reconnect) แล้วซ่อน overlay เครื่องอื่นใน grid ไม่ถูกแตะเลยตลอดช่วงที่อยู่ full-screen (ตามที่ตกลง)</summary>
+    private void BackToGridButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_liveViewFullscreenClientGuid is not null &&
+            _liveViewCells.TryGetValue(_liveViewFullscreenClientGuid, out var cell) &&
+            cell.Handle is { } handle)
+        {
+            handle.RequestModeSwitch(VncViewMode.Thumbnail);
+        }
+
+        _liveViewFullscreenClientGuid = null;
+        _liveViewFullscreenBitmap = null;
+        _liveViewFullscreenBitmapMode = null;
+        FullscreenImage.Source = null;
+
+        LiveViewFullscreenOverlay.Visibility = Visibility.Collapsed;
+    }
+
+    /// <summary>ปุ่ม X บน cell - เอาออกจาก grid + dispose session นั้นทิ้ง ไม่กระทบ session อื่นเลย (ตามที่ตกลงใน Step 4e)</summary>
+    private async void RemoveGridCellButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button { Tag: string clientGuid })
+        {
+            return;
+        }
+
+        if (_liveViewFullscreenClientGuid == clientGuid)
+        {
+            BackToGridButton_Click(sender, e); // กำลังขยายเครื่องนี้อยู่พอดี - กลับ grid ก่อนเอาออก
+        }
+
+        if (_liveViewCells.Remove(clientGuid, out var cell))
+        {
+            LiveViewGrid.Children.Remove(cell.Border);
+        }
+
+        await _liveViewPool.CloseAsync(clientGuid);
+        UpdateLiveViewStatusAndButtonState();
+    }
+
+    private void UpdateLiveViewStatusAndButtonState()
+    {
+        LiveViewStatusText.Text = $"เปิดอยู่ {_liveViewCells.Count}/{VncSessionPool.MaxConcurrentSessions} เครื่อง";
+        AddSelectedToGridButton.IsEnabled = _liveViewCells.Count < VncSessionPool.MaxConcurrentSessions;
+    }
+
+    /// <summary>เรียกตอนออกจากแท็บ LIVE VIEW หรือปิด Dashboard - dispose ทุก session ใน grid ให้ครบ (ตามที่ตกลง) รวมถึงปิด full-screen overlay ถ้ากำลังเปิดอยู่พอดี</summary>
+    private async Task CloseAllLiveViewSessionsAsync()
+    {
+        if (_liveViewFullscreenClientGuid is not null)
+        {
+            _liveViewFullscreenClientGuid = null;
+            _liveViewFullscreenBitmap = null;
+            _liveViewFullscreenBitmapMode = null;
+            FullscreenImage.Source = null;
+            LiveViewFullscreenOverlay.Visibility = Visibility.Collapsed;
+        }
+
+        LiveViewGrid.Children.Clear();
+        _liveViewCells.Clear();
+
+        await _liveViewPool.CloseAllAsync();
+        UpdateLiveViewStatusAndButtonState();
     }
 }

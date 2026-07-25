@@ -75,9 +75,11 @@
 
                 <TextBlock Canvas.Left="542" Canvas.Top="10" Width="150" x:Name="StatusText" Style="{StaticResource Caption}"/>
 
-                <Button Canvas.Left="708" Canvas.Top="2" Width="130" x:Name="GlobalToggleButton" Content="TOGGLE GLOBAL"
+                <Button Canvas.Left="794" Canvas.Top="2" Width="44" x:Name="SettingsMenuButton" Content="&#9881;"
                         Style="{StaticResource ButtonSecondary}"
-                        Click="GlobalToggleButton_Click"/>
+                        FontSize="16" Padding="0"
+                        ToolTip="Settings / About"
+                        Click="SettingsMenuButton_Click"/>
                 <Button Canvas.Left="846" Canvas.Top="2" Width="90" x:Name="RefreshButton" Content="REFRESH"
                         Style="{StaticResource ButtonSecondary}"
                         Click="RefreshButton_Click"/>
@@ -478,6 +480,52 @@
                     </Canvas>
                 </TabItem>
 
+                <!-- ========== Live View tab (Step 4f) - CCTV-wall grid ========== -->
+                <TabItem x:Name="LiveViewTabItem" Header="LIVE VIEW">
+                    <Canvas Margin="0,12,0,0">
+                        <TextBlock Canvas.Left="0" Canvas.Top="0" Text="Live View (CCTV Wall)" Style="{StaticResource Heading2}"/>
+
+                        <!-- เลือกเครื่อง - reuse _allClients เดิม ไม่ query ใหม่ (ดู ApplyLiveViewClientList ใน .xaml.cs) -->
+                        <Border Canvas.Left="0" Canvas.Top="36" Width="200" Height="420" CornerRadius="10"
+                                Background="{StaticResource Brush.Background.Primary}"
+                                BorderBrush="{StaticResource Brush.Border.Default}" BorderThickness="1" Padding="10">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="*"/>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                </Grid.RowDefinitions>
+
+                                <TextBlock Grid.Row="0" Text="เลือกเครื่อง (Ctrl/Shift+คลิกเลือกหลายเครื่อง):"
+                                           Style="{StaticResource Caption}" TextWrapping="Wrap" Margin="0,0,0,6"/>
+
+                                <ListBox Grid.Row="1" x:Name="LiveViewClientListBox" SelectionMode="Extended"
+                                         Background="Transparent" BorderThickness="0">
+                                    <ListBox.ItemTemplate>
+                                        <DataTemplate>
+                                            <TextBlock Text="{Binding MachineName}" Padding="4,3" TextTrimming="CharacterEllipsis"/>
+                                        </DataTemplate>
+                                    </ListBox.ItemTemplate>
+                                </ListBox>
+
+                                <Button Grid.Row="2" x:Name="AddSelectedToGridButton" Content="ADD SELECTED TO GRID"
+                                        Style="{StaticResource ButtonPrimary}" Margin="0,8,0,0"
+                                        Click="AddSelectedToGridButton_Click"/>
+
+                                <TextBlock Grid.Row="3" x:Name="LiveViewStatusText" Style="{StaticResource Caption}"
+                                           TextWrapping="Wrap" Margin="0,6,0,0"/>
+                            </Grid>
+                        </Border>
+
+                        <!-- Grid area - ช่องขนาดปรับอัตโนมัติตามจำนวนเครื่องผ่าน UniformGrid (auto-compute แถว/คอลัมน์ในตัว) -->
+                        <Border Canvas.Left="216" Canvas.Top="36" Width="720" Height="420" CornerRadius="10"
+                                Background="Black" BorderBrush="{StaticResource Brush.Border.Default}" BorderThickness="1">
+                            <UniformGrid x:Name="LiveViewGrid"/>
+                        </Border>
+                    </Canvas>
+                </TabItem>
+
             </TabControl>
         </Border>
 
@@ -492,6 +540,35 @@
                 <TextBlock Canvas.Left="360" Canvas.Top="8" Text="User:" Style="{StaticResource Label}"/>
                 <TextBlock Canvas.Left="400" Canvas.Top="8" Width="200" x:Name="FooterUserText" Style="{StaticResource Caption}"/>
             </Canvas>
+        </Border>
+
+        <!-- ==================== Live View full-screen overlay (Step 4f) ====================
+             sibling ของ Toolbar/Main content/Footer ที่ระดับ root Canvas เดียวกัน แต่ต้องเป็น element
+             *สุดท้าย* ใน Canvas เท่านั้น (Canvas วาดทับบนสุดตามลำดับ declare ไม่ใช่ตำแหน่งในไฟล์แบบ nested
+             - เคยประกาศไว้ก่อน Footer Border เลยโดน Footer วาดทับ overlay อีกทีในแถบล่างสุด แก้โดยย้ายมา
+             หลังสุดแทน) ครอบคลุมพื้นที่เดียวกับ root Canvas ทั้งหมด (รวม toolbar/footer) เพื่อให้เป็น
+             "full-screen" จริงตามที่ขอ ปุ่ม "กลับไป Grid" อยู่มุมบนซ้ายชัดเจนเสมอเป็นทางเดียวที่กดออกจาก
+             โหมดนี้ได้ -->
+        <Border x:Name="LiveViewFullscreenOverlay" Canvas.Left="0" Canvas.Top="0" Width="968" Height="648"
+                Background="{StaticResource Brush.Background.Primary}" Visibility="Collapsed">
+            <Grid Margin="0">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
+
+                <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,10">
+                    <Button Content="← BACK TO GRID" Style="{StaticResource ButtonPrimary}"
+                            Padding="14,8" Click="BackToGridButton_Click"/>
+                    <TextBlock x:Name="FullscreenHeaderText" Style="{StaticResource Heading2}"
+                               Margin="20,0,0,0" VerticalAlignment="Center"/>
+                </StackPanel>
+
+                <Border Grid.Row="1" Background="Black" CornerRadius="10"
+                        BorderBrush="{StaticResource Brush.Border.Default}" BorderThickness="1">
+                    <Image x:Name="FullscreenImage" Stretch="Uniform"/>
+                </Border>
+            </Grid>
         </Border>
     </Canvas>
 </Window>

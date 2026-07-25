@@ -237,8 +237,17 @@ public sealed class VncSessionHandle : IAsyncDisposable
 /// </summary>
 public sealed class VncSessionPool
 {
-    /// <summary>เพดานจำนวน session พร้อมกันสูงสุดที่ Console เปิดเองได้ - กันผู้ใช้เผลอเลือกเปิดทีเดียวหมด (เช่น 40 เครื่อง) แล้ว network/CPU ล่ม</summary>
-    public const int MaxConcurrentSessions = 24;
+    /// <summary>
+    /// เพดานจำนวน session พร้อมกันสูงสุดที่ Console เปิดเองได้ - กันผู้ใช้เผลอเลือกเปิดทีเดียวหมด (เช่น 40
+    /// เครื่อง) แล้ว network/CPU ล่ม ค่า default 24 ตอนนี้ - จงใจทำเป็น static field ที่แก้ค่าได้ (ไม่ใช่
+    /// const) จุดเดียวในระบบ แทนที่จะ hardcode 24 กระจายไปตามไฟล์ต่างๆ ของ Step 4f เพื่อให้ session ที่ทำ
+    /// SettingsService คู่ขนานอยู่ตอนนี้เข้ามาตั้งค่านี้จาก config ได้ทีหลังง่ายๆ (เช่น
+    /// `VncSessionPool.MaxConcurrentSessions = settings.VncConcurrentLimit;` ตอน startup) โดยไม่ต้องแก้
+    /// call site ที่อ้างถึงค่านี้เลยสักจุด (ทุกจุดอ้าง `VncSessionPool.MaxConcurrentSessions` เหมือนเดิม)
+    /// TODO: รอ SettingsService เสร็จแล้วเปลี่ยนจาก static field ธรรมดานี้เป็นอ่านจาก config จริงตอน
+    /// startup (ไม่ใช่งานของรอบนี้ - ห้ามแตะไฟล์ settings/config ที่ session นั้นสร้างเอง)
+    /// </summary>
+    public static int MaxConcurrentSessions { get; set; } = 24;
 
     private static readonly TimeSpan SessionReadyTimeout = TimeSpan.FromSeconds(15);
 

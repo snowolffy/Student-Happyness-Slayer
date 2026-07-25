@@ -1269,3 +1269,101 @@ FullRes/Thumbnail หลายรอบทั้ง 2 เครื่องอ�
 ที่เจอบั๊กและแก้ไปแล้วข้างต้น) ไม่มี error เหลือเลย ปิด session แยกอิสระ (`Cancelled (dispose ปกติ)` ต่อ
 tile) ไม่กระทบกัน Step 4e เสร็จสมบูรณ์ตาม scope ที่ตกลงไว้ - `DisconnectClients=0` ได้ live-verify ผ่าน
 โดยอ้อม (2 session ไปเครื่องเดียวกันในบางจังหวะไม่มีใครโดนเตะออก แม้จะไม่ใช่การเทสแบบตรงเป้าเป๊ะ)
+
+## Update Log: VNC remote-view feature (Step 4f) — 2026-07-25
+
+Step 4f = Grid UI (CCTV wall) - ส่วน UI จริงตัวแรกของ live view dashboard ต่อจาก data/session layer ของ
+Step 4e (`VncSessionPool`) งานรอบนี้เป็น UI/wiring ล้วนๆ ไม่แตะ protocol layer (`RfbClient`) เลย
+
+### DashboardWindow: แท็บ "LIVE VIEW" ใหม่ + full-screen overlay
+
+แยกออกจากแท็บ ACTION PANEL เดิมเป็นแท็บใหม่ ประกอบด้วย: รายชื่อเครื่องทั้งหมดแบบ multi-select
+(`LiveViewClientListBox`, ผูกกับ `_allClients` เดิมผ่าน `ApplyLiveViewClientList` ที่เก็บ selection เดิมไว้
+เวลา list ถูก refresh), ปุ่ม "ADD SELECTED TO GRID" ที่เปิด session ผ่าน `_liveViewPool`
+(`VncSessionPool` instance แยกของ Dashboard เอง คนละตัวกับ pool ที่ SCREEN VIEW tab เดิมใช้) ในโหมด
+Thumbnail เท่านั้น - เป็น lazy โดยตั้งใจ ไม่ auto-connect อะไรตอนเปิดแท็บ
+
+Grid area ใช้ `UniformGrid` (`LiveViewGrid`) เพราะคำนวณ rows/columns อัตโนมัติให้เป็น layout เกือบสี่เหลี่ยม
+จัตุรัสตามจำนวน children เองอยู่แล้วเมื่อปล่อย Rows/Columns ไว้ที่ 0 - ไม่ต้องคำนวณเอง
+
+Full-screen overlay (`LiveViewFullscreenOverlay`) เป็น root-level `Border` ตัวสุดท้ายใน Canvas หลักของ
+DashboardWindow (sibling ของ Toolbar/Main-content/Footer) - อาศัย default z-order ของ Canvas (child
+หลังสุดวาดทับบนสุด) ให้ทับทุกอย่างรวมถึง menu bar โดยไม่ต้องตั้ง `Panel.ZIndex` เอง ข้างในมีปุ่ม
+"← BACK TO GRID" มุมบนซ้ายกับ `Image` เต็มพื้นที่ (`Stretch="Uniform"`)
+
+### แต่ละ cell ใน grid (code-behind ล้วน ไม่ใช่ XAML template)
+
+`CreateLiveViewCell` สร้าง tile เองใน code-behind เป็น `Grid` ไม่มี Row/ColumnDefinitions ให้ children
+ซ้อนทับกันตามลำดับ `.Children.Add()`: layer ล่างสุด = `Image` พื้นหลัง, กลาง = status `TextBlock`
+กึ่งกลาง (Connecting/Failed), ล่าง = แถบชื่อเครื่องโปร่งแสง, บนขวา = ปุ่ม "✕" เล็กสำหรับลบออกจาก grid
+ตัว `Border` ครอบทั้ง tile ผูก `MouseLeftButtonUp` ไว้เรียก `ExpandLiveViewCell` - อาศัยพฤติกรรม default
+ของ `ButtonBase` ที่ mark event เป็น handled แล้วตอนถูกคลิก ทำให้กดปุ่ม ✕ ไม่ trigger การขยายจอไปด้วย
+(ไม่ต้องเช็ค `e.OriginalSource` เอง)
+
+`LiveViewCell` (private nested class) เก็บ reference ของ `Border`/`Image`/status `TextBlock`/`Client`/
+`Bitmap`/`BitmapMode`/`Handle` ต่อ tile - ใช้ dictionary `_liveViewCells` keyed by `ClientGuid`
+
+### Thumbnail rendering + staleness guard เหมือน pattern เดิมจาก Step 4d/4e
+
+`OnLiveViewRectangleDecoded` (เรียกจาก `RfbClient.RectangleDecoded` event, มาจาก background thread ของ
+pool - ต้อง `Dispatcher.Invoke` ก่อนแตะ UI) เช็คก่อนว่า client guid นี้กำลังเป็น full-screen อยู่หรือเปล่า
+(`_liveViewFullscreenClientGuid == handle.Client.ClientGuid`) ถ้าใช่ ให้เขียนลง
+`_liveViewFullscreenBitmap` แทน `cell.Bitmap` - สร้าง `WriteableBitmap` ใหม่ทุกครั้งที่ยังไม่มีหรือ mode
+เปลี่ยนไปจากตอนสร้างครั้งล่าสุด (`cell.BitmapMode != handle.CurrentMode`) เพราะขนาด/pixel format
+เปลี่ยนตาม mode
+
+### คลิกเพื่อขยายเต็มจอ - RequestModeSwitch แทนการ reconnect
+
+`ExpandLiveViewCell` ใช้ `RequestModeSwitch(VncViewMode.FullRes)` ของ session เดิม (จาก Step 4e) - ไม่ปิด
+session เก่าแล้วเปิดใหม่ ทำให้ session อื่นใน grid ไม่ต้องหลุด/reconnect ระหว่างที่มีเครื่องนึงเต็มจอ
+guard ด้วย `cell.Handle is not { Status: VncSessionStatus.Connected }` ก่อนเสมอ (เผื่อกดขยายตอนยังไม่
+connect เสร็จ) `BackToGridButton_Click` สลับกลับ `VncViewMode.Thumbnail` แล้วซ่อน overlay
+
+### ลบออกจาก grid / cleanup ทั้งชุด - dispose แยกอิสระตาม guarantee ของ Step 4e
+
+`RemoveGridCellButton_Click`: ถ้า cell ที่กำลังลบเป็นตัวที่ full-screen อยู่ ให้เรียก back-to-grid ก่อน
+แล้วค่อย `_liveViewPool.CloseAsync(clientGuid)` เฉพาะตัวนั้น (ไม่กระทบตัวอื่นใน grid - ยืนยันจาก
+guarantee ของ `VncSessionPool` ที่ทำไว้ตั้งแต่ Step 4e) `CloseAllLiveViewSessionsAsync` (เรียกตอนออกจาก
+แท็บ LIVE VIEW ไปแท็บอื่น ผ่าน `MainTabControl_SelectionChanged`, และตอนปิด Dashboard) เคลียร์ full-screen
+state ก่อน (ถ้ามี) แล้ว `_liveViewPool.CloseAllAsync()`
+
+### Resource limit - ไม่ hardcode ตัวเลขซ้ำในไฟล์ของ Step 4f เอง
+
+ตามที่ตกลงไว้ ทุกจุดใน `DashboardWindow.xaml.cs` อ้าง `VncSessionPool.MaxConcurrentSessions` เสมอ
+(`AddSelectedToGridButton_Click` เช็ค `remaining = MaxConcurrentSessions - _liveViewCells.Count` ก่อนเปิด
+เพิ่ม ถ้าเกินโชว์ข้อความชัดเจนแล้ว return โดยไม่เปิดอะไรเลย ไม่ใช่ fail เงียบๆ,
+`UpdateLiveViewStatusAndButtonState` ปิดปุ่ม ADD SELECTED เมื่อเต็ม) ไม่มีเลข `24` ปรากฏในไฟล์ของ Step 4f
+เอง - ตัวเลข default 24 อยู่จุดเดียวที่ `VncSessionPool.MaxConcurrentSessions` property เท่านั้น
+
+### Settings session (ขนาน) เชื่อมต่อเข้ามาแล้ว - ไม่มี conflict
+
+Session คู่ขนานที่ทำ `SettingsService`/`ConsoleSettings`/`SettingsWindow`/`AboutWindow` เสร็จหลังจากนี้ -
+`SettingsService.ApplyToRuntime` เซ็ต `VncSessionPool.MaxConcurrentSessions = settings.Vnc.MaxConcurrentSessions`
+ตรงตามที่ TODO comment ใน `VncSessionPool.cs` เขียนไว้ล่วงหน้าพอดี (เรียกตอน `EnsureLoaded()` ใน
+`App.xaml.cs OnStartup` และทุกครั้งที่ `Save` สำเร็จ) ไม่มีไฟล์ไหนถูกแก้ทับกัน - ตรวจสอบด้วย
+`git diff`/build หลัง merge ทั้งสอง session แล้ว ผ่านทั้งคู่ ไม่มี conflict หรือ compile error
+
+### ยังไม่ทำในรอบนี้ (ตกลงไว้ล่วงหน้าว่าเก็บไว้ทีหลัง)
+
+Input injection (mouse/keyboard) ในโหมด full-screen ยังเป็น view-only เหมือนเดิมทุก step ที่ผ่านมา
+
+### ส่วนเพิ่มหลัง live-test: toggle "คงการเชื่อมต่อไว้เมื่อออกจากแท็บ LIVE VIEW"
+
+หลัง live-test รอบแรกผ่านแล้ว เพิ่ม setting ใหม่ `VncSettings.KeepLiveViewOpenOnTabLeave` (default `false`,
+ผ่าน `SettingsWindow`/`SettingsService` ที่ Settings session ทำไว้) - ถ้าเปิดไว้ การสลับออกจากแท็บ LIVE
+VIEW จะไม่เรียก `CloseAllLiveViewSessionsAsync()` (เช็คค่าที่ `MainTabControl_SelectionChanged`) ทำให้
+grid เดินต่อเบื้องหลังได้ แต่การปิด Dashboard ทั้งหน้าต่าง (`Closed` handler) ยังคง dispose ทุก session
+เสมอไม่มีเงื่อนไข ไม่ว่าค่านี้จะเป็นอะไร เพราะ session ผูกอยู่กับ process ของ Console เอง ไม่มี process อื่น
+ถือ session ต่อได้ - default เป็น false โดยเจตนาเพื่อรักษา safety net เดิม (กันเปลืองโควตา
+`MaxConcurrentSessions` โดยไม่ตั้งใจ)
+
+### ผลทดสอบ (2026-07-25, ผ่าน user - "all done")
+
+User ทดสอบครบตาม checklist ที่ตกลงไว้ทั้งหมด: add-to-grid หลายเครื่องพร้อมกัน, thumbnail แสดงผลถูกต้อง,
+คลิกขยายเต็มจอ (RequestModeSwitch ไม่ reconnect, tile อื่นใน grid ไม่หลุด), กลับ grid ปกติ, ลบ tile เดี่ยว
+ไม่กระทบตัวอื่น, เกินโควตาแสดงข้อความ/ปิดปุ่มถูกต้อง ไม่ fail เงียบ, สลับแท็บ/ปิด Dashboard dispose ครบไม่มี
+handle/thread ค้าง (เช็คผ่าน Task Manager), และ toggle ใหม่ทำงานตามที่ออกแบบไว้ - ผ่านทั้งหมด
+
+### สถานะ ณ ตอนนี้
+
+Build ผ่านทั้ง solution (Debug) 0 error, live-test ผ่านครบตาม checklist แล้ว - พร้อม commit

@@ -1,0 +1,41 @@
+<Window x:Class="OnionProcOparetor.Console.AboutWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="About"
+        Height="400" Width="384"
+        WindowStartupLocation="CenterOwner"
+        ResizeMode="NoResize"
+        Style="{StaticResource AppWindowStyle}">
+    <!-- Free-form Canvas layout - drag any element to reposition it in the VS Designer. -->
+    <Canvas Margin="24">
+        <!-- ==================== Logo mark (reuses the same "O" square mark as MainWindow/DashboardWindow) ==================== -->
+        <Border Canvas.Left="144" Canvas.Top="0" Width="48" Height="48" CornerRadius="12"
+                Background="{StaticResource Brush.Accent.Default}">
+            <TextBlock Text="O" FontSize="20" FontWeight="Bold" Foreground="White"
+                       HorizontalAlignment="Center" VerticalAlignment="Center"/>
+        </Border>
+
+        <!-- ==================== Name / tagline ==================== -->
+        <TextBlock Canvas.Left="0" Canvas.Top="60" Width="336" Text="Onion ProcOparetor"
+                    Style="{StaticResource Heading1}" TextAlignment="Center"/>
+        <TextBlock Canvas.Left="0" Canvas.Top="96" Width="336" Text="We peel, We See, We Oparete"
+                    FontFamily="{StaticResource FontFamily.Primary}" FontStyle="Italic" FontWeight="Light"
+                    FontSize="11" Foreground="{StaticResource Brush.Text.Secondary}" TextAlignment="Center"/>
+        <TextBlock Canvas.Left="0" Canvas.Top="118" Width="336" Text="by OnionProcOparetion"
+                    Style="{StaticResource Caption}" TextAlignment="Center"/>
+
+        <Border Canvas.Left="0" Canvas.Top="154" Width="336" Height="1" Background="{StaticResource Brush.Border.Default}"/>
+
+        <!-- ==================== Version / build / copyright ==================== -->
+        <TextBlock Canvas.Left="0" Canvas.Top="170" Width="336" x:Name="VersionText"
+                    Style="{StaticResource Body}" TextAlignment="Center"/>
+        <TextBlock Canvas.Left="0" Canvas.Top="192" Width="336" x:Name="BuildText"
+                    Style="{StaticResource Caption}" TextAlignment="Center"/>
+        <TextBlock Canvas.Left="0" Canvas.Top="226" Width="336"
+                    Text="© 2026 OnionProcOparetion. All rights reserved (probably)."
+                    Style="{StaticResource Caption}" TextAlignment="Center" TextWrapping="Wrap"/>
+
+        <Button Canvas.Left="123" Canvas.Top="286" Width="90" Content="CLOSE" Style="{StaticResource ButtonSecondary}"
+                Click="CloseButton_Click"/>
+    </Canvas>
+</Window>

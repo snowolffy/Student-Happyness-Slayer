@@ -1,0 +1,75 @@
+<Window x:Class="OnionProcOparetor.Console.SettingsWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Settings"
+        Height="640" Width="440"
+        WindowStartupLocation="CenterOwner"
+        ResizeMode="NoResize"
+        Style="{StaticResource AppWindowStyle}">
+    <!-- Free-form Canvas layout - drag any element to reposition it in the VS Designer. -->
+    <Canvas Margin="20">
+        <TextBlock Canvas.Left="0" Canvas.Top="0" Text="Settings" Style="{StaticResource Heading2}"/>
+        <TextBlock Canvas.Left="0" Canvas.Top="26" Text="ตั้งค่าเฉพาะเครื่องนี้ (บันทึกที่ %ProgramData%\OnionProcOparetor\Console\)"
+                   Style="{StaticResource Caption}"/>
+
+        <!-- ==================== VNC concurrent session limit ==================== -->
+        <Border Canvas.Left="0" Canvas.Top="54" Width="380" Height="96" CornerRadius="10" Padding="14"
+                Background="{StaticResource Brush.Background.Card}"
+                BorderBrush="{StaticResource Brush.Border.Default}" BorderThickness="1">
+            <Canvas>
+                <TextBlock Canvas.Left="0" Canvas.Top="0" Text="VNC MAX CONCURRENT SESSIONS" Style="{StaticResource Label}"/>
+                <TextBox Canvas.Left="0" Canvas.Top="20" Width="100" x:Name="VncLimitBox" Style="{StaticResource RoundedTextBox}"/>
+                <TextBlock Canvas.Left="0" Canvas.Top="54" Width="340"
+                           Text="จำนวนเครื่องสูงสุดที่เปิดดูหน้าจอ (Screen View) พร้อมกันได้ - มีผลทันทีหลังบันทึก ไม่ต้อง restart Console"
+                           Style="{StaticResource Caption}" TextWrapping="Wrap"/>
+            </Canvas>
+        </Border>
+
+        <!-- ==================== Dashboard auto-refresh (poll) interval ==================== -->
+        <Border Canvas.Left="0" Canvas.Top="160" Width="380" Height="96" CornerRadius="10" Padding="14"
+                Background="{StaticResource Brush.Background.Card}"
+                BorderBrush="{StaticResource Brush.Border.Default}" BorderThickness="1">
+            <Canvas>
+                <TextBlock Canvas.Left="0" Canvas.Top="0" Text="DASHBOARD AUTO-REFRESH INTERVAL (SECONDS)" Style="{StaticResource Label}"/>
+                <TextBox Canvas.Left="0" Canvas.Top="20" Width="100" x:Name="PollIntervalBox" Style="{StaticResource RoundedTextBox}"/>
+                <TextBlock Canvas.Left="0" Canvas.Top="54" Width="340"
+                           Text="ความถี่โหลดข้อมูล Clients/Rules/Logs/Users ใหม่อัตโนมัติของ Dashboard - มีผลทันทีหลังบันทึก"
+                           Style="{StaticResource Caption}" TextWrapping="Wrap"/>
+            </Canvas>
+        </Border>
+
+        <!-- ==================== Default server connection ==================== -->
+        <Border Canvas.Left="0" Canvas.Top="266" Width="380" Height="112" CornerRadius="10" Padding="14"
+                Background="{StaticResource Brush.Background.Card}"
+                BorderBrush="{StaticResource Brush.Border.Default}" BorderThickness="1">
+            <Canvas>
+                <TextBlock Canvas.Left="0" Canvas.Top="0" Text="DEFAULT SERVER HOST / PORT" Style="{StaticResource Label}"/>
+                <TextBox Canvas.Left="0" Canvas.Top="20" Width="240" x:Name="ServerHostBox" Style="{StaticResource RoundedTextBox}"/>
+                <TextBox Canvas.Left="250" Canvas.Top="20" Width="90" x:Name="ServerPortBox" Style="{StaticResource RoundedTextBox}"/>
+                <TextBlock Canvas.Left="0" Canvas.Top="54" Width="340"
+                           Text="ใช้เป็นค่าเริ่มต้นในหน้า Connect ครั้งถัดไป - ต้องปิดแล้วเปิด Console ใหม่ (reconnect) จึงจะมีผล ไม่กระทบ session ที่ล็อกอินอยู่ตอนนี้"
+                           Style="{StaticResource Caption}" TextWrapping="Wrap"/>
+            </Canvas>
+        </Border>
+
+        <!-- ==================== Live View: keep grid open when leaving tab ==================== -->
+        <Border Canvas.Left="0" Canvas.Top="386" Width="380" Height="86" CornerRadius="10" Padding="14"
+                Background="{StaticResource Brush.Background.Card}"
+                BorderBrush="{StaticResource Brush.Border.Default}" BorderThickness="1">
+            <Canvas>
+                <CheckBox Canvas.Left="0" Canvas.Top="0" x:Name="KeepLiveViewOpenCheckBox"
+                          Content="คงการเชื่อมต่อไว้เมื่อออกจากแท็บ LIVE VIEW"/>
+                <TextBlock Canvas.Left="0" Canvas.Top="26" Width="340"
+                           Text="ค่า default คือปิดทั้งหมดเมื่อออกจากแท็บ (กันเปลืองโควตา MaxConcurrentSessions) - ปิด Dashboard ทั้งหน้าต่างจะ dispose ทุก session เสมอไม่ว่าค่านี้จะเป็นอะไร"
+                           Style="{StaticResource Caption}" TextWrapping="Wrap"/>
+            </Canvas>
+        </Border>
+
+        <TextBlock Canvas.Left="0" Canvas.Top="486" Width="380" x:Name="StatusText" Style="{StaticResource Caption}" TextWrapping="Wrap"/>
+
+        <Button Canvas.Left="220" Canvas.Top="530" Width="80" Content="SAVE" Style="{StaticResource ButtonPrimary}"
+                Click="SaveButton_Click"/>
+        <Button Canvas.Left="308" Canvas.Top="530" Width="80" Content="CANCEL" Style="{StaticResource ButtonSecondary}"
+                Padding="10,5" FontSize="11" Click="CancelButton_Click"/>
+    </Canvas>
+</Window>

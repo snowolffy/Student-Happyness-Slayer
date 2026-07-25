@@ -18,7 +18,7 @@
 
   <Package Name="Onion ProcOparetor"
             Manufacturer="OnionProcOparetor"
-            Version="1.2.2.0"
+            Version="1.2.3.0"
             UpgradeCode="8C2D41E6-5A6D-4D1A-95E2-FB74C37A6E5A"
             Scope="perMachine"
             InstallerVersion="500">

@@ -1,4 +1,5 @@
 using System.Windows;
+using OnionProcOparetor.Console.Models;
 using OnionProcOparetor.Console.Services;
 
 namespace OnionProcOparetor.Console;
@@ -10,6 +11,11 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
+
+        // เติมค่า default จาก Settings แทน hardcode "localhost"/"8787" ใน XAML เดิม
+        var connection = SettingsService.Current.Connection;
+        ServerIpBox.Text = connection.ServerHost;
+        PortBox.Text = connection.ServerPort;
     }
 
     private async void ConnectButton_Click(object sender, RoutedEventArgs e)
@@ -39,6 +45,8 @@ public partial class MainWindow : Window
 
         if (success)
         {
+            SaveConnectionAsDefault(serverIp, port);
+
             if (_apiClient.HasDefaultPassword)
             {
                 StatusText.Foreground = (System.Windows.Media.Brush)FindResource("Brush.Status.Online");
@@ -64,5 +72,28 @@ public partial class MainWindow : Window
             StatusText.Text = message;
             ConnectButton.IsEnabled = true;
         }
+    }
+
+    /// <summary>
+    /// จำ Server IP/Port ที่ login สำเร็จไว้เป็นค่า default ครั้งถัดไปที่เปิด Console (ดู Settings > DEFAULT
+    /// SERVER HOST/PORT) - ไม่ critical ถ้าบันทึกไม่สำเร็จ (เช่น เขียนไฟล์ไม่ได้) เลยไม่โชว์ error ให้ผู้ใช้
+    /// ตรงนี้ แค่ล้มเหลวเงียบๆ แล้วครั้งถัดไปยังใช้ค่าเดิมที่เคยบันทึกไว้ (หรือ default ของ ConsoleSettings)
+    /// </summary>
+    private static void SaveConnectionAsDefault(string serverHost, string serverPort)
+    {
+        var current = SettingsService.Current;
+        var updated = new ConsoleSettings
+        {
+            Vnc = current.Vnc,
+            Ui = current.Ui,
+            Connection = new ConnectionSettings
+            {
+                ServerHost = serverHost,
+                ServerPort = string.IsNullOrEmpty(serverPort) ? current.Connection.ServerPort : serverPort,
+                DashboardPollIntervalSeconds = current.Connection.DashboardPollIntervalSeconds
+            }
+        };
+
+        SettingsService.Save(updated);
     }
 }

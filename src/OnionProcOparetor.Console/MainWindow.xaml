@@ -37,10 +37,10 @@
                            Style="{StaticResource Body}" TextWrapping="Wrap" TextAlignment="Center"/>
 
                 <TextBlock Canvas.Left="0" Canvas.Top="52" Text="SERVER IP" Style="{StaticResource Label}"/>
-                <TextBox Canvas.Left="0" Canvas.Top="70" Width="242" x:Name="ServerIpBox" Text="localhost" Style="{StaticResource RoundedTextBox}"/>
+                <TextBox Canvas.Left="0" Canvas.Top="70" Width="242" x:Name="ServerIpBox" Style="{StaticResource RoundedTextBox}"/>
 
                 <TextBlock Canvas.Left="254" Canvas.Top="52" Text="PORT" Style="{StaticResource Label}"/>
-                <TextBox Canvas.Left="254" Canvas.Top="70" Width="90" x:Name="PortBox" Text="8787" Style="{StaticResource RoundedTextBox}"/>
+                <TextBox Canvas.Left="254" Canvas.Top="70" Width="90" x:Name="PortBox" Style="{StaticResource RoundedTextBox}"/>
 
                 <TextBlock Canvas.Left="0" Canvas.Top="110" Text="USERNAME" Style="{StaticResource Label}"/>
                 <TextBox Canvas.Left="0" Canvas.Top="128" Width="344" x:Name="UsernameBox" Style="{StaticResource RoundedTextBox}"/>
