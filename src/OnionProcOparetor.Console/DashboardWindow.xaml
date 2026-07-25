@@ -139,7 +139,12 @@
                         <Button Canvas.Left="290" Canvas.Top="-4" Width="180" Content="BROADCAST MESSAGE" Style="{StaticResource ButtonSecondary}"
                                 Padding="10,5" FontSize="11"
                                 Click="BroadcastMessageButton_Click"/>
-                        <TextBlock Canvas.Left="480" Canvas.Top="2" x:Name="SelectedClientsCountText"
+                        <!-- ชั่วคราวสำหรับยืนยัน VncSessionPool + RfbClient Thumbnail mode (Step 4e) เท่านั้น -
+                             ไม่ใช่ production UI (Grid จริงเก็บไว้ Step 4f) - ดู VncPoolTestWindow -->
+                        <Button Canvas.Left="480" Canvas.Top="-4" Width="140" Content="POOL TEST (temp)" Style="{StaticResource ButtonSecondary}"
+                                Padding="10,5" FontSize="11"
+                                Click="PoolTestButton_Click"/>
+                        <TextBlock Canvas.Left="630" Canvas.Top="2" x:Name="SelectedClientsCountText"
                                 Foreground="{StaticResource Brush.Text.Secondary}" Text=""/>
 
                         <TextBox Canvas.Left="0" Canvas.Top="44" x:Name="ClientsSearchBox" Width="250"

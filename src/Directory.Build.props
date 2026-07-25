@@ -7,8 +7,8 @@
        tell a new build apart from whatever was already on disk, so upgrades silently kept
        old binaries in place even when the MSI reported success. -->
   <PropertyGroup>
-    <Version>1.2.1.0</Version>
-    <AssemblyVersion>1.2.1.0</AssemblyVersion>
-    <FileVersion>1.2.1.0</FileVersion>
+    <Version>1.2.2.0</Version>
+    <AssemblyVersion>1.2.2.0</AssemblyVersion>
+    <FileVersion>1.2.2.0</FileVersion>
   </PropertyGroup>
 </Project>

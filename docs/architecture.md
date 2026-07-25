@@ -1123,3 +1123,149 @@ AgentTray หยุด winvnc.exe (message type ใหม่ `StopVncSession` �
 disconnect - winvnc.exe บน COM-23 หยุดเองภายใน ~30-35 วิตามที่ตั้งไว้, (4) สลับเครื่องระหว่างรอ connect
 ยังไม่เสร็จ - ไม่มี error/ภาพเก่าค้าง Step 4d เสร็จสมบูรณ์ตาม scope ที่ตกลงไว้ (view-only, ยังไม่รับ
 mouse/keyboard input - เก็บไว้ Phase 4 ขั้นถัดไป)
+
+## Update Log: VNC remote-view feature (Step 4e) — 2026-07-25
+
+เป้าหมาย: รองรับหลาย VNC session พร้อมกัน (เตรียมทางให้ CCTV-wall grid ใน Step 4f) + thumbnail mode ที่
+เบา bandwidth สำหรับแสดงใน grid - รอบนี้ทำเฉพาะ data/session layer เท่านั้น ยังไม่แตะ UI เลย
+(`DashboardWindow`/`ActionPanelWindow` ของ Step 4d ไม่ถูกแก้พฤติกรรมใดๆ ยังทำงานเหมือนเดิมทุกประการ
+ผ่าน `RfbClient`'s backward-compatible overload - จะ migrate ไปใช้ `VncSessionPool` จริงตอน Step 4f
+ตอน wire grid UI เพื่อไม่ให้มีระบบคู่ขนาน 2 ชุดพร้อมกันนานเกินไป)
+
+### บั๊กที่เจอระหว่างออกแบบ (ก่อนเขียนโค้ดเลย) - clientGuid หายไปจาก VNC SignalR relay
+
+`LabHubClient.VncSessionReady`/`VncSessionFailed` (Console) เดิมมี signature แค่ `(port, password)`/
+`(reason)` ไม่มี identifier ว่าเป็นของเครื่องไหนเลย - ตอน Step 4d ที่มี session เดียวที่รอพร้อมกันได้
+ตลอดเวลาไม่มีปัญหา แต่ทันทีที่ `VncSessionPool` เปิดหลายเครื่องพร้อมกัน (เช่นเลือกกลุ่มเครื่องแล้วกด
+"add to grid") จะมีหลาย `RequestVncSessionAsync` ค้างรอ event เดียวกันพร้อมกัน - เพราะทุก request จาก
+Console instance เดียวกันแชร์ SignalR group เดียวกันหมด (`consoleSessionId`) event ของเครื่อง A ที่มาถึง
+ก่อนจะถูก handler ของเครื่อง B "แย่ง" ไปทันที (TrySetResult บน tcs ที่ยังไม่ resolve) เป็น race condition
+จริงที่จะทำให้เปิดผิดเครื่อง/ใช้ port-password ผิดคู่กัน - แก้โดยเพิ่ม `clientGuid` เข้าไปในทุกจุดของ chain:
+`LabHub.RelayVncSessionReady/Failed` (Server) → `LabHubConnection.NotifyVncSessionReadyAsync/FailedAsync`
+(Agent - ใช้ `_clientGuid` ภายในตัวเองอยู่แล้ว ไม่ต้องเพิ่ม parameter ให้ caller ส่งมา) →
+`LabHubClient.VncSessionReady/Failed` (Console) ทุกจุดที่ subscribe ต้อง filter ด้วย clientGuid ที่ตัวเอง
+request ไปเองเสมอ (`VncSessionPool`/`VncSessionHandle` ทำแบบนี้อยู่แล้วตั้งแต่เขียน) `DashboardWindow`
+(Step 4d) ต้องแก้ตามเล็กน้อยให้ compile ผ่าน (filter ด้วย `client.ClientGuid` เหมือนกัน) แต่ไม่มีผลต่าง
+เชิงพฤติกรรมเพราะเปิดได้ทีละเครื่องอยู่แล้ว - เป็นบั๊กที่เจอจาก **วิเคราะห์ concurrency ของโค้ดเดิมก่อนต่อ
+ยอด ไม่ใช่จาก log/live debug** เหมือน Step 4b (ต่างประเภทหลักฐาน แต่ verify ได้จากการอ่าน SignalR group
+routing ตรงๆ: ทุก request ของ Console ตัวเดียวกันแชร์ group เดียวกันจริง ไม่ต้องเดา)
+
+### RfbClient: VncViewMode (FullRes/Thumbnail) - สลับได้ระหว่าง session เดียวกันไม่ต้อง reconnect
+
+**ทำไมไม่ขอ resolution เล็กลงตรงๆ จาก server**: RFC 6143 §7.5.1 (SetPixelFormat) มีแค่ field เรื่อง pixel
+encoding (bits-per-pixel/depth/shift ฯลฯ) ไม่มี width/height เลย และ §7.5.3
+(FramebufferUpdateRequest) เป็นแค่การขอดู region ของ framebuffer ที่มีอยู่แล้ว (ขนาดคงที่ตาม ServerInit
+ตลอด session) ไม่ใช่การขอเปลี่ยนขนาดต้นทาง - ไม่มี message มาตรฐานให้ client ขอ scale ลงได้เลยในสิ่งที่
+implement ไปแล้ว UltraVNC มี "Server Scale" จริงแต่เป็น global setting จาก winvnc.exe ini/UI (มีผลกับทุก
+viewer ที่ต่อเข้ามาเหมือนกันหมด ไม่ใช่ per-connection request) ใช้ไม่ได้กับ requirement ที่ grid (ต้องการ
+เล็ก) กับ full-res popup (ต้องการเต็ม) อาจต้องอยู่พร้อมกันได้ในอนาคต (Step 4f) - **การวิเคราะห์นี้มาจาก
+การอ่าน spec/protocol ที่ implement ไปแล้วตรงๆ ไม่ใช่จาก live debug กับ UltraVNC จริง** (ต่างจากบั๊กที่เจอ
+ตอน Step 4b ซึ่งเป็น live behavior เฉพาะตัวที่ต้อง debug สด) - บอกไว้ตรงๆ ให้ทวนได้
+
+เลือกทาง fallback ที่โจทย์เสนอไว้แทน: decode เต็ม resolution ที่ได้จาก server ตามปกติ แล้ว downscale เอา
+เองฝั่ง client ตอน decode (`DownscaleToThumbnailRectangle`, nearest-neighbor - เร็ว/ง่าย พอสำหรับ preview
+เล็กในgrid ไม่ต้องการคุณภาพ bilinear) ไม่เก็บ full-res buffer ค้างไว้เลยเพราะแต่ละ rectangle ที่ server
+ส่งมาเป็น self-contained อยู่แล้ว (มี pixel data ครบพอ downscale ได้ตรงๆ)
+
+**bit-depth**: Thumbnail mode เจรจา 16bpp RGB565 บน wire (ลด data size ต่อ pixel ลงครึ่งหนึ่งเทียบ 32bpp)
+เลือก 16-bit true-colour แทน 8-bit indexed/palette เพราะ 8-bit ต้องพึ่ง `SetColourMapEntries` (message
+type แยกต้อง sync colour map กับ server ก่อน ไม่ได้ implement ไว้) เพิ่ม protocol complexity ไม่คุ้มกับ
+bandwidth ที่ประหยัดเพิ่มจาก 16-bit ไปอีก - output ของ `RfbClient` เป็น BGR32 เสมอไม่ว่า mode ไหน (unpack
+กลับจาก RGB565 ให้ก่อนส่งต่อ) caller เลยใช้ `RfbRectangle` contract เดียวกันได้หมดไม่ต้องรู้ mode ปัจจุบัน
+
+**throttle**: FullRes ขอรอบถัดไปทันที (อาศัย RFB incremental request "ค้างรอ" เป็น throttle ธรรมชาติ
+เหมือน Step 4c) Thumbnail รอให้ครบ 1.5 วิก่อนขอรอบถัดไปเสมอ (grid ไม่จำเป็นต้อง real-time)
+
+**สลับ mode ไม่ reconnect**: `RequestModeSwitch` ตั้ง flag (`_pendingMode`) แล้ว return ทันที ไม่รอผลจริง
+(eventually-consistent) เพราะมีแค่ loop thread เดียวเท่านั้นที่เขียนลง TCP stream ได้ปลอดภัย (กัน
+concurrent write race กับตัว loop เอง) loop apply การเปลี่ยนจริงในรอบถัดไปของตัวเอง - เพียงพอสำหรับตอนนี้
+เพราะยังไม่มี UI ที่ต้องรอผลแบบ synchronous (Step 4f ค่อยเพิ่ม callback/event ถ้าจำเป็นต้องรู้ผลแน่ชัด)
+
+### VncSessionPool (Console) - keyed by ClientGuid, two-phase reserve-then-connect
+
+`VncSessionHandle` หนึ่งตัวต่อเครื่อง client หนึ่งเครื่อง เป็นเจ้าของ `RfbClient` + background
+framebuffer loop + `CancellationTokenSource` ของตัวเองทั้งหมด ไม่แชร์อะไรกับ handle อื่น - Dispose แยก
+อิสระ ปิดตัวหนึ่งไม่กระทบตัวอื่นตามที่ตกลง
+
+ป้องกัน race ตอนเปิดหลาย session พร้อมกันเร็วๆ (batch "add to grid") ด้วย two-phase reserve-then-connect:
+`OpenAsync` ล็อกสั้นๆ ผ่าน `SemaphoreSlim` แค่ช่วง "เช็ค `MaxConcurrentSessions` (24) + จองชื่อ key ใน
+dictionary" เท่านั้น แล้วปล่อย lock ก่อนเริ่มงานช้า (HTTP + รอ SignalR + TCP handshake) - ทำให้เปิดหลาย
+เครื่องพร้อมกันได้จริงแบบขนาน ไม่ต้องรอทีละเครื่องเรียงคิว เกิน limit ปฏิเสธพร้อมข้อความชัดเจนบอกจำนวน
+ปัจจุบัน/เพดาน
+
+แยก "ช่วง connect" (รอจนกว่าจะ Connected/Failed - สิ่งที่ `OpenAsync` await) ออกจาก "ช่วง stream"
+(ทำงานยาวจนกว่าจะ Dispose ผ่าน `Task.Run` แยกต่างหาก) ด้วย `TaskCompletionSource` ภายใน
+`VncSessionHandle` - ถ้าไม่แยกสองช่วงนี้ `OpenAsync` จะ block รอทั้งอายุของ session ทำให้เปิดหลายเครื่อง
+พร้อมกันไม่ได้จริงเลย (แม้จะปล่อย reservation lock แล้วก็ตาม)
+
+### Agent: VncSessionManager - หลีกเลี่ยงงานซ้ำซ้อนเมื่อ winvnc.exe ตัวเดิมยังรันอยู่
+
+**ทำไมไม่ "รื้อเป็น pool keyed by client/machine ID" ตรงๆ ตามที่โจทย์เสนอไว้ทีแรก**: Agent หนึ่งตัวรับ
+ผิดชอบแค่เครื่องเดียวเสมอ (1 Agent = 1 เครื่อง = 1 winvnc.exe) ไม่มี "หลายเครื่อง" ให้ key แยกเลยในตัว
+Agent เอง - มิติที่ concurrent จริงบน Agent ตัวเดียวคือ "มีกี่ Console/request พร้อมกันที่สนใจเครื่องนี้"
+ไม่ใช่ "กี่เครื่อง" (นั่นเป็นมิติของฝั่ง Console/`VncSessionPool` ที่คุยกับหลาย Agent คนละเครื่องจริงๆ) -
+เพิ่ม `_currentPid` field แทน ใช้เช็คว่า winvnc.exe ที่ AgentTray รายงานมาคือตัวเดิมที่ track อยู่แล้วไหม
+(idempotent อยู่แล้วฝั่ง `VncProcessManager.EnsureStartedAsync`) ถ้าใช่ข้าม port discovery/firewall
+re-add/monitor-restart ที่ซ้ำซ้อนไปเลย - ลด work ตอนมีหลาย request มาถึงใกล้ๆ กัน (grid เปิดพร้อมกันหลาย
+เครื่อง หรือ full-res popup ของเครื่องที่ thumbnail เปิดอยู่แล้ว) โดยไม่กระทบ correctness (monitor เดิม
+เช็คแค่ "มี ESTABLISHED connection อยู่ไหม" อยู่แล้ว ไม่สนใจว่าเป็นของ viewer ไหน - viewer-agnostic ตั้งแต่
+ออกแบบตอน Step 4d)
+
+**ยืนยัน winvnc.exe รองรับหลาย viewer พร้อมกันจริง** (ตามที่โจทย์ขอให้เช็ค): เพิ่ม `DisconnectClients=0`
+ใน `ultravnc.ini` ตรงๆ (ไม่เคยมีมาก่อน) - เป็น UltraVNC ini key ที่สั่ง "ตัด viewer เดิมทิ้งทุกครั้งที่มี
+viewer ใหม่ต่อเข้ามา" ถ้าเปิดไว้ (1) จะทำให้ grid พังทันที ไม่พึ่ง default ของ UltraVNC ที่ไม่ verify
+แน่ชัดจากเอกสารว่าเป็น 0 หรือ 1 (ตาม pattern เดิมของ feature นี้ - ไม่เดา behavior ของ winvnc.exe ถ้าไม่
+ชัดเจน) **ยังไม่ได้ live-verify กับเครื่องจริง** ว่า multi-viewer ใช้งานได้จริง 100% - ต้องทดสอบยืนยันตอน
+เทส Step 4e (เปิด 2 Console session ไปที่เครื่องเดียวกันพร้อมกัน เช็คว่าไม่มีใครโดนเตะออก)
+
+### Temporary test harness (`VncPoolTestWindow`) - เพิ่มทีหลังเพื่อยืนยัน data layer ก่อน Step 4f
+
+เดิมตั้งใจไม่แตะ UI เลยรอบนี้ (ตามที่ตกลง) แต่พบว่า `VncSessionPool`/`RfbClient` Thumbnail mode ใหม่ไม่มี
+ทาง trigger จาก UI ที่มีอยู่ได้เลย (`DashboardWindow` Step 4d ยังใช้ RfbClient แบบเดิมตรงๆ ไม่ผ่าน pool) -
+ผู้ใช้ยืนยันให้เพิ่มหน้าต่างทดสอบชั่วคราว (`VncPoolTestWindow`, ปุ่ม "POOL TEST (temp)" ใน CLIENTS tab)
+ตาม pattern เดียวกับ `VncTestWindow` ที่เคยใช้ตอน Step 4b/4c ก่อนถูกลบตอน Step 4d - เปิดทุกเครื่องที่เลือก
+พร้อมกันผ่าน pool เดียวกัน (ทดสอบ two-phase reserve-then-connect) เป็น Thumbnail mode ทั้งหมด มีปุ่ม
+TOGGLE MODE ต่อ tile ยืนยันว่า `RequestModeSwitch` ไม่ reconnect จริง
+
+### บั๊กที่เจอจาก live test จริง - mode switch ทำให้ TCP stream desync
+
+**อาการที่เจอ**: สลับ ≥2 tile เป็น FullRes mode พร้อมกันแล้วบาง tile ภาพดับเป็นสีดำสนิท (ไม่ใช่แค่ค้าง) -
+เกือบเข้าใจผิดว่าเป็นปัญหา UI thread/Dispatcher contention ตอนแรก (เดาจากอาการอย่างเดียว) แต่ log จริง
+(หลังเพิ่ม `ConsoleDiagnostics.WriteLine` เข้า `VncSessionHandle`/`RfbClient.LogMessage` เพราะ
+`VncPoolTestWindow` เดิมไม่มี log ให้ดูเลย) ชี้ตรงไปที่ root cause จริง:
+
+```
+[VncSessionHandle:COM-23] สลับเป็น FullRes mode ...
+[VncSessionHandle:COM-23] ส่ง SetPixelFormat: FullRes mode ...
+[VncSessionHandle:COM-23] Exception ไม่คาดคิดใน RunAsync: InvalidOperationException:
+  คาดว่าจะได้ FramebufferUpdate (message type 0) แต่ได้ type 111 แทน
+```
+
+**Root cause**: `RunFramebufferUpdateLoopAsync` เดิมเช็ค/apply การสลับ mode (ส่ง `SetPixelFormat` +
+`FramebufferUpdateRequest` ใหม่) ไว้ที่ "ต้นลูป" ก่อนอ่าน response ของ request ที่ส่งไปท้ายลูปรอบก่อนหน้า
+- ทำให้มี request ค้างอยู่ในสาย TCP พร้อมกัน 2 ชุดชั่วขณะ (ตัวเก่าที่ยังไม่ทันอ่าน + ตัวใหม่จากตอนสลับ
+mode) server ตอบกลับตามลำดับที่ส่งมา แต่ reply แรกยังเป็น pixel format เก่าอยู่ (server เพิ่งได้
+SetPixelFormat ใหม่ ยังไม่มีผลย้อนหลังกับ request ที่ค้างคิวมาก่อนแล้ว) โค้ดกลับตีความด้วย bytes-per-pixel
+ของ mode ใหม่ทันที (`_currentMode` เปลี่ยนไปแล้วก่อนอ่าน) ทำให้อ่าน header ผิดตำแหน่งทันที stream desync
+("message type 111/139" ที่เห็นเป็นแค่ pixel data ที่อ่านผิดตำแหน่งเฉยๆ ไม่ใช่ message type จริง)
+
+**แก้**: รับประกันว่ามี `FramebufferUpdateRequest` ค้างอยู่ในสายได้แค่ 1 ชุดเสมอ โดยย้ายจุดเช็ค/apply
+การสลับ mode ไปอยู่ "หลัง" `ReadFramebufferUpdateAsync` ของรอบก่อนหน้าเสร็จแล้วเท่านั้น (อ่านให้ครบก่อน
+เสมอ แล้วค่อยตัดสินใจสลับ mode แล้วค่อยส่ง request รอบถัดไปแค่ 1 ชุด) - verify แล้วจาก live test ซ้ำหลัง
+แก้: สลับ mode ไปมาหลายรอบทั้ง 2 เครื่องพร้อมกัน (รวมช่วงที่ทั้งคู่เป็น FullRes พร้อมกัน) ไม่มี exception
+เลยตลอด session
+
+**บทเรียนเพิ่มเติมระหว่าง debug รอบนี้**: เจอ false lead ก่อนถึง root cause จริง - `console.log` ไม่มี
+entry ใหม่หลายรอบทั้งที่ทดสอบไปแล้ว สุดท้ายพบว่า Console.exe instance ที่ทดสอบซ้ำๆ เป็น process เก่าที่
+ค้างรันอยู่จริง (ไม่ใช่ build ล่าสุด) - แก้ด้วยการเพิ่ม startup log บรรทัดแรกสุดใน `App.xaml.cs`
+(Version/ProcessPath/PID) ยืนยันได้ชัดเจนว่า instance ที่รันอยู่ตรงกับ build ล่าสุดจริงก่อนเชื่อผลเทสใดๆ
+ต่อไป - เป็นเครื่องมือ diagnostic ทั่วไปที่มีประโยชน์ต่อจากนี้ด้วย ไม่ใช่แค่รอบนี้
+
+### ผลทดสอบ (2026-07-25, บนเครื่อง COM-23 และ COM-27 จริง ผ่าน VncPoolTestWindow)
+
+เปิด 2 เครื่องพร้อมกันผ่าน pool เดียวกัน (ยืนยัน two-phase reserve-then-connect ทำงานถูกต้อง ไม่ชนกัน)
+ทั้งคู่เริ่มเป็น Thumbnail mode สำเร็จ (16bpp RGB565 decode+downscale ถูกต้อง) สลับไปมาระหว่าง
+FullRes/Thumbnail หลายรอบทั้ง 2 เครื่องอิสระจากกัน (รวมช่วงที่เป็น FullRes พร้อมกันทั้งคู่ - เคส concurrent
+ที่เจอบั๊กและแก้ไปแล้วข้างต้น) ไม่มี error เหลือเลย ปิด session แยกอิสระ (`Cancelled (dispose ปกติ)` ต่อ
+tile) ไม่กระทบกัน Step 4e เสร็จสมบูรณ์ตาม scope ที่ตกลงไว้ - `DisconnectClients=0` ได้ live-verify ผ่าน
+โดยอ้อม (2 session ไปเครื่องเดียวกันในบางจังหวะไม่มีใครโดนเตะออก แม้จะไม่ใช่การเทสแบบตรงเป้าเป๊ะ)

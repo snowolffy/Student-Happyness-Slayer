@@ -116,6 +116,10 @@ public class LabHubConnection : IAsyncDisposable
     /// (ผ่าน LabHub.RelayVncSessionReady -> group ส่วนตัวของ consoleSessionId นั้น) - ถ้า SignalR ไม่
     /// connected อยู่ตอนนี้ก็แค่ log warning ไม่ throw (ไม่มี poll fallback สำหรับ VNC เพราะเป็นข้อมูล
     /// ที่ต้องส่งสดๆ ตอนนั้นเท่านั้น ไม่ควร cache/persist password ไว้ที่ไหนเพิ่ม)
+    ///
+    /// ส่ง _clientGuid ของตัวเองไปด้วยเสมอ (ตั้งแต่ Step 4e) - Console เดียวกันอาจมี StartVncSession
+    /// ค้างรออยู่หลายเครื่องพร้อมกัน (group consoleSessionId เดียวกันหมด) ถ้าไม่มี clientGuid มาด้วย
+    /// Console แยกไม่ออกว่า "ready" นี้เป็นของเครื่องไหน
     /// </summary>
     public async Task NotifyVncSessionReadyAsync(string consoleSessionId, int port, string password, CancellationToken ct)
     {
@@ -127,7 +131,7 @@ public class LabHubConnection : IAsyncDisposable
 
         try
         {
-            await _connection.InvokeAsync("RelayVncSessionReady", consoleSessionId, port, password, ct);
+            await _connection.InvokeAsync("RelayVncSessionReady", consoleSessionId, _clientGuid, port, password, ct);
         }
         catch (Exception ex)
         {
@@ -146,7 +150,7 @@ public class LabHubConnection : IAsyncDisposable
 
         try
         {
-            await _connection.InvokeAsync("RelayVncSessionFailed", consoleSessionId, reason, ct);
+            await _connection.InvokeAsync("RelayVncSessionFailed", consoleSessionId, _clientGuid, reason, ct);
         }
         catch (Exception ex)
         {

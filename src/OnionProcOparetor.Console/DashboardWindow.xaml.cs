@@ -276,6 +276,21 @@ public partial class DashboardWindow : Window
         SelectedClientsCountText.Text = count > 0 ? $"เลือกไว้ {count} เครื่อง" : "";
     }
 
+    /// <summary>ชั่วคราวสำหรับยืนยัน VncSessionPool + RfbClient Thumbnail mode (Step 4e) เท่านั้น - เปิดทุกเครื่องที่เลือกไว้ผ่าน VncPoolTestWindow (ไม่ใช่ production UI - ดู comment ในไฟล์นั้น)</summary>
+    private void PoolTestButton_Click(object sender, RoutedEventArgs e)
+    {
+        var selected = ClientsGrid.SelectedItems.Cast<ClientMachineDto>().ToList();
+
+        if (selected.Count == 0)
+        {
+            StatusText.Text = "กรุณาเลือกเครื่องอย่างน้อย 1 เครื่อง (Ctrl+คลิก หรือ Shift+คลิก เพื่อเลือกหลายเครื่อง)";
+            return;
+        }
+
+        var testWindow = new VncPoolTestWindow(_apiClient, _labHubClient, selected) { Owner = this };
+        testWindow.Show();
+    }
+
     private async void BroadcastMessageButton_Click(object sender, RoutedEventArgs e)
     {
         var selected = ClientsGrid.SelectedItems.Cast<ClientMachineDto>().ToList();
@@ -581,8 +596,24 @@ public partial class DashboardWindow : Window
     {
         var tcs = new TaskCompletionSource<(bool, int, string?, string?)>(TaskCreationOptions.RunContinuationsAsynchronously);
 
-        void OnReady(int port, string password) => tcs.TrySetResult((true, port, password, null));
-        void OnFailed(string reason) => tcs.TrySetResult((false, 0, null, reason));
+        // ตั้งแต่ Step 4e event มี clientGuid มาด้วย (VncSessionPool อาจมีหลาย request ค้างรอพร้อมกัน) -
+        // Dashboard เปิดได้ทีละเครื่องเท่านั้นตอนนี้ (Step 4d) เลยไม่มีผลต่างเชิงพฤติกรรม แต่ต้องกรองให้
+        // ถูกต้องตาม client ที่ request ไปเสมอ ไม่ใช่รับทุก event ที่เข้ามา
+        void OnReady(string clientGuid, int port, string password)
+        {
+            if (clientGuid == client.ClientGuid)
+            {
+                tcs.TrySetResult((true, port, password, null));
+            }
+        }
+
+        void OnFailed(string clientGuid, string reason)
+        {
+            if (clientGuid == client.ClientGuid)
+            {
+                tcs.TrySetResult((false, 0, null, reason));
+            }
+        }
 
         _labHubClient.VncSessionReady += OnReady;
         _labHubClient.VncSessionFailed += OnFailed;

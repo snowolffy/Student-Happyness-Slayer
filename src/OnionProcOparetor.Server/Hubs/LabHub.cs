@@ -57,13 +57,18 @@ public class LabHub : Hub
     /// Agent เรียกหลัง VncSessionManager.HandleAgentTrayStartedAsync() สำเร็จ เพื่อส่ง port/password กลับไปยัง
     /// Console ตัวที่ request เท่านั้น (ผ่าน group ส่วนตัวที่ join ไว้ใน RegisterConsole) - ไม่ log
     /// password ฝั่ง server เลย (แค่ relay ผ่านมือ ไม่เก็บ ไม่ persist ลง DB)
+    ///
+    /// clientGuid บอกว่า "ready" นี้เป็นของเครื่องไหน - จำเป็นตั้งแต่ Step 4e เพราะ Console เดียวกันอาจมี
+    /// StartVncSession ค้างรออยู่หลายเครื่องพร้อมกัน (VncSessionPool เปิดหลาย session พร้อมกันได้) ถ้าไม่มี
+    /// clientGuid มาด้วย Console จะแยกไม่ออกว่า event ที่มาถึงเป็นของ request ไหนใน consoleSessionId group
+    /// เดียวกัน (ทุก request จาก Console ตัวเดียวกันแชร์ group เดียวกันหมด)
     /// </summary>
-    public Task RelayVncSessionReady(string consoleSessionId, int port, string password) =>
-        Clients.Group(consoleSessionId).SendAsync("VncSessionReady", port, password);
+    public Task RelayVncSessionReady(string consoleSessionId, string clientGuid, int port, string password) =>
+        Clients.Group(consoleSessionId).SendAsync("VncSessionReady", clientGuid, port, password);
 
     /// <summary>เหมือน RelayVncSessionReady แต่สำหรับกรณี Agent เปิด VNC session ไม่สำเร็จ - ส่งเหตุผลกลับไปด้วย</summary>
-    public Task RelayVncSessionFailed(string consoleSessionId, string reason) =>
-        Clients.Group(consoleSessionId).SendAsync("VncSessionFailed", reason);
+    public Task RelayVncSessionFailed(string consoleSessionId, string clientGuid, string reason) =>
+        Clients.Group(consoleSessionId).SendAsync("VncSessionFailed", clientGuid, reason);
 }
 
 /// <summary>

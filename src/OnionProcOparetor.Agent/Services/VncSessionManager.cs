@@ -39,6 +39,7 @@ public sealed class VncSessionManager
     private readonly AgentTrayNotifier _agentTrayNotifier;
     private readonly SemaphoreSlim _lock = new(1, 1);
     private CancellationTokenSource? _monitorCts;
+    private int? _currentPid;
 
     public int? CurrentPort { get; private set; }
     public string? CurrentPassword { get; private set; }
@@ -55,12 +56,30 @@ public sealed class VncSessionManager
     /// VncProcessManager.WriteBaseIni ฝั่ง AgentTray) แล้วเปิด firewall rule ให้ตรง port นั้น จากนั้น
     /// เริ่ม monitor loop คอยเช็คว่ามี Console ต่อเข้ามาจริงไหม (ดู MonitorSessionAsync) เพื่อหยุด
     /// winvnc.exe เองถ้าไม่มีใครใช้ - ตรงกับหลักการ lazy-start ตั้งแต่ Step 4a (ไม่ถือ resource ค้าง)
+    ///
+    /// method นี้ถูกเรียกได้บ่อยขึ้นตั้งแต่ Step 4e - Console เดียวกันอาจเปิดหลาย session พร้อมกันไปยัง
+    /// เครื่องเดียวกัน (เช่น thumbnail ใน grid + full-res popup) หรือ Console คนละตัวดูเครื่องเดียวกัน
+    /// พร้อมกัน (เครื่องนี้มี Agent เดียว ไม่ได้ "keyed by machine ID" เพราะมีแค่เครื่องเดียวให้ track อยู่
+    /// แล้วในตัวมันเอง - ต่างจาก Console ที่คุยกับหลายเครื่องพร้อมกันจริงๆ ผ่าน VncSessionPool) แต่ละครั้ง
+    /// ที่เรียกซ้ำ AgentTray.VncProcessManager.EnsureStartedAsync เป็น idempotent อยู่แล้ว (คืน PID/
+    /// password เดิมถ้า winvnc.exe รันอยู่แล้ว ไม่ restart) เลยข้าม port discovery/firewall/monitor-restart
+    /// ซ้ำซ้อนได้เลยถ้า PID ตรงกับที่ track ไว้อยู่แล้ว - winvnc.exe เดียวรองรับ TCP connection จากหลาย
+    /// viewer พร้อมกันได้อยู่แล้วตาม VNC protocol ปกติ (ดู VncProcessManager.WriteBaseIni's
+    /// DisconnectClients=0 ที่บังคับไว้ชัดเจน ไม่พึ่ง default ที่ไม่ยืนยัน)
     /// </summary>
     public async Task<(bool Success, int Port, string? FailureReason)> HandleAgentTrayStartedAsync(int pid, string password, CancellationToken ct)
     {
         await _lock.WaitAsync(ct);
         try
         {
+            if (_currentPid == pid && CurrentPort is not null)
+            {
+                _logger.LogInformation(
+                    "VncSessionManager: winvnc.exe (PID: {Pid}) ยังรันอยู่แล้ว ใช้ port/password เดิม (Port: {Port}) ไม่ทำ discovery/firewall/monitor ซ้ำ",
+                    pid, CurrentPort.Value);
+                return (true, CurrentPort.Value, null);
+            }
+
             var actualPort = await DiscoverListeningPortAsync(pid, ct);
             if (actualPort is null)
             {
@@ -75,6 +94,7 @@ public sealed class VncSessionManager
 
             CurrentPort = actualPort.Value;
             CurrentPassword = password;
+            _currentPid = pid;
 
             // ยกเลิก monitor เดิม (ถ้ามีค้างจาก session ก่อนหน้า) แล้วเริ่มใหม่สำหรับ session นี้โดยเฉพาะ
             _monitorCts?.Cancel();
@@ -162,6 +182,7 @@ public sealed class VncSessionManager
         _monitorCts = null;
         CurrentPort = null;
         CurrentPassword = null;
+        _currentPid = null;
         RemoveFirewallExceptionSync();
     }
 

@@ -145,6 +145,14 @@ public sealed class VncProcessManager
     /// <summary>
     /// เขียน ultravnc.ini ขั้นต่ำสุด - PortNumber ตรงนี้เป็นแค่ค่าที่ "ขอ" เท่านั้น ไม่ได้แปลว่า
     /// winvnc.exe จะ listen ที่ port นี้จริง (Agent เป็นคนเช็ค port จริงหลัง start ผ่าน netstat)
+    ///
+    /// DisconnectClients=0 ใส่ไว้ตั้งแต่ Step 4e ตรงๆ (ไม่เคยมีมาก่อน) - เป็น UltraVNC ini key ที่สั่ง
+    /// "ตัด viewer เดิมทิ้งทุกครั้งที่มี viewer ใหม่ต่อเข้ามา" ถ้าเปิดไว้ (ค่า 1) จะทำให้ grid หลายเครื่อง
+    /// พร้อมกัน (Step 4e/4f) พังทันทีเพราะแต่ละ viewer ใหม่จะเตะตัวก่อนหน้าออกหมด (ต่างจาก use case เดิม
+    /// ตอน Step 4b/4c/4d ที่มี viewer เดียวเสมอ เลยไม่เคยมีผลกระทบให้เห็น) ไม่พึ่ง default ของ UltraVNC ที่
+    /// ไม่ได้ verify แน่ชัดจากเอกสารว่าเป็น 0 หรือ 1 (ตาม pattern เดิมของ feature นี้ - ไม่เดา behavior
+    /// ของ winvnc.exe ถ้าไม่ชัดเจน) - ยังไม่ได้ live-verify กับเครื่องจริงว่า multi-viewer ใช้งานได้จริง
+    /// 100% (เช่นเปิด 2 Console session ไปที่เครื่องเดียวกันพร้อมกัน) ต้องทดสอบยืนยันตอนเทส Step 4e
     /// </summary>
     private void WriteBaseIni()
     {
@@ -154,7 +162,8 @@ public sealed class VncProcessManager
             "AutoPortSelect=0\r\n" +
             "HTTPConnect=0\r\n" +
             "QueryAccept=0\r\n" +
-            "QuerySetting=0\r\n";
+            "QuerySetting=0\r\n" +
+            "DisconnectClients=0\r\n";
 
         File.WriteAllText(_iniPath, content);
     }

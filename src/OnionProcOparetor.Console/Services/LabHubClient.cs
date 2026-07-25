@@ -26,11 +26,17 @@ public class LabHubClient : IAsyncDisposable
     /// </summary>
     public event Action<ClientMachineDto>? ClientStatusChanged;
 
-    /// <summary>เรียกตอน Agent เปิด VNC session สำเร็จ (port, password) - background thread เหมือนกัน ต้อง marshal เข้า UI thread เอง</summary>
-    public event Action<int, string>? VncSessionReady;
+    /// <summary>
+    /// เรียกตอน Agent เปิด VNC session สำเร็จ (clientGuid, port, password) - background thread เหมือนกัน
+    /// ต้อง marshal เข้า UI thread เอง clientGuid บอกว่าเป็นของเครื่องไหน (ตั้งแต่ Step 4e) เพราะ Console
+    /// เดียวกันอาจมี StartVncSession ค้างรออยู่หลายเครื่องพร้อมกัน (ดู VncSessionPool) - ผู้ subscribe
+    /// ต้องกรองด้วย clientGuid ที่ตัวเอง request ไปเองเสมอ ห้ามสมมติว่า event ที่มาถึงเป็นของ request
+    /// ล่าสุดที่ส่งไป (อาจเป็นของ request อื่นที่ค้างรออยู่ก่อนหน้าก็ได้)
+    /// </summary>
+    public event Action<string, int, string>? VncSessionReady;
 
-    /// <summary>เรียกตอน Agent เปิด VNC session ไม่สำเร็จ (reason) - background thread เหมือนกัน</summary>
-    public event Action<string>? VncSessionFailed;
+    /// <summary>เรียกตอน Agent เปิด VNC session ไม่สำเร็จ (clientGuid, reason) - background thread เหมือนกัน (ดู comment VncSessionReady เรื่อง clientGuid)</summary>
+    public event Action<string, string>? VncSessionFailed;
 
     /// <summary>
     /// เริ่มต่อ SignalR ไปยัง {baseUrl}/hubs/lab - ไม่ throw ออกไปแม้ server จะยังไม่พร้อม/offline
@@ -46,15 +52,15 @@ public class LabHubClient : IAsyncDisposable
             .Build();
 
         _connection.On<ClientMachineDto>("ClientStatusChanged", dto => ClientStatusChanged?.Invoke(dto));
-        _connection.On<int, string>("VncSessionReady", (port, password) =>
+        _connection.On<string, int, string>("VncSessionReady", (clientGuid, port, password) =>
         {
-            ConsoleDiagnostics.WriteLine($"[LabHubClient] ได้รับ VncSessionReady จาก hub - Port: {port} (SessionId ของเรา: {SessionId})");
-            VncSessionReady?.Invoke(port, password);
+            ConsoleDiagnostics.WriteLine($"[LabHubClient] ได้รับ VncSessionReady จาก hub - ClientGuid: {clientGuid}, Port: {port} (SessionId ของเรา: {SessionId})");
+            VncSessionReady?.Invoke(clientGuid, port, password);
         });
-        _connection.On<string>("VncSessionFailed", reason =>
+        _connection.On<string, string>("VncSessionFailed", (clientGuid, reason) =>
         {
-            ConsoleDiagnostics.WriteLine($"[LabHubClient] ได้รับ VncSessionFailed จาก hub - Reason: {reason} (SessionId ของเรา: {SessionId})");
-            VncSessionFailed?.Invoke(reason);
+            ConsoleDiagnostics.WriteLine($"[LabHubClient] ได้รับ VncSessionFailed จาก hub - ClientGuid: {clientGuid}, Reason: {reason} (SessionId ของเรา: {SessionId})");
+            VncSessionFailed?.Invoke(clientGuid, reason);
         });
 
         _connection.Reconnecting += ex =>
