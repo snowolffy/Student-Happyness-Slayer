@@ -76,6 +76,13 @@ public class AgentTrayNotifier
         return SendAsync(envelope, "StartVncSession", ct);
     }
 
+    /// <summary>สั่งให้ AgentTray หยุด winvnc.exe - เรียกจาก VncSessionManager.MonitorSessionAsync ตอนไม่มี Console ต่อเข้ามาเลย (lazy-start ต้องไม่ถือ resource ค้างถ้าไม่มีใครใช้)</summary>
+    public Task<bool> SendStopVncSessionAsync(CancellationToken ct)
+    {
+        var envelope = new AgentTrayPipeMessage { Type = "StopVncSession" };
+        return SendAsync(envelope, "StopVncSession", ct);
+    }
+
     private async Task<bool> SendAsync(AgentTrayPipeMessage envelope, string logContext, CancellationToken ct)
     {
         try

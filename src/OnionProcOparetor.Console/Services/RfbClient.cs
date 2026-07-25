@@ -277,7 +277,7 @@ public sealed class RfbClient : IDisposable
     ///
     /// onRectangle ถูกเรียกบน thread เดียวกับที่ loop นี้รันอยู่ (ไม่ marshal เอง) - ผู้เรียกต้องรัน
     /// method นี้ผ่าน Task.Run เองถ้าต้องการให้ decode/callback ไม่ block UI thread (ดู
-    /// VncTestWindow.StreamFramebufferAsync ที่ marshal กลับ UI thread เฉพาะตอนเขียนลง WriteableBitmap
+    /// DashboardWindow.StreamVncAsync ที่ marshal กลับ UI thread เฉพาะตอนเขียนลง WriteableBitmap
     /// ผ่าน Dispatcher เท่านั้น)
     /// </summary>
     public async Task RunFramebufferUpdateLoopAsync(Action<RfbRectangle> onRectangle, CancellationToken ct)

@@ -1069,3 +1069,57 @@ thread อื่น แทนที่จะพึ่งว่าผู้เร
 Stream ภาพหน้าจอจริงขึ้นใน Console ได้สำเร็จ อัปเดตต่อเนื่องตามการเปลี่ยนแปลงบนจอเครื่องเป้าหมายจริง
 (ยืนยันด้วยตาโดยขยับเมาส์/เปิดโปรแกรมบน COM-23 แล้วเห็นภาพขยับตาม) Step 4c เสร็จสมบูรณ์ตาม scope ที่
 ตกลงไว้ (Raw encoding, view-only, ยังไม่รับ input — Step 4d)
+
+## Update Log: VNC remote-view feature (Step 4d) — 2026-07-25
+
+เป้าหมาย: เอา RfbClient (ทำงานได้ครบตั้งแต่ Step 4c) มา embed เข้า Dashboard จริง แทนที่หน้าต่างทดสอบ
+ชั่วคราว `VncTestWindow` (ลบทิ้งแล้ว) ผูกกับ client ที่ผู้ใช้เลือกจากรายชื่อเครื่อง ไม่เปิดหน้าต่างแยก
+และปิด resource leak ฝั่ง Agent สำหรับ VNC session ที่ไม่มีใครดูอยู่ (lazy-start ต้องไม่ถือ winvnc.exe
+ค้างรันฟรีๆ — หลักการเดิมตั้งแต่ Step 4a)
+
+### UI embed (`DashboardWindow`)
+
+เพิ่มแท็บที่ 5 **SCREEN VIEW** ถัดจาก CLIENTS/RULES/LOGS/USERS มี `Image` control ผูกกับ
+`WriteableBitmap` เหมือน `VncTestWindow` เดิม ปุ่ม **VIEW SCREEN** ย้ายจาก `ActionPanelWindow`
+(single-client mode เดิมมี "VNC TEST (temp)") - กดแล้ว panel ปิดตัวเองพร้อมตั้ง
+`ViewScreenRequested` ให้ `DashboardWindow` เป็นคนต่อ `RfbClient` เองทั้งหมด (panel ไม่ต้องพึ่ง
+`LabHubClient` อีกต่อไปเลย - เอาออกจาก constructor ได้)
+
+### Lifecycle/race safety - generation counter แทน lock
+
+ตอนแรกออกแบบด้วย `SemaphoreSlim` ป้องกัน race ระหว่าง "เริ่ม session ใหม่" กับ "ตัด session ตอนสลับ
+แท็บ" แต่พบว่าจะบล็อก UI thread ได้ถ้า `DisconnectVncView()` (เรียกจาก `TabControl.SelectionChanged`
+ซึ่งเป็น sync event handler) ต้องรอ lock ที่ `ShowVncViewAsync` ถืออยู่ระหว่าง await เครือข่าย (เช่นรอ
+Agent ตอบ 15 วิ) - เปลี่ยนมาใช้ **generation counter** (`_vncSessionGeneration`) แทน: ทุกจุดที่ตัด
+session (เริ่มใหม่/ปุ่ม DISCONNECT/สลับแท็บ/ปิดหน้าต่าง) เพิ่ม generation ก่อนเสมอ (sync ไม่บล็อก) แล้ว
+ทุก await ใน `ShowVncViewAsync` เช็คว่า generation ยังตรงกับตอนเริ่มไหมก่อนแตะ UI/state ถ้าไม่ตรงแปลว่า
+ถูกแทนที่ไปแล้วระหว่างรอ (ผู้ใช้สลับเครื่อง/ปิดแท็บ) - ทิ้งผลลัพธ์นั้น (และ dispose `RfbClient` ที่เพิ่ง
+connect ถ้าจำเป็น กัน socket ค้าง) เพราะทุกจุดที่แก้ field พวกนี้อยู่บน UI thread ล้วน (async/await
+เดียวกัน ไม่ใช่ multi-thread จริง) generation counter พอแล้วไม่ต้องใช้ lock เลย เช่นเดียวกันกับ
+`StreamVncAsync`/`OnVncRectangleDecoded` (รันบน background thread ผ่าน `Task.Run` เหมือน Step 4c) ใช้
+`ReferenceEquals(_vncBitmap, bitmap)` เทียบ object reference ของ `WriteableBitmap` ที่ session นั้น
+สร้างขึ้นเองแทน กันผลลัพธ์/error ของ session เก่าที่เพิ่งถูกแทนที่ไปเขียนทับ UI ของ session ใหม่กว่า
+
+`TabControl.SelectionChanged` เป็น routed event ที่ bubble ขึ้นมาจาก control ข้างในแท็บได้ (เช่น
+ClientsGrid ก็ raise event ชื่อเดียวกัน) ต้องเช็ค `e.OriginalSource == MainTabControl` เท่านั้นถึงจะ
+ถือว่าเป็นการสลับแท็บจริง ไม่งั้นจะ trigger disconnect ผิดจังหวะทุกครั้งที่คลิกแถวใน DataGrid ใดๆ
+
+### Auto-stop เมื่อไม่มี Console ดูอยู่ (`VncSessionManager.MonitorSessionAsync`, Agent)
+
+Console ต่อ TCP ตรงไปยัง winvnc.exe เอง ไม่ผ่าน Agent เลย (ดู Step 4b) ทำให้ Agent มองไม่เห็น
+"Console disconnect" ได้ตรงๆ - แทนที่จะเพิ่ม explicit stop-notification จาก Console (ต้องพึ่ง Console
+ส่งสำเร็จ ซึ่งพังได้ถ้า Console crash/หลุดเน็ตกะทันหัน) ใช้หลักการเดิมของฟีเจอร์นี้ต่อ: **เช็คสถานะจริง
+จาก OS เสมอ** (`netstat -ano -p TCP` เหมือน `DiscoverListeningPortAsync`) - monitor loop poll ทุก 5
+วิ หา TCP connection สถานะ `ESTABLISHED` (ไม่ใช่ `LISTENING`) บน PID+port ของ winvnc.exe เอง ไม่มี
+Console ต่อเข้ามาเลยภายใน 30 วิหลัง start หรือเคย connect แล้วหลุดไปไม่ reconnect ภายใน 30 วิ → สั่ง
+AgentTray หยุด winvnc.exe (message type ใหม่ `StopVncSession` ผ่าน named pipe เดิม - reuse
+`VncProcessManager.Stop()` ที่มีอยู่แล้วฝั่ง AgentTray) แล้วเคลียร์ firewall/state ฝั่ง Agent
+วิธีนี้ทนต่อ Console ที่ปิดแอปกะทันหันโดยไม่ทันแจ้งอะไรเลยได้ด้วย เพราะไม่ได้รอการแจ้งเตือนตั้งแต่แรก
+
+### ผลทดสอบ (2026-07-25, บนเครื่อง COM-23 จริง)
+
+ทดสอบครบ 4 เคสตามที่วางแผนไว้: (1) เปิดดูปกติ → เห็นภาพจริง, (2) เปิดดู → ปิด/สลับแท็บ → เปิดดูใหม่
+ซ้ำหลายรอบ ไม่มี handle/thread รั่วสะสมใน Task Manager, (3) เปิดดูแล้วปิด Dashboard ทิ้งไว้โดยไม่กด
+disconnect - winvnc.exe บน COM-23 หยุดเองภายใน ~30-35 วิตามที่ตั้งไว้, (4) สลับเครื่องระหว่างรอ connect
+ยังไม่เสร็จ - ไม่มี error/ภาพเก่าค้าง Step 4d เสร็จสมบูรณ์ตาม scope ที่ตกลงไว้ (view-only, ยังไม่รับ
+mouse/keyboard input - เก็บไว้ Phase 4 ขั้นถัดไป)

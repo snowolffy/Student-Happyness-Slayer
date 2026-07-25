@@ -28,6 +28,7 @@ public partial class App : Application
         _broadcastListener.ShowLockScreenRequested += OnShowLockScreenRequested;
         _broadcastListener.HideLockScreenRequested += OnHideLockScreenRequested;
         _broadcastListener.StartVncSessionRequested += OnStartVncSessionRequested;
+        _broadcastListener.StopVncSessionRequested += OnStopVncSessionRequested;
         _broadcastListener.Start(_broadcastListenerCts.Token);
 
         try
@@ -126,6 +127,9 @@ public partial class App : Application
         var (success, pid, password, failureReason) = await _vncProcessManager.EnsureStartedAsync(CancellationToken.None);
         await _apiClient.PostVncSessionResultAsync(requestingConsoleSessionId, success, pid, password, failureReason);
     }
+
+    /// <summary>เรียกจาก background thread ของ pipe listener - หยุด winvnc.exe ไม่ต้อง marshal เข้า UI thread เพราะไม่ได้แตะ WPF UI element ใดๆ เลย (เหมือน OnStartVncSessionRequested)</summary>
+    private void OnStopVncSessionRequested() => _vncProcessManager.Stop();
 
     protected override void OnExit(ExitEventArgs e)
     {

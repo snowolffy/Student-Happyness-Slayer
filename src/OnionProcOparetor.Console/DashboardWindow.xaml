@@ -89,7 +89,8 @@
                 Background="{StaticResource Brush.Background.Card}"
                 BorderBrush="{StaticResource Brush.Border.Default}"
                 BorderThickness="1" Padding="0">
-            <TabControl Width="936" Height="484" Background="Transparent" BorderThickness="0" Margin="16">
+            <TabControl x:Name="MainTabControl" Width="936" Height="484" Background="Transparent" BorderThickness="0" Margin="16"
+                        SelectionChanged="MainTabControl_SelectionChanged">
 
                 <!-- Local pill-look TabItem template, scoped to this TabControl only.
                      PillTabButton (Theme/Controls.xaml) targets ToggleButton and cannot be applied
@@ -452,6 +453,23 @@
                                 </DataGridTemplateColumn>
                             </DataGrid.Columns>
                         </DataGrid>
+                    </Canvas>
+                </TabItem>
+
+                <!-- ========== Screen View tab (Step 4d) ========== -->
+                <TabItem x:Name="ScreenViewTabItem" Header="SCREEN VIEW">
+                    <Canvas Margin="0,12,0,0">
+                        <TextBlock Canvas.Left="0" Canvas.Top="0" Width="700" x:Name="VncHeaderText"
+                                Text="ยังไม่ได้เลือกเครื่อง - กด VIEW SCREEN จากรายการ Clients" Style="{StaticResource Heading2}" TextWrapping="Wrap"/>
+                        <Button Canvas.Left="836" Canvas.Top="-4" Width="100" Content="DISCONNECT" Style="{StaticResource ButtonSecondary}"
+                                Padding="10,5" FontSize="11" Click="VncDisconnectButton_Click"/>
+
+                        <TextBlock Canvas.Left="0" Canvas.Top="32" Width="936" x:Name="VncStatusText" Style="{StaticResource Body}" TextWrapping="Wrap"/>
+
+                        <Border Canvas.Left="0" Canvas.Top="64" Width="936" Height="380" CornerRadius="10" Background="Black"
+                                BorderBrush="{StaticResource Brush.Border.Default}" BorderThickness="1">
+                            <Image x:Name="VncScreenImage" Stretch="Uniform"/>
+                        </Border>
                     </Canvas>
                 </TabItem>
 

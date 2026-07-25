@@ -10,6 +10,9 @@ namespace OnionProcOparetor.Agent.Models;
 ///   ทำจาก AgentTray (รันใน user session จริง) ไม่ใช่ Agent (Session 0) เพราะ Session 0 isolation ทำให้
 ///   process ใน Session 0 capture หน้าจอของ user session ไม่ได้เลย (verify แล้วจริงจากการ debug -
 ///   winvnc.exe ที่ Agent spawn เอง connect+auth ผ่านหมดแต่ตอบ ServerInit ไม่ได้เพราะไม่เห็น desktop)
+/// - "StopVncSession" — สั่งให้ AgentTray หยุด winvnc.exe (Message/Title/RequestingConsoleSessionId
+///   ไม่ใช้) - Agent ส่งเองอัตโนมัติตอน VncSessionManager.MonitorSessionAsync เห็นว่าไม่มี Console
+///   ต่อเข้ามาเลย/reconnect ไม่ทันเวลา (lazy-start ตั้งแต่ Step 4a ต้องไม่ถือ resource ค้าง)
 /// </summary>
 public class AgentTrayPipeMessage
 {

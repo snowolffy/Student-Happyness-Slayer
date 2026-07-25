@@ -15,7 +15,6 @@ namespace OnionProcOparetor.Console;
 public partial class ActionPanelWindow : Window
 {
     private readonly ApiClient _apiClient;
-    private readonly LabHubClient? _labHubClient;
     private readonly bool _isBulk;
     private readonly ClientMachineDto? _singleClient;
     private readonly List<ClientMachineDto> _selectedClients;
@@ -25,14 +24,17 @@ public partial class ActionPanelWindow : Window
     public bool DataChanged { get; private set; }
 
     /// <summary>
-    /// Single-client mode - เปิดจากปุ่ม ACTIONS ต่อแถว - labHubClient ต้องส่งมาด้วย (ใช้แค่ตอนกด
-    /// VNC TEST ชั่วคราว - ดู VncTestButton_Click) ไม่ใช้ที่อื่นในไฟล์นี้
+    /// ไม่ null ถ้าผู้ใช้กด VIEW SCREEN - DashboardWindow (เจ้าของ panel นี้) เป็นคนต่อ RfbClient จริง
+    /// เองทั้งหมด (ดู DashboardWindow.ShowVncViewAsync) panel นี้แค่ "ส่งสัญญาณ" กลับไปแล้วปิดตัวเองเท่านั้น
+    /// - single-client mode เท่านั้น
     /// </summary>
-    public ActionPanelWindow(ApiClient apiClient, ClientMachineDto client, LabHubClient labHubClient)
+    public ClientMachineDto? ViewScreenRequested { get; private set; }
+
+    /// <summary>Single-client mode - เปิดจากปุ่ม ACTIONS ต่อแถว</summary>
+    public ActionPanelWindow(ApiClient apiClient, ClientMachineDto client)
     {
         InitializeComponent();
         _apiClient = apiClient;
-        _labHubClient = labHubClient;
         _isBulk = false;
         _singleClient = client;
         _selectedClients = new List<ClientMachineDto> { client };
@@ -42,7 +44,7 @@ public partial class ActionPanelWindow : Window
         TargetPanel.Visibility = Visibility.Collapsed;
         SettingsButton.Visibility = Visibility.Visible;
         DeleteButton.Visibility = Visibility.Visible;
-        VncTestButton.Visibility = Visibility.Visible;
+        ViewScreenButton.Visibility = Visibility.Visible;
         ToggleButton.Content = client.IsEnabled ? "DISABLE ENFORCEMENT" : "ENABLE ENFORCEMENT";
     }
 
@@ -69,7 +71,7 @@ public partial class ActionPanelWindow : Window
 
         SettingsButton.Visibility = Visibility.Collapsed;
         DeleteButton.Visibility = Visibility.Collapsed;
-        VncTestButton.Visibility = Visibility.Collapsed;
+        ViewScreenButton.Visibility = Visibility.Collapsed;
         ToggleButton.Content = "TOGGLE ENFORCEMENT";
     }
 
@@ -117,16 +119,17 @@ public partial class ActionPanelWindow : Window
         }
     }
 
-    /// <summary>ชั่วคราวสำหรับทดสอบ Step 4b เท่านั้น - เปิด VncTestWindow ทดสอบ RFB handshake กับเครื่องนี้ (single-client mode เท่านั้น)</summary>
-    private void VncTestButton_Click(object sender, RoutedEventArgs e)
+    /// <summary>ปิด panel แล้วส่งสัญญาณกลับ DashboardWindow ให้เปิดแท็บ SCREEN VIEW สำหรับเครื่องนี้ (ดู ViewScreenRequested)</summary>
+    private void ViewScreenButton_Click(object sender, RoutedEventArgs e)
     {
-        if (_singleClient is null || _labHubClient is null)
+        if (_singleClient is null)
         {
             return;
         }
 
-        var testWindow = new VncTestWindow(_apiClient, _labHubClient, _singleClient) { Owner = this };
-        testWindow.ShowDialog();
+        ViewScreenRequested = _singleClient;
+        DialogResult = DataChanged;
+        Close();
     }
 
     // Lock ไม่ต้อง confirm (ทำคืนง่าย - ครูกด Unlock จาก panel นี้ได้ทันที)

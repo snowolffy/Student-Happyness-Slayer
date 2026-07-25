@@ -27,21 +27,34 @@ public sealed class VncSessionManager
     /// </summary>
     private const string FirewallRuleName = "OnionProcOparetor Agent VNC";
 
+    /// <summary>ไม่มี Console ไหน connect (TCP ESTABLISHED บน port จริง) เข้ามาเลยภายในเวลานี้หลัง start - หยุด winvnc.exe อัตโนมัติ (lazy-start ต้องไม่ถือ resource ค้างถ้าไม่มีใครใช้จริง)</summary>
+    private static readonly TimeSpan InitialConnectTimeout = TimeSpan.FromSeconds(30);
+
+    /// <summary>Console ที่เคย connect แล้ว disconnect ไป (ปิด panel/สลับเครื่อง) - รอ reconnect ได้นานเท่านี้ก่อนหยุด winvnc.exe จริง กัน network กระตุกสั้นๆ แล้วโดนตัดทิ้งทันที</summary>
+    private static readonly TimeSpan DisconnectGraceTimeout = TimeSpan.FromSeconds(30);
+
+    private static readonly TimeSpan MonitorPollInterval = TimeSpan.FromSeconds(5);
+
     private readonly ILogger<VncSessionManager> _logger;
+    private readonly AgentTrayNotifier _agentTrayNotifier;
     private readonly SemaphoreSlim _lock = new(1, 1);
+    private CancellationTokenSource? _monitorCts;
 
     public int? CurrentPort { get; private set; }
     public string? CurrentPassword { get; private set; }
 
-    public VncSessionManager(ILogger<VncSessionManager> logger)
+    public VncSessionManager(ILogger<VncSessionManager> logger, AgentTrayNotifier agentTrayNotifier)
     {
         _logger = logger;
+        _agentTrayNotifier = agentTrayNotifier;
     }
 
     /// <summary>
     /// เรียกจาก /vnc/session-result หลัง AgentTray รายงานว่า start winvnc.exe สำเร็จ (PID+password) -
     /// เช็ค port จริงที่ listen อยู่ (ห้ามสมมติว่าตรงกับที่ตั้งใน ini - ดู comment ใน
-    /// VncProcessManager.WriteBaseIni ฝั่ง AgentTray) แล้วเปิด firewall rule ให้ตรง port นั้น
+    /// VncProcessManager.WriteBaseIni ฝั่ง AgentTray) แล้วเปิด firewall rule ให้ตรง port นั้น จากนั้น
+    /// เริ่ม monitor loop คอยเช็คว่ามี Console ต่อเข้ามาจริงไหม (ดู MonitorSessionAsync) เพื่อหยุด
+    /// winvnc.exe เองถ้าไม่มีใครใช้ - ตรงกับหลักการ lazy-start ตั้งแต่ Step 4a (ไม่ถือ resource ค้าง)
     /// </summary>
     public async Task<(bool Success, int Port, string? FailureReason)> HandleAgentTrayStartedAsync(int pid, string password, CancellationToken ct)
     {
@@ -63,6 +76,12 @@ public sealed class VncSessionManager
             CurrentPort = actualPort.Value;
             CurrentPassword = password;
 
+            // ยกเลิก monitor เดิม (ถ้ามีค้างจาก session ก่อนหน้า) แล้วเริ่มใหม่สำหรับ session นี้โดยเฉพาะ
+            _monitorCts?.Cancel();
+            var monitorCts = new CancellationTokenSource();
+            _monitorCts = monitorCts;
+            _ = MonitorSessionAsync(pid, actualPort.Value, monitorCts.Token);
+
             _logger.LogInformation("VncSessionManager: VNC session พร้อมใช้งาน - Port: {Port} (PID: {Pid})", actualPort.Value, pid);
             return (true, actualPort.Value, null);
         }
@@ -72,12 +91,120 @@ public sealed class VncSessionManager
         }
     }
 
-    /// <summary>เคลียร์ state + ปิด firewall rule (ไม่ได้แปลว่า winvnc.exe หยุดจริง - AgentTray เป็นคนคุม lifecycle ของ process เอง ที่นี่แค่ไม่ถือ state ค้างไว้เกินจำเป็น)</summary>
+    /// <summary>
+    /// คอยเช็คทุก {MonitorPollInterval} ว่ามี TCP connection ที่ ESTABLISHED เข้ามาที่ port นี้จริงไหม
+    /// (ผ่าน netstat เหมือน DiscoverListeningPortAsync - ยึดหลักเดิมของฟีเจอร์นี้: เช็คสถานะจริงจาก OS
+    /// เสมอ ไม่เชื่อ self-report) ไม่ใช้ explicit "disconnect" notification จาก Console เลย เพราะ
+    /// Console ต่อ TCP ตรงไปยัง winvnc.exe เอง ไม่ผ่าน Agent (ดู RfbClient) Agent เลยมองไม่เห็น
+    /// connection นั้นโดยตรง นอกจากถาม OS ผ่าน netstat วิธีนี้ยังทนต่อ Console ที่ crash/หลุดเครือข่าย
+    /// กะทันหันโดยไม่ทันส่ง disconnect message ได้ด้วย (ไม่มีทางไม่ได้รับแจ้ง เพราะไม่ได้รอการแจ้งเตือนเลย)
+    /// </summary>
+    private async Task MonitorSessionAsync(int pid, int port, CancellationToken ct)
+    {
+        var sessionStartedAt = DateTime.UtcNow;
+        var hasEverConnected = false;
+        DateTime? lastConnectedAt = null;
+
+        try
+        {
+            while (!ct.IsCancellationRequested)
+            {
+                await Task.Delay(MonitorPollInterval, ct);
+
+                var isConnected = await HasEstablishedConnectionAsync(pid, port, ct);
+                var now = DateTime.UtcNow;
+
+                if (isConnected)
+                {
+                    hasEverConnected = true;
+                    lastConnectedAt = now;
+                    continue;
+                }
+
+                if (!hasEverConnected)
+                {
+                    if (now - sessionStartedAt >= InitialConnectTimeout)
+                    {
+                        _logger.LogInformation(
+                            "VncSessionManager: ไม่มี Console connect เข้า port {Port} เลยภายใน {Timeout} วิหลัง start - หยุด winvnc.exe อัตโนมัติ (lazy-start)",
+                            port, InitialConnectTimeout.TotalSeconds);
+                        await StopSessionAsync(ct);
+                        return;
+                    }
+                }
+                else if (lastConnectedAt is not null && now - lastConnectedAt.Value >= DisconnectGraceTimeout)
+                {
+                    _logger.LogInformation(
+                        "VncSessionManager: Console ที่เคย connect port {Port} หลุดไปแล้วไม่ reconnect ภายใน {Timeout} วิ - หยุด winvnc.exe อัตโนมัติ",
+                        port, DisconnectGraceTimeout.TotalSeconds);
+                    await StopSessionAsync(ct);
+                    return;
+                }
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // session ใหม่มาแทนที่ หรือ Agent กำลังหยุด - ไม่ต้องทำอะไรต่อ
+        }
+    }
+
+    /// <summary>สั่ง AgentTray หยุด winvnc.exe จริง แล้วเคลียร์ state ฝั่งนี้ (firewall + port/password) - เรียกจาก MonitorSessionAsync เท่านั้นตอนนี้ (ไม่มี explicit "stop" command จาก Console)</summary>
+    private async Task StopSessionAsync(CancellationToken ct)
+    {
+        await _agentTrayNotifier.SendStopVncSessionAsync(ct);
+        ClearSession();
+    }
+
+    /// <summary>เคลียร์ state + ปิด firewall rule + ยกเลิก monitor (ไม่ได้แปลว่า winvnc.exe หยุดจริง - AgentTray เป็นคนคุม lifecycle ของ process เอง ที่นี่แค่ไม่ถือ state ค้างไว้เกินจำเป็น)</summary>
     public void ClearSession()
     {
+        _monitorCts?.Cancel();
+        _monitorCts = null;
         CurrentPort = null;
         CurrentPassword = null;
         RemoveFirewallExceptionSync();
+    }
+
+    /// <summary>เช็คว่ามี TCP connection สถานะ ESTABLISHED (ไม่ใช่ LISTENING) เข้ามาที่ PID+port นี้อยู่ไหมตอนนี้ - ใช้ netstat เหมือนเดิม แต่กรอง state ต่างจาก GetListeningPortsForProcessAsync</summary>
+    private static async Task<bool> HasEstablishedConnectionAsync(int pid, int port, CancellationToken ct)
+    {
+        var psi = new ProcessStartInfo
+        {
+            FileName = "netstat.exe",
+            Arguments = "-ano -p TCP",
+            UseShellExecute = false,
+            CreateNoWindow = true,
+            RedirectStandardOutput = true
+        };
+
+        using var process = Process.Start(psi);
+        if (process is null)
+        {
+            return false;
+        }
+
+        var output = await process.StandardOutput.ReadToEndAsync(ct);
+        await process.WaitForExitAsync(ct);
+
+        var pidText = pid.ToString(CultureInfo.InvariantCulture);
+        var portSuffix = $":{port.ToString(CultureInfo.InvariantCulture)}";
+
+        foreach (var line in output.Split('\n'))
+        {
+            var parts = line.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries);
+            // netstat -ano columns: Proto  LocalAddress  ForeignAddress  State  PID
+            if (parts.Length != 5 || parts[3] != "ESTABLISHED" || parts[4] != pidText)
+            {
+                continue;
+            }
+
+            if (parts[1].EndsWith(portSuffix, StringComparison.Ordinal))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /// <summary>

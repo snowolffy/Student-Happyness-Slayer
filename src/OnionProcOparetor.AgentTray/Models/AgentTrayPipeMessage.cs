@@ -8,6 +8,8 @@ namespace OnionProcOparetor.AgentTray.Models;
 /// - "HideLockScreen" — ปิดหน้าจอล็อก (Message/Title ไม่ใช้)
 /// - "StartVncSession" — start winvnc.exe ในนี้เอง (ใช้ RequestingConsoleSessionId) - ต้องทำจาก
 ///   AgentTray เพราะรันใน user session จริง ต่างจาก Agent (Session 0 - capture หน้าจอไม่ได้เลย)
+/// - "StopVncSession" — หยุด winvnc.exe (Message/Title/RequestingConsoleSessionId ไม่ใช้) - Agent
+///   ส่งเองอัตโนมัติตอนไม่มี Console ต่อเข้ามาเลย/reconnect ไม่ทันเวลา (lazy-start)
 /// </summary>
 public class AgentTrayPipeMessage
 {

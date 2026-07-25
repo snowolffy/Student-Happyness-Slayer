@@ -34,6 +34,9 @@ public class BroadcastPipeListener
     /// <summary>เรียกทุกครั้งที่ Agent สั่งเปิด VNC session (payload = RequestingConsoleSessionId) - เรียกจาก background thread ไม่ใช่ UI thread</summary>
     public event Action<string>? StartVncSessionRequested;
 
+    /// <summary>เรียกทุกครั้งที่ Agent สั่งหยุด VNC session (ไม่มี Console ต่อเข้ามาเลย/reconnect ไม่ทันเวลา - ดู VncSessionManager.MonitorSessionAsync) - เรียกจาก background thread ไม่ใช่ UI thread</summary>
+    public event Action? StopVncSessionRequested;
+
     /// <summary>เริ่มฟัง pipe แบบ fire-and-forget - มี retry loop ในตัว ไม่ throw ออกมาแม้เปิด pipe ไม่สำเร็จ</summary>
     public void Start(CancellationToken ct)
     {
@@ -119,6 +122,10 @@ public class BroadcastPipeListener
                     {
                         StartVncSessionRequested?.Invoke(envelope.RequestingConsoleSessionId);
                     }
+                    break;
+
+                case "StopVncSession":
+                    StopVncSessionRequested?.Invoke();
                     break;
 
                 default:

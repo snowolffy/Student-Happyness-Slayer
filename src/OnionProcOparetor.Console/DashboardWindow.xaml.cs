@@ -1,5 +1,7 @@
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Media;
+using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using OnionProcOparetor.Console.Models;
 using OnionProcOparetor.Console.Services;
@@ -8,9 +10,23 @@ namespace OnionProcOparetor.Console;
 
 public partial class DashboardWindow : Window
 {
+    private static readonly TimeSpan VncSessionReadyTimeout = TimeSpan.FromSeconds(15);
+
     private readonly ApiClient _apiClient;
     private readonly DispatcherTimer _autoRefreshTimer;
     private readonly LabHubClient _labHubClient = new();
+
+    // ==================== Step 4d: embedded VNC screen view (SCREEN VIEW tab) ====================
+    // ทุก field ตรงนี้แตะ/แก้ได้จาก UI thread เท่านั้น (ไม่มี lock ป้องกัน race เพราะทุกจุดที่แก้เป็น
+    // UI-thread event handler ทั้งหมด - RfbClient framebuffer loop เองรันบน background thread แยก
+    // แต่ callback ของมันเขียนกลับผ่าน Dispatcher.Invoke เท่านั้น) _vncSessionGeneration ใช้กันกรณี
+    // await ที่ค้างอยู่ (เช่นกำลังรอ RequestVncSessionAsync/handshake ของเครื่องเก่า) resume มาแล้วโลก
+    // เปลี่ยนไปแล้ว (ผู้ใช้สลับเครื่อง/ปิดแท็บระหว่างรอ) - ต้องรู้ตัวว่าเป็นของเก่าแล้วไม่เขียนทับ UI/state
+    // ปัจจุบัน (ดู ShowVncViewAsync/StreamVncAsync/OnVncRectangleDecoded)
+    private int _vncSessionGeneration;
+    private RfbClient? _vncClient;
+    private WriteableBitmap? _vncBitmap;
+    private CancellationTokenSource? _vncStreamCts;
 
     public DashboardWindow(ApiClient apiClient)
     {
@@ -35,6 +51,7 @@ public partial class DashboardWindow : Window
         Closed += async (_, _) =>
         {
             _autoRefreshTimer.Stop();
+            DisconnectVncView();
             _labHubClient.ClientStatusChanged -= OnClientStatusChangedFromHub;
             await _labHubClient.DisposeAsync();
         };
@@ -118,12 +135,17 @@ public partial class DashboardWindow : Window
             return;
         }
 
-        var panel = new ActionPanelWindow(_apiClient, client, _labHubClient) { Owner = this };
+        var panel = new ActionPanelWindow(_apiClient, client) { Owner = this };
         panel.ShowDialog();
 
         if (panel.DataChanged)
         {
             await LoadAllDataAsync();
+        }
+
+        if (panel.ViewScreenRequested is not null)
+        {
+            await ShowVncViewAsync(panel.ViewScreenRequested);
         }
     }
 
@@ -385,4 +407,208 @@ public partial class DashboardWindow : Window
     private void ClientsSearchBox_TextChanged(object sender, TextChangedEventArgs e) => ApplyClientsFilter();
     private void RulesSearchBox_TextChanged(object sender, TextChangedEventArgs e) => ApplyRulesFilter();
     private void LogsSearchBox_TextChanged(object sender, TextChangedEventArgs e) => ApplyLogsFilter();
+
+    // ==================== Step 4d: embedded VNC screen view ====================
+
+    /// <summary>
+    /// เรียกจากปุ่ม VIEW SCREEN ใน ActionPanelWindow (single-client mode) - ตัด session เดิม (ถ้ามี) ทิ้ง
+    /// ก่อนเสมอ แล้วสลับไปแท็บ SCREEN VIEW เริ่มขอ session ใหม่ ทุก await ข้างล่างเช็ค myGeneration ก่อน
+    /// แตะ UI/state เสมอ กันกรณีผู้ใช้สลับไปดูเครื่องอื่น/ปิดแท็บระหว่างที่ยังรออยู่ (เช่น รอ Agent ตอบ
+    /// หรือรอ handshake) ทำให้ผลลัพธ์ที่มาช้าของ session เก่าไปเขียนทับ session ใหม่กว่า
+    /// </summary>
+    private async Task ShowVncViewAsync(ClientMachineDto client)
+    {
+        DisconnectVncView();
+        var myGeneration = ++_vncSessionGeneration;
+
+        VncHeaderText.Text = $"Screen View - {client.MachineName}";
+        VncStatusText.Text = "Connecting...";
+        VncScreenImage.Source = null;
+        MainTabControl.SelectedItem = ScreenViewTabItem;
+
+        if (string.IsNullOrWhiteSpace(client.LastKnownIp))
+        {
+            VncStatusText.Text = "Failed to connect: ไม่ทราบ IP เป้าหมาย (LastKnownIp ว่าง - รอ Agent poll เข้ามาอีกครั้ง)";
+            return;
+        }
+
+        var sessionResult = await RequestVncSessionAsync(client);
+        if (myGeneration != _vncSessionGeneration)
+        {
+            return; // ถูกแทนที่ไปแล้วระหว่างรอ Agent ตอบ (สลับเครื่อง/ปิดแท็บ) - ทิ้งผลลัพธ์นี้
+        }
+
+        if (!sessionResult.Success)
+        {
+            VncStatusText.Text = $"Failed to connect: {sessionResult.FailureReason}";
+            return;
+        }
+
+        var rfbClient = new RfbClient();
+        var handshakeResult = await rfbClient.ConnectAndHandshakeAsync(
+            client.LastKnownIp, sessionResult.Port, sessionResult.Password!);
+
+        if (myGeneration != _vncSessionGeneration)
+        {
+            rfbClient.Dispose(); // ถูกแทนที่ไปแล้วระหว่างรอ handshake - ปิด connection ที่เพิ่ง connect ทิ้งกัน socket ค้าง
+            return;
+        }
+
+        if (!handshakeResult.Success)
+        {
+            VncStatusText.Text = $"Failed to connect: {handshakeResult.FailureReason}";
+            rfbClient.Dispose();
+            return;
+        }
+
+        var bitmap = new WriteableBitmap(
+            handshakeResult.FramebufferWidth, handshakeResult.FramebufferHeight, 96, 96, PixelFormats.Bgr32, null);
+        VncScreenImage.Source = bitmap;
+        VncStatusText.Text = "Connected";
+
+        _vncClient = rfbClient;
+        _vncBitmap = bitmap;
+        var cts = new CancellationTokenSource();
+        _vncStreamCts = cts;
+
+        // Task.Run เพื่อให้ loop ข้างในรันบน thread pool thread จริง (เหมือน VncTestWindow เดิม) - กัน
+        // await ข้างในถูก marshal กลับ UI thread เองอัตโนมัติจนบล็อก UI ระหว่างรอ network I/O
+        _ = Task.Run(() => StreamVncAsync(rfbClient, bitmap, cts.Token));
+    }
+
+    /// <summary>
+    /// ตัด session ปัจจุบันทิ้ง (ถ้ามี) - เรียกได้จากหลายจุด: ก่อนเริ่ม session ใหม่, กดปุ่ม DISCONNECT,
+    /// สลับออกจากแท็บ SCREEN VIEW (MainTabControl_SelectionChanged), หรือปิดหน้าต่าง Dashboard เพิ่ม
+    /// generation ก่อนเสมอ (แม้ไม่มี session ค้างอยู่เลย) เพื่อให้ ShowVncViewAsync ที่อาจกำลัง await
+    /// ค้างอยู่ (ยังไม่ทันตั้ง _vncClient/_vncBitmap) รู้ตัวว่าถูกยกเลิกไปแล้วตอน resume เหมือนกัน
+    /// </summary>
+    private void DisconnectVncView()
+    {
+        _vncSessionGeneration++;
+
+        _vncStreamCts?.Cancel();
+        _vncStreamCts = null;
+
+        _vncClient?.Dispose();
+        _vncClient = null;
+
+        _vncBitmap = null;
+        VncScreenImage.Source = null;
+    }
+
+    private void VncDisconnectButton_Click(object sender, RoutedEventArgs e)
+    {
+        DisconnectVncView();
+        VncHeaderText.Text = "ยังไม่ได้เลือกเครื่อง - กด VIEW SCREEN จากรายการ Clients";
+        VncStatusText.Text = "ตัดการเชื่อมต่อแล้ว";
+    }
+
+    /// <summary>
+    /// SelectionChanged ของ Selector (TabControl/DataGrid/ComboBox ทุกตัวใช้ RoutedEvent ร่วมกัน) bubble
+    /// ขึ้นมาจาก control ข้างในแท็บได้ (เช่น ClientsGrid) - เช็ค OriginalSource ตรงกับ MainTabControl เอง
+    /// เท่านั้นถึงจะถือว่าเป็นการสลับแท็บจริง กันเรียก DisconnectVncView ผิดจังหวะ (เช่นแค่คลิกแถวใน DataGrid)
+    /// </summary>
+    private void MainTabControl_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (!ReferenceEquals(e.OriginalSource, MainTabControl))
+        {
+            return;
+        }
+
+        if (e.RemovedItems.Contains(ScreenViewTabItem))
+        {
+            DisconnectVncView();
+            VncHeaderText.Text = "ยังไม่ได้เลือกเครื่อง - กด VIEW SCREEN จากรายการ Clients";
+            VncStatusText.Text = "";
+        }
+    }
+
+    private async Task StreamVncAsync(RfbClient rfbClient, WriteableBitmap bitmap, CancellationToken ct)
+    {
+        try
+        {
+            await rfbClient.RunFramebufferUpdateLoopAsync(rect => OnVncRectangleDecoded(bitmap, rect), ct);
+        }
+        catch (OperationCanceledException)
+        {
+            // disconnect ปกติ (สลับเครื่อง/ปิดแท็บ/ปิดหน้าต่าง) - ไม่ต้องรายงาน
+        }
+        catch (Exception ex)
+        {
+            if (ct.IsCancellationRequested)
+            {
+                return; // เพิ่งถูก cancel พอดี (เช่น dispose ระหว่าง read) ไม่ใช่ error จริงของ session นี้
+            }
+
+            Dispatcher.Invoke(() =>
+            {
+                if (!ReferenceEquals(_vncBitmap, bitmap))
+                {
+                    return; // session นี้ถูกแทนที่ไปแล้ว - เพิกเฉย กัน UI เก่าทับ session ใหม่
+                }
+
+                VncStatusText.Text = $"Failed to connect: {ex.Message}";
+            });
+        }
+    }
+
+    /// <summary>เรียกจาก background thread ของ StreamVncAsync (ดู comment ที่จุดเรียก Task.Run ใน ShowVncViewAsync) - ต้อง marshal เข้า UI thread เองผ่าน Dispatcher เสมอ</summary>
+    private void OnVncRectangleDecoded(WriteableBitmap bitmap, RfbRectangle rect)
+    {
+        if (rect.Width == 0 || rect.Height == 0)
+        {
+            return;
+        }
+
+        Dispatcher.Invoke(() =>
+        {
+            if (!ReferenceEquals(_vncBitmap, bitmap))
+            {
+                return; // session นี้ถูกแทนที่ไปแล้ว - เพิกเฉย
+            }
+
+            var area = new Int32Rect(rect.X, rect.Y, rect.Width, rect.Height);
+            bitmap.WritePixels(area, rect.PixelData, rect.Width * 4, 0);
+        });
+    }
+
+    /// <summary>
+    /// ส่ง command StartVncSession แล้วรอผลผ่าน LabHubClient event เดียวกับที่ DashboardWindow subscribe
+    /// อยู่แล้ว (SessionId เดียวกันตลอดอายุ Dashboard) มี timeout กันค้างถ้า Agent ไม่ตอบ (offline/SignalR
+    /// หลุด) - subscribe/unsubscribe event ชั่วคราวเฉพาะช่วงรอนี้เท่านั้น (เหมือน VncTestWindow เดิม)
+    /// </summary>
+    private async Task<(bool Success, int Port, string? Password, string? FailureReason)> RequestVncSessionAsync(ClientMachineDto client)
+    {
+        var tcs = new TaskCompletionSource<(bool, int, string?, string?)>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        void OnReady(int port, string password) => tcs.TrySetResult((true, port, password, null));
+        void OnFailed(string reason) => tcs.TrySetResult((false, 0, null, reason));
+
+        _labHubClient.VncSessionReady += OnReady;
+        _labHubClient.VncSessionFailed += OnFailed;
+
+        try
+        {
+            var sent = await _apiClient.SendCommandAsync(client.ClientGuid, "StartVncSession",
+                new { requestingConsoleSessionId = _labHubClient.SessionId });
+
+            if (!sent)
+            {
+                return (false, 0, null, "ส่ง command StartVncSession ไปยัง Server ไม่สำเร็จ (HTTP)");
+            }
+
+            var completed = await Task.WhenAny(tcs.Task, Task.Delay(VncSessionReadyTimeout));
+            if (completed != tcs.Task)
+            {
+                return (false, 0, null, $"รอ Agent ตอบกลับเกิน {VncSessionReadyTimeout.TotalSeconds} วิ (Agent อาจ offline หรือ SignalR ไม่ connected)");
+            }
+
+            return await tcs.Task;
+        }
+        finally
+        {
+            _labHubClient.VncSessionReady -= OnReady;
+            _labHubClient.VncSessionFailed -= OnFailed;
+        }
+    }
 }

@@ -36,10 +36,8 @@
                 <Button Canvas.Left="180" Canvas.Top="152" Width="172" x:Name="ShutdownButton" Content="SHUTDOWN"
                         Style="{StaticResource ButtonDanger}" Click="ShutdownButton_Click"/>
 
-                <!-- ชั่วคราวสำหรับทดสอบ Step 4b (RFB handshake) เท่านั้น - ไม่ใช่ production UI ยังไม่มี
-                     framebuffer render/embed จริง แค่ทดสอบว่า connect+authenticate ผ่านไหม -->
-                <Button Canvas.Left="0" Canvas.Top="200" Width="352" x:Name="VncTestButton" Content="VNC TEST (temp - handshake only)"
-                        Style="{StaticResource ButtonSecondary}" Click="VncTestButton_Click"/>
+                <Button Canvas.Left="0" Canvas.Top="200" Width="352" x:Name="ViewScreenButton" Content="VIEW SCREEN"
+                        Style="{StaticResource ButtonSecondary}" Click="ViewScreenButton_Click"/>
 
                 <Button Canvas.Left="0" Canvas.Top="296" Width="352" x:Name="DeleteButton" Content="DELETE"
                         Style="{StaticResource ButtonDanger}" Click="DeleteButton_Click"/>
