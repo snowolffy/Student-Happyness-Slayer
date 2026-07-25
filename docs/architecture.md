@@ -1019,3 +1019,53 @@ challenge/response → **Auth result: OK** → ClientInit → **ServerInit: 1920
 "com-23 (192.168.201.16, 192.168.200.188) - application mode"** — ยืนยันว่า winvnc.exe (ผ่าน
 AgentTray) เห็น desktop จริงของ user แล้ว Step 4b เสร็จสมบูรณ์ตาม scope ที่ตกลงไว้ (connect+auth+
 ServerInit เท่านั้น ยังไม่ FramebufferUpdate/render — Step 4c/4d)
+
+## Update Log: VNC remote-view feature (Step 4c) — 2026-07-25
+
+เป้าหมาย: ต่อจาก Step 4b (handshake ผ่านแล้ว) — request framebuffer จาก server, decode, แสดงเป็น
+ภาพจริงใน Console (view-only ยังไม่รับ mouse/keyboard input — เก็บไว้ Step 4d)
+
+### Implementation (`RfbClient.cs`)
+
+- `SendSetPixelFormatAsync` — กำหนด pixel format ที่ client ต้องการรับ: 32bpp/depth 24/
+  little-endian/true-colour, red-shift 16/green-shift 8/blue-shift 0 (RFC 6143 §7.5.1) จงใจเลือก
+  ค่านี้ให้ byte layout ตรงกับ `PixelFormats.Bgr32` ของ WPF พอดี (B,G,R,padding เรียงจาก address
+  ต่ำไปสูงเมื่อ little-endian) ทำให้ pixel data ที่ server ส่งมาเขียนลง `WriteableBitmap` ได้ตรงๆ
+  ไม่ต้องมี loop แปลง byte order/สลับ channel เพิ่มเลย
+- `SendSetEncodingsAsync` — ประกาศรองรับแค่ Raw encoding (type 0) เท่านั้น (Hextile/Tight/ZRLE เก็บ
+  ไว้ Step 4d+ ตามที่ตกลง — Raw ช้าแต่ implement ง่ายและถูกต้องแน่นอน)
+- `RunFramebufferUpdateLoopAsync` — ขอเต็มจอก่อน (`incremental=0`) รอบแรก แล้ว loop ขอต่อแบบ
+  `incremental=1` ทันทีที่ประมวลผลรอบก่อนหน้าเสร็จ ไม่ใช้ timer แยก — อาศัย behavior ธรรมชาติของ RFB
+  ที่ server จะ "ค้างรอ" จนกว่าจะมีอะไรเปลี่ยนก่อนตอบ incremental request เป็น throttle ในตัวอยู่แล้ว
+- `ReadFramebufferUpdateAsync` — parse rectangle header + decode Raw ด้วย `ReadExactAsync` ล้วน
+  (TCP fragment ได้เสมอ ห้ามสมมติว่า 1 read = 1 message เต็ม) ถ้าเจอ encoding type อื่นที่ไม่ใช่ Raw
+  จะ throw ทันทีแทนการเดาวิธี decode
+
+### UI (`VncTestWindow.xaml`/`.xaml.cs`)
+
+ขยายหน้าต่างทดสอบเดิมให้ resizable พร้อม `Image` control (`Stretch="Uniform"`) ผูกกับ
+`WriteableBitmap` ขนาดเท่า framebuffer จริง หลัง handshake สำเร็จ รัน `RunFramebufferUpdateLoopAsync`
+ผ่าน `Task.Run` (thread pool thread จริง ไม่มี WPF `SynchronizationContext` ผูกอยู่ — กัน await
+ข้างในถูก marshal กลับ UI thread เองอัตโนมัติจนบล็อก UI ระหว่างรอ network I/O) callback ต่อ
+rectangle เขียนลง bitmap ผ่าน `Dispatcher.Invoke` เท่านั้น (`WritePixels(Int32Rect, ...)` เป็น
+convenience overload ที่ทำ Lock/AddDirtyRect/Unlock ให้ในตัวอยู่แล้ว)
+
+### Bug ที่เจอระหว่าง debug
+
+**`AppendLog` cross-thread access** (`InvalidOperationException: The calling thread cannot access
+this object because a different thread owns it`) — `AppendLog` (event handler ของ
+`RfbClient.LogMessage`) ถูกออกแบบไว้ตอน Step 4b โดยสมมติว่าโดนเรียกจาก UI thread เสมอ (ตอนนั้น
+`ConnectAndHandshakeAsync` เรียกตรงจาก UI-thread continuation จริง) แต่ Step 4c ย้าย
+`RunFramebufferUpdateLoopAsync` ไปรันบน background thread ตามที่ตั้งใจ (ดูด้านบน) ทำให้
+`Log(...)` ที่เรียกจากใน `SendSetPixelFormatAsync`/`SendSetEncodingsAsync` ไปแตะ
+`LogTextBox.AppendText(...)` (WPF control) จาก background thread ตรงๆ โดยไม่ผ่าน Dispatcher —
+verify จาก log จริง (เห็นว่าหยุดพอดีก่อนบรรทัด "ส่ง SetPixelFormat" ที่ควรจะขึ้น) และจาก VS debug
+output (`InvalidOperationException` 2 ครั้งจาก `WindowsBase.dll` ตรงกับจำนวน `Log()` call ก่อนเข้า
+loop พอดี) แก้โดยเพิ่ม `Dispatcher.CheckAccess()` guard ใน `AppendLog` ให้ marshal เองถ้าถูกเรียกจาก
+thread อื่น แทนที่จะพึ่งว่าผู้เรียกอยู่ thread ไหน
+
+### ผลทดสอบ (2026-07-25, บนเครื่อง COM-23 จริง)
+
+Stream ภาพหน้าจอจริงขึ้นใน Console ได้สำเร็จ อัปเดตต่อเนื่องตามการเปลี่ยนแปลงบนจอเครื่องเป้าหมายจริง
+(ยืนยันด้วยตาโดยขยับเมาส์/เปิดโปรแกรมบน COM-23 แล้วเห็นภาพขยับตาม) Step 4c เสร็จสมบูรณ์ตาม scope ที่
+ตกลงไว้ (Raw encoding, view-only, ยังไม่รับ input — Step 4d)

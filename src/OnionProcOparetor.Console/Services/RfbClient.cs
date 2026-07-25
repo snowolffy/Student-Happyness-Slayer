@@ -4,7 +4,7 @@ using System.Text;
 
 namespace OnionProcOparetor.Console.Services;
 
-/// <summary>ผลลัพธ์ของ handshake - Step 4b ทำแค่ต่อ+authenticate+อ่าน ServerInit เท่านั้น ยังไม่ request framebuffer</summary>
+/// <summary>ผลลัพธ์ของ handshake - ต่อ+authenticate+อ่าน ServerInit (Step 4b) ก่อนจะเริ่ม stream framebuffer ได้ (Step 4c ผ่าน RunFramebufferUpdateLoopAsync)</summary>
 public sealed class RfbHandshakeResult
 {
     public required bool Success { get; init; }
@@ -15,11 +15,26 @@ public sealed class RfbHandshakeResult
 }
 
 /// <summary>
+/// หนึ่ง rectangle จาก FramebufferUpdate ที่ decode แล้ว (Raw encoding เท่านั้น - ดู RunFramebufferUpdateLoopAsync)
+/// PixelData เรียงเป็น BGRX ทีละ 4 byte/pixel ตรงกับ PixelFormats.Bgr32 ของ WPF พอดี (stride = Width * 4)
+/// เพราะ SetPixelFormat ที่ส่งไปกำหนด little-endian + red-shift 16/green-shift 8/blue-shift 0 ไว้ตรงกัน
+/// ตั้งแต่ต้น - เขียนลง WriteableBitmap ได้ตรงๆ ไม่ต้องแปลง byte order/สลับ channel เพิ่ม
+/// </summary>
+public sealed class RfbRectangle
+{
+    public required ushort X { get; init; }
+    public required ushort Y { get; init; }
+    public required ushort Width { get; init; }
+    public required ushort Height { get; init; }
+    public required byte[] PixelData { get; init; }
+}
+
+/// <summary>
 /// RFB protocol client (RFC 6143) - เชื่อม TCP ตรงไปยัง winvnc.exe บนเครื่อง Agent เป้าหมาย ไม่พึ่ง
-/// library ภายนอกใดๆ (ตามที่ตกลง) รองรับแค่เท่าที่ Step 4b ต้องการ: ProtocolVersion handshake,
-/// Security handshake (เฉพาะ VNC Authentication - type 2 เท่านั้น เพราะ UltraVNC ที่ VncSessionManager
-/// ตั้งค่าไว้ใช้ type นี้), ClientInit/ServerInit ยังไม่ทำ FramebufferUpdate request/decode หรือ input
-/// event ใดๆ (Step 4c/4d)
+/// library ภายนอกใดๆ (ตามที่ตกลง) Step 4b: ProtocolVersion/Security handshake (เฉพาะ VNC
+/// Authentication - type 2 เพราะ UltraVNC ที่ VncSessionManager ตั้งค่าไว้ใช้ type นี้)/ClientInit/
+/// ServerInit Step 4c (เพิ่มในรอบนี้): SetPixelFormat/SetEncodings(Raw เท่านั้น)/FramebufferUpdateRequest
+/// loop + decode Raw rectangle ยังไม่ทำ input event ใดๆ (mouse/keyboard - Step 4d+)
 ///
 /// เชื่อม TCP ตรงจาก Console ไปยัง Agent เครื่องเป้าหมาย ไม่ผ่าน Server เป็น relay เลย (Server แค่ช่วย
 /// ส่ง port/password ผ่าน SignalR ให้ตอน StartVncSession เท่านั้น - ดู LabHubClient.VncSessionReady)
@@ -30,8 +45,17 @@ public sealed class RfbClient : IDisposable
     private const int DesKeyLength = 8;
     private const byte VncAuthSecurityType = 2;
 
+    private const byte ClientSetPixelFormatMessageType = 0;
+    private const byte ClientSetEncodingsMessageType = 2;
+    private const byte ClientFramebufferUpdateRequestMessageType = 3;
+    private const byte ServerFramebufferUpdateMessageType = 0;
+    private const int RawEncodingType = 0;
+    private const int BytesPerPixel = 4;
+
     private TcpClient? _tcpClient;
     private NetworkStream? _stream;
+    private ushort _framebufferWidth;
+    private ushort _framebufferHeight;
 
     /// <summary>เรียกทุก step ของ handshake พร้อมข้อความละเอียด (debug ง่ายถ้าติด ตามที่ขอ) - เรียกจาก thread ที่เรียก ConnectAndHandshakeAsync เอง ไม่ใช่ background thread แยก</summary>
     public event Action<string>? LogMessage;
@@ -62,8 +86,10 @@ public sealed class RfbClient : IDisposable
 
             await SendClientInitAsync(ct);
             var serverInit = await ReadServerInitAsync(ct);
+            _framebufferWidth = serverInit.Width;
+            _framebufferHeight = serverInit.Height;
 
-            Log("Handshake สำเร็จครบทุกขั้นตอน (ยังไม่ request framebuffer - Step 4b จบแค่นี้)");
+            Log("Handshake สำเร็จครบทุกขั้นตอน - เรียก RunFramebufferUpdateLoopAsync ต่อเพื่อเริ่ม stream ภาพ (Step 4c)");
 
             return new RfbHandshakeResult
             {
@@ -239,6 +265,139 @@ public sealed class RfbClient : IDisposable
         return (width, height, desktopName);
     }
 
+    // ==================== 5. Framebuffer streaming (RFC 6143 §7.5.1-7.5.3, §7.6.1) - Step 4c ====================
+
+    /// <summary>
+    /// เรียกได้ครั้งเดียวหลัง ConnectAndHandshakeAsync สำเร็จเท่านั้น (ใช้ stream เดิม ต่อ handshake เดิม)
+    /// ทำ SetPixelFormat -> SetEncodings(Raw) -> FramebufferUpdateRequest(incremental=0, เต็มจอ) แล้ว loop
+    /// อ่าน FramebufferUpdate ทีละรอบ decode Raw rectangle ส่งต่อให้ onRectangle แล้วขอรอบถัดไปแบบ
+    /// incremental=1 ทันทีที่ประมวลผลรอบก่อนหน้าเสร็จ (ไม่ใช้ timer แยก - เลือกแบบนี้เพราะ implement ง่ายกว่า
+    /// และ RFB spec เองก็ทำงานแบบ "ค้างรอจนกว่าจะมีอะไรเปลี่ยน" อยู่แล้วสำหรับ incremental request ทำให้ได้
+    /// throttling ตามธรรมชาติโดยไม่ต้องเขียน timer เพิ่ม)
+    ///
+    /// onRectangle ถูกเรียกบน thread เดียวกับที่ loop นี้รันอยู่ (ไม่ marshal เอง) - ผู้เรียกต้องรัน
+    /// method นี้ผ่าน Task.Run เองถ้าต้องการให้ decode/callback ไม่ block UI thread (ดู
+    /// VncTestWindow.StreamFramebufferAsync ที่ marshal กลับ UI thread เฉพาะตอนเขียนลง WriteableBitmap
+    /// ผ่าน Dispatcher เท่านั้น)
+    /// </summary>
+    public async Task RunFramebufferUpdateLoopAsync(Action<RfbRectangle> onRectangle, CancellationToken ct)
+    {
+        await SendSetPixelFormatAsync(ct);
+        await SendSetEncodingsAsync(ct);
+        await SendFramebufferUpdateRequestAsync(incremental: false, 0, 0, _framebufferWidth, _framebufferHeight, ct);
+
+        while (true)
+        {
+            ct.ThrowIfCancellationRequested();
+
+            var rectangles = await ReadFramebufferUpdateAsync(ct);
+            foreach (var rectangle in rectangles)
+            {
+                onRectangle(rectangle);
+            }
+
+            await SendFramebufferUpdateRequestAsync(incremental: true, 0, 0, _framebufferWidth, _framebufferHeight, ct);
+        }
+    }
+
+    /// <summary>
+    /// กำหนด pixel format ที่ต้องการรับ: 32bpp/depth 24/little-endian/true-colour, red-shift 16,
+    /// green-shift 8, blue-shift 0 - จงใจเลือกให้ตรงกับ byte layout ของ PixelFormats.Bgr32 ใน WPF
+    /// พอดี (B,G,R,padding เรียงจาก address ต่ำไปสูงเมื่อเป็น little-endian) เพื่อเขียน pixel data ที่ได้
+    /// ลง WriteableBitmap ตรงๆ ไม่ต้องมี loop แปลง byte order/สลับ channel เพิ่มเลย (RFC 6143 §7.5.1)
+    /// </summary>
+    private async Task SendSetPixelFormatAsync(CancellationToken ct)
+    {
+        var msg = new byte[20];
+        msg[0] = ClientSetPixelFormatMessageType;
+        // msg[1..3] padding
+        msg[4] = 32; // bits-per-pixel
+        msg[5] = 24; // depth
+        msg[6] = 0;  // big-endian-flag = false
+        msg[7] = 1;  // true-colour-flag = true
+        WriteUInt16BigEndian(msg, 8, 255);  // red-max
+        WriteUInt16BigEndian(msg, 10, 255); // green-max
+        WriteUInt16BigEndian(msg, 12, 255); // blue-max
+        msg[14] = 16; // red-shift
+        msg[15] = 8;  // green-shift
+        msg[16] = 0;  // blue-shift
+        // msg[17..19] padding
+
+        await WriteAsync(msg, ct);
+        Log("ส่ง SetPixelFormat: 32bpp depth24 little-endian (R shift16/G shift8/B shift0) - ตรงกับ WPF Bgr32");
+    }
+
+    /// <summary>รองรับแค่ Raw encoding (type 0) เท่านั้นในตอนนี้ (Hextile/Tight/ZRLE เก็บไว้ Step 4d+ ตามที่ตกลง) - RFC 6143 §7.5.2</summary>
+    private async Task SendSetEncodingsAsync(CancellationToken ct)
+    {
+        var msg = new byte[8];
+        msg[0] = ClientSetEncodingsMessageType;
+        // msg[1] padding
+        WriteUInt16BigEndian(msg, 2, 1); // number-of-encodings
+        WriteInt32BigEndian(msg, 4, RawEncodingType);
+
+        await WriteAsync(msg, ct);
+        Log("ส่ง SetEncodings: [Raw]");
+    }
+
+    /// <summary>RFC 6143 §7.5.3</summary>
+    private async Task SendFramebufferUpdateRequestAsync(bool incremental, ushort x, ushort y, ushort width, ushort height, CancellationToken ct)
+    {
+        var msg = new byte[10];
+        msg[0] = ClientFramebufferUpdateRequestMessageType;
+        msg[1] = (byte)(incremental ? 1 : 0);
+        WriteUInt16BigEndian(msg, 2, x);
+        WriteUInt16BigEndian(msg, 4, y);
+        WriteUInt16BigEndian(msg, 6, width);
+        WriteUInt16BigEndian(msg, 8, height);
+
+        await WriteAsync(msg, ct);
+    }
+
+    /// <summary>
+    /// อ่าน FramebufferUpdate หนึ่งข้อความเต็ม (header + ทุก rectangle ข้างใน) - RFC 6143 §7.6.1 TCP
+    /// เป็น stream ไม่ใช่ message-based จริง ทุกจุดในนี้จึงต้อง ReadExactAsync ให้ครบตาม length ที่ระบุ
+    /// เสมอ (ห้ามสมมติว่า 1 read = 1 message/1 rectangle เต็ม - fragment ได้ทุกเมื่อ)
+    /// </summary>
+    private async Task<List<RfbRectangle>> ReadFramebufferUpdateAsync(CancellationToken ct)
+    {
+        var header = await ReadExactAsync(4, ct);
+        var messageType = header[0];
+        if (messageType != ServerFramebufferUpdateMessageType)
+        {
+            throw new InvalidOperationException(
+                $"คาดว่าจะได้ FramebufferUpdate (message type 0) แต่ได้ type {messageType} แทน - ยังไม่รองรับ server-to-client message type อื่น (เช่น Bell/ServerCutText) ในตอนนี้");
+        }
+
+        var rectangleCount = ReadUInt16BigEndian(header[2..4]);
+        var rectangles = new List<RfbRectangle>(rectangleCount);
+
+        for (var i = 0; i < rectangleCount; i++)
+        {
+            var rectHeader = await ReadExactAsync(12, ct);
+            var x = ReadUInt16BigEndian(rectHeader[0..2]);
+            var y = ReadUInt16BigEndian(rectHeader[2..4]);
+            var width = ReadUInt16BigEndian(rectHeader[4..6]);
+            var height = ReadUInt16BigEndian(rectHeader[6..8]);
+            var encodingType = ReadInt32BigEndian(rectHeader[8..12]);
+
+            if (encodingType != RawEncodingType)
+            {
+                // เรา SetEncodings ไปแค่ [Raw] เท่านั้น ถ้า server ยังส่ง encoding อื่นมาแปลว่าไม่ทำตาม spec
+                // หรือมี pseudo-encoding ที่ไม่ได้คาดไว้ - หยุด/throw เพื่อรายงานแทนที่จะเดาวิธี decode
+                throw new NotSupportedException(
+                    $"Server ส่ง rectangle encoding type {encodingType} มา แต่ SetEncodings ระบุแค่ Raw (0) ไปแล้ว - รองรับแค่ Raw เท่านั้นในตอนนี้");
+            }
+
+            var pixelByteCount = checked(width * height * BytesPerPixel);
+            var pixelData = pixelByteCount > 0 ? await ReadExactAsync(pixelByteCount, ct) : [];
+
+            rectangles.Add(new RfbRectangle { X = x, Y = y, Width = width, Height = height, PixelData = pixelData });
+        }
+
+        return rectangles;
+    }
+
     // ==================== I/O helpers ====================
 
     private async Task<byte[]> ReadExactAsync(int count, CancellationToken ct)
@@ -283,6 +442,23 @@ public sealed class RfbClient : IDisposable
 
     private static uint ReadUInt32BigEndian(byte[] bytes) =>
         ((uint)bytes[0] << 24) | ((uint)bytes[1] << 16) | ((uint)bytes[2] << 8) | bytes[3];
+
+    private static int ReadInt32BigEndian(byte[] bytes) =>
+        (bytes[0] << 24) | (bytes[1] << 16) | (bytes[2] << 8) | bytes[3];
+
+    private static void WriteUInt16BigEndian(byte[] buffer, int offset, ushort value)
+    {
+        buffer[offset] = (byte)(value >> 8);
+        buffer[offset + 1] = (byte)value;
+    }
+
+    private static void WriteInt32BigEndian(byte[] buffer, int offset, int value)
+    {
+        buffer[offset] = (byte)(value >> 24);
+        buffer[offset + 1] = (byte)(value >> 16);
+        buffer[offset + 2] = (byte)(value >> 8);
+        buffer[offset + 3] = (byte)value;
+    }
 
     private RfbHandshakeResult Fail(string reason) => new() { Success = false, FailureReason = reason };
 
