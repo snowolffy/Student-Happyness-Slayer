@@ -138,6 +138,24 @@ public sealed class VncSessionHandle : IAsyncDisposable
         _rfbClient?.RequestModeSwitch(newMode);
     }
 
+    // ==================== Step 4g: input event forwarding (ยังไม่ผูกกับ UI จริง - test window เท่านั้น) ====================
+    // no-op เงียบๆ ถ้ายังไม่ Connected (_rfbClient เป็น null) แทนที่จะ throw - caller (เช่น test window)
+    // อาจส่งมาถึงในจังหวะที่ handle เพิ่งถูก dispose/ยังไม่ connect เสร็จพอดี ไม่ควรทำให้ caller ต้อง
+    // เช็ค Status เองทุกครั้งก่อนเรียก เหมือน pattern เดิมของ RequestModeSwitch (ที่ throw เพราะเรียกก่อน
+    // loop เริ่มถือเป็นการเรียกผิดจังหวะที่ควร fail ดังๆ - แต่ input event ระหว่าง session ที่ connect อยู่
+    // แล้วปิดพอดี ถือเป็นเรื่องปกติที่เกิดขึ้นได้บ่อยกว่ามาก ไม่ควร throw)
+    public Task SendKeyPressAsync(int vkCode, bool isDown, CancellationToken ct = default) =>
+        _rfbClient?.SendKeyPressAsync(vkCode, isDown, ct) ?? Task.CompletedTask;
+
+    public Task SendMouseMoveAsync(ushort x, ushort y, CancellationToken ct = default) =>
+        _rfbClient?.SendMouseMoveAsync(x, y, ct) ?? Task.CompletedTask;
+
+    public Task SendMouseButtonAsync(VncMouseButton button, bool isDown, ushort x, ushort y, CancellationToken ct = default) =>
+        _rfbClient?.SendMouseButtonAsync(button, isDown, x, y, ct) ?? Task.CompletedTask;
+
+    public Task SendMouseClickAsync(VncMouseButton button, ushort x, ushort y, CancellationToken ct = default) =>
+        _rfbClient?.SendMouseClickAsync(button, x, y, ct) ?? Task.CompletedTask;
+
     private void SetConnected()
     {
         lock (_stateLock)

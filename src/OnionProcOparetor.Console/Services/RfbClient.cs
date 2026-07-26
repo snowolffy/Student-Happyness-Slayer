@@ -46,14 +46,23 @@ public sealed class RfbRectangle
     public required byte[] PixelData { get; init; }
 }
 
+/// <summary>เมาส์ปุ่มไหน ตาม RFC 6143 §7.5.5 button-mask (bit 0=left, bit 1=middle, bit 2=right)</summary>
+public enum VncMouseButton
+{
+    Left,
+    Middle,
+    Right
+}
+
 /// <summary>
 /// RFB protocol client (RFC 6143) - เชื่อม TCP ตรงไปยัง winvnc.exe บนเครื่อง Agent เป้าหมาย ไม่พึ่ง
 /// library ภายนอกใดๆ (ตามที่ตกลง) Step 4b: ProtocolVersion/Security handshake (เฉพาะ VNC
 /// Authentication - type 2 เพราะ UltraVNC ที่ VncSessionManager ตั้งค่าไว้ใช้ type นี้)/ClientInit/
 /// ServerInit Step 4c: SetPixelFormat/SetEncodings(Raw เท่านั้น)/FramebufferUpdateRequest loop + decode
-/// Raw rectangle Step 4e (เพิ่มในรอบนี้): VncViewMode.Thumbnail - ลด bit depth บน wire + downscale ตอน
-/// decode + throttle หนักกว่าเดิมมาก สำหรับแสดงใน grid หลายเครื่องพร้อมกัน สลับ FullRes/Thumbnail ได้ระหว่าง
-/// session เดียวกัน (RequestModeSwitch) ไม่ต้อง reconnect ยังไม่ทำ input event ใดๆ (mouse/keyboard)
+/// Raw rectangle Step 4e: VncViewMode.Thumbnail - ลด bit depth บน wire + downscale ตอน decode + throttle
+/// หนักกว่าเดิมมาก สำหรับแสดงใน grid หลายเครื่องพร้อมกัน สลับ FullRes/Thumbnail ได้ระหว่าง session เดียวกัน
+/// (RequestModeSwitch) ไม่ต้อง reconnect Step 4g (เพิ่มในรอบนี้): PointerEvent/KeyEvent (RFC 6143
+/// §7.5.4/§7.5.5) - ยังไม่ผูกกับ UI จริง (mouse capture/coordinate scaling ตาม view คือ Step 4h)
 ///
 /// เชื่อม TCP ตรงจาก Console ไปยัง Agent เครื่องเป้าหมาย ไม่ผ่าน Server เป็น relay เลย (Server แค่ช่วย
 /// ส่ง port/password ผ่าน SignalR ให้ตอน StartVncSession เท่านั้น - ดู LabHubClient.VncSessionReady)
@@ -81,6 +90,8 @@ public sealed class RfbClient : IDisposable
     private const byte ClientSetPixelFormatMessageType = 0;
     private const byte ClientSetEncodingsMessageType = 2;
     private const byte ClientFramebufferUpdateRequestMessageType = 3;
+    private const byte ClientKeyEventMessageType = 4;
+    private const byte ClientPointerEventMessageType = 5;
     private const byte ServerFramebufferUpdateMessageType = 0;
     private const int RawEncodingType = 0;
     private const int FullResBytesPerPixel = 4;
@@ -101,6 +112,17 @@ public sealed class RfbClient : IDisposable
     private VncViewMode _currentMode = VncViewMode.FullRes;
     private VncViewMode? _pendingMode;
     private bool _loopStarted;
+
+    // Step 4g: input event ส่งจาก thread ที่เรียก (เช่น UI thread ในอนาคต) ขณะที่ framebuffer loop thread
+    // (RunFramebufferUpdateLoopAsync) ยัง "อ่าน" จาก stream เดิมพร้อมกันอยู่ - NetworkStream รองรับ 1 reader
+    // + 1 writer พร้อมกันได้อย่างปลอดภัยตามปกติ (คนละทิศทาง) แต่ "หลาย writer พร้อมกัน" (เช่น mouse-move
+    // กับ key-event มาถึงพร้อมกันจากสอง caller) ไม่ปลอดภัย - ใช้ semaphore ธรรมดาคั่นเฉพาะฝั่งเขียนเท่านั้น
+    // (WriteAsync ด้านล่าง) กันการเขียนซ้อนกันโดยไม่ต้องแก้ฝั่งอ่านเลย
+    private readonly SemaphoreSlim _writeLock = new(1, 1);
+
+    // Track ปุ่มเมาส์ที่กำลังถูกกดค้างอยู่ (สำหรับ SendMouseMoveAsync ระหว่างลาก - ต้องส่ง button-mask เดิม
+    // ต่อไปเรื่อยๆ ไม่ใช่ 0 เสมอ ไม่งั้นเครื่องปลายทางจะตีความว่าปล่อยปุ่มไปแล้วกลางอากาศ)
+    private byte _currentButtonMask;
 
     /// <summary>thumbnailMaxWidth/Height คือ "งบ" พื้นที่สูงสุด - ขนาด thumbnail จริงคำนวณตอนรู้ ServerInit แล้ว รักษาสัดส่วนภาพเดิมเสมอ (ดู ComputeThumbnailDimensions) ไม่ขยายภาพขึ้นถ้าจอต้นทางเล็กกว่างบอยู่แล้ว</summary>
     public RfbClient(int thumbnailMaxWidth = 320, int thumbnailMaxHeight = 240)
@@ -658,6 +680,73 @@ public sealed class RfbClient : IDisposable
         };
     }
 
+    // ==================== 6. Input events (RFC 6143 §7.5.4/§7.5.5) - Step 4g ====================
+    // ยังไม่ผูกกับ UI จริง (mouse capture จาก Image control/coordinate scaling ตาม view ที่ scale ไว้ -
+    // เก็บไว้ Step 4h) ทุก method ด้านล่างรับพิกัด x/y เป็นพิกัดจริงของ framebuffer เป้าหมาย (ไม่ใช่พิกัด
+    // ที่ scale ไว้ใน view) - ผู้เรียกต้องแปลงพิกัดเองก่อนเรียก
+
+    /// <summary>RFC 6143 §7.5.4 - down-flag + keysym (X11) ดิบๆ ไม่ผ่าน VncKeyMap (ใช้ตรงถ้ารู้ keysym อยู่แล้ว เช่นทดสอบ) ดู SendKeyPressAsync สำหรับแปลงจาก Windows VK code</summary>
+    public Task SendKeyEventAsync(bool isDown, uint keysym, CancellationToken ct = default)
+    {
+        var msg = new byte[8];
+        msg[0] = ClientKeyEventMessageType;
+        msg[1] = (byte)(isDown ? 1 : 0);
+        // msg[2..3] padding
+        WriteUInt32BigEndian(msg, 4, keysym);
+
+        return WriteAsync(msg, ct);
+    }
+
+    /// <summary>
+    /// แปลง Windows VK code -> X11 keysym ผ่าน VncKeyMap แล้วส่ง KeyEvent - ปุ่มที่ไม่มี mapping (ดู
+    /// VncKeyMap.UnmappableVirtualKeys) throw NotSupportedException พร้อมเหตุผลแทนที่จะส่ง keysym ผิดๆ
+    /// ไปเงียบๆ (กด key หนึ่งแล้วมีผลเป็นอีก key หนึ่งบนเครื่อง target อันตรายกว่าที่คิด - ตามที่ตกลง)
+    /// </summary>
+    public Task SendKeyPressAsync(int vkCode, bool isDown, CancellationToken ct = default)
+    {
+        if (!VncKeyMap.VirtualKeyToKeysym.TryGetValue(vkCode, out var keysym))
+        {
+            var reason = VncKeyMap.UnmappableVirtualKeys.TryGetValue(vkCode, out var why)
+                ? why
+                : "ไม่มีอยู่ใน VncKeyMap เลย (ไม่เคยพิจารณา ไม่ใช่ตั้งใจข้าม)";
+            throw new NotSupportedException($"VK code 0x{vkCode:X2} ไม่มี X11 keysym mapping ที่ถูกต้อง: {reason}");
+        }
+
+        return SendKeyEventAsync(isDown, keysym, ct);
+    }
+
+    /// <summary>RFC 6143 §7.5.5 ดิบๆ - button-mask ที่ระบุเองตรงๆ (ใช้ตอน caller ต้องการควบคุม mask เองแบบละเอียด เช่นกดหลายปุ่มพร้อมกัน) x/y เป็นพิกัดจริงของ framebuffer เป้าหมาย</summary>
+    public Task SendPointerEventAsync(byte buttonMask, ushort x, ushort y, CancellationToken ct = default)
+    {
+        var msg = new byte[6];
+        msg[0] = ClientPointerEventMessageType;
+        msg[1] = buttonMask;
+        WriteUInt16BigEndian(msg, 2, x);
+        WriteUInt16BigEndian(msg, 4, y);
+
+        return WriteAsync(msg, ct);
+    }
+
+    /// <summary>ขยับเมาส์เฉยๆ ไม่กดปุ่มเพิ่ม/ปล่อยปุ่ม - คง button-mask ปัจจุบันไว้ (สำคัญตอนลากเมาส์ขณะกดปุ่มค้าง ไม่งั้นเครื่องปลายทางเข้าใจผิดว่าปล่อยปุ่มไปแล้ว)</summary>
+    public Task SendMouseMoveAsync(ushort x, ushort y, CancellationToken ct = default) =>
+        SendPointerEventAsync(_currentButtonMask, x, y, ct);
+
+    /// <summary>กด/ปล่อยปุ่มเมาส์ตัวเดียว ที่ตำแหน่งที่ระบุ - อัพเดต button-mask ที่ track ไว้ในตัวด้วย (มีผลกับ SendMouseMoveAsync ครั้งถัดไป)</summary>
+    public Task SendMouseButtonAsync(VncMouseButton button, bool isDown, ushort x, ushort y, CancellationToken ct = default)
+    {
+        var bit = (byte)(1 << (int)button);
+        _currentButtonMask = isDown ? (byte)(_currentButtonMask | bit) : (byte)(_currentButtonMask & ~bit);
+
+        return SendPointerEventAsync(_currentButtonMask, x, y, ct);
+    }
+
+    /// <summary>Click ปกติ = กดแล้วปล่อยทันที (ไม่หน่วงเวลาเทียม - RFC ไม่ได้กำหนดว่าต้องมี gap ระหว่าง down/up)</summary>
+    public async Task SendMouseClickAsync(VncMouseButton button, ushort x, ushort y, CancellationToken ct = default)
+    {
+        await SendMouseButtonAsync(button, isDown: true, x, y, ct);
+        await SendMouseButtonAsync(button, isDown: false, x, y, ct);
+    }
+
     // ==================== I/O helpers ====================
 
     private async Task<byte[]> ReadExactAsync(int count, CancellationToken ct)
@@ -696,7 +785,18 @@ public sealed class RfbClient : IDisposable
         return Encoding.Latin1.GetString(stringBytes);
     }
 
-    private Task WriteAsync(byte[] data, CancellationToken ct) => _stream!.WriteAsync(data, ct).AsTask();
+    private async Task WriteAsync(byte[] data, CancellationToken ct)
+    {
+        await _writeLock.WaitAsync(ct);
+        try
+        {
+            await _stream!.WriteAsync(data, ct);
+        }
+        finally
+        {
+            _writeLock.Release();
+        }
+    }
 
     private static ushort ReadUInt16BigEndian(byte[] bytes) => (ushort)((bytes[0] << 8) | bytes[1]);
 
@@ -720,6 +820,14 @@ public sealed class RfbClient : IDisposable
         buffer[offset + 3] = (byte)value;
     }
 
+    private static void WriteUInt32BigEndian(byte[] buffer, int offset, uint value)
+    {
+        buffer[offset] = (byte)(value >> 24);
+        buffer[offset + 1] = (byte)(value >> 16);
+        buffer[offset + 2] = (byte)(value >> 8);
+        buffer[offset + 3] = (byte)value;
+    }
+
     private RfbHandshakeResult Fail(string reason) => new() { Success = false, FailureReason = reason };
 
     private void Log(string message) => LogMessage?.Invoke(message);
@@ -728,5 +836,6 @@ public sealed class RfbClient : IDisposable
     {
         _stream?.Dispose();
         _tcpClient?.Dispose();
+        _writeLock.Dispose();
     }
 }

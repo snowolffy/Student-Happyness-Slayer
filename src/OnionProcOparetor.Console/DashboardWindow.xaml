@@ -67,8 +67,10 @@
             <Canvas>
                 <Border Canvas.Left="0" Canvas.Top="0" Width="36" Height="36" CornerRadius="10"
                         Background="{StaticResource Brush.Accent.Default}">
-                    <TextBlock Text="O" FontSize="16" FontWeight="Bold" Foreground="White"
-                               HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    <Border.Clip>
+                        <RectangleGeometry RadiusX="10" RadiusY="10" Rect="0,0,36,36"/>
+                    </Border.Clip>
+                    <Image Source="/Theme/logo.png" Stretch="UniformToFill"/>
                 </Border>
                 <TextBlock Canvas.Left="46" Canvas.Top="0" Text="Onion ProcOparetor" Style="{StaticResource Heading2}"/>
                 <TextBlock Canvas.Left="46" Canvas.Top="20" x:Name="ServerLabel" Text="" Style="{StaticResource Caption}"/>

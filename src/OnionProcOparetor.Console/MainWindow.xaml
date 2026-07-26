@@ -18,8 +18,10 @@
         <!-- ==================== Logo + title ==================== -->
         <Border Canvas.Left="196" Canvas.Top="32" Width="48" Height="48" CornerRadius="12"
                 Background="{StaticResource Brush.Accent.Default}">
-            <TextBlock Text="O" FontSize="20" FontWeight="Bold" Foreground="White"
-                       HorizontalAlignment="Center" VerticalAlignment="Center"/>
+            <Border.Clip>
+                <RectangleGeometry RadiusX="12" RadiusY="12" Rect="0,0,48,48"/>
+            </Border.Clip>
+            <Image Source="/Theme/logo.png" Stretch="UniformToFill"/>
         </Border>
         <TextBlock Canvas.Left="95" Canvas.Top="92" Width="250" Text="Onion ProcOparetor" Style="{StaticResource Heading1}"
                    TextAlignment="Center"/>

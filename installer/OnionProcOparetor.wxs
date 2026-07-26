@@ -18,7 +18,7 @@
 
   <Package Name="Onion ProcOparetor"
             Manufacturer="OnionProcOparetor"
-            Version="1.2.3.0"
+            Version="1.2.4.0"
             UpgradeCode="8C2D41E6-5A6D-4D1A-95E2-FB74C37A6E5A"
             Scope="perMachine"
             InstallerVersion="500">
@@ -34,6 +34,16 @@
     <Property Id="UNINSTPWD2" Secure="yes" />
     <Property Id="WIXUI_EXITDIALOGOPTIONALCHECKBOXTEXT" Value="Launch Onion ProcOparetor" />
     <Property Id="WIXUI_EXITDIALOGOPTIONALCHECKBOX" Value="1" />
+
+    <!-- ซ่อน ARP entry อัตโนมัติของ MSI เอง (ที่ปกติชี้ UninstallString ไปที่
+         "MsiExec.exe /X{ProductCode}" ตรงๆ) - ใช้ synthetic ARP entry ของเราเอง
+         (UninstallArpEntryComponent ข้างล่าง) แทน ที่ชี้ไปที่ OnionProcOparetor.UninstallHelper.exe
+         ก่อน (โชว์ popup รหัสผ่านได้จริงเพราะถูก Explorer เรียกตรงๆ ผ่าน CreateProcess เต็มรูปแบบ ไม่ใช่
+         MSI engine's reduced-UI InstallExecuteSequence เหมือน msiexec /x ที่เรียกจาก Control Panel
+         ตรงๆ) แล้วค่อยยิง msiexec /x {ProductCode} ตัวจริงต่อเบื้องหลังเอง - ตัว [ProductCode] เดิมยังคง
+         ใช้งานได้ปกติทุกประการสำหรับ msiexec /x โดยตรง (เช่น IT script/SCCM) ARPSYSTEMCOMPONENT แค่ซ่อน
+         จาก ARP UI เท่านั้น ไม่กระทบ MSI product registration/enumeration จริงในระบบเลย -->
+    <Property Id="ARPSYSTEMCOMPONENT" Value="1" />
 
     <!-- ==================== Uninstall-time properties ====================
          UNINSTPWD: password typed on the uninstall command line (msiexec /x ... UNINSTPWD=xxx),
@@ -67,6 +77,7 @@
         <Directory Id="ClientDir" Name="Client" />
         <Directory Id="ClientTrayDir" Name="ClientTray" />
         <Directory Id="CustomActionsDir" Name="CustomActions" />
+        <Directory Id="UninstallHelperDir" Name="UninstallHelper" />
       </Directory>
     </StandardDirectory>
 
@@ -80,6 +91,9 @@
          prompt) need to find them no matter what was originally installed. -->
     <Feature Id="CommonFeature" Level="1" Display="hidden" AllowAbsent="no">
       <ComponentRef Id="CustomActionsComponent" />
+      <ComponentGroupRef Id="UninstallHelperFiles" />
+      <ComponentRef Id="UninstallHelperExeComponent" />
+      <ComponentRef Id="UninstallArpEntryComponent" />
     </Feature>
 
     <!-- Level="0" + a <Level Condition="MODE=X"/> override is correct on its own for a silent/
@@ -148,6 +162,12 @@
       </Files>
     </ComponentGroup>
 
+    <ComponentGroup Id="UninstallHelperFiles" Directory="UninstallHelperDir">
+      <Files Include="$(var.PublishDir)\OnionProcOparetor.UninstallHelper\**">
+        <Exclude Files="$(var.PublishDir)\OnionProcOparetor.UninstallHelper\OnionProcOparetor.UninstallHelper.exe" />
+      </Files>
+    </ComponentGroup>
+
     <!-- ==================== Anchor components ==================== -->
 
     <!-- Server: OnionCoreService, started declaratively (no config-patch dependency unlike
@@ -204,6 +224,36 @@
       <CreateFolder>
         <util:PermissionEx User="Users" GenericAll="yes" />
       </CreateFolder>
+    </Component>
+
+    <!-- Add/Remove Programs launches this .exe directly (see UninstallArpEntryComponent below) -
+         it shows a real password prompt (has full desktop access, unlike msiexec /x's reduced UI)
+         then shells out to the real msiexec /x [ProductCode] itself, same as before. -->
+    <Component Id="UninstallHelperExeComponent" Directory="UninstallHelperDir" Guid="*">
+      <File Id="UninstallHelperExeFile" Source="$(var.PublishDir)\OnionProcOparetor.UninstallHelper\OnionProcOparetor.UninstallHelper.exe" KeyPath="yes" />
+    </Component>
+
+    <!-- Synthetic ARP entry, hand-authored (not MSI-tracked-as-a-product-registration) so it's a
+         completely ordinary, non-"WindowsInstaller=1" registry key - Explorer/Settings' Uninstall
+         button therefore just ShellExecutes UninstallString directly instead of going through the
+         Windows Installer engine's own reduced-UI uninstall path (the same mechanism every non-MSI
+         installer - Inno Setup, NSIS, etc. - relies on for a custom uninstall experience). Combined
+         with ARPSYSTEMCOMPONENT=1 above (which hides the *real* MSI product's own auto-generated ARP
+         row), this is the only row the user ever sees in Add/Remove Programs.
+         [ProductCode]/[ProductVersion] are built-in MSI properties WiX substitutes with the real
+         values at build time - never hardcoded here, so this stays correct across version bumps
+         and even if the auto-generated ProductCode GUID changes between builds. -->
+    <Component Id="UninstallArpEntryComponent" Directory="INSTALLFOLDER" Guid="8C2D41E6-5A6D-4D1A-95E2-FB74C37A6E71">
+      <RegistryKey Root="HKLM" Key="Software\Microsoft\Windows\CurrentVersion\Uninstall\OnionProcOparetor">
+        <RegistryValue Type="string" Name="DisplayName" Value="Onion ProcOparetor" KeyPath="yes" />
+        <RegistryValue Type="string" Name="DisplayVersion" Value="[ProductVersion]" />
+        <RegistryValue Type="string" Name="Publisher" Value="OnionProcOparetor" />
+        <RegistryValue Type="string" Name="UninstallString" Value="&quot;[#UninstallHelperExeFile]&quot; [ProductCode]" />
+        <RegistryValue Type="string" Name="DisplayIcon" Value="[#UninstallHelperExeFile]" />
+        <RegistryValue Type="integer" Name="NoModify" Value="1" />
+        <RegistryValue Type="integer" Name="NoRepair" Value="1" />
+        <RegistryValue Type="integer" Name="EstimatedSize" Value="1" />
+      </RegistryKey>
     </Component>
 
     <!-- run-setup.ps1 (unchanged from the .iss-era file) + our own CustomAction scripts +

@@ -1367,3 +1367,132 @@ handle/thread ค้าง (เช็คผ่าน Task Manager), และ to
 ### สถานะ ณ ตอนนี้
 
 Build ผ่านทั้ง solution (Debug) 0 error, live-test ผ่านครบตาม checklist แล้ว - พร้อม commit
+
+## Update Log: 3 บั๊กแยกกัน (ไม่เกี่ยวกับ VNC/Grid) - 2026-07-25/26
+
+### บั๊ก #1 - Crash ตอนกด Connect ซ้ำครั้งที่ 2 หลัง login ผิดครั้งแรก
+
+Root cause ยืนยันจาก Windows Event Log จริง (ไม่ใช่เดา): `System.InvalidOperationException: This
+instance has already started one or more requests. Properties can only be modified before sending
+the first request.` ที่ `HttpClient.set_BaseAddress` เรียกจาก `ApiClient.SetServer` เรียกจาก
+`MainWindow.ConnectButton_Click` - `MainWindow._apiClient` เป็น field เดียวตลอดอายุหน้าต่าง (ไม่ถูกสร้าง
+ใหม่ระหว่าง attempt) พอกด Connect ครั้งที่ 2 `SetServer` ถูกเรียกซ้ำบน `HttpClient` ตัวเดิมที่เคยส่ง
+request แรกไปแล้ว (ตอน login ครั้งแรก) ซึ่ง .NET ห้ามแก้ `BaseAddress` หลังส่ง request แรกไปแล้วเสมอ -
+exception เกิดก่อนเช็ค password ด้วยซ้ำ ตรงกับอาการที่ crash "ไม่ว่าจะกรอกรหัสถูกหรือผิดรอบสอง" เป๊ะ
+เกิดใน `async void ConnectButton_Click` (ไม่มีใคร catch ได้) เลย crash ทั้งโปรแกรมแทนที่จะโชว์ error
+ธรรมดา - grep หา pattern เดียวกัน (`BaseAddress =` ซ้ำบน client เดิม) ทั่ว solution แล้ว มีแค่จุดนี้จุดเดียว
+
+แก้: `_apiClient` เปลี่ยนจาก `readonly` เป็นสร้างใหม่ทุกครั้งที่กด Connect (`_apiClient = new
+ApiClient();` ก่อน `SetServer`) - ทุก attempt ได้ HttpClient สดใหม่เสมอ ไม่มีทาง reuse instance ที่เคย
+ส่ง request ไปแล้ว
+
+### บั๊ก #2 - Uninstall password flow เดิมยุ่งยาก
+
+ทบทวน flow เดิม (marker file + FileSearch/AppSearch + Launch Condition ที่ทำไว้ตอน migrate WiX) แล้ว
+พบว่า Control Panel > Uninstall ปกติ **ล้มเหลวเสมอ** ถ้าเคยตั้งรหัสผ่านไว้ (เพราะ MSI uninstall รันแบบ
+reduced-UI ไม่มีช่องกรอกรหัสผ่านให้เลย) ต้องให้ user ไปเปิด elevated command prompt เองแล้วพิมพ์
+`msiexec /x {GUID} UNINSTPWD=...` เต็มรูปแบบเอง - ยุ่งยากจริงตามที่สงสัย
+
+แก้ตามแนวทางที่โปรแกรมใหญ่ๆ (antivirus/parental-control) ใช้กัน: เพิ่มโปรเจกต์ใหม่
+`OnionProcOparetor.UninstallHelper` (WPF เล็กๆ, elevation ผ่าน app.manifest requireAdministrator)
+ที่ Control Panel/Settings เรียกโดยตรงแทน msiexec - โชว์ password prompt จริงได้ (มีสิทธิ์เข้าถึง
+desktop เต็มที่เพราะ Explorer เรียกตรงๆ ไม่ผ่าน MSI engine's reduced-UI) แล้วค่อยยิง `msiexec /x
+{ProductCode} UNINSTPWD=... [DELETEDATA=1]` ตัวจริงเบื้องหลังเอง (ไม่ duplicate การ verify รหัสผ่าน -
+อ่าน `uninstall-auth-ok.flag` ตัวเดียวกับที่ `check-uninstall-password.ps1`/LaunchCondition ใช้จริงอยู่
+แล้ว เพื่อแยกแยะ "รหัสผิด" จาก "error อื่น")
+
+Wiring ฝั่ง WiX: `ARPSYSTEMCOMPONENT=1` ซ่อน ARP entry อัตโนมัติของ MSI เอง + authored ARP registry
+entry ของตัวเอง (`UninstallArpEntryComponent`, ไม่ใช่ MSI-tracked product) ชี้ `UninstallString` ไปที่
+wrapper .exe แทน - เป็น pattern เดียวกับที่ installer tool อื่น (Inno/NSIS) ใช้กันมาตลอด verify ด้วยการ
+research วิธีที่ commercial installer จริงทำ ("override Windows Installer program list entry" เป็น
+feature ที่มีชื่อจริงใน Advanced Installer) แล้วยืนยันด้วย `wix build` จริงที่ผ่านสำเร็จ ไม่ได้เดา schema
+เอง `msiexec /x {ProductCode}` ตรงๆ (SCCM/IT script) ยังใช้งานได้ปกติทุกประการ ไม่กระทบ - แค่ ARP list
+UI กับ `Win32_Product` legacy enumeration เท่านั้นที่ไม่เห็น entry จริงอีกต่อไป (บันทึกไว้ใน
+UNINSTALL-README.txt ว่าเป็น side effect ที่ตั้งใจ)
+
+`publish-all.ps1` เพิ่มโปรเจกต์ที่ 5 เข้าไปใน pipeline, version bump 1.2.3.0 -> 1.2.4.0
+
+### บั๊ก #3 - เปลี่ยน placeholder logo (สี่เหลี่ยมเหลือง+ตัว O) เป็น temp-icon.webp
+
+Grep ทั่ว solution เจอ 6 จุดที่ใช้ placeholder logo เดิม: Console (`DashboardWindow`/`MainWindow`/
+`AboutWindow`, inline Border+TextBlock "O") และ AgentTray (`StatusWindow`/`BroadcastPopupWindow`/
+`LoginWindow`, ผ่าน shared style `LogoPlaceholder`/`LogoPlaceholderText` ใน `Themes/AppTheme.xaml`)
+Agent (Windows Service) ไม่มีหน้าจอเลยข้ามไปตามคาด
+
+ทดสอบก่อนว่า WPF อ่าน `.webp` ตรงๆ ได้ไหม - `BitmapDecoder` decode สำเร็จบนเครื่องนี้ (980x980) แต่
+เนื่องจาก AgentTray รันบนเครื่อง lab จำนวนมากที่คุมไม่ได้ว่ามี WIC WebP codec (optional component ของ
+Windows) ติดตั้งไว้หรือเปล่า เลยแปลงเป็น `.png` แทนเพื่อความชัวร์ (native รองรับทุกเครื่องไม่ต้องพึ่ง
+codec เสริม) - พบว่าพื้นหลังภาพต้นฉบับเป็นสีดำทึบไม่มี alpha channel (ยังไม่ได้ทำให้โปร่งใส เพราะเป็นงาน
+image-editing แยกที่ไม่ได้ขอ) คัดลอก `logo.png` แยกไปไว้ที่ `Theme/` ของทั้ง Console และ AgentTray (คนละ
+assembly ต้องมีไฟล์แยกกันคนละชุด) ใช้ `Border.Clip` + `RectangleGeometry` เฉพาะจุดที่มี `CornerRadius`
+(Console 3 จุด) กันภาพสี่เหลี่ยมมุมฉากล้นออกจากกรอบมุมโค้ง ไม่มี `.ico`/Window Icon/taskbar icon เดิมอยู่
+เลยในทั้ง solution เลยไม่ต้องกังวลเรื่องแปลง ico
+
+## Update Log: VNC input events (Step 4g) - 2026-07-26
+
+Step 4g = เพิ่ม PointerEvent/KeyEvent (RFC 6143 §7.5.4/§7.5.5) ให้ `RfbClient` ส่งออกได้ - ยังไม่ผูกกับ
+UI จริง (mouse capture จาก Image control/coordinate scaling ตาม view คือ Step 4h)
+
+### VncKeyMap.cs (ใหม่) - Windows VK code -> X11 keysym
+
+Dictionary แยกไฟล์ (ไม่ inline switch-case ปนกับ RfbClient) ครอบคลุม A-Z, 0-9 (แถวบน+numpad แยกกัน),
+F1-F24, modifier (Shift/Ctrl/Alt ซ้าย-ขวาแยก, Win, CapsLock, NumLock, ScrollLock), navigation
+(ลูกศร/Home/End/PgUp/PgDn/Insert/Delete), editing (Enter/Backspace/Tab/Space/Escape), punctuation
+มาตรฐานทั้งหมด, volume/mute
+
+**หลักการสำคัญ**: 1 entry ต่อปุ่มกายภาพเท่านั้น ไม่มี entry แยกสำหรับสัญลักษณ์ "shifted" (เช่น `!` จาก
+Shift+1) เพราะ RFB/X11 keyboard model ทำงานเหมือนคีย์บอร์ดจริง - client ส่งแค่ keysym ของปุ่มกายภาพ
+(base/unshifted) แยกกับ modifier key ที่เป็น KeyEvent ของตัวเอง เครื่องปลายทางเป็นคนคำนวณเองว่า
+Shift+'1' ควรออกมาเป็นอะไร - ตรงกับพฤติกรรมคีย์บอร์ดจริง ไม่ใช่การเดา/ยัดเยียด mapping ที่ไม่มีจริงใน spec
+
+ปุ่มที่ตั้งใจข้าม (report ไม่ใช่ลืม): `VK_OEM_8`/`VK_OEM_102` (layout-dependent ไม่มี keysym มาตรฐาน
+ตัวเดียวที่ถูกต้องทุก layout), `VK_CLEAR` (ต้อง track NumLock state เพิ่มถึงจะแยกจาก `KP_5`/`KP_Begin`
+ได้ถูกต้อง อยู่นอก scope "ส่ง keysym ตรงไปตรงมา" ของรอบนี้)
+
+Caveat ที่ flag ไว้ชัดเจน: volume/mute ใช้ `XF86Audio*` keysym ซึ่งเป็น X.org vendor-extension (ไม่ใช่
+core RFC 6143/X11 keysymdef.h) - ค่าคงที่จริงและ stable แต่ยังไม่ verify ว่า UltraVNC รู้จัก/ตอบสนองจริง
+
+### RfbClient.cs - SendKeyEventAsync/SendPointerEventAsync + wrapper methods
+
+`SendKeyEventAsync(isDown, keysym)`/`SendPointerEventAsync(buttonMask, x, y)` ส่ง message ดิบตาม RFC
+ตรงๆ, `SendKeyPressAsync(vkCode, isDown)` แปลงผ่าน VncKeyMap ก่อน (throw `NotSupportedException`
+พร้อมเหตุผลถ้าไม่มี mapping - ไม่ส่ง keysym ผิดๆ ไปเงียบๆ), `SendMouseMoveAsync`/`SendMouseButtonAsync`/
+`SendMouseClickAsync` track button-mask ที่กดค้างอยู่ในตัว (สำคัญตอนลากเมาส์ - ต้องส่ง mask เดิมต่อเนื่อง
+ไม่งั้นเครื่องปลายทางเข้าใจผิดว่าปล่อยปุ่มไปแล้ว)
+
+เพิ่ม `SemaphoreSlim` คั่นเฉพาะฝั่งเขียน stream (`WriteAsync`) เพราะตอนนี้มี 2 จุดที่เขียนลง
+`NetworkStream` เดียวกันพร้อมกันได้ (framebuffer loop thread เดิม + input event จาก caller อื่น เช่น UI
+thread ในอนาคต) - NetworkStream รองรับ 1 reader + 1 writer พร้อมกันได้อยู่แล้ว แต่ "หลาย writer พร้อม
+กัน" ไม่ปลอดภัย
+
+### VncSessionHandle - forward methods (pattern เดียวกับ RequestModeSwitch)
+
+`SendKeyPressAsync`/`SendMouseMoveAsync`/`SendMouseButtonAsync`/`SendMouseClickAsync` forward ไปยัง
+`_rfbClient` ตัวใน - ต่างจาก `RequestModeSwitch` ตรงที่ no-op เงียบๆ (ไม่ throw) ถ้ายังไม่ connect เพราะ
+input event ระหว่าง session ปิดพอดีถือเป็นเรื่องปกติที่เกิดได้บ่อยกว่ามาก
+
+### Test harness: ต่อ tile ใน VncPoolTestWindow เดิม (Step 4e)
+
+เพิ่ม keyboard-capture TextBox (คลิกแล้วพิมพ์/กดปุ่มอะไรก็ได้ - forward ไป target ทันทีผ่าน
+`KeyInterop.VirtualKeyFromKey`) + X/Y box กับปุ่ม L/M/R (พิกัดจริงของ framebuffer เป้าหมาย พิมพ์เอง) -
+ตั้งใจไม่ผูกกับ Image control (ไม่มี mouse capture/coordinate scaling ตาม view) ตามที่ตกลงว่าเก็บไว้
+Step 4h
+
+### บั๊กที่เจอจาก live test จริง - พิมพ์ไม่ติดในบางโปรแกรม
+
+Live test แรก: พิมพ์ในบางโปรแกรม (address bar) ติด แต่ Notepad กลายเป็นกด key ไป interact กับ menu บน -
+สืบพบว่าตอนนั้น target window ไม่ได้ active จริง (ไม่ใช่บั๊ก อาจแค่ target ตกไปโดนหน้าต่างอื่น) รอบสอง
+ยืนยัน target window active แน่แล้ว แต่ไม่มีอะไรขึ้นเลย - เช็ค status text ฝั่ง Console ยืนยันว่าส่ง
+KeyEvent สำเร็จทุกครั้ง (ไม่ใช่บั๊กฝั่ง WPF capture) แปลว่าปัญหาอยู่ฝั่ง target/UltraVNC ไม่รับ input จริง
+ตรงกับที่กังวลไว้แต่แรกเรื่อง permission แยกระหว่าง view กับ input
+
+Research เจอ `InputsEnabled` ini key จริงจากเอกสารทางการ uvnc.com (ค่า default ตามเอกสารคือ 1/เปิดถ้า
+ไม่ตั้งไว้ - แต่ไม่เชื่อ default นี้ตาม pattern เดิมของ feature นี้ที่ไม่เคยเชื่อ default ของ UltraVNC ที่
+ไม่ live-verify) เพิ่ม `InputsEnabled=1` ตรงๆ ใน `VncProcessManager.WriteBaseIni()` (AgentTray) - user
+live-test ซ้ำหลัง deploy build ใหม่ (kill winvnc.exe เดิม + deploy AgentTray ใหม่ + เปิด session ใหม่)
+ยืนยันแล้วว่า**ใช้งานได้จริง** - นี่คือ root cause ตัวจริงของปัญหา "ส่งสำเร็จฝั่ง Console แต่ target ไม่รับ"
+
+### สถานะ ณ ตอนนี้
+
+Build ผ่านทั้ง solution 0 error, สร้าง installer (.msi + legacy .exe) สำเร็จแล้ว (v1.2.4.0) live-test
+ยืนยัน `InputsEnabled=1` แก้ปัญหา input ได้จริงแล้ว - commit แล้ว

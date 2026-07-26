@@ -63,15 +63,6 @@
         <Setter Property="BorderThickness" Value="1"/>
     </Style>
 
-    <Style x:Key="LogoPlaceholderText" TargetType="TextBlock">
-        <Setter Property="Text" Value="LOGO"/>
-        <Setter Property="FontSize" Value="7"/>
-        <Setter Property="FontWeight" Value="Bold"/>
-        <Setter Property="Foreground" Value="{StaticResource BrandBrush}"/>
-        <Setter Property="HorizontalAlignment" Value="Center"/>
-        <Setter Property="VerticalAlignment" Value="Center"/>
-    </Style>
-
     <Style x:Key="BrandHeaderTitleText" TargetType="TextBlock">
         <Setter Property="Foreground" Value="White"/>
         <Setter Property="FontSize" Value="14"/>

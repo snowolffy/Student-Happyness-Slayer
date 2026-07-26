@@ -11,10 +11,11 @@ $repoRoot = Split-Path $PSScriptRoot -Parent
 $publishRoot = Join-Path $repoRoot "publish"
 
 $projects = @(
-    @{ Name = "OnionProcOparetor.Server";    Path = "src\OnionProcOparetor.Server\OnionProcOparetor.Server.csproj" },
-    @{ Name = "OnionProcOparetor.Console";   Path = "src\OnionProcOparetor.Console\OnionProcOparetor.Console.csproj" },
-    @{ Name = "OnionProcOparetor.Agent";     Path = "src\OnionProcOparetor.Agent\OnionProcOparetor.Agent.csproj" },
-    @{ Name = "OnionProcOparetor.AgentTray"; Path = "src\OnionProcOparetor.AgentTray\OnionProcOparetor.AgentTray.csproj" }
+    @{ Name = "OnionProcOparetor.Server";           Path = "src\OnionProcOparetor.Server\OnionProcOparetor.Server.csproj" },
+    @{ Name = "OnionProcOparetor.Console";          Path = "src\OnionProcOparetor.Console\OnionProcOparetor.Console.csproj" },
+    @{ Name = "OnionProcOparetor.Agent";            Path = "src\OnionProcOparetor.Agent\OnionProcOparetor.Agent.csproj" },
+    @{ Name = "OnionProcOparetor.AgentTray";        Path = "src\OnionProcOparetor.AgentTray\OnionProcOparetor.AgentTray.csproj" },
+    @{ Name = "OnionProcOparetor.UninstallHelper";  Path = "src\OnionProcOparetor.UninstallHelper\OnionProcOparetor.UninstallHelper.csproj" }
 )
 
 # ---- ลบ publish\ เก่าทิ้งก่อน (clean build) กันไฟล์ค้างจากเวอร์ชันก่อนหน้าปนเข้าไปใน installer ----

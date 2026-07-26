@@ -163,7 +163,14 @@ public sealed class VncProcessManager
             "HTTPConnect=0\r\n" +
             "QueryAccept=0\r\n" +
             "QuerySetting=0\r\n" +
-            "DisconnectClients=0\r\n";
+            "DisconnectClients=0\r\n" +
+            // Step 4g: ใส่ตรงๆ ไม่พึ่ง default ของ UltraVNC (pattern เดียวกับ DisconnectClients ด้านบน) -
+            // live-test จริงพบว่า RfbClient ส่ง KeyEvent/PointerEvent ไปถึง winvnc.exe แล้ว (ยืนยันจาก log
+            // ฝั่ง Console ว่าส่งสำเร็จทุกครั้ง) แต่ target ไม่ตอบสนองเลย ทั้งที่เอกสารทางการของ UltraVNC
+            // (uvnc.com/docs) อ้างว่า default ของ InputsEnabled คือ 1 (เปิด) อยู่แล้วถ้าไม่ตั้งไว้ - เอกสาร
+            // นี้พิสูจน์แล้วว่าไม่ตรงกับพฤติกรรมจริงที่เจอ (หรืออย่างน้อยก็ไม่น่าเชื่อถือพอจะปล่อยผ่าน) เลยใส่
+            // ค่านี้ตรงๆ แทนที่จะเดา - ยังไม่ live-verify ซ้ำว่าใส่แล้วแก้ปัญหาจริง ต้องทดสอบซ้ำหลังแก้
+            "InputsEnabled=1\r\n";
 
         File.WriteAllText(_iniPath, content);
     }

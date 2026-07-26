@@ -6,7 +6,12 @@ namespace OnionProcOparetor.Console;
 
 public partial class MainWindow : Window
 {
-    private readonly ApiClient _apiClient = new();
+    // ไม่ใช่ readonly โดยเจตนา - สร้างใหม่ทุกครั้งที่กด Connect (ดู ConnectButton_Click) เพราะ HttpClient
+    // ห้ามแก้ BaseAddress ซ้ำหลังส่ง request แรกไปแล้ว (throw InvalidOperationException ทันที) การ reuse
+    // instance เดิมข้าม Connect attempt เดิมทำให้กด Connect ครั้งที่ 2 (ไม่ว่าจะกรอกรหัสถูกหรือผิด) crash
+    // ทั้งโปรแกรมเสมอ เพราะ exception เกิดใน SetServer ก่อนเช็ค password ด้วยซ้ำ (ยืนยันจาก stack trace จริง
+    // ใน Event Log ไม่ได้เดา) - instance ที่ login สำเร็จค่อยถูกส่งต่อให้ ForceChangePasswordWindow/DashboardWindow
+    private ApiClient _apiClient = new();
 
     public MainWindow()
     {
@@ -40,6 +45,7 @@ public partial class MainWindow : Window
         StatusText.Foreground = (System.Windows.Media.Brush)FindResource("Brush.Status.Offline");
         StatusText.Text = "กำลังเชื่อมต่อ...";
 
+        _apiClient = new ApiClient();
         _apiClient.SetServer(serverAddress);
         var (success, message) = await _apiClient.LoginAsync(username, password);
 

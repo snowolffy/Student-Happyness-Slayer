@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyName>OnionProcOparetor.UninstallHelper</AssemblyName>
+    <RootNamespace>OnionProcOparetor.UninstallHelper</RootNamespace>
+    <!-- ARP's "Uninstall" entry launches this .exe directly via CreateProcess (see
+         installer\OnionProcOparetor.wxs's synthetic ARP registry entry) - not through msiexec's
+         own elevation plumbing, so this app must request elevation itself via manifest.
+         Windows shows the UAC consent prompt automatically for any process whose embedded
+         manifest declares requireAdministrator, regardless of what launched it. -->
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+  </PropertyGroup>
+</Project>

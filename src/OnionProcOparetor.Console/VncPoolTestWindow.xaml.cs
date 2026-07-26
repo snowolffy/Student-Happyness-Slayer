@@ -1,5 +1,6 @@
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using OnionProcOparetor.Console.Models;
@@ -13,6 +14,11 @@ namespace OnionProcOparetor.Console;
 /// two-phase reserve-then-connect + MaxConcurrentSessions) เป็น Thumbnail mode ทั้งหมด (ทดสอบ 16bpp
 /// decode/downscale/throttle) มีปุ่มสลับทีละเครื่องเป็น FullRes เพื่อยืนยันว่า RequestModeSwitch ไม่
 /// reconnect ใหม่จริง (TCP connection/handshake เดิม)
+///
+/// Step 4g (เพิ่มในรอบนี้): ต่อ tile มี keyboard-capture TextBox (พิมพ์/กดปุ่มอะไรก็ได้ ถูก forward ไป
+/// target ทันทีผ่าน VncSessionHandle.SendKeyPressAsync) + X/Y box กับปุ่ม L/M/R (ทดสอบ
+/// SendMouseClickAsync ที่พิกัดจริงของ framebuffer เป้าหมาย พิมพ์เอง) - ตั้งใจไม่ผูกกับ Image control
+/// (ไม่มี mouse capture/coordinate scaling ตาม view จริง) เพราะเก็บไว้ Step 4h ตามที่ตกลง
 /// </summary>
 public partial class VncPoolTestWindow : Window
 {
@@ -22,8 +28,12 @@ public partial class VncPoolTestWindow : Window
         public required TextBlock StatusText { get; init; }
         public required Image Image { get; init; }
         public required Button ToggleModeButton { get; init; }
+        public required TextBox KeyTestBox { get; init; }
+        public required TextBox XBox { get; init; }
+        public required TextBox YBox { get; init; }
         public WriteableBitmap? Bitmap { get; set; }
         public VncViewMode? BitmapMode { get; set; }
+        public VncSessionHandle? Handle { get; set; }
     }
 
     private readonly VncSessionPool _pool;
@@ -73,6 +83,7 @@ public partial class VncPoolTestWindow : Window
         Dispatcher.Invoke(() => OnStatusChanged(tile, handle));
 
         tile.ToggleModeButton.Tag = handle;
+        tile.Handle = handle;
     }
 
     private void OnStatusChanged(SessionTile tile, VncSessionHandle handle)
@@ -140,11 +151,46 @@ public partial class VncPoolTestWindow : Window
         buttonsPanel.Children.Add(toggleButton);
         buttonsPanel.Children.Add(closeButton);
 
+        // ==================== Step 4g: input-event test controls (ยังไม่ผูกกับ Image control จริง -
+        // ไม่มี mouse capture/coordinate scaling ตาม view เลย ตามที่ตกลงไว้ว่าเก็บไว้ Step 4h - X/Y พิกัด
+        // ตรงนี้คือพิกัดจริงของ framebuffer เป้าหมาย พิมพ์เองตรงๆ เพื่อทดสอบ RfbClient/VncKeyMap ล้วนๆ) ====================
+        var keyTestBox = new TextBox
+        {
+            Text = "คลิกตรงนี้แล้วพิมพ์/กดปุ่มอะไรก็ได้ - forward ไปเครื่อง target ทันที",
+            FontSize = 10,
+            Margin = new Thickness(0, 6, 0, 4),
+            Foreground = Brushes.Gray
+        };
+        keyTestBox.GotFocus += (_, _) => { keyTestBox.Clear(); keyTestBox.Foreground = Brushes.Black; };
+        keyTestBox.PreviewKeyDown += (sender, e) => KeyTestBox_PreviewKey(sender, e, isDown: true);
+        keyTestBox.PreviewKeyUp += (sender, e) => KeyTestBox_PreviewKey(sender, e, isDown: false);
+
+        var xBox = new TextBox { Width = 50, Text = "100", FontSize = 10, Margin = new Thickness(0, 0, 4, 0) };
+        var yBox = new TextBox { Width = 50, Text = "100", FontSize = 10, Margin = new Thickness(0, 0, 4, 0) };
+
+        var leftClickButton = new Button { Content = "L", Width = 24, FontSize = 10, Padding = new Thickness(0) };
+        var middleClickButton = new Button { Content = "M", Width = 24, FontSize = 10, Padding = new Thickness(0) };
+        var rightClickButton = new Button { Content = "R", Width = 24, FontSize = 10, Padding = new Thickness(0) };
+        leftClickButton.Click += MouseClickButton_Click;
+        middleClickButton.Click += MouseClickButton_Click;
+        rightClickButton.Click += MouseClickButton_Click;
+
+        var mousePanel = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 4) };
+        mousePanel.Children.Add(new TextBlock { Text = "X:", FontSize = 10, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 2, 0) });
+        mousePanel.Children.Add(xBox);
+        mousePanel.Children.Add(new TextBlock { Text = "Y:", FontSize = 10, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 2, 0) });
+        mousePanel.Children.Add(yBox);
+        mousePanel.Children.Add(leftClickButton);
+        mousePanel.Children.Add(middleClickButton);
+        mousePanel.Children.Add(rightClickButton);
+
         var content = new StackPanel();
         content.Children.Add(imageBorder);
         content.Children.Add(nameText);
         content.Children.Add(statusText);
         content.Children.Add(buttonsPanel);
+        content.Children.Add(mousePanel);
+        content.Children.Add(keyTestBox);
 
         var border = new Border
         {
@@ -157,7 +203,72 @@ public partial class VncPoolTestWindow : Window
             Child = content
         };
 
-        return new SessionTile { Border = border, StatusText = statusText, Image = image, ToggleModeButton = toggleButton };
+        var tile = new SessionTile
+        {
+            Border = border,
+            StatusText = statusText,
+            Image = image,
+            ToggleModeButton = toggleButton,
+            KeyTestBox = keyTestBox,
+            XBox = xBox,
+            YBox = yBox
+        };
+
+        // ตั้ง Tag หลังสร้าง tile เสร็จแล้วเท่านั้น (control ต้องรู้จัก tile ของตัวเอง แต่ tile เพิ่งสร้างเสร็จ
+        // ตรงนี้พอดี) ใช้ Tag แทนการเดินหา visual tree - ตรงไปตรงมากว่าและตรงกับ pattern เดิมของไฟล์นี้
+        // (ToggleModeButton.Tag = handle, closeButton.Tag = clientGuid)
+        keyTestBox.Tag = tile;
+        leftClickButton.Tag = (tile, VncMouseButton.Left);
+        middleClickButton.Tag = (tile, VncMouseButton.Middle);
+        rightClickButton.Tag = (tile, VncMouseButton.Right);
+
+        return tile;
+    }
+
+    /// <summary>
+    /// Forward ทุกปุ่มที่กด/ปล่อยใน keyTestBox ไปยัง target ทันที - e.Handled = true เสมอกัน TextBox ทำ
+    /// พฤติกรรม default ของตัวเอง (เช่น Tab เปลี่ยน focus, ตัวอักษรเข้าไปอยู่ใน box) เพราะ box นี้ใช้เป็น
+    /// "capture surface" ล้วนๆ ไม่ได้ต้องการให้มันมีข้อความจริงอยู่ข้างในเลย KeyInterop.VirtualKeyFromKey
+    /// คือ WPF built-in conversion จาก Key enum -> Win32 VK code ตรงกับที่ VncKeyMap ใช้เป๊ะ
+    /// </summary>
+    private void KeyTestBox_PreviewKey(object? sender, KeyEventArgs e, bool isDown)
+    {
+        e.Handled = true;
+
+        if (sender is not TextBox { Tag: SessionTile { Handle: { } handle } tile })
+        {
+            return;
+        }
+
+        var key = e.Key == Key.System ? e.SystemKey : e.Key;
+        var vkCode = KeyInterop.VirtualKeyFromKey(key);
+
+        try
+        {
+            _ = handle.SendKeyPressAsync(vkCode, isDown);
+            tile.StatusText.Text = $"ส่ง key: {key} (VK 0x{vkCode:X2}, {(isDown ? "down" : "up")})";
+        }
+        catch (NotSupportedException ex)
+        {
+            tile.StatusText.Text = ex.Message;
+        }
+    }
+
+    private void MouseClickButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button { Tag: (SessionTile { Handle: { } handle } tile, VncMouseButton button) })
+        {
+            return;
+        }
+
+        if (!ushort.TryParse(tile.XBox.Text, out var x) || !ushort.TryParse(tile.YBox.Text, out var y))
+        {
+            tile.StatusText.Text = "X/Y ต้องเป็นตัวเลข";
+            return;
+        }
+
+        _ = handle.SendMouseClickAsync(button, x, y);
+        tile.StatusText.Text = $"ส่ง {button} click ที่ ({x},{y})";
     }
 
     private void ToggleModeButton_Click(object sender, RoutedEventArgs e)

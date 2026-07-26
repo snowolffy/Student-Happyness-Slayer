@@ -26,6 +26,10 @@
     </None>
   </ItemGroup>
 
+  <ItemGroup>
+    <Resource Include="Theme\logo.png" />
+  </ItemGroup>
+
   <!-- UltraVNC server (winvnc.exe + DLLs/plugins it may load at runtime) bundled as-is from an
        official install - ย้ายมาจาก OnionProcOparetor.Agent เพราะ Windows Session 0 Isolation ทำให้
        Agent (Windows Service) capture หน้าจอของ user session ไม่ได้เลย ต้อง start จาก AgentTray
