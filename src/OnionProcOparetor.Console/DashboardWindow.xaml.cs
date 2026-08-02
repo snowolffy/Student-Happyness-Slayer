@@ -42,6 +42,24 @@ public partial class DashboardWindow : Window
     private WriteableBitmap? _liveViewFullscreenBitmap;
     private VncViewMode? _liveViewFullscreenBitmapMode;
 
+    // ==================== Step 4h: Live View full-screen input capture ====================
+    // ปุ่มเมาส์ที่กำลังกดค้างอยู่บน target (ผ่าน overlay นี้) - null = ไม่มีปุ่มไหนค้าง ใช้สอง field นี้คู่กัน
+    // ตอนต้อง force-release ปุ่มถ้าออกจาก fullscreen (กด BACK TO GRID/ปิด tab/ปิด window) กลางที่ยังลากอยู่
+    // พอดี (ดู ReleaseFullscreenInputState) - ไม่งั้น target จะค้างคิดว่าปุ่มยังกดอยู่ตลอดไป (stuck
+    // mouse-down) เพราะไม่มีทางส่ง MouseUp event ทีหลังได้อีกแล้วหลังออกจาก fullscreen ไปแล้ว
+    private VncMouseButton? _fullscreenMouseButtonDown;
+    private ushort _fullscreenLastMouseX;
+    private ushort _fullscreenLastMouseY;
+
+    // throttle MouseMove ไม่ให้เกิน ~60 event/วิ (กัน network flood - WPF ยิง MouseMove ถี่กว่านี้มากทุก
+    // pixel ที่ขยับ) ไม่ throttle MouseDown/MouseUp/Wheel เลย (ต้องส่งทุกครั้งแม่นยำ - พลาดแม้แค่ครั้งเดียว
+    // = คลิกหาย/ปุ่มค้าง)
+    private DateTime _fullscreenLastMouseMoveSentAt = DateTime.MinValue;
+    private static readonly TimeSpan FullscreenMouseMoveMinInterval = TimeSpan.FromSeconds(1.0 / 60);
+
+    /// <summary>หน่วยมาตรฐานของ Win32 WM_MOUSEWHEEL (WHEEL_DELTA) - WPF MouseWheelEventArgs.Delta ใช้หน่วยเดียวกัน (1 "notch" ของล้อเมาส์ = ±120)</summary>
+    private const int WheelDeltaPerNotch = 120;
+
     private sealed class LiveViewCell
     {
         public required Border Border { get; init; }
@@ -80,6 +98,22 @@ public partial class DashboardWindow : Window
         // ไวขึ้นโดยไม่ต้องรอรอบ poll ถ้า SignalR หลุด/ต่อไม่ได้ ตาราง ยังอัปเดตปกติผ่าน auto refresh เดิม
         _labHubClient.ClientStatusChanged += OnClientStatusChangedFromHub;
         _ = _labHubClient.StartAsync(_apiClient.BaseUrl!, CancellationToken.None);
+
+        // Step 4h: กัน Alt+F4 (หรือทางอื่นที่ทำให้ Window พยายามปิด เช่นปุ่ม X บน title bar) ปิด Console
+        // ทั้งที่ครูกำลังคุมเครื่อง target อยู่เต็มจอ - **ตั้งใจไม่ใช้วิธี "ดัก PreviewKeyDown แล้ว
+        // e.Handled=true" เพื่อกัน Alt+F4 โดยตรง** เพราะ verify แล้วจาก 2 แหล่งอิสระ (WPF community
+        // discussion) ว่าวิธีนั้น "fragile/incomplete" - Alt+F4 ถูก Windows แปลงเป็น WM_SYSCOMMAND
+        // (SC_CLOSE) ที่อาจไปถึง window โดยไม่ผ่าน routed keyboard event pipeline ปกติเสมอไป วิธีที่
+        // เชื่อถือได้จริงตามคำแนะนำที่ verify มาคือดักที่ Window.Closing (ครอบคลุมทุกทางที่ทำให้ Window
+        // ปิดพร้อมกันหมด ไม่ใช่แค่ Alt+F4) แล้ว cancel ถ้ายังอยู่ใน fullscreen input capture
+        Closing += (_, e) =>
+        {
+            if (_liveViewFullscreenClientGuid is not null)
+            {
+                e.Cancel = true;
+                StatusText.Text = "กด \"← BACK TO GRID\" ก่อนปิดโปรแกรม (กำลังควบคุมเครื่อง target แบบเต็มจออยู่)";
+            }
+        };
 
         Closed += async (_, _) =>
         {
@@ -953,8 +987,16 @@ public partial class DashboardWindow : Window
         _liveViewFullscreenBitmapMode = null;
         FullscreenImage.Source = null;
         FullscreenHeaderText.Text = cell.Client.MachineName;
+        FullscreenStatusText.Text = "";
 
         LiveViewFullscreenOverlay.Visibility = Visibility.Visible;
+
+        // ต้อง focus หลัง Visibility=Visible เท่านั้น (ตอน Collapsed element ไม่มี layout/ไม่ใช่ส่วนหนึ่ง
+        // ของ focus scope จริง) ใช้ Dispatcher.InvokeAsync (Input priority) แทนเรียก Focus() ตรงๆ เพื่อรอ
+        // ให้ layout pass ของการเปลี่ยน Visibility เสร็จก่อนจริงๆ - ดู
+        // LiveViewFullscreenOverlay_IsKeyboardFocusWithinChanged ที่ดึง focus กลับมาอัตโนมัติถ้าโดน
+        // popup/element อื่นแย่ง focus ไประหว่างที่ยังอยู่ใน fullscreen mode
+        Dispatcher.InvokeAsync(() => Keyboard.Focus(LiveViewFullscreenOverlay), DispatcherPriority.Input);
 
         handle.RequestModeSwitch(VncViewMode.FullRes);
     }
@@ -969,12 +1011,43 @@ public partial class DashboardWindow : Window
             handle.RequestModeSwitch(VncViewMode.Thumbnail);
         }
 
+        ReleaseFullscreenInputState();
+
         _liveViewFullscreenClientGuid = null;
         _liveViewFullscreenBitmap = null;
         _liveViewFullscreenBitmapMode = null;
         FullscreenImage.Source = null;
 
         LiveViewFullscreenOverlay.Visibility = Visibility.Collapsed;
+    }
+
+    /// <summary>
+    /// เรียกทุกครั้งก่อนออกจาก fullscreen mode ไม่ว่าทางไหน (BACK TO GRID, เอา cell ออกจาก grid ระหว่าง
+    /// fullscreen, ปิดแท็บ LIVE VIEW, ปิด Dashboard) - เคลียร์ mouse capture ที่อาจค้างอยู่ + force-release
+    /// ปุ่มเมาส์ที่กำลังกดค้างอยู่บน target ก่อนเสมอ (กัน "stuck mouse-down" ถ้าครูออกจาก fullscreen กลางที่
+    /// ยังลาก-วางไฟล์อยู่พอดี - หลังจากนี้จะไม่มีทางส่ง MouseUp ให้ target รู้ตัวได้อีกแล้ว) เทียบเท่ากับการ
+    /// "unbind input event" ที่ขอ - แต่ทำผ่านการเคลียร์ state (GetFullscreenHandle คืน null ทันทีหลัง
+    /// _liveViewFullscreenClientGuid = null) แทนการ +=/-= event handler จริง เพราะ handler ทุกตัวผูกแบบ
+    /// static ไว้ใน XAML ครั้งเดียวอยู่แล้ว (ไม่ subscribe ใหม่ต่อ session) - ปลอดภัยกว่า (ไม่มีจุดไหนลืม
+    /// unsubscribe ได้เลย) และให้ผลลัพธ์เดียวกันทุกประการ: หลังเรียกจุดนี้แล้ว event ทุกตัวที่ยิงมาจะเป็น
+    /// no-op ทันทีเพราะ resolve handle ไม่ได้อีกต่อไป
+    /// </summary>
+    private void ReleaseFullscreenInputState()
+    {
+        if (FullscreenImage.IsMouseCaptured)
+        {
+            FullscreenImage.ReleaseMouseCapture();
+        }
+
+        if (_fullscreenMouseButtonDown is { } stuckButton &&
+            _liveViewFullscreenClientGuid is not null &&
+            _liveViewCells.TryGetValue(_liveViewFullscreenClientGuid, out var stuckCell) &&
+            stuckCell.Handle is { } stuckHandle)
+        {
+            _ = stuckHandle.SendMouseButtonAsync(stuckButton, isDown: false, _fullscreenLastMouseX, _fullscreenLastMouseY);
+        }
+
+        _fullscreenMouseButtonDown = null;
     }
 
     /// <summary>ปุ่ม X บน cell - เอาออกจาก grid + dispose session นั้นทิ้ง ไม่กระทบ session อื่นเลย (ตามที่ตกลงใน Step 4e)</summary>
@@ -1010,6 +1083,7 @@ public partial class DashboardWindow : Window
     {
         if (_liveViewFullscreenClientGuid is not null)
         {
+            ReleaseFullscreenInputState();
             _liveViewFullscreenClientGuid = null;
             _liveViewFullscreenBitmap = null;
             _liveViewFullscreenBitmapMode = null;
@@ -1022,5 +1096,275 @@ public partial class DashboardWindow : Window
 
         await _liveViewPool.CloseAllAsync();
         UpdateLiveViewStatusAndButtonState();
+    }
+
+    // ==================== Step 4h: Live View full-screen input capture ====================
+    // เมาส์/คีย์บอร์ดจริงของครูควบคุมเครื่อง target ที่กำลัง fullscreen อยู่ - handler ทุกตัวผูกแบบ static
+    // ไว้ใน XAML ครั้งเดียว (ไม่ subscribe/unsubscribe ต่อ session) แล้ว resolve handle ปัจจุบันจาก
+    // _liveViewFullscreenClientGuid ทุกครั้งที่ event ยิง (เหมือน GetFullscreenHandle ด้านล่าง) - ถ้า
+    // clientGuid เป็น null หรือ session ไม่ Connected แล้ว handler กลายเป็น no-op ทันที (ดู
+    // ReleaseFullscreenInputState สำหรับ cleanup ตอนออกจาก fullscreen)
+
+    /// <summary>คืน handle ของเครื่องที่กำลัง fullscreen อยู่ตอนนี้ - null ถ้าไม่ได้อยู่ใน fullscreen mode หรือ session หลุดไปแล้ว (Connecting/Failed/Closed)</summary>
+    private VncSessionHandle? GetFullscreenHandle() =>
+        _liveViewFullscreenClientGuid is not null &&
+        _liveViewCells.TryGetValue(_liveViewFullscreenClientGuid, out var cell) &&
+        cell.Handle is { Status: VncSessionStatus.Connected } handle
+            ? handle
+            : null;
+
+    /// <summary>
+    /// แปลงพิกัดคลิก/ขยับเมาส์บน FullscreenImage (พิกัดจอ Console) กลับเป็นพิกัดจริงของ target -
+    /// Stretch="Uniform" ทำให้ภาพถูกวาดแบบรักษาสัดส่วนอยู่กึ่งกลางของ Image control เสมอ (WPF default
+    /// behavior) เกิด letterbox แถบดำถ้าอัตราส่วนไม่ตรงกัน (เช่น target 1920x1080 แต่พื้นที่แสดงผลเป็น
+    /// สี่เหลี่ยมจัตุรัสกว่า) - ต้องคำนวณ offset ของ letterbox ด้วย ไม่ใช่แค่ scale เฉยๆ
+    ///
+    /// clampToImage=true: บังคับพิกัดให้อยู่ในขอบเขตภาพเสมอ (ไม่มีทาง return false) ใช้กับ MouseMove/MouseUp
+    /// เพราะระหว่างลาก (drag) เมาส์อาจขยับ/ปล่อยออกนอกขอบภาพเล็กน้อยได้ (โดยเฉพาะเมื่อ capture ไว้ - ดู
+    /// FullscreenImage_PreviewMouseDown) ต้องยังส่งพิกัดที่ clamp ไว้ที่ขอบแทนที่จะ drop event ทิ้งไปเฉยๆ
+    /// (ไม่งั้น drag/scroll จะรู้สึกกระตุกหรือ drag ค้างไม่จบ)
+    ///
+    /// clampToImage=false: return false ถ้าคลิกอยู่ในแถบดำ (นอกภาพจริง) ใช้กับ MouseDown เท่านั้น - ไม่อยาก
+    /// ให้คลิกที่แถบดำ (ซึ่งไม่ตรงกับตำแหน่งใดบน target เลย) กลายเป็นคลิกที่ขอบจอ target โดยไม่ตั้งใจ
+    /// </summary>
+    private bool TryMapFullscreenPointToTarget(Point consolePoint, VncSessionHandle handle, bool clampToImage, out ushort targetX, out ushort targetY)
+    {
+        targetX = 0;
+        targetY = 0;
+
+        var displayWidth = handle.DisplayWidth;
+        var displayHeight = handle.DisplayHeight;
+        if (displayWidth is not > 0 || displayHeight is not > 0)
+        {
+            return false; // ยังไม่รู้ resolution จริงของ target (ยังไม่ได้ ServerInit/ยังไม่ connected)
+        }
+
+        var sourceWidth = displayWidth.Value;
+        var sourceHeight = displayHeight.Value;
+
+        var containerWidth = FullscreenImage.ActualWidth;
+        var containerHeight = FullscreenImage.ActualHeight;
+        if (containerWidth <= 0 || containerHeight <= 0)
+        {
+            return false; // ยังไม่ผ่าน layout pass (เพิ่ง Visibility=Visible ไปหมาดๆ)
+        }
+
+        var scale = Math.Min(containerWidth / sourceWidth, containerHeight / sourceHeight);
+        if (scale <= 0)
+        {
+            return false;
+        }
+
+        var renderedWidth = sourceWidth * scale;
+        var renderedHeight = sourceHeight * scale;
+        var offsetX = (containerWidth - renderedWidth) / 2;
+        var offsetY = (containerHeight - renderedHeight) / 2;
+
+        var relX = consolePoint.X - offsetX;
+        var relY = consolePoint.Y - offsetY;
+
+        if (!clampToImage && (relX < 0 || relY < 0 || relX >= renderedWidth || relY >= renderedHeight))
+        {
+            return false; // คลิกอยู่ในแถบ letterbox - ไม่ใช่ตำแหน่งใดบนภาพจริง (เฉพาะ MouseDown)
+        }
+
+        relX = Math.Clamp(relX, 0, renderedWidth - 1);
+        relY = Math.Clamp(relY, 0, renderedHeight - 1);
+
+        targetX = (ushort)Math.Clamp((int)Math.Round(relX / scale), 0, sourceWidth - 1);
+        targetY = (ushort)Math.Clamp((int)Math.Round(relY / scale), 0, sourceHeight - 1);
+        return true;
+    }
+
+    private static bool TryMapMouseButton(MouseButton wpfButton, out VncMouseButton vncButton)
+    {
+        switch (wpfButton)
+        {
+            case MouseButton.Left:
+                vncButton = VncMouseButton.Left;
+                return true;
+            case MouseButton.Middle:
+                vncButton = VncMouseButton.Middle;
+                return true;
+            case MouseButton.Right:
+                vncButton = VncMouseButton.Right;
+                return true;
+            default:
+                // XButton1/XButton2 (ปุ่มเสริม back/forward) - RFC 6143 §7.5.5 นิยาม button 1-5 ชัดเจน
+                // (left/middle/right/wheel-up/wheel-down) เท่านั้น ไม่มีความหมายมาตรฐานสำหรับ bit 5-7 เลย
+                // (แค่บอกว่า "button 1 to 8" มีที่ทางให้ใช้ได้ แต่ไม่ได้นิยามว่า target ตีความยังไง) - ไม่
+                // implement ต่อเพราะจะเป็นการเดา ไม่ใช่ทำตาม spec ที่ verify แล้วจริง
+                vncButton = default;
+                return false;
+        }
+    }
+
+    private void FullscreenImage_PreviewMouseMove(object sender, MouseEventArgs e)
+    {
+        var handle = GetFullscreenHandle();
+        if (handle is null)
+        {
+            return;
+        }
+
+        var now = DateTime.UtcNow;
+        if (now - _fullscreenLastMouseMoveSentAt < FullscreenMouseMoveMinInterval)
+        {
+            return;
+        }
+
+        if (!TryMapFullscreenPointToTarget(e.GetPosition(FullscreenImage), handle, clampToImage: true, out var x, out var y))
+        {
+            return;
+        }
+
+        _fullscreenLastMouseMoveSentAt = now;
+        _fullscreenLastMouseX = x;
+        _fullscreenLastMouseY = y;
+        _ = handle.SendMouseMoveAsync(x, y);
+    }
+
+    /// <summary>Mouse.Capture ไว้ตั้งแต่ MouseDown เพื่อให้ยังได้รับ MouseMove/MouseUp ต่อเนื่องแม้เมาส์ขยับออกนอกขอบเขต FullscreenImage ระหว่างลาก (drag) - ตรงกับพฤติกรรม drag ปกติของ Windows</summary>
+    private void FullscreenImage_PreviewMouseDown(object sender, MouseButtonEventArgs e)
+    {
+        var handle = GetFullscreenHandle();
+        if (handle is null)
+        {
+            return;
+        }
+
+        if (!TryMapMouseButton(e.ChangedButton, out var button))
+        {
+            return;
+        }
+
+        if (!TryMapFullscreenPointToTarget(e.GetPosition(FullscreenImage), handle, clampToImage: false, out var x, out var y))
+        {
+            return; // คลิกในแถบ letterbox - ไม่ส่งอะไรไป target เลย
+        }
+
+        Keyboard.Focus(LiveViewFullscreenOverlay); // Image ไม่ได้ถือ keyboard focus เอง (Focusable=false ปกติของ Image) - คืน focus ให้ overlay ที่รับ key event จริง เผื่อโดนคลิกแล้วหลุดไปจาก popup อื่นก่อนหน้า
+        Mouse.Capture(FullscreenImage);
+        e.Handled = true;
+
+        _fullscreenMouseButtonDown = button;
+        _fullscreenLastMouseX = x;
+        _fullscreenLastMouseY = y;
+        _ = handle.SendMouseButtonAsync(button, isDown: true, x, y);
+    }
+
+    private void FullscreenImage_PreviewMouseUp(object sender, MouseButtonEventArgs e)
+    {
+        var handle = GetFullscreenHandle();
+        if (handle is null)
+        {
+            return;
+        }
+
+        if (!TryMapMouseButton(e.ChangedButton, out var button))
+        {
+            return;
+        }
+
+        // clampToImage=true เสมอตรงนี้ (ต่างจาก MouseDown) - ต้องปล่อยปุ่มให้สำเร็จเสมอไม่ว่าตำแหน่งปล่อย
+        // จะอยู่ตรงไหน (แม้หลุดนอกภาพเล็กน้อยระหว่างลาก) ไม่งั้นปุ่มจะค้างเป็น stuck mouse-down บน target
+        TryMapFullscreenPointToTarget(e.GetPosition(FullscreenImage), handle, clampToImage: true, out var x, out var y);
+
+        Mouse.Capture(null);
+        e.Handled = true;
+
+        _fullscreenMouseButtonDown = null;
+        _fullscreenLastMouseX = x;
+        _fullscreenLastMouseY = y;
+        _ = handle.SendMouseButtonAsync(button, isDown: false, x, y);
+    }
+
+    /// <summary>Scroll wheel - RFC 6143 §7.5.5 core spec เอง ไม่ใช่ extension (verify แล้ว - ดู comment ที่ VncMouseButton.WheelUp/WheelDown) ส่งเป็น click (กด+ปล่อยทันที) ซ้ำตามจำนวน notch ที่ขยับจริง ไม่ throttle (wheel ไม่ถี่เท่า MouseMove และการ drop notch จะทำให้ scroll ระยะไม่ตรง)</summary>
+    private void FullscreenImage_PreviewMouseWheel(object sender, MouseWheelEventArgs e)
+    {
+        var handle = GetFullscreenHandle();
+        if (handle is null)
+        {
+            return;
+        }
+
+        if (!TryMapFullscreenPointToTarget(e.GetPosition(FullscreenImage), handle, clampToImage: true, out var x, out var y))
+        {
+            return;
+        }
+
+        e.Handled = true;
+        var notches = Math.Max(1, Math.Abs(e.Delta) / WheelDeltaPerNotch);
+        var button = e.Delta > 0 ? VncMouseButton.WheelUp : VncMouseButton.WheelDown;
+
+        _ = ForwardWheelNotchesAsync(handle, button, x, y, notches);
+    }
+
+    private static async Task ForwardWheelNotchesAsync(VncSessionHandle handle, VncMouseButton button, ushort x, ushort y, int notches)
+    {
+        for (var i = 0; i < notches; i++)
+        {
+            await handle.SendMouseClickAsync(button, x, y);
+        }
+    }
+
+    /// <summary>
+    /// popup/tooltip/element อื่นแย่ง keyboard focus ไประหว่างอยู่ใน fullscreen mode (เช่น ContextMenu ค้าง
+    /// จาก SettingsMenuButton แวบมาโผล่พอดี) - ดึง focus กลับมาที่ overlay ทันทีที่มันหลุดไป ตราบใดที่ยัง
+    /// อยู่ใน fullscreen mode จริง (เช็ค _liveViewFullscreenClientGuid ไม่ใช่แค่ IsVisible เพราะตอนกำลังจะ
+    /// ปิด overlay เอง IsKeyboardFocusWithin ก็จะเปลี่ยนเป็น false ด้วยเหมือนกัน ต้องแยกให้ออกจากกรณีนั้น)
+    /// </summary>
+    private void LiveViewFullscreenOverlay_IsKeyboardFocusWithinChanged(object sender, DependencyPropertyChangedEventArgs e)
+    {
+        if (_liveViewFullscreenClientGuid is not null && !LiveViewFullscreenOverlay.IsKeyboardFocusWithin)
+        {
+            Dispatcher.InvokeAsync(() => Keyboard.Focus(LiveViewFullscreenOverlay), DispatcherPriority.Input);
+        }
+    }
+
+    private void LiveViewFullscreenOverlay_PreviewKeyDown(object sender, KeyEventArgs e) => ForwardFullscreenKeyEvent(e, isDown: true);
+    private void LiveViewFullscreenOverlay_PreviewKeyUp(object sender, KeyEventArgs e) => ForwardFullscreenKeyEvent(e, isDown: false);
+
+    /// <summary>
+    /// e.Handled=true ตั้งไว้ก่อนเช็คอะไรทั้งหมด (แม้ handle จะเป็น null หรือ key ไม่มี mapping ก็ตาม) -
+    /// สำคัญมาก: ต้องกัน WPF/Windows ประมวลผล key นี้เอง "ทุกกรณี" ไม่ใช่แค่กรณีที่ส่งสำเร็จ ไม่งั้น Tab จะ
+    /// ขยับ focus ใน Console เอง, Escape อาจปิด dialog ผิดตัว ฯลฯ ระหว่างที่ตั้งใจจะพิมพ์/กดปุ่มบน target
+    ///
+    /// key == Key.System (WPF จัดกลุ่มนี้ให้ทุก key ที่กดพร้อม Alt ค้างอยู่ รวม Alt+F4 เอง) ต้องอ่านจาก
+    /// e.SystemKey แทน e.Key ตรงๆ (ดู pattern เดียวกันใน VncPoolTestWindow.KeyTestBox_PreviewKey - Step 4g)
+    ///
+    /// **หมายเหตุสำคัญเรื่อง Alt+Tab/ปุ่ม Windows**: e.Handled=true ตรงนี้ป้องกันไม่ให้ WPF/Console เอง
+    /// ประมวลผล key เหล่านี้ก็จริง แต่ "ไม่สามารถ" กัน Windows shell (Explorer) ไม่ให้แสดง task
+    /// switcher/Start menu ของมันเองได้ - Alt+Tab/ปุ่ม Windows เป็น global hotkey ที่ shell ดักจับที่ระดับ
+    /// ต่ำกว่า foreground application ใดๆ ทั้งสิ้น (คนละกลไกกับ routed keyboard event ของ WPF) ไม่มี
+    /// WPF-level API ใดกันได้ ต้องใช้ SetWindowsHookEx(WH_KEYBOARD_LL) แบบ system-wide เท่านั้น - **ไม่ได้
+    /// implement เพราะเป็นการยกระดับ scope ใหญ่มาก (แทรกแซงทั้งเครื่องครู ไม่ใช่แค่ apply กับ Console)
+    /// ต้องถามยืนยันก่อนถ้าต้องการจริงๆ** ต่างจาก Alt+F4 ที่กันได้แน่นอนด้วยวิธีอื่นแล้ว (ดู Window.Closing
+    /// ใน constructor) เพราะ Alt+F4 แค่ทำให้ "Console เองปิด" (แก้ที่ Window.Closing ได้ตรงจุด) แต่
+    /// Alt+Tab/Windows key แค่ทำให้ "shell UI ของครูโผล่ขึ้นมาชั่วคราว" (ไม่มีผลเสียร้ายแรงเท่า - keysym ยัง
+    /// ถูกส่งไป target ตามปกติเหมือนเดิมไม่ว่ากรณีไหน เพียงแต่โผล่ UI ฝั่งครูมาด้วยเฉยๆ)
+    /// </summary>
+    private void ForwardFullscreenKeyEvent(KeyEventArgs e, bool isDown)
+    {
+        e.Handled = true;
+
+        var handle = GetFullscreenHandle();
+        if (handle is null)
+        {
+            return;
+        }
+
+        var key = e.Key == Key.System ? e.SystemKey : e.Key;
+        var vkCode = KeyInterop.VirtualKeyFromKey(key);
+
+        try
+        {
+            _ = handle.SendKeyPressAsync(vkCode, isDown);
+            FullscreenStatusText.Text = "";
+        }
+        catch (NotSupportedException ex)
+        {
+            FullscreenStatusText.Text = ex.Message;
+        }
     }
 }

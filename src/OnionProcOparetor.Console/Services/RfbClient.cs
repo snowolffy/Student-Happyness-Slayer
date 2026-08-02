@@ -46,12 +46,23 @@ public sealed class RfbRectangle
     public required byte[] PixelData { get; init; }
 }
 
-/// <summary>เมาส์ปุ่มไหน ตาม RFC 6143 §7.5.5 button-mask (bit 0=left, bit 1=middle, bit 2=right)</summary>
+/// <summary>
+/// เมาส์ปุ่มไหน ตาม RFC 6143 §7.5.5 button-mask (bit 0=left, bit 1=middle, bit 2=right)
+///
+/// WheelUp/WheelDown (Step 4h) = bit 3/bit 4 (button 4/5) - **เป็นส่วนหนึ่งของ RFC 6143 §7.5.5 เอง
+/// ไม่ใช่ vendor extension** (verify แล้วจากตัว RFC โดยตรง ไม่ได้เดา): ข้อความ spec ระบุตรงๆ ว่า "the
+/// current state of buttons 1 to 8 are represented by bits 0 to 7 of button-mask" และ "On a wheel mouse,
+/// each step of the wheel upwards is represented by a press and release of button 4, and each step
+/// downwards is represented by a press and release of button 5" ดังนั้น "scroll" ทำผ่าน
+/// SendMouseClickAsync ปกติ (กด+ปล่อยทันที) ไม่ใช่ SendMouseButtonAsync ค้างไว้แบบ Left/Middle/Right
+/// </summary>
 public enum VncMouseButton
 {
     Left,
     Middle,
-    Right
+    Right,
+    WheelUp,
+    WheelDown
 }
 
 /// <summary>
@@ -61,8 +72,9 @@ public enum VncMouseButton
 /// ServerInit Step 4c: SetPixelFormat/SetEncodings(Raw เท่านั้น)/FramebufferUpdateRequest loop + decode
 /// Raw rectangle Step 4e: VncViewMode.Thumbnail - ลด bit depth บน wire + downscale ตอน decode + throttle
 /// หนักกว่าเดิมมาก สำหรับแสดงใน grid หลายเครื่องพร้อมกัน สลับ FullRes/Thumbnail ได้ระหว่าง session เดียวกัน
-/// (RequestModeSwitch) ไม่ต้อง reconnect Step 4g (เพิ่มในรอบนี้): PointerEvent/KeyEvent (RFC 6143
-/// §7.5.4/§7.5.5) - ยังไม่ผูกกับ UI จริง (mouse capture/coordinate scaling ตาม view คือ Step 4h)
+/// (RequestModeSwitch) ไม่ต้อง reconnect Step 4g: PointerEvent/KeyEvent (RFC 6143 §7.5.4/§7.5.5) Step 4h:
+/// ผูกกับ full-screen overlay จริงแล้ว (mouse capture + coordinate scaling + scroll wheel + keyboard
+/// capture) - ดู DashboardWindow ส่วน Live View full-screen input capture
 ///
 /// เชื่อม TCP ตรงจาก Console ไปยัง Agent เครื่องเป้าหมาย ไม่ผ่าน Server เป็น relay เลย (Server แค่ช่วย
 /// ส่ง port/password ผ่าน SignalR ให้ตอน StartVncSession เท่านั้น - ดู LabHubClient.VncSessionReady)

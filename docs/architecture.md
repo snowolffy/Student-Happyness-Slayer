@@ -1496,3 +1496,76 @@ live-test ซ้ำหลัง deploy build ใหม่ (kill winvnc.exe เ�
 
 Build ผ่านทั้ง solution 0 error, สร้าง installer (.msi + legacy .exe) สำเร็จแล้ว (v1.2.4.0) live-test
 ยืนยัน `InputsEnabled=1` แก้ปัญหา input ได้จริงแล้ว - commit แล้ว
+
+## Lock Screen (Phase 3) - ปิดช่อง input leak (mouse+keyboard ทะลุ) + multi-monitor + failsafe
+
+บั๊กที่รายงาน: หน้าจอล็อกสีดำ (`LockScreenWindow` ใน AgentTray) แสดงผลถูกต้อง (Topmost) แต่นักเรียนยัง
+คลิก/พิมพ์ทะลุไปโดนโปรแกรมที่ซ่อนอยู่ข้างหลังได้ - วิเคราะห์ก่อนแก้ (ตามที่ตกลง) พบสองสาเหตุแยกกัน:
+
+1. **Keyboard**: hook เดิม (`WH_KEYBOARD_LL`) เป็น **denylist เฉพาะ 4 คีย์ผสม** (Alt-Tab/Win/Ctrl-Esc/
+   Alt-F4) เท่านั้น - การพิมพ์ตัวอักษรทั่วไปไม่เคยถูกกันเลยตั้งแต่แรก (ตามดีไซน์เดิม) คีย์บอร์ดใน Windows
+   route ตาม **keyboard focus** ไม่ใช่ตาม z-order ที่มองเห็น - `Activate()` ที่เรียกครั้งเดียวตอนสร้าง
+   หน้าต่าง (จาก background thread ของ pipe listener) อาจโดน Windows' anti-focus-stealing protection
+   ปฏิเสธเงียบๆ ทำให้ focus ค้างอยู่ที่โปรแกรมเดิมของนักเรียน - พิมพ์อะไรก็ไปโดนตรงนั้นเลย
+2. **Mouse**: ไม่มีกลไกกันเลยแม้แต่บรรทัดเดียว (grep ทั้ง repo ยืนยัน) - พึ่ง Topmost บังจอไว้เฉยๆ ซึ่งพังได้
+   จาก multi-monitor (โค้ดเดิม comment บอกตรงๆ ว่าไม่รองรับ), topmost z-order ที่ไม่ใช่ผู้ชนะเด็ดขาด (หน้าต่าง
+   อื่น topmost ทีหลังได้), หรือ DPI-scaling edge gap
+
+### การแก้ (ทำทั้ง 4 แนวทางในรอบเดียว - user ยืนยัน go-ahead สำหรับ WH_MOUSE_LL แล้ว)
+
+**1. Keyboard hook → block ทุกคีย์ไม่มีข้อยกเว้น**: `KeyboardHookCallback` เปลี่ยนจาก denylist เป็น
+`if (nCode >= 0) return (IntPtr)1;` ตรงๆ - ไม่ต้อง whitelist อะไรเลยเพราะปลดล็อกไม่เคยพึ่ง keyboard escape
+ใดๆ อยู่แล้ว (ทางเดียวคือ `ForceClose()` จาก Console) Ctrl-Alt-Del ยังกันไม่ได้เหมือนเดิม (Secure Attention
+Sequence การันตีโดย OS - เป็นทางออกฉุกเฉินสุดท้ายที่เหลืออยู่เสมอ)
+
+**2. เพิ่ม `WH_MOUSE_LL` hook คู่กับ keyboard hook เดิม**: `MouseHookCallback` บล็อกทุก mouse event
+(move/click/wheel) แบบเดียวกัน เก็บ delegate เป็น field กัน GC เหมือน keyboard hook เดิมทุกประการ ผลข้าง
+เคียงที่ตั้งใจ (ไม่ใช่บั๊ก - verify จาก Microsoft doc): บล็อก `WM_MOUSEMOVE` ทำให้ cursor ค้างนิ่งอยู่กับที่
+ตลอดช่วงล็อก (ไม่ใช่แค่กันหน้าต่างอื่นเห็น event แต่กันการอัพเดตตำแหน่ง cursor ในตัวเลย) ตรงกับพฤติกรรมของ
+kiosk-mode screen locker ทั่วไป
+
+**3. Agent watchdog (failsafe)**: `DispatcherTimer` เช็คทุก 3 วิระหว่างล็อกอยู่ว่า
+`Process.GetProcessesByName("OnionProcOparetor.Agent")` ยังเจอไหม (ไม่ใช้ `ServiceController` - ไม่ต้อง
+พึ่งสิทธิ์ SCM ใช้งานได้แม้ dev รัน Agent เป็น console app เฉยๆ) ถ้าหายไปกลางคัน (Agent เป็นตัวกลางเดียวที่
+relay "HideLockScreen" จาก Console ผ่าน pipe - Agent ตาย = ไม่มีทางปลดล็อกได้อีกเลย) → ยิง
+`AgentDiedWhileLocked` → `App.xaml.cs` เรียก `HideAllLockScreens()` (path เดียวกับปลดล็อกปกติ) ทันที ไม่
+debounce (ไม่มี false-positive จาก "ยังไม่ทันสตาร์ท" เพราะ ณ จังหวะเริ่มล็อกได้ Agent ต้องเพิ่งพิสูจน์ตัวเอง
+ว่ามีชีวิตอยู่แล้ว - เป็นคนส่ง ShowLockScreen มาเอง)
+
+**ข้อจำกัดที่รายงานตรงๆ (ไม่ปิดบัง)**: watchdog นี้แก้ได้เฉพาะ "Agent ตายแต่ AgentTray ยังรันอยู่" เท่านั้น
+ถ้า AgentTray เอง (process ที่ถือ hook) ตายกลางคัน โค้ดในไฟล์นี้ตายไปพร้อมกัน ทำอะไรไม่ได้อีก - ต้องพึ่ง
+Windows เอง (low-level hook ของ process ที่ตายไปจะถูก unhook อัตโนมัติหลัง timeout - `LowLevelHooksTimeout`,
+เอกสาร Microsoft ระบุจำนวนครั้ง timeout ก่อนปล่อยเลิก) แปลว่าเมาส์/คีย์บอร์ดจะค้าง**ชั่วคราวระดับวินาที**
+ก่อนกลับมาเอง ไม่ใช่ค้างถาวร แต่ไม่ instant เท่า path ของ watchdog (ที่เรียก `UnhookWindowsHookEx` เองตรงๆ)
+- เป็น known limitation ที่แก้เพิ่มไม่ได้จากโค้ดฝั่งเดียวกันที่กำลังตายอยู่พอดี
+
+**4. Multi-monitor**: `LockScreenWindow` constructor เปลี่ยนรับ `System.Windows.Forms.Screen` +
+`installInputBlocking: bool` - `App.xaml.cs` เปลี่ยนจาก field เดี่ยวเป็น `List<LockScreenWindow>` เปิดหนึ่ง
+instance ต่อจอ (`Screen.AllScreens`) เฉพาะ**จอแรกเท่านั้น**ที่ `installInputBlocking=true` (ติดตั้ง
+keyboard/mouse hook + watchdog จริง - hook เป็น system-wide ติดตั้งซ้ำหลายจอไม่มีประโยชน์) จอที่เหลือเป็นแค่
+overlay เปล่าที่ปิดไม่ได้เหมือนกันหมด ทุกจอปิด/เปิดพร้อมกันเป็นชุดเดียวผ่าน `HideAllLockScreens()`/
+`OnShowLockScreenRequested()` เท่านั้น (ไม่มีทางปลดทีละจอ) ตำแหน่ง/ขนาดต่อจอคำนวณจาก
+`Screen.Bounds` (physical pixel) แปลงเป็น WPF DIP ด้วยอัตราส่วน DPI ของจอหลักจอเดียว (แอปนี้ไม่ได้ประกาศ
+per-monitor DPI awareness ไว้) แล้วพึ่ง `WindowState=Maximized` เติมเต็มจอเป้าหมายให้พอดีเอง
+
+**5. `Activate()` retry ผ่าน `Deactivated` event**: secondary layer เสริมจาก keyboard hook (ข้อ 1) ไม่ใช่
+ตัวกันหลัก - ถ้า deactivate ระหว่างยังล็อกอยู่ (`!_allowClose`) เรียก `Activate()` ซ้ำทันทีผ่าน
+`Dispatcher.BeginInvoke(..., DispatcherPriority.Input)`
+
+### csproj: `UseWindowsForms=true` (เฉพาะ `Screen.AllScreens`)
+
+ไม่มี WPF API มาตรฐานสำหรับ multi-monitor enumeration - ต้องเปิด `UseWindowsForms` เพิ่มใน
+`OnionProcOparetor.AgentTray.csproj` เจอปัญหาจริงตอน build: `ImplicitUsings=enable` +
+`UseWindowsForms=true` auto-add `global using System.Windows.Forms;`/`global using System.Drawing;` ชน
+กับ `System.Windows.Application`/`MessageBox`/`Media.Brush` ของ WPF ทันที (CS0104 หลายจุด) แก้ด้วย
+`<Using Remove="System.Windows.Forms" />`/`<Using Remove="System.Drawing" />` ในไฟล์เดียวกัน (ไม่ปิด
+ImplicitUsings ทั้งหมด) - โค้ดที่ใช้ `Screen` จริงเรียกแบบ fully-qualified เสมอ (`System.Windows.Forms.
+Screen`) ไม่ได้พึ่ง global using ตัวนี้อยู่แล้ว `App.xaml.cs`'s `App : Application` ก็ต้องระบุเต็มเป็น
+`System.Windows.Application` ด้วยเหตุผลเดียวกัน
+
+### สถานะ - live-test ผ่านครบแล้ว
+
+Build ผ่านทั้ง solution 0 error, publish + สร้าง installer (.msi + legacy .exe) สำเร็จ (v1.2.5.0) - user
+live-test บนเครื่องจริงครบทั้ง 4 scenario แล้วและ**ยืนยันผ่าน**: (1) พิมพ์/คลิกปกติไม่ทะลุ, (2) multi-monitor
+ล็อกพร้อมกันทั้งสองจอ, (3) kill Agent process กลางคันขณะล็อก → keyboard/mouse กลับมาใช้งานได้ไม่ค้าง, (4)
+ปลดล็อกผ่าน Console ปกติ → ทุกจอเปิดพร้อมกัน hook unhook ครบไม่มี residual

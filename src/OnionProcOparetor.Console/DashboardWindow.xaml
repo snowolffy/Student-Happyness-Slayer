@@ -550,9 +550,19 @@
              - เคยประกาศไว้ก่อน Footer Border เลยโดน Footer วาดทับ overlay อีกทีในแถบล่างสุด แก้โดยย้ายมา
              หลังสุดแทน) ครอบคลุมพื้นที่เดียวกับ root Canvas ทั้งหมด (รวม toolbar/footer) เพื่อให้เป็น
              "full-screen" จริงตามที่ขอ ปุ่ม "กลับไป Grid" อยู่มุมบนซ้ายชัดเจนเสมอเป็นทางเดียวที่กดออกจาก
-             โหมดนี้ได้ -->
+             โหมดนี้ได้
+
+             Step 4h: Focusable="True" + FocusVisualStyle="{x:Null}" - overlay Border เองเป็นตัวรับ
+             keyboard focus โดยตรง (ไม่ต้องมี invisible focus-sink control แยก) PreviewKeyDown/Up ผูกไว้ที่
+             Border นี้ (tunnel event เลยรับได้ไม่ว่า element ลูกตัวไหนจะถืออยู่จริง) ส่วน mouse
+             move/down/up/wheel ผูกที่ FullscreenImage โดยตรง (ดู DashboardWindow.xaml.cs ส่วน "Live View
+             full-screen input capture") -->
         <Border x:Name="LiveViewFullscreenOverlay" Canvas.Left="0" Canvas.Top="0" Width="968" Height="648"
-                Background="{StaticResource Brush.Background.Primary}" Visibility="Collapsed">
+                Background="{StaticResource Brush.Background.Primary}" Visibility="Collapsed"
+                Focusable="True" FocusVisualStyle="{x:Null}"
+                PreviewKeyDown="LiveViewFullscreenOverlay_PreviewKeyDown"
+                PreviewKeyUp="LiveViewFullscreenOverlay_PreviewKeyUp"
+                IsKeyboardFocusWithinChanged="LiveViewFullscreenOverlay_IsKeyboardFocusWithinChanged">
             <Grid Margin="0">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto"/>
@@ -564,11 +574,21 @@
                             Padding="14,8" Click="BackToGridButton_Click"/>
                     <TextBlock x:Name="FullscreenHeaderText" Style="{StaticResource Heading2}"
                                Margin="20,0,0,0" VerticalAlignment="Center"/>
+                    <TextBlock x:Name="FullscreenStatusText" Style="{StaticResource Caption}"
+                               Foreground="{StaticResource Brush.Danger.Default}"
+                               Margin="20,0,0,0" VerticalAlignment="Center"/>
                 </StackPanel>
 
                 <Border Grid.Row="1" Background="Black" CornerRadius="10"
                         BorderBrush="{StaticResource Brush.Border.Default}" BorderThickness="1">
-                    <Image x:Name="FullscreenImage" Stretch="Uniform"/>
+                    <!-- Step 4h: คุมเมาส์เต็มพื้นที่ Image นี้ - Stretch="Uniform" ทำให้ภาพ letterbox
+                         (แถบดำซ้าย-ขวาหรือบน-ล่าง) ถ้าอัตราส่วน target ไม่ตรงกับพื้นที่แสดงผลพอดี ต้องแปลง
+                         พิกัดคลิกกลับเป็นพิกัดจริงของ target เอง (ดู TryMapFullscreenPointToTarget) -->
+                    <Image x:Name="FullscreenImage" Stretch="Uniform"
+                           PreviewMouseMove="FullscreenImage_PreviewMouseMove"
+                           PreviewMouseDown="FullscreenImage_PreviewMouseDown"
+                           PreviewMouseUp="FullscreenImage_PreviewMouseUp"
+                           PreviewMouseWheel="FullscreenImage_PreviewMouseWheel"/>
                 </Border>
             </Grid>
         </Border>

@@ -5,14 +5,21 @@ using OnionProcOparetor.AgentTray.Services;
 
 namespace OnionProcOparetor.AgentTray;
 
-public partial class App : Application
+// System.Windows.Application ระบุเต็มเสมอ (ไม่ใช่แค่ "Application") เพราะ UseWindowsForms=true
+// (สำหรับ Screen.AllScreens ใน LockScreenWindow เท่านั้น) เพิ่ม global using System.Windows.Forms
+// เข้ามาชนกับ System.Windows.Application ของ WPF โดยตรง
+public partial class App : System.Windows.Application
 {
     private TaskbarIcon? _trayIcon;
     private readonly ClientApiClient _apiClient = new();
     private readonly BroadcastPipeListener _broadcastListener = new();
     private readonly CancellationTokenSource _broadcastListenerCts = new();
     private readonly VncProcessManager _vncProcessManager = new();
-    private LockScreenWindow? _lockScreenWindow;
+
+    // instance ต่อจอ (System.Windows.Forms.Screen.AllScreens) - เฉพาะตัวแรก (index 0) เท่านั้นที่ติดตั้ง
+    // keyboard/mouse hook + Agent watchdog จริง (ดู LockScreenWindow doc comment) รายการนี้ว่างเปล่า =
+    // ไม่ได้ล็อกอยู่ (ใช้แทนการเช็ค field เดี่ยวเดิมที่รองรับแค่จอเดียว)
+    private readonly List<LockScreenWindow> _lockScreenWindows = new();
 
     protected override void OnStartup(StartupEventArgs e)
     {
@@ -90,30 +97,54 @@ public partial class App : Application
         });
     }
 
-    /// <summary>เรียกจาก background thread ของ pipe listener - idempotent (เรียกซ้ำตอนล็อกอยู่แล้วไม่มีผล)</summary>
+    /// <summary>เรียกจาก background thread ของ pipe listener - idempotent (เรียกซ้ำตอนล็อกอยู่แล้วไม่มีผล) เปิด LockScreenWindow แยกหนึ่งตัวต่อจอที่ต่ออยู่ตอนนี้ (ไม่ใช่แค่จอหลัก)</summary>
     private void OnShowLockScreenRequested()
     {
         Dispatcher.Invoke(() =>
         {
-            if (_lockScreenWindow is not null)
+            if (_lockScreenWindows.Count > 0)
             {
                 return; // ล็อกอยู่แล้ว - ไม่ต้องเปิดซ้อน
             }
 
-            _lockScreenWindow = new LockScreenWindow();
-            _lockScreenWindow.Show();
-            _lockScreenWindow.Activate();
+            var screens = System.Windows.Forms.Screen.AllScreens;
+            for (var i = 0; i < screens.Length; i++)
+            {
+                var isOwner = i == 0; // ดู LockScreenWindow doc comment - เจ้าของ hook/watchdog มีแค่จอเดียว
+                var window = new LockScreenWindow(screens[i], installInputBlocking: isOwner);
+
+                if (isOwner)
+                {
+                    window.AgentDiedWhileLocked += OnAgentDiedWhileLocked;
+                }
+
+                _lockScreenWindows.Add(window);
+                window.Show();
+            }
+
+            _lockScreenWindows[0].Activate();
         });
     }
+
+    /// <summary>watchdog ของ instance เจ้าของ hook ตรวจพบว่า process ของ Agent หายไปกลางคันขณะล็อกอยู่ (ดู LockScreenWindow.CheckAgentHealth) - เรียกจาก UI thread อยู่แล้ว (DispatcherTimer.Tick) ไม่ต้อง Dispatcher.Invoke ซ้ำ</summary>
+    private void OnAgentDiedWhileLocked() => HideAllLockScreens();
 
     /// <summary>เรียกจาก background thread ของ pipe listener - idempotent (เรียกซ้ำตอนไม่ได้ล็อกอยู่ไม่มีผล)</summary>
     private void OnHideLockScreenRequested()
     {
-        Dispatcher.Invoke(() =>
+        Dispatcher.Invoke(HideAllLockScreens);
+    }
+
+    /// <summary>ปิดทุกจอพร้อมกันเป็นชุดเดียวเสมอ (ไม่มีทางปลดล็อกทีละจอ) - เรียกได้ทั้งจากทาง Console สั่งปกติและจาก watchdog ฉุกเฉิน (OnAgentDiedWhileLocked) ใช้ path เดียวกันทั้งคู่</summary>
+    private void HideAllLockScreens()
+    {
+        foreach (var window in _lockScreenWindows)
         {
-            _lockScreenWindow?.ForceClose();
-            _lockScreenWindow = null;
-        });
+            window.AgentDiedWhileLocked -= OnAgentDiedWhileLocked; // no-op ถ้าไม่เคย subscribe (instance ที่ไม่ใช่เจ้าของ hook)
+            window.ForceClose();
+        }
+
+        _lockScreenWindows.Clear();
     }
 
     /// <summary>
@@ -134,7 +165,7 @@ public partial class App : Application
     protected override void OnExit(ExitEventArgs e)
     {
         _broadcastListenerCts.Cancel();
-        _lockScreenWindow?.ForceClose();
+        HideAllLockScreens();
         _vncProcessManager.Stop();
         _trayIcon?.Dispose();
         base.OnExit(e);

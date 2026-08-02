@@ -3,11 +3,25 @@
     <OutputType>WinExe</OutputType>
     <TargetFramework>net10.0-windows</TargetFramework>
     <UseWPF>true</UseWPF>
+    <!-- เฉพาะ System.Windows.Forms.Screen.AllScreens (multi-monitor enumeration สำหรับ LockScreenWindow -
+         ไม่มี WPF API มาตรฐานสำหรับสิ่งนี้) เรียกแบบ fully-qualified เสมอ ไม่ using System.Windows.Forms
+         เพื่อกันชนกับ System.Windows.MessageBox/Application ของ WPF -->
+    <UseWindowsForms>true</UseWindowsForms>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <AssemblyName>OnionProcOparetor.AgentTray</AssemblyName>
     <RootNamespace>OnionProcOparetor.AgentTray</RootNamespace>
   </PropertyGroup>
+
+  <!-- UseWindowsForms=true (ด้านบน) auto-add global using System.Windows.Forms/System.Drawing มาชนกับ
+       System.Windows.Application/MessageBox และ System.Windows.Media.Brush ของ WPF ทั่วทั้งโปรเจกต์ทันที
+       (เจอจริงตอน build - ไม่ใช่แค่เดา) เอาสอง global using นี้ออกเฉพาะสองตัวนี้ (ไม่ปิด ImplicitUsings
+       ทั้งหมด) - โค้ดที่ต้องใช้ System.Windows.Forms.Screen จริง (LockScreenWindow) เรียกแบบ
+       fully-qualified อยู่แล้ว ไม่ได้พึ่ง global using ตัวนี้เลย -->
+  <ItemGroup>
+    <Using Remove="System.Windows.Forms" />
+    <Using Remove="System.Drawing" />
+  </ItemGroup>
 
   <ItemGroup>
     <!--
