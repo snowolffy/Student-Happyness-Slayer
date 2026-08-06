@@ -11,6 +11,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <AssemblyName>OnionProcOparetor.AgentTray</AssemblyName>
     <RootNamespace>OnionProcOparetor.AgentTray</RootNamespace>
+    <ApplicationIcon>Theme\icon.ico</ApplicationIcon>
   </PropertyGroup>
 
   <!-- UseWindowsForms=true (ด้านบน) auto-add global using System.Windows.Forms/System.Drawing มาชนกับ
@@ -42,6 +43,7 @@
 
   <ItemGroup>
     <Resource Include="Theme\logo.png" />
+    <Resource Include="Theme\icon.ico" />
   </ItemGroup>
 
   <!-- UltraVNC server (winvnc.exe + DLLs/plugins it may load at runtime) bundled as-is from an

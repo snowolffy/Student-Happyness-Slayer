@@ -5,31 +5,54 @@
         Height="280" Width="420"
         WindowStartupLocation="CenterOwner"
         ResizeMode="NoResize"
+        Icon="/Theme/icon.ico"
         Style="{StaticResource AppWindowStyle}">
-    <!-- Free-form Canvas layout - drag any element to reposition it in the VS Designer. -->
-    <Canvas Margin="20">
-        <TextBlock Canvas.Left="0" Canvas.Top="0" x:Name="MachineNameText" Style="{StaticResource Heading2}"/>
+    <!--
+        Grid layout with fixed-pixel RowDefinitions matching the old Canvas.Top deltas - see
+        SettingsWindow.xaml for the same pattern. NOTE: the original Canvas had the card Border
+        just 2px below MachineNameText's top (Canvas.Top="2") - too tight a gap to give the
+        heading its own row without risking it being clipped, so Row 0 is widened to 29 (matching
+        the heading-to-card gap used in every sibling window here) and Row 1 shortened to match,
+        keeping StatusText/buttons at their original absolute positions below.
+    -->
+    <Grid Margin="20">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="29"/>
+            <RowDefinition Height="123"/>
+            <RowDefinition Height="27"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
 
-        <Border Canvas.Left="0" Canvas.Top="32" Width="380" Height="110" CornerRadius="10" Padding="14"
+        <TextBlock Grid.Row="0" x:Name="MachineNameText" Style="{StaticResource Heading2}" HorizontalAlignment="Left" VerticalAlignment="Top"/>
+
+        <Border Grid.Row="1" Width="380" Height="110" CornerRadius="10" Padding="14"
                 Background="{StaticResource Brush.Background.Primary}"
-                BorderBrush="{StaticResource Brush.Border.Default}" BorderThickness="1">
-            <Canvas>
-                <TextBlock Canvas.Left="0" Canvas.Top="0" Text="POLL INTERVAL OVERRIDE (seconds)" Style="{StaticResource Label}"/>
-                <TextBlock Canvas.Left="0" Canvas.Top="18" Width="352"
+                BorderBrush="{StaticResource Brush.Border.Default}" BorderThickness="1" HorizontalAlignment="Left" VerticalAlignment="Top">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="18"/>
+                    <RowDefinition Height="22"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
+                <TextBlock Grid.Row="0" Text="POLL INTERVAL OVERRIDE (seconds)" Style="{StaticResource Label}" HorizontalAlignment="Left" VerticalAlignment="Top"/>
+                <TextBlock Grid.Row="1" Width="352"
                            Text="Leave empty to use the Agent's own default (usually 30s)."
-                           Style="{StaticResource Caption}" TextWrapping="Wrap"/>
-                <TextBox Canvas.Left="0" Canvas.Top="52" Width="120" x:Name="PollIntervalOverrideBox"
-                         Style="{StaticResource RoundedTextBox}"/>
-            </Canvas>
+                           Style="{StaticResource Caption}" TextWrapping="Wrap" HorizontalAlignment="Left" VerticalAlignment="Top"/>
+                <TextBox Grid.Row="2" Width="120" x:Name="PollIntervalOverrideBox"
+                         Style="{StaticResource RoundedTextBox}" HorizontalAlignment="Left" VerticalAlignment="Top" Height="40"/>
+            </Grid>
         </Border>
 
-        <TextBlock Canvas.Left="0" Canvas.Top="152" Width="380" x:Name="StatusText" Style="{StaticResource Caption}" TextWrapping="Wrap"/>
+        <TextBlock Grid.Row="2" Width="380" x:Name="StatusText" Style="{StaticResource Caption}" TextWrapping="Wrap" HorizontalAlignment="Left" VerticalAlignment="Top"/>
 
-        <Button Canvas.Left="84" Canvas.Top="204" Width="120" Content="CLEAR OVERRIDE" Style="{StaticResource ButtonSecondary}"
-                Padding="10,5" FontSize="11" Click="ClearOverrideButton_Click"/>
-        <Button Canvas.Left="212" Canvas.Top="204" Width="80" Content="SAVE" Style="{StaticResource ButtonPrimary}"
-                Click="SaveButton_Click"/>
-        <Button Canvas.Left="300" Canvas.Top="204" Width="80" Content="CANCEL" Style="{StaticResource ButtonSecondary}"
-                Padding="10,5" FontSize="11" Click="CancelButton_Click"/>
-    </Canvas>
+        <Grid Grid.Row="3">
+            <Button Content="CLEAR OVERRIDE" Style="{StaticResource ButtonSecondary}" Width="120"
+                    Padding="10,5" FontSize="11" Click="ClearOverrideButton_Click" HorizontalAlignment="Left" Height="35" VerticalAlignment="Top" Margin="10,0,0,0"/>
+            <Button Content="SAVE" Style="{StaticResource ButtonPrimary}" Width="80"
+                    HorizontalAlignment="Left" VerticalAlignment="Top" Margin="290,0,0,0"
+                    Click="SaveButton_Click"/>
+            <Button Content="CANCEL" Style="{StaticResource ButtonSecondary}" Width="80"
+                    Padding="10,5" FontSize="11" Click="CancelButton_Click" HorizontalAlignment="Left" Height="35" VerticalAlignment="Top" Margin="204,0,0,0"/>
+        </Grid>
+    </Grid>
 </Window>

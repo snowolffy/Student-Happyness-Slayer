@@ -5,39 +5,42 @@
         Height="400" Width="384"
         WindowStartupLocation="CenterOwner"
         ResizeMode="NoResize"
+        Icon="/Theme/icon.ico"
         Style="{StaticResource AppWindowStyle}">
     <!-- Free-form Canvas layout - drag any element to reposition it in the VS Designer. -->
-    <Canvas Margin="24">
-        <!-- ==================== Logo mark (reuses the same logo.png mark as MainWindow/DashboardWindow) ==================== -->
-        <Border Canvas.Left="144" Canvas.Top="0" Width="48" Height="48" CornerRadius="12"
+    <Canvas Margin="20">
+        <!-- ==================== Logo mark (uses logo-source.png - same 4000x4000 master the installer
+             banner is generated from - instead of the pre-downscaled logo.png MainWindow/Dashboard use,
+             since this is the one place the mark gets shown at meaningfully larger badge sizes) ==================== -->
+        <Border Canvas.Left="148" Canvas.Top="0" Width="48" Height="48" CornerRadius="12"
                 Background="{StaticResource Brush.Accent.Default}">
             <Border.Clip>
                 <RectangleGeometry RadiusX="12" RadiusY="12" Rect="0,0,48,48"/>
             </Border.Clip>
-            <Image Source="/Theme/logo.png" Stretch="UniformToFill"/>
+            <Image Source="/Theme/logo-source.png" Stretch="UniformToFill"/>
         </Border>
 
         <!-- ==================== Name / tagline ==================== -->
-        <TextBlock Canvas.Left="0" Canvas.Top="60" Width="336" Text="Onion ProcOparetor"
+        <TextBlock Canvas.Left="0" Canvas.Top="60" Width="344" Text="Onion ProcOparetor"
                     Style="{StaticResource Heading1}" TextAlignment="Center"/>
-        <TextBlock Canvas.Left="0" Canvas.Top="96" Width="336" Text="We peel, We See, We Oparete"
+        <TextBlock Canvas.Left="0" Canvas.Top="96" Width="344" Text="We peel, We See, We Oparete"
                     FontFamily="{StaticResource FontFamily.Primary}" FontStyle="Italic" FontWeight="Light"
                     FontSize="11" Foreground="{StaticResource Brush.Text.Secondary}" TextAlignment="Center"/>
-        <TextBlock Canvas.Left="0" Canvas.Top="118" Width="336" Text="by OnionProcOparetion"
+        <TextBlock Canvas.Left="0" Canvas.Top="118" Width="344" Text="by OnionProcOparetor"
                     Style="{StaticResource Caption}" TextAlignment="Center"/>
 
-        <Border Canvas.Left="0" Canvas.Top="154" Width="336" Height="1" Background="{StaticResource Brush.Border.Default}"/>
+        <Border Canvas.Left="0" Canvas.Top="154" Width="344" Height="1" Background="{StaticResource Brush.Border.Default}"/>
 
         <!-- ==================== Version / build / copyright ==================== -->
-        <TextBlock Canvas.Left="0" Canvas.Top="170" Width="336" x:Name="VersionText"
+        <TextBlock Canvas.Left="0" Canvas.Top="170" Width="344" x:Name="VersionText"
                     Style="{StaticResource Body}" TextAlignment="Center"/>
-        <TextBlock Canvas.Left="0" Canvas.Top="192" Width="336" x:Name="BuildText"
+        <TextBlock Canvas.Left="0" Canvas.Top="192" Width="344" x:Name="BuildText"
                     Style="{StaticResource Caption}" TextAlignment="Center"/>
-        <TextBlock Canvas.Left="0" Canvas.Top="226" Width="336"
-                    Text="© 2026 OnionProcOparetion. All rights reserved (probably)."
+        <TextBlock Canvas.Left="0" Canvas.Top="226" Width="344"
+                    Text="© 2026 OnionProcOparetor. All rights reserved."
                     Style="{StaticResource Caption}" TextAlignment="Center" TextWrapping="Wrap"/>
 
-        <Button Canvas.Left="123" Canvas.Top="286" Width="90" Content="CLOSE" Style="{StaticResource ButtonSecondary}"
+        <Button Canvas.Left="127" Canvas.Top="286" Width="90" Content="CLOSE" Style="{StaticResource ButtonSecondary}"
                 Click="CloseButton_Click"/>
     </Canvas>
 </Window>

@@ -5,71 +5,112 @@
         Height="640" Width="440"
         WindowStartupLocation="CenterOwner"
         ResizeMode="NoResize"
+        Icon="/Theme/icon.ico"
         Style="{StaticResource AppWindowStyle}">
-    <!-- Free-form Canvas layout - drag any element to reposition it in the VS Designer. -->
-    <Canvas Margin="20">
-        <TextBlock Canvas.Left="0" Canvas.Top="0" Text="Settings" Style="{StaticResource Heading2}"/>
-        <TextBlock Canvas.Left="0" Canvas.Top="26" Text="ตั้งค่าเฉพาะเครื่องนี้ (บันทึกที่ %ProgramData%\OnionProcOparetor\Console\)"
-                   Style="{StaticResource Caption}"/>
+    <!--
+        Grid layout with fixed-pixel RowDefinitions - each row's Height is the exact gap to the
+        next section (matching the old Canvas.Top deltas), so every element still renders at the
+        same absolute position it had under Canvas. ResizeMode stays NoResize so this doesn't need
+        to be responsive; the fixed heights just replace Canvas.Left/Top bookkeeping with named rows.
+    -->
+    <Grid Margin="20">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="29"/>
+            <RowDefinition Height="5"/>
+            <RowDefinition Height="106"/>
+            <RowDefinition Height="106"/>
+            <RowDefinition Height="120"/>
+            <RowDefinition Height="120"/>
+            <RowDefinition Height="53"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <TextBlock Grid.Row="0" Text="Settings" Style="{StaticResource Heading2}" HorizontalAlignment="Left" VerticalAlignment="Top"/>
+        <TextBlock Grid.Row="1" Style="{StaticResource Caption}" HorizontalAlignment="Left" VerticalAlignment="Top"/>
 
         <!-- ==================== VNC concurrent session limit ==================== -->
-        <Border Canvas.Left="0" Canvas.Top="54" Width="380" Height="96" CornerRadius="10" Padding="14"
+        <Border Grid.Row="2" Width="400" Height="101" CornerRadius="10" Padding="14"
                 Background="{StaticResource Brush.Background.Card}"
-                BorderBrush="{StaticResource Brush.Border.Default}" BorderThickness="1">
-            <Canvas>
-                <TextBlock Canvas.Left="0" Canvas.Top="0" Text="VNC MAX CONCURRENT SESSIONS" Style="{StaticResource Label}"/>
-                <TextBox Canvas.Left="0" Canvas.Top="20" Width="100" x:Name="VncLimitBox" Style="{StaticResource RoundedTextBox}"/>
-                <TextBlock Canvas.Left="0" Canvas.Top="54" Width="340"
-                           Text="จำนวนเครื่องสูงสุดที่เปิดดูหน้าจอ (Screen View) พร้อมกันได้ - มีผลทันทีหลังบันทึก ไม่ต้อง restart Console"
-                           Style="{StaticResource Caption}" TextWrapping="Wrap"/>
-            </Canvas>
+                BorderBrush="{StaticResource Brush.Border.Default}" BorderThickness="1" HorizontalAlignment="Left" VerticalAlignment="Top">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="20"/>
+                    <RowDefinition Height="36"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
+                <TextBlock Grid.Row="0" Text="VNC MAX CONCURRENT SESSIONS" Style="{StaticResource Label}" HorizontalAlignment="Left" VerticalAlignment="Top"/>
+                <TextBox Grid.Row="1" Width="100" x:Name="VncLimitBox" Style="{StaticResource RoundedTextBox}" HorizontalAlignment="Left" Height="34" VerticalAlignment="Top"/>
+                <TextBlock Grid.Row="2" Width="340"
+                           Text="จำนวนเครื่องสูงสุดที่เปิดดูหน้าจอ (Screen View) พร้อมกันได้"
+                           Style="{StaticResource Caption}" TextWrapping="Wrap" HorizontalAlignment="Left" VerticalAlignment="Top"/>
+            </Grid>
         </Border>
 
         <!-- ==================== Dashboard auto-refresh (poll) interval ==================== -->
-        <Border Canvas.Left="0" Canvas.Top="160" Width="380" Height="96" CornerRadius="10" Padding="14"
+        <Border Grid.Row="3" Width="400" Height="101" CornerRadius="10" Padding="14"
                 Background="{StaticResource Brush.Background.Card}"
-                BorderBrush="{StaticResource Brush.Border.Default}" BorderThickness="1">
-            <Canvas>
-                <TextBlock Canvas.Left="0" Canvas.Top="0" Text="DASHBOARD AUTO-REFRESH INTERVAL (SECONDS)" Style="{StaticResource Label}"/>
-                <TextBox Canvas.Left="0" Canvas.Top="20" Width="100" x:Name="PollIntervalBox" Style="{StaticResource RoundedTextBox}"/>
-                <TextBlock Canvas.Left="0" Canvas.Top="54" Width="340"
-                           Text="ความถี่โหลดข้อมูล Clients/Rules/Logs/Users ใหม่อัตโนมัติของ Dashboard - มีผลทันทีหลังบันทึก"
-                           Style="{StaticResource Caption}" TextWrapping="Wrap"/>
-            </Canvas>
+                BorderBrush="{StaticResource Brush.Border.Default}" BorderThickness="1" HorizontalAlignment="Left" VerticalAlignment="Top">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="20"/>
+                    <RowDefinition Height="36"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
+                <TextBlock Grid.Row="0" Text="DASHBOARD AUTO-REFRESH INTERVAL (SECONDS)" Style="{StaticResource Label}" HorizontalAlignment="Left" VerticalAlignment="Top"/>
+                <TextBox Grid.Row="1" Width="100" x:Name="PollIntervalBox" Style="{StaticResource RoundedTextBox}" HorizontalAlignment="Left" Height="34" VerticalAlignment="Top"/>
+                <TextBlock Grid.Row="2" Width="340"
+                           Text="ความถี่โหลดข้อมูล Clients/Rules/Logs/Users ใหม่อัตโนมัติของ Dashboard"
+                           Style="{StaticResource Caption}" TextWrapping="Wrap" HorizontalAlignment="Left" VerticalAlignment="Top"/>
+            </Grid>
         </Border>
 
         <!-- ==================== Default server connection ==================== -->
-        <Border Canvas.Left="0" Canvas.Top="266" Width="380" Height="112" CornerRadius="10" Padding="14"
+        <Border Grid.Row="4" Width="400" Height="115" CornerRadius="10" Padding="14"
                 Background="{StaticResource Brush.Background.Card}"
-                BorderBrush="{StaticResource Brush.Border.Default}" BorderThickness="1">
-            <Canvas>
-                <TextBlock Canvas.Left="0" Canvas.Top="0" Text="DEFAULT SERVER HOST / PORT" Style="{StaticResource Label}"/>
-                <TextBox Canvas.Left="0" Canvas.Top="20" Width="240" x:Name="ServerHostBox" Style="{StaticResource RoundedTextBox}"/>
-                <TextBox Canvas.Left="250" Canvas.Top="20" Width="90" x:Name="ServerPortBox" Style="{StaticResource RoundedTextBox}"/>
-                <TextBlock Canvas.Left="0" Canvas.Top="54" Width="340"
-                           Text="ใช้เป็นค่าเริ่มต้นในหน้า Connect ครั้งถัดไป - ต้องปิดแล้วเปิด Console ใหม่ (reconnect) จึงจะมีผล ไม่กระทบ session ที่ล็อกอินอยู่ตอนนี้"
-                           Style="{StaticResource Caption}" TextWrapping="Wrap"/>
-            </Canvas>
+                BorderBrush="{StaticResource Brush.Border.Default}" BorderThickness="1" HorizontalAlignment="Left" VerticalAlignment="Top">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="20"/>
+                    <RowDefinition Height="50"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
+                <TextBlock Grid.Row="0" Text="DEFAULT SERVER HOST / PORT" Style="{StaticResource Label}" HorizontalAlignment="Left" VerticalAlignment="Top"/>
+                <Grid Grid.Row="1">
+                    <TextBox Width="240" x:Name="ServerHostBox" Style="{StaticResource RoundedTextBox}" HorizontalAlignment="Left" Height="34" VerticalAlignment="Top"/>
+                    <TextBox Width="90" x:Name="ServerPortBox" Style="{StaticResource RoundedTextBox}" HorizontalAlignment="Left" Margin="250,0,0,0" Height="34" VerticalAlignment="Top"/>
+                </Grid>
+                <TextBlock Grid.Row="2" Width="340"
+                           Text="ใช้เป็นค่าเริ่มต้นในหน้า Connect ครั้งถัดไป"
+                           Style="{StaticResource Caption}" TextWrapping="Wrap" HorizontalAlignment="Left" VerticalAlignment="Top"/>
+            </Grid>
         </Border>
 
         <!-- ==================== Live View: keep grid open when leaving tab ==================== -->
-        <Border Canvas.Left="0" Canvas.Top="386" Width="380" Height="86" CornerRadius="10" Padding="14"
+        <Border Grid.Row="5" Width="410" Height="86" CornerRadius="10" Padding="14"
                 Background="{StaticResource Brush.Background.Card}"
-                BorderBrush="{StaticResource Brush.Border.Default}" BorderThickness="1">
-            <Canvas>
-                <CheckBox Canvas.Left="0" Canvas.Top="0" x:Name="KeepLiveViewOpenCheckBox"
-                          Content="คงการเชื่อมต่อไว้เมื่อออกจากแท็บ LIVE VIEW"/>
-                <TextBlock Canvas.Left="0" Canvas.Top="26" Width="340"
-                           Text="ค่า default คือปิดทั้งหมดเมื่อออกจากแท็บ (กันเปลืองโควตา MaxConcurrentSessions) - ปิด Dashboard ทั้งหน้าต่างจะ dispose ทุก session เสมอไม่ว่าค่านี้จะเป็นอะไร"
-                           Style="{StaticResource Caption}" TextWrapping="Wrap"/>
-            </Canvas>
+                BorderBrush="{StaticResource Brush.Border.Default}" BorderThickness="1" HorizontalAlignment="Left" VerticalAlignment="Top">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="10"/>
+                    <RowDefinition Height="31"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
+                <CheckBox Grid.Row="1" x:Name="KeepLiveViewOpenCheckBox"
+                          Content="คงการเชื่อมต่อไว้เมื่อออกจากแท็บ LIVE VIEW" HorizontalAlignment="Left" VerticalAlignment="Top"/>
+                <TextBlock Grid.Row="2" Width="340"
+                           Text="ค่า default คือปิดทั้งหมดเมื่อออกจากแท็บ"
+                           Style="{StaticResource Caption}" TextWrapping="Wrap" HorizontalAlignment="Left" VerticalAlignment="Top"/>
+            </Grid>
         </Border>
 
-        <TextBlock Canvas.Left="0" Canvas.Top="486" Width="380" x:Name="StatusText" Style="{StaticResource Caption}" TextWrapping="Wrap"/>
+        <TextBlock Grid.Row="6" Width="380" x:Name="StatusText" Style="{StaticResource Caption}" TextWrapping="Wrap" HorizontalAlignment="Left" VerticalAlignment="Top"/>
 
-        <Button Canvas.Left="220" Canvas.Top="530" Width="80" Content="SAVE" Style="{StaticResource ButtonPrimary}"
-                Click="SaveButton_Click"/>
-        <Button Canvas.Left="308" Canvas.Top="530" Width="80" Content="CANCEL" Style="{StaticResource ButtonSecondary}"
-                Padding="10,5" FontSize="11" Click="CancelButton_Click"/>
-    </Canvas>
+        <Grid Grid.Row="7">
+            <Button Content="SAVE" Style="{StaticResource ButtonPrimary}" Width="80"
+                    HorizontalAlignment="Left" VerticalAlignment="Top" Margin="310,0,0,0"
+                    Click="SaveButton_Click"/>
+            <Button Content="CANCEL" Style="{StaticResource ButtonSecondary}" Width="80"
+                    Padding="10,5" FontSize="11" Click="CancelButton_Click" HorizontalAlignment="Left" Height="35" VerticalAlignment="Top" Margin="225,0,0,0"/>
+        </Grid>
+    </Grid>
 </Window>

@@ -42,8 +42,11 @@ public partial class App : System.Windows.Application
         {
             _trayIcon = new TaskbarIcon
             {
-                // ใช้ไอคอน default ของระบบไปก่อน - ทีหลังเปลี่ยนเป็นไอคอนของแอปเองได้
-                Icon = System.Drawing.SystemIcons.Shield,
+                // ดึง icon จาก exe ตัวเองโดยตรง (ฝังไว้แล้วผ่าน <ApplicationIcon> ใน .csproj) แทนไอคอน
+                // default ของระบบ - ถ้า extract ไม่สำเร็จด้วยเหตุผลใดก็ตาม fallback กลับไปใช้ Shield
+                // เพื่อไม่ให้ทั้ง tray icon หายไปเฉยๆ
+                Icon = System.Drawing.Icon.ExtractAssociatedIcon(System.Reflection.Assembly.GetExecutingAssembly().Location)
+                       ?? System.Drawing.SystemIcons.Shield,
                 ToolTipText = "Onion ProcOparetor - กำลังทำงาน"
             };
 

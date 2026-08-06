@@ -6,6 +6,7 @@
         MinWidth="820" MinHeight="520"
         WindowStartupLocation="CenterScreen"
         ResizeMode="CanResize"
+        Icon="/Theme/icon.ico"
         Style="{StaticResource AppWindowStyle}"
         Background="{StaticResource Brush.Background.Primary}">
     <!--
