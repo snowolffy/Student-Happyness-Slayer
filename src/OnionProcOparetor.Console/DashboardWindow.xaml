@@ -592,11 +592,11 @@
                                     </ListBox>
 
                                     <Button Grid.Row="2" x:Name="AddSelectedToGridButton" Content="ADD SELECTED TO GRID"
-                                            Style="{StaticResource ButtonPrimary}" Margin="0,29,0,0"
+                                            Style="{StaticResource ButtonPrimary}" Margin="0,25,0,4"
                                             Click="AddSelectedToGridButton_Click" Grid.RowSpan="2"/>
 
-                                    <TextBlock Grid.Row="3" x:Name="LiveViewStatusText" Style="{StaticResource Caption}"
-                                               TextWrapping="Wrap" Margin="0,6,0,0"/>
+                                    <TextBlock Grid.Row="1" x:Name="LiveViewStatusText" Style="{StaticResource Caption}"
+                                               TextWrapping="Wrap" Margin="0,306,0,10" Grid.RowSpan="2"/>
                                 </Grid>
                             </Border>
 
@@ -665,6 +665,14 @@
                 <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,10">
                     <Button Content="← BACK TO GRID" Style="{StaticResource ButtonPrimary}"
                             Padding="14,8" Click="BackToGridButton_Click"/>
+                    <!-- Toggle target input: กันนักเรียนแย่งเมาส์/คีย์บอร์ดขณะครูควบคุมผ่าน full-screen VNC
+                         (ดู PhysicalInputBlocker ฝั่ง AgentTray) - default ปิด (ไม่บล็อก) ตั้งแต่เข้า
+                         fullscreen ทุกครั้ง (ดู ExpandLiveViewCell ที่ reset _targetInputBlocked) Content/
+                         Style สลับใน code-behind ตาม _targetInputBlocked ไม่ใช่ XAML trigger เพราะต้อง sync
+                         กับผลจริงของ SendCommandAsync ด้วย (ไม่ optimistic toggle เฉยๆ) -->
+                    <Button x:Name="ToggleTargetInputButton" Content="BLOCK STUDENT INPUT"
+                            Style="{StaticResource ButtonSecondary}"
+                            Padding="14,8" Margin="10,0,0,0" Click="ToggleTargetInputButton_Click"/>
                     <TextBlock x:Name="FullscreenHeaderText" Style="{StaticResource Heading2}"
                                Margin="20,0,0,0" VerticalAlignment="Center"/>
                     <TextBlock x:Name="FullscreenStatusText" Style="{StaticResource Caption}"

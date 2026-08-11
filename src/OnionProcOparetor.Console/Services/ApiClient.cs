@@ -167,6 +167,26 @@ public class ApiClient
         return response.IsSuccessStatusCode;
     }
 
+    /// <summary>Override เฉพาะเครื่องเดียว - ดึง override ทั้งหมดของเครื่องนี้ (Config Rule dialog เอาไปเทียบกับ GetRulesAsync() เพื่อโชว์สถานะ effective ต่อกฎ)</summary>
+    public async Task<List<RuleOverrideDto>> GetRuleOverridesAsync(string clientGuid)
+    {
+        var result = await _httpClient.GetFromJsonAsync<List<RuleOverrideDto>>($"/api/clients/{clientGuid}/rule-overrides");
+        return result ?? new List<RuleOverrideDto>();
+    }
+
+    public async Task<bool> SetRuleOverrideAsync(string clientGuid, int ruleId, bool isEnabled)
+    {
+        var response = await _httpClient.PutAsJsonAsync($"/api/clients/{clientGuid}/rule-overrides/{ruleId}", new { isEnabled });
+        return response.IsSuccessStatusCode;
+    }
+
+    /// <summary>ลบ override ทิ้ง - เครื่องนี้กลับไปใช้ค่า global ของกฎนี้ตามปกติ</summary>
+    public async Task<bool> ClearRuleOverrideAsync(string clientGuid, int ruleId)
+    {
+        var response = await _httpClient.DeleteAsync($"/api/clients/{clientGuid}/rule-overrides/{ruleId}");
+        return response.IsSuccessStatusCode;
+    }
+
     public async Task<List<LogEntryDto>> GetLogsAsync(int take = 100)
     {
         var result = await _httpClient.GetFromJsonAsync<List<LogEntryDto>>($"/api/logs?take={take}");

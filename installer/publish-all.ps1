@@ -1,6 +1,9 @@
-# Publish ทั้ง 4 โปรเจกต์ของ OnionProcOparetor ลง ..\publish\<ProjectName>\ (path ที่
-# OnionProcOparetor.iss's [Files] section คาดหวังไว้พอดี) แล้วลอง compile installer
-# ผ่าน ISCC.exe (Inno Setup Compiler) ต่อให้อัตโนมัติถ้าเจอในเครื่องนี้
+# Publish ทั้ง 5 โปรเจกต์ของ OnionProcOparetor ลง ..\publish\<ProjectName>\ (path ที่ทั้ง 2 .wxs's
+# <Files Include=...> คาดหวังไว้พอดี) แล้ว compile installer 2 ตัวแยกกันผ่าน wix build ต่อให้อัตโนมัติ:
+# OnionProcOparetor-Agent-Setup.msi (Client Agent เท่านั้น - เครื่อง lab นักเรียน) และ
+# OnionProcOparetor-Server-Console-Setup.msi (Server+Console เท่านั้น - เครื่องครู/admin) แทนที่ MSI
+# ตัวเดียว-3-mode เดิม (ดู OnionProcOparetor.Agent.wxs/OnionProcOparetor.ServerConsole.wxs header
+# comment สำหรับเหตุผลของการแยก)
 #
 # รันจากตรงไหนก็ได้ - path ทั้งหมดคำนวณจาก $PSScriptRoot (ตำแหน่งไฟล์นี้เอง คือ installer\)
 # ไม่ใช่ working directory ปัจจุบัน
@@ -9,6 +12,29 @@ $ErrorActionPreference = "Stop"
 
 $repoRoot = Split-Path $PSScriptRoot -Parent
 $publishRoot = Join-Path $repoRoot "publish"
+
+# ---- FileVersion ที่เปลี่ยนทุกครั้งที่รัน script นี้ - แก้บั๊กจริงที่เจอ (2026-08-10): Windows
+# Installer's InstallFiles ข้ามการเขียนทับไฟล์เป้าหมายที่ FileVersion ไม่ได้ "ใหม่กว่า" ไฟล์ที่ติดตั้ง
+# อยู่แล้วเป๊ะๆ (ยืนยันจาก verbose log จริงตอน MSI upgrade: "Won't Overwrite; Existing file is of an
+# equal version") - src\Directory.Build.props เดิมตั้ง FileVersion ตายตัว "1.2.5.0" ทุก build เหมือน
+# กันหมด (ไม่มีใคร bump ระหว่าง build เลย) เท่ากับทุกครั้งที่ reinstall/upgrade MSI ทับของเดิม อาจไม่ได้
+# code ใหม่จริงเลยแม้ install จะรายงานว่าสำเร็จก็ตาม
+#
+# อ่าน Major.Minor.Build จาก Directory.Build.props เป็นแหล่งความจริงเดียว (ไม่ hardcode ซ้ำที่นี่ กัน
+# สองไฟล์ drift ไม่ตรงกันตอนมีคน bump product version) แล้วต่อท้ายด้วย Revision ที่เปลี่ยนทุกรอบ -
+# วินาทีตั้งแต่เที่ยงคืน UTC หาร 2 (สูตรเดียวกับ classic AssemblyVersion="1.0.*" auto-increment ของ
+# .NET Framework เดิม) ค่าสูงสุด 86400/2 = 43200 อยู่ในช่วง UInt16 (แต่ละ octet ของ FILEVERSION
+# resource สูงสุด 65535) พอดี ไม่ overflow
+#
+# ตั้งใจไม่แตะ Version/AssemblyVersion (คงที่ตาม Directory.Build.props ปกติ) - เปลี่ยนแค่ FileVersion
+# ผ่าน -p: override ตอน publish เท่านั้น ดู Directory.Build.props's comment สำหรับเหตุผลเต็ม
+$directoryBuildPropsPath = Join-Path $repoRoot "src\Directory.Build.props"
+[xml]$directoryBuildProps = Get-Content $directoryBuildPropsPath
+$baseVersion = $directoryBuildProps.Project.PropertyGroup.Version
+$majorMinorBuild = ($baseVersion -split '\.')[0..2] -join '.'
+$revision = [int]([DateTime]::UtcNow.TimeOfDay.TotalSeconds / 2)
+$fileVersion = "$majorMinorBuild.$revision"
+Write-Host "FileVersion สำหรับรอบ publish นี้: $fileVersion" -ForegroundColor Cyan
 
 $projects = @(
     @{ Name = "OnionProcOparetor.Server";           Path = "src\OnionProcOparetor.Server\OnionProcOparetor.Server.csproj" },
@@ -35,7 +61,7 @@ foreach ($project in $projects) {
     Write-Host "  csproj: $csprojPath"
     Write-Host "  output: $outDir"
 
-    dotnet publish $csprojPath -c Release -o $outDir
+    dotnet publish $csprojPath -c Release -o $outDir -p:FileVersion=$fileVersion
 
     if ($LASTEXITCODE -ne 0) {
         Write-Host "  FAILED: $($project.Name) (dotnet publish exit code $LASTEXITCODE)" -ForegroundColor Red
@@ -48,12 +74,12 @@ foreach ($project in $projects) {
 
 if (-not $allSucceeded) {
     Write-Host ""
-    Write-Host "One or more projects failed to publish - skipping ISCC.exe." -ForegroundColor Red
+    Write-Host "One or more projects failed to publish - skipping wix build." -ForegroundColor Red
     exit 1
 }
 
 Write-Host ""
-Write-Host "All 4 projects published successfully." -ForegroundColor Green
+Write-Host "All 5 projects published successfully." -ForegroundColor Green
 
 # ---- compile the .msi via WiX v5 (dotnet tool) - primary installer output ----
 # WiX is pinned to v5.0.2 (installer\.wix\extensions\) rather than whatever "wix" resolves
@@ -74,59 +100,52 @@ $outputDir = Join-Path $PSScriptRoot "output"
 if (-not (Test-Path $outputDir)) {
     New-Item -ItemType Directory -Path $outputDir | Out-Null
 }
-$msiPath = Join-Path $outputDir "OnionProcOparetor-Setup.msi"
 
-Write-Host ""
-Write-Host "==== Compiling installer with wix build ====" -ForegroundColor Cyan
+$installers = @(
+    @{ Wxs = "OnionProcOparetor.Agent.wxs";         Msi = "OnionProcOparetor-Agent-Setup.msi" },
+    @{ Wxs = "OnionProcOparetor.ServerConsole.wxs";  Msi = "OnionProcOparetor-Server-Console-Setup.msi" }
+)
+
+$allBuildsSucceeded = $true
+$builtMsiPaths = @()
+
 Push-Location $PSScriptRoot
 try {
-    & wix build "OnionProcOparetor.wxs" `
-        -ext WixToolset.Util.wixext `
-        -ext WixToolset.Firewall.wixext `
-        -ext WixToolset.UI.wixext `
-        -arch x64 `
-        -d "PublishDir=$publishRoot" `
-        -o $msiPath
-    $wixExitCode = $LASTEXITCODE
+    foreach ($installer in $installers) {
+        $msiPath = Join-Path $outputDir $installer.Msi
+
+        Write-Host ""
+        Write-Host "==== Compiling $($installer.Wxs) with wix build ====" -ForegroundColor Cyan
+
+        & wix build $installer.Wxs `
+            -ext WixToolset.Util.wixext `
+            -ext WixToolset.Firewall.wixext `
+            -ext WixToolset.UI.wixext `
+            -arch x64 `
+            -d "PublishDir=$publishRoot" `
+            -o $msiPath
+
+        if ($LASTEXITCODE -ne 0) {
+            Write-Host "  FAILED: $($installer.Wxs) (wix build exit code $LASTEXITCODE)" -ForegroundColor Red
+            $allBuildsSucceeded = $false
+        }
+        else {
+            Write-Host "  OK: $msiPath" -ForegroundColor Green
+            $builtMsiPaths += $msiPath
+        }
+    }
 }
 finally {
     Pop-Location
 }
 
-if ($wixExitCode -ne 0) {
-    Write-Host "wix build failed (exit code $wixExitCode)" -ForegroundColor Red
+if (-not $allBuildsSucceeded) {
+    Write-Host ""
+    Write-Host "One or more installers failed to build." -ForegroundColor Red
     exit 1
 }
-
-Write-Host "Installer compiled successfully: $msiPath" -ForegroundColor Green
-
-# ---- also try the legacy Inno Setup .exe if ISCC.exe is available (fallback installer,
-# kept until the .msi has been confirmed fully equivalent - see OnionProcOparetor.iss) ----
-$isccOnPath = (Get-Command "ISCC.exe" -ErrorAction SilentlyContinue).Source
-$isccCandidates = @(
-    $isccOnPath,
-    "C:\Program Files (x86)\Inno Setup 6\ISCC.exe",
-    "C:\Program Files\Inno Setup 6\ISCC.exe"
-) | Where-Object { $_ -and (Test-Path $_) }
-
-$isccPath = $isccCandidates | Select-Object -First 1
-
-if (-not $isccPath) {
-    Write-Host ""
-    Write-Host "NOTE: ISCC.exe (Inno Setup Compiler) not found - skipping the legacy .exe fallback build." -ForegroundColor Yellow
-    exit 0
-}
-
-$issPath = Join-Path $PSScriptRoot "OnionProcOparetor.iss"
 
 Write-Host ""
-Write-Host "==== Compiling legacy fallback installer with $isccPath ====" -ForegroundColor Cyan
-& $isccPath $issPath
-
-if ($LASTEXITCODE -ne 0) {
-    Write-Host "ISCC.exe failed (exit code $LASTEXITCODE)" -ForegroundColor Red
-    exit 1
-}
-
-Write-Host "Legacy .exe installer compiled successfully." -ForegroundColor Green
+Write-Host "Both installers compiled successfully:" -ForegroundColor Green
+$builtMsiPaths | ForEach-Object { Write-Host "  $_" -ForegroundColor Green }
 exit 0

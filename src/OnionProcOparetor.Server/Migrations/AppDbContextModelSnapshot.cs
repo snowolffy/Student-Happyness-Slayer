@@ -267,6 +267,36 @@ namespace OnionProcOparetor.Server.Migrations
 
                     b.ToTable("Rules");
                 });
+
+            modelBuilder.Entity("OnionProcOparetor.Server.Models.RuleOverride", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("ClientGuid")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("IsEnabled")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("RuleId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ClientGuid", "RuleId")
+                        .IsUnique();
+
+                    b.ToTable("RuleOverrides");
+                });
 #pragma warning restore 612, 618
         }
     }

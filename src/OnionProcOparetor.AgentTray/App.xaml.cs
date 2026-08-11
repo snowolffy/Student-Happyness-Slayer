@@ -15,6 +15,7 @@ public partial class App : System.Windows.Application
     private readonly BroadcastPipeListener _broadcastListener = new();
     private readonly CancellationTokenSource _broadcastListenerCts = new();
     private readonly VncProcessManager _vncProcessManager = new();
+    private readonly PhysicalInputBlocker _physicalInputBlocker = new();
 
     // instance ต่อจอ (System.Windows.Forms.Screen.AllScreens) - เฉพาะตัวแรก (index 0) เท่านั้นที่ติดตั้ง
     // keyboard/mouse hook + Agent watchdog จริง (ดู LockScreenWindow doc comment) รายการนี้ว่างเปล่า =
@@ -36,7 +37,14 @@ public partial class App : System.Windows.Application
         _broadcastListener.HideLockScreenRequested += OnHideLockScreenRequested;
         _broadcastListener.StartVncSessionRequested += OnStartVncSessionRequested;
         _broadcastListener.StopVncSessionRequested += OnStopVncSessionRequested;
+        _broadcastListener.BlockTargetInputRequested += OnBlockTargetInputRequested;
+        _broadcastListener.UnblockTargetInputRequested += OnUnblockTargetInputRequested;
         _broadcastListener.Start(_broadcastListenerCts.Token);
+
+        // Failsafe path 1 (ดู PhysicalInputBlocker doc comment): winvnc.exe หยุดไม่ว่าเพราะอะไร ต้องคืน
+        // สิทธิ์ physical input ทันที - Stopped ยิงจาก background thread เสมอ (ไม่ใช่ UI thread) ต้อง
+        // marshal เองตรงนี้ก่อนเรียก Unblock() (DispatcherTimer ข้างในต้อง stop จาก thread ที่สร้างเท่านั้น)
+        _vncProcessManager.Stopped += () => Dispatcher.Invoke(_physicalInputBlocker.Unblock);
 
         try
         {
@@ -165,10 +173,61 @@ public partial class App : System.Windows.Application
     /// <summary>เรียกจาก background thread ของ pipe listener - หยุด winvnc.exe ไม่ต้อง marshal เข้า UI thread เพราะไม่ได้แตะ WPF UI element ใดๆ เลย (เหมือน OnStartVncSessionRequested)</summary>
     private void OnStopVncSessionRequested() => _vncProcessManager.Stop();
 
+    /// <summary>
+    /// เรียกจาก background thread ของ pipe listener - ต้อง marshal เข้า UI thread เพราะ
+    /// PhysicalInputBlocker.Block() สร้าง DispatcherTimer ข้างในซึ่งต้องสร้างจาก UI thread เท่านั้น
+    /// idempotent (ครูกดซ้ำตอนบล็อกอยู่แล้วไม่มีผล)
+    /// </summary>
+    private void OnBlockTargetInputRequested()
+    {
+        Dispatcher.Invoke(() =>
+        {
+            _physicalInputBlocker.AgentDiedWhileBlocked -= OnAgentDiedWhileBlocked; // กัน subscribe ซ้ำถ้ากดสลับเร็วๆ
+            _physicalInputBlocker.AgentDiedWhileBlocked += OnAgentDiedWhileBlocked;
+            _physicalInputBlocker.Block();
+        });
+    }
+
+    /// <summary>เรียกจาก background thread ของ pipe listener - เหตุผลเดียวกับ OnBlockTargetInputRequested (marshal เข้า UI thread) idempotent (ครูกดซ้ำตอนไม่ได้บล็อกอยู่ไม่มีผล)</summary>
+    private void OnUnblockTargetInputRequested()
+    {
+        Dispatcher.Invoke(() =>
+        {
+            _physicalInputBlocker.AgentDiedWhileBlocked -= OnAgentDiedWhileBlocked;
+            _physicalInputBlocker.Unblock();
+        });
+    }
+
+    /// <summary>
+    /// Failsafe path 2 (ดู PhysicalInputBlocker doc comment) - watchdog ของตัวเองตรวจพบว่า Agent หายไป
+    /// กลางคันขณะกำลังบล็อกอยู่ - เรียกจาก UI thread อยู่แล้ว (DispatcherTimer.Tick) ไม่ต้อง
+    /// Dispatcher.Invoke ซ้ำ (เหมือน OnAgentDiedWhileLocked ของ LockScreenWindow)
+    /// </summary>
+    private void OnAgentDiedWhileBlocked()
+    {
+        _physicalInputBlocker.AgentDiedWhileBlocked -= OnAgentDiedWhileBlocked;
+        _physicalInputBlocker.Unblock();
+    }
+
+    /// <summary>
+    /// เรียกจาก StatusWindow ตอนกด toggle Bypass เป็น "เปิดใช้งาน" - ใช้ cleanup sequence เดียวกับ
+    /// OnExit เป๊ะๆ (Stop VNC / ปิดหน้าจอล็อกทุกจอ / คืนสิทธิ์ physical input) เพราะ resource ทั้ง 3
+    /// ตัวนี้อยู่ฝั่ง AgentTray ล้วนๆ (Agent เอง Session 0 แตะไม่ถึง) - ต้องเก็บกวาดที่นี่ก่อน ไม่ปล่อยค้าง
+    /// ถ้ามี session ใดๆ ยัง active อยู่ตอน bypass เปิด เรียกได้ปลอดภัยแม้ไม่มีอะไร active อยู่เลย
+    /// (unconditional cleanup เหมือน OnExit)
+    /// </summary>
+    public void CleanupInteractiveSessionsForBypass()
+    {
+        HideAllLockScreens();
+        _physicalInputBlocker.Unblock();
+        _vncProcessManager.Stop();
+    }
+
     protected override void OnExit(ExitEventArgs e)
     {
         _broadcastListenerCts.Cancel();
         HideAllLockScreens();
+        _physicalInputBlocker.Unblock();
         _vncProcessManager.Stop();
         _trayIcon?.Dispose();
         base.OnExit(e);

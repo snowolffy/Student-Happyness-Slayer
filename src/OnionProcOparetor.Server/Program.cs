@@ -297,6 +297,70 @@ app.MapPost("/api/rules/{id:int}/toggle", async (int id, HttpRequest request, Ap
     return Results.Ok(rule);
 });
 
+// ---- Per-agent rule override endpoints (Stable 1 เรื่องที่ 3) ----
+// override ชนะ global เสมอ 100% - ดู /api/poll/{clientGuid} สำหรับจุดที่ resolve ค่าจริง
+
+// ดึง override ทั้งหมดของเครื่องหนึ่ง (Console ใช้ merge กับ GET /api/rules เองฝั่ง client เพื่อโชว์
+// รายการกฎทั้งหมด + สถานะ effective ต่อเครื่องนี้)
+app.MapGet("/api/clients/{clientGuid}/rule-overrides", async (string clientGuid, HttpRequest request, AppDbContext db) =>
+{
+    var admin = await GetAuthorizedAdmin(request, db);
+    if (admin is null)
+        return Results.Unauthorized();
+    if (admin.HasDefaultPassword)
+        return Results.Json(new { error = "Password change required before continuing." }, statusCode: 403);
+
+    var overrides = await db.RuleOverrides.Where(o => o.ClientGuid == clientGuid).ToListAsync();
+    return Results.Ok(overrides);
+});
+
+// ตั้ง/แก้ override ของกฎหนึ่งสำหรับเครื่องหนึ่ง (upsert - ไม่มีแล้วสร้างใหม่, มีอยู่แล้วแก้ IsEnabled)
+app.MapPut("/api/clients/{clientGuid}/rule-overrides/{ruleId:int}", async (string clientGuid, int ruleId, RuleOverrideRequest req, HttpRequest request, AppDbContext db) =>
+{
+    var admin = await GetAuthorizedAdmin(request, db);
+    if (admin is null)
+        return Results.Unauthorized();
+    if (admin.HasDefaultPassword)
+        return Results.Json(new { error = "Password change required before continuing." }, statusCode: 403);
+
+    var rule = await db.Rules.FindAsync(ruleId);
+    if (rule is null) return Results.NotFound();
+
+    var existing = await db.RuleOverrides.FirstOrDefaultAsync(o => o.ClientGuid == clientGuid && o.RuleId == ruleId);
+    if (existing is null)
+    {
+        existing = new RuleOverride { ClientGuid = clientGuid, RuleId = ruleId, IsEnabled = req.IsEnabled };
+        db.RuleOverrides.Add(existing);
+    }
+    else
+    {
+        existing.IsEnabled = req.IsEnabled;
+        existing.UpdatedAt = DateTime.UtcNow;
+    }
+
+    await db.SaveChangesAsync();
+    return Results.Ok(existing);
+});
+
+// ลบ override ทิ้ง - เครื่องนี้กลับไปใช้ค่า global ของกฎนี้ตามปกติ (ไม่ error ถ้าไม่เคยมี override อยู่แล้ว)
+app.MapDelete("/api/clients/{clientGuid}/rule-overrides/{ruleId:int}", async (string clientGuid, int ruleId, HttpRequest request, AppDbContext db) =>
+{
+    var admin = await GetAuthorizedAdmin(request, db);
+    if (admin is null)
+        return Results.Unauthorized();
+    if (admin.HasDefaultPassword)
+        return Results.Json(new { error = "Password change required before continuing." }, statusCode: 403);
+
+    var existing = await db.RuleOverrides.FirstOrDefaultAsync(o => o.ClientGuid == clientGuid && o.RuleId == ruleId);
+    if (existing is not null)
+    {
+        db.RuleOverrides.Remove(existing);
+        await db.SaveChangesAsync();
+    }
+
+    return Results.Ok(new { message = "Override cleared." });
+});
+
 // แก้ setting ของเครื่องใดเครื่องหนึ่งจากศูนย์กลาง (ตอนนี้มีแค่ poll interval override)
 app.MapPut("/api/clients/{id:int}/settings", async (int id, ClientSettingsRequest request, HttpRequest httpRequest, AppDbContext db) =>
 {
@@ -349,7 +413,17 @@ app.MapGet("/api/poll/{clientGuid}", async (string clientGuid, string machineNam
     var globalState = await db.GlobalStates.FirstOrDefaultAsync(g => g.Id == 1);
     var globalEnabled = globalState?.IsEnabled ?? true;
 
-    var rules = await db.Rules.Where(r => r.IsEnabled).ToListAsync();
+    // Effective rule list เฉพาะเครื่องนี้: เริ่มจาก global IsEnabled ของแต่ละกฎ แล้วให้ RuleOverride
+    // ของ clientGuid นี้ (ถ้ามี) ชนะเสมอ 100% ไม่มี merge/priority ซับซ้อน - เครื่องอื่นไม่เห็นผลอะไรเลย
+    // เพราะ query filter ด้วย ClientGuid นี้เท่านั้น ผลลัพธ์ยังเป็น List<Rule> รูปแบบเดิมทุกอย่าง
+    // (Agent ฝั่งรับไม่ต้องรู้เรื่อง override เลย - แค่ apply list ที่ได้เหมือนเดิม)
+    var allRules = await db.Rules.ToListAsync();
+    var ruleOverrides = await db.RuleOverrides
+        .Where(o => o.ClientGuid == clientGuid)
+        .ToDictionaryAsync(o => o.RuleId, o => o.IsEnabled);
+    var rules = allRules
+        .Where(r => ruleOverrides.TryGetValue(r.Id, out var overrideEnabled) ? overrideEnabled : r.IsEnabled)
+        .ToList();
 
     // fallback path สำหรับ command ที่ยังไม่ถึง Agent ผ่าน SignalR (เช่น เครื่อง disconnect อยู่ตอนที่ถูกสั่ง)
     // Agent จะเห็น command เหล่านี้ผ่าน poll รอบถัดไปเสมอ ไม่ว่า SignalR จะต่อติดอยู่หรือไม่ก็ตาม
@@ -625,3 +699,4 @@ app.Run();
 record CreateUserRequest(string Username, string Password);
 record ChangePasswordRequest(string NewPassword);
 record CommandRequest(string CommandType, string? Payload);
+record RuleOverrideRequest(bool IsEnabled);

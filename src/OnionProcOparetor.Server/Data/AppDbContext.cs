@@ -21,6 +21,7 @@ public class AppDbContext : DbContext
     public DbSet<AdminUser> AdminUsers => Set<AdminUser>();
     public DbSet<AuthToken> AuthTokens => Set<AuthToken>();
     public DbSet<ClientCommand> ClientCommands => Set<ClientCommand>();
+    public DbSet<RuleOverride> RuleOverrides => Set<RuleOverride>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -48,6 +49,14 @@ public class AppDbContext : DbContext
         // ทำ index ให้ query pending command ตาม client ได้เร็ว (ใช้ทุกครั้งที่ poll)
         modelBuilder.Entity<ClientCommand>()
             .HasIndex(c => new { c.ClientGuid, c.Status });
+
+        // (ClientGuid, RuleId) ต้องไม่ซ้ำกัน - override หนึ่งแถวต่อ (กฎ x เครื่อง) เท่านั้น (upsert
+        // semantics ไม่ใช่ history) เรียง ClientGuid ไว้หน้าเพราะ query หลักคือ "ดึง override
+        // ทั้งหมดของเครื่องนี้" (ทุกครั้งที่ poll) - ให้ index ตัวเดียวใช้ได้ทั้ง unique constraint
+        // และ lookup เร็วโดยไม่ต้องมี index แยก
+        modelBuilder.Entity<RuleOverride>()
+            .HasIndex(o => new { o.ClientGuid, o.RuleId })
+            .IsUnique();
 
         // Seed ค่าเริ่มต้นของ GlobalState ให้มี row เดียวเสมอ (Id = 1, เปิดใช้งานเป็นค่าเริ่มต้น)
         // สำคัญ: ต้องใช้ค่า DateTime แบบ fixed/static เท่านั้น ห้ามใช้ DateTime.UtcNow หรือ

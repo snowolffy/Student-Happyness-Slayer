@@ -7,6 +7,10 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <AssemblyName>OnionProcOparetor.UninstallHelper</AssemblyName>
     <RootNamespace>OnionProcOparetor.UninstallHelper</RootNamespace>
+    <!-- Add/Remove Programs reads its row icon from the file at DisplayIcon (this .exe - see the
+         synthetic ARP entry comment above), not from anything in the .msi, so the icon has to be
+         compiled into this exe itself. Same source as installer\Assets\icon.ico. -->
+    <ApplicationIcon>icon.ico</ApplicationIcon>
     <!-- ARP's "Uninstall" entry launches this .exe directly via CreateProcess (see
          installer\OnionProcOparetor.wxs's synthetic ARP registry entry) - not through msiexec's
          own elevation plumbing, so this app must request elevation itself via manifest.

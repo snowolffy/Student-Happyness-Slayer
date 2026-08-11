@@ -72,6 +72,30 @@ public class ClientApiClient
         }
     }
 
+    /// <summary>
+    /// สั่ง Agent Service ให้ toggle "Bypass" (ตัด/ต่อการเชื่อมต่อกับ Server ทั้งหมด) - คืนค่า bypass
+    /// state ที่ยืนยันแล้วจาก Agent จริงๆ (ไม่ใช่แค่ echo ค่าที่ส่งไป) คืน null ถ้า Agent local API
+    /// ไม่ตอบ (เช่น service ไม่ได้รันอยู่) - caller ต้องไม่ถือว่า toggle สำเร็จถ้าได้ null กลับมา
+    /// </summary>
+    public async Task<bool?> SetBypassAsync(bool bypassed)
+    {
+        try
+        {
+            var response = await _httpClient.PostAsJsonAsync("/bypass/set", new { bypassed });
+            if (!response.IsSuccessStatusCode)
+            {
+                return null;
+            }
+
+            var result = await response.Content.ReadFromJsonAsync<BypassSetResponseDto>();
+            return result?.Bypassed;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
     /// <summary>Login ผ่าน Server กลาง (ใช้ account เดียวกับ Console GUI)</summary>
     public async Task<(bool Success, string Message)> LoginToServerAsync(string serverBaseUrl, string username, string password)
     {

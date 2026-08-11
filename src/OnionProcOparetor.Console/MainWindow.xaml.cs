@@ -102,4 +102,9 @@ public partial class MainWindow : Window
 
         SettingsService.Save(updated);
     }
+
+    private void ServerIpBox_TextChanged(object sender, System.Windows.Controls.TextChangedEventArgs e)
+    {
+
+    }
 }

@@ -1,4 +1,17 @@
-﻿; OnionProcOparetor Installer - supports 3 installation modes
+﻿; ==================== DEPRECATED - 2026-08-05 ====================
+; เลิกใช้ Inno Setup .exe installer ตัวนี้แล้วตั้งแต่ 2026-08-05 - เก็บไว้ที่นี่เป็น reference/
+; fallback เผื่อต้องย้อนดูเท่านั้น ไม่ได้ถูก build โดย installer\publish-all.ps1 อีกต่อไป (ตัด
+; ISCC.exe step ออกแล้ว) และไม่มี CI/pipeline ไหนอ้างอิงไฟล์นี้แล้ว
+;
+; เหตุผลที่เลิกใช้:
+;   1. .exe ที่ Inno Setup สร้าง โดนบาง antivirus/Windows Defender/SmartScreen ตีเป็น false
+;      positive อยู่เรื่อยๆ (ปัญหาที่รู้จักกันดีของ installer wrapper ประเภทนี้ที่ไม่ได้ code-sign) -
+;      สร้างความสับสน/ความกังวลให้ครูและ IT ที่ install ในห้องคอม
+;   2. ตัดสินใจเหลือ installer format เดียว (.msi ผ่าน WiX v5 - ดู
+;      installer\OnionProcOparetor.wxs) แทนที่จะดูแลคู่ขนานสอง format ที่ logic/wizard page ต้อง
+;      sync มือทุกครั้งที่แก้ ลดพื้นที่เกิดบั๊กจากสอง installer ไม่ตรงกัน
+;
+; OnionProcOparetor Installer - supports 3 installation modes
 #define MyAppName "Onion ProcOparetor"
 #define MyAppVersion "1.1"
 #define MyAppPublisher "OnionProcOparetor"

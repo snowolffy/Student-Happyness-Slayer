@@ -30,7 +30,7 @@
         <Setter Property="CaretBrush" Value="{StaticResource Brush.Text.Primary}"/>
         <Setter Property="BorderBrush" Value="{StaticResource Brush.Border.Default}"/>
         <Setter Property="BorderThickness" Value="0.5"/>
-        <Setter Property="Padding" Value="10,5"/>
+        <Setter Property="Padding" Value="10,4.5"/>
         <Setter Property="FontFamily" Value="{StaticResource FontFamily.Primary}"/>
         <Setter Property="FontSize" Value="13"/>
         <Setter Property="Template">

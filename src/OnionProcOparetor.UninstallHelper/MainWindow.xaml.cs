@@ -25,6 +25,7 @@ namespace OnionProcOparetor.UninstallHelper;
 public partial class MainWindow : Window
 {
     private readonly string _productCode;
+    private readonly string _productDisplayName;
     private readonly string _installFolder;
     private readonly string _guardPath;
     private readonly string _flagPath;
@@ -37,6 +38,17 @@ public partial class MainWindow : Window
 
         var args = Environment.GetCommandLineArgs();
         _productCode = args.Length > 1 ? args[1] : "";
+
+        // args[2] (ถ้ามี) = ชื่อ product จริงที่ ARP UninstallString ของแต่ละ MSI ส่งมาเอง (ดู
+        // OnionProcOparetor.Agent.wxs / OnionProcOparetor.ServerConsole.wxs) - .exe ตัวนี้เป็น binary
+        // เดียวกันที่ bundle เข้าไปในทั้ง 2 MSI (Agent กับ Server+Console) โดยตั้งใจ (ดู comment ยาวใน
+        // OnionProcOparetor.Agent.wxs สำหรับเหตุผล) แต่ก่อนหน้านี้ title/header เป็น "Onion ProcOparetor"
+        // hardcoded เหมือนกันหมดไม่ว่าจะ uninstall ตัวไหน - ทำให้แยกไม่ออกว่ากำลังจะลบเครื่อง Agent หรือ
+        // Server+Console อยู่ (บั๊กจริงที่เจอตอน live-test 2026-08-11) fallback เป็น "Onion ProcOparetor"
+        // เฉยๆ ถ้าไม่มี arg นี้มา (เผื่อ ARP entry เก่าที่ build ก่อนหน้ายังไม่มี arg นี้)
+        _productDisplayName = args.Length > 2 && !string.IsNullOrWhiteSpace(args[2]) ? args[2] : "Onion ProcOparetor";
+        Title = $"Uninstall {_productDisplayName}";
+        ProductNameText.Text = _productDisplayName;
 
         // .exe นี้ถูกติดตั้งที่ [INSTALLFOLDER]\UninstallHelper\ แต่ guard/flag file ทั้งคู่อยู่ที่
         // [INSTALLFOLDER] ตรงๆ (เขียนโดย setup-client.ps1/check-uninstall-password.ps1 - path เดิม
@@ -55,6 +67,8 @@ public partial class MainWindow : Window
             ActionButton.IsEnabled = false;
             return;
         }
+
+        IntroText.Text = $"Are you sure you want to remove {_productDisplayName} from this computer?";
 
         if (_hasPassword)
         {
@@ -112,7 +126,7 @@ public partial class MainWindow : Window
 
         if (exitCode == 0)
         {
-            IntroText.Text = "Onion ProcOparetor has been removed from this computer.";
+            IntroText.Text = $"{_productDisplayName} has been removed from this computer.";
             FormPanel.Visibility = Visibility.Collapsed;
             CancelButton.Visibility = Visibility.Collapsed;
             ActionButton.Content = "CLOSE";
@@ -149,6 +163,24 @@ public partial class MainWindow : Window
     /// <summary>
     /// ยิง msiexec /x ตัวจริงเบื้องหลัง - ใช้ ArgumentList (ไม่ใช่ต่อ string เอง) ให้ .NET escape ค่าที่มี
     /// space/quote ใน password ให้ถูกต้องเอง กัน command-line injection/parsing พังถ้ารหัสผ่านมีอักขระพิเศษ
+    ///
+    /// บั๊กจริงที่เจอ (2026-08-11, live-tested ด้วย verbose msiexec log ตรงๆ ไม่ใช่เดา): ตอน password
+    /// ว่างเปล่า (กรณีปกติที่สุด - ไม่มีใครตั้ง uninstall password ไว้เลย) ArgumentList entry
+    /// "UNINSTPWD=" (ไม่มีอะไรต่อท้าย =) ไปชนกับ REMOVE=ALL ที่ /x ใส่ให้เองภายใน (ไม่ใช่ arg แยกที่เราส่ง
+    /// เอง) กลายเป็น property เดียวกัน "UNINSTPWD=REMOVE=ALL" (ยืนยันจาก msiexec's own verbose log:
+    /// "Command Line: UNINSTPWD=REMOVE=ALL ...") - REMOVE property เลย "ไม่เคยถูกตั้งค่าจริง" เท่ากับ
+    /// Property(S): ACTION กลายเป็น INSTALL แทนที่จะเป็น REMOVE ทำให้ msiexec /x "reconfigure/reinstall"
+    /// สินค้ากลับแทนที่จะ "uninstall" มันจริงๆ - service/ไฟล์ยังอยู่ครบเหมือนเดิมทั้งที่ exit code เป็น 0
+    /// (ดูเหมือน "สำเร็จ" แต่ไม่ได้ลบอะไรเลย) เกิดขึ้นทุกครั้งที่ password ว่าง (กรณี default ของทุกเครื่อง
+    /// Server+Console และของเครื่อง Agent ที่ไม่ได้ตั้ง uninstall password ไว้)
+    ///
+    /// แก้ด้วยการ "ไม่ส่ง property นี้เลย" ถ้า password ว่างเปล่า แทนที่จะพยายาม quote เอง (ลองแล้วพัง
+    /// หนักกว่าเดิม - live-tested: .NET's ArgumentList escaping ใส่ backslash หนี quote ที่เรา literal
+    /// ใส่เข้าไปเอง (เช่น "UNINSTPWD=&quot;&quot;") กลายเป็น command line ที่ msiexec เอง parse ไม่ออก -
+    /// แสดง usage/help dialog ("Windows Installer... msiexec /Option...") แทนที่จะรันจริง ยืนยันจาก
+    /// screenshot จริงตอน live-test) [UNINSTPWD] ที่ CheckUninstallPasswordHeadless CA ใช้ (ดู .wxs)
+    /// resolve เป็น "" อยู่แล้วถ้า property ไม่เคยถูกตั้งค่าเลย - ผลลัพธ์เหมือนกันทุกอย่างกับตั้งเป็นค่าว่าง
+    /// แต่ไม่ต้องยุ่งกับการ quote/escape เลย ปลอดภัยกว่า
     /// </summary>
     private Task<int> RunMsiUninstallAsync(string password, bool deleteData)
     {
@@ -162,7 +194,10 @@ public partial class MainWindow : Window
         psi.ArgumentList.Add("/x");
         psi.ArgumentList.Add(_productCode);
         psi.ArgumentList.Add("/qn");
-        psi.ArgumentList.Add($"UNINSTPWD={password}");
+        if (!string.IsNullOrEmpty(password))
+        {
+            psi.ArgumentList.Add($"UNINSTPWD={password}");
+        }
         if (deleteData)
         {
             psi.ArgumentList.Add("DELETEDATA=1");

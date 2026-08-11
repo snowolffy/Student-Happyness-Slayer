@@ -36,6 +36,20 @@ public sealed class VncProcessManager
     public int? CurrentPid { get; private set; }
     public string? CurrentPassword { get; private set; }
 
+    /// <summary>
+    /// ยิงทุกครั้งที่ winvnc.exe หยุดทำงานไม่ว่าเพราะอะไร (Stop() ถูกเรียกตรงๆ, หรือ process.Exited เอง
+    /// เช่น crash) - ใช้เป็น failsafe หลักของ PhysicalInputBlocker (Toggle Target Input): ถ้า VNC
+    /// session หยุด ต้องคืนสิทธิ์ physical input ให้นักเรียนทันที ไม่ปล่อยให้ค้างบล็อกอยู่โดยไม่มี VNC ให้
+    /// ควบคุมแทนแล้ว
+    ///
+    /// สำคัญ: ยิงจาก background thread เสมอ ไม่ใช่ UI thread (Stop() เรียกจาก pipe listener thread ผ่าน
+    /// App.xaml.cs.OnStopVncSessionRequested ที่ตั้งใจไม่ marshal เพราะปกติไม่แตะ WPF element ส่วน
+    /// process.Exited ของ .NET เองก็ยิงจาก ThreadPool thread เสมอ) - ผู้ subscribe (App.xaml.cs) ต้อง
+    /// Dispatcher.Invoke เองก่อนเรียก PhysicalInputBlocker.Unblock() เพราะ DispatcherTimer ข้างในนั้น
+    /// ต้อง stop จาก thread เดียวกับที่สร้างเท่านั้น (ไม่งั้น throw InvalidOperationException)
+    /// </summary>
+    public event Action? Stopped;
+
     public VncProcessManager()
     {
         _bundleDir = Path.Combine(AppContext.BaseDirectory, "VncBundle");
@@ -91,6 +105,8 @@ public sealed class VncProcessManager
     /// <summary>เรียกตอน AgentTray กำลังจะปิด (log off/exit) - กัน winvnc.exe ค้างเป็น orphan process หลัง user ออกจาก session ไปแล้ว (ไม่มี desktop ให้ serve ต่อได้อยู่ดี)</summary>
     public void Stop()
     {
+        var wasRunning = false;
+
         _lifecycleLock.Wait();
         try
         {
@@ -98,6 +114,8 @@ public sealed class VncProcessManager
             {
                 return;
             }
+
+            wasRunning = true;
 
             try
             {
@@ -122,6 +140,14 @@ public sealed class VncProcessManager
         finally
         {
             _lifecycleLock.Release();
+        }
+
+        // ยิงนอก lock เสมอ (กัน deadlock ถ้า subscriber เรียกกลับเข้ามาที่ VncProcessManager แบบ
+        // synchronous) เฉพาะตอนที่มี process ให้หยุดจริงเท่านั้น - เรียก Stop() ตอนไม่มีอะไรรันอยู่แล้วไม่ควร
+        // ยิง event ซ้ำเปล่าๆ
+        if (wasRunning)
+        {
+            Stopped?.Invoke();
         }
     }
 
@@ -225,6 +251,11 @@ public sealed class VncProcessManager
                 _vncProcess = null;
                 CurrentPid = null;
                 CurrentPassword = null;
+
+                // winvnc.exe ตายเอง (crash/ถูก kill นอก Stop()) - ยิง Stopped เหมือนกับตอนเรียก Stop()
+                // ตรงๆ เพราะ PhysicalInputBlocker ต้องคืนสิทธิ์ physical input ทันทีไม่ว่า VNC จะหยุดเพราะ
+                // อะไรก็ตาม (ดู comment เต็มที่ตัว event เอง)
+                Stopped?.Invoke();
             };
 
             if (!process.Start())

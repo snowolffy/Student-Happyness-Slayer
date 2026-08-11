@@ -1,11 +1,20 @@
 <Project>
-  <!-- Keep this in sync with installer\OnionProcOparetor.wxs's <Package Version="...">.
-       Without an explicit version, every dotnet build/publish embeds FileVersion 1.0.0.0
-       (the SDK default) regardless of source changes. Windows Installer's InstallFiles
-       action skips overwriting a target file whose Version+date don't look older than the
-       one being installed - with every build stamped identically at 1.0.0.0, it could never
-       tell a new build apart from whatever was already on disk, so upgrades silently kept
-       old binaries in place even when the MSI reported success. -->
+  <!-- Version/AssemblyVersion: keep in sync with both installer\OnionProcOparetor.Agent.wxs's and
+       installer\OnionProcOparetor.ServerConsole.wxs's <Package Version="...">. Stays fixed at
+       Major.Minor.Build - AssemblyVersion changing between builds would need binding redirects for
+       anything referencing these assemblies by exact version (not a real risk here today - no
+       strong-named/GAC assemblies, no external consumers - but keeping it static is the standard
+       safe default and costs nothing).
+
+       FileVersion is deliberately NOT fixed here (see installer\publish-all.ps1's own comment) -
+       a static "1.2.5.0" on every single build was the direct cause of a real bug (2026-08-10):
+       Windows Installer's InstallFiles skips overwriting a target file whose FileVersion isn't
+       strictly newer than what's already on disk - confirmed via a live MSI upgrade's own verbose
+       log: "Won't Overwrite; Existing file is of an equal version". Every dotnet build/publish
+       that doesn't pass -p:FileVersion=... explicitly still falls back to this static default
+       (fine for day-to-day IDE/dev builds, which are never MSI-installed) - publish-all.ps1
+       overrides just the FileVersion property (not Version/AssemblyVersion) with a
+       build-varying value for anything that actually gets published/packaged/installed. -->
   <PropertyGroup>
     <Version>1.2.5.0</Version>
     <AssemblyVersion>1.2.5.0</AssemblyVersion>

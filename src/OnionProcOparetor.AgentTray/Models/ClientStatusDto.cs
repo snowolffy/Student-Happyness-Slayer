@@ -9,4 +9,5 @@ public class ClientStatusDto
     public int RulesCount { get; set; }
     public DateTime? LastPollAt { get; set; }
     public bool LastPollSucceeded { get; set; }
+    public bool Bypassed { get; set; }
 }

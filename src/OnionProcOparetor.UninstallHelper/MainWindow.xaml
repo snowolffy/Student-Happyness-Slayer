@@ -20,7 +20,7 @@
                            HorizontalAlignment="Center" VerticalAlignment="Center"/>
             </Border>
             <StackPanel Margin="10,0,0,0" VerticalAlignment="Center">
-                <TextBlock Text="Onion ProcOparetor" FontSize="15" FontWeight="Bold" Foreground="White"/>
+                <TextBlock x:Name="ProductNameText" Text="Onion ProcOparetor" FontSize="15" FontWeight="Bold" Foreground="White"/>
                 <TextBlock Text="Uninstall" FontSize="11" Foreground="#AAAAAA"/>
             </StackPanel>
         </StackPanel>

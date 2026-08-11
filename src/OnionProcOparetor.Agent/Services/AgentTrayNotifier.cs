@@ -83,6 +83,24 @@ public class AgentTrayNotifier
         return SendAsync(envelope, "StopVncSession", ct);
     }
 
+    /// <summary>
+    /// สั่งให้ AgentTray บล็อก physical keyboard/mouse ของนักเรียนชั่วคราว (Toggle Target Input) - ต้อง
+    /// ส่งผ่าน AgentTray เสมอ เพราะ Session 0 (Agent) ไม่มีสิทธิ์ install low-level hook ที่เห็น input
+    /// ของ user session ได้เลย (ดู PhysicalInputBlocker ฝั่ง AgentTray)
+    /// </summary>
+    public Task<bool> SendBlockTargetInputAsync(CancellationToken ct)
+    {
+        var envelope = new AgentTrayPipeMessage { Type = "BlockTargetInput" };
+        return SendAsync(envelope, "BlockTargetInput", ct);
+    }
+
+    /// <summary>สั่งให้ AgentTray คืนสิทธิ์ physical input ให้นักเรียน</summary>
+    public Task<bool> SendUnblockTargetInputAsync(CancellationToken ct)
+    {
+        var envelope = new AgentTrayPipeMessage { Type = "UnblockTargetInput" };
+        return SendAsync(envelope, "UnblockTargetInput", ct);
+    }
+
     private async Task<bool> SendAsync(AgentTrayPipeMessage envelope, string logContext, CancellationToken ct)
     {
         try

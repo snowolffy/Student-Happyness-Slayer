@@ -33,6 +33,7 @@ public class Worker : BackgroundService
     private readonly ClientState _state;
     private readonly CommandProcessor _commandProcessor;
     private readonly LabHubConnection _labHubConnection;
+    private readonly AgentBypassState _bypassState;
 
     public Worker(
         ILogger<Worker> logger,
@@ -40,7 +41,8 @@ public class Worker : BackgroundService
         IOptions<ServerSettings> settings,
         ClientState state,
         CommandProcessor commandProcessor,
-        LabHubConnection labHubConnection)
+        LabHubConnection labHubConnection,
+        AgentBypassState bypassState)
     {
         _logger = logger;
         _serverClient = serverClient;
@@ -48,6 +50,7 @@ public class Worker : BackgroundService
         _state = state;
         _commandProcessor = commandProcessor;
         _labHubConnection = labHubConnection;
+        _bypassState = bypassState;
         _clientGuid = ClientIdentity.GetOrCreateClientGuid();
         _machineName = ClientIdentity.GetMachineName();
         _state.ClientGuid = _clientGuid;
@@ -80,6 +83,14 @@ public class Worker : BackgroundService
         // Loop หลัก: poll server เป็นระยะๆ เพื่ออัพเดต rules + enabled state
         while (!stoppingToken.IsCancellationRequested)
         {
+            // Bypass เปิดอยู่ - ห้ามยิง request ออกไปหา Server เลยแม้แต่ครั้งเดียว (ตัดขาดเงียบๆ ไม่ใช่
+            // แค่ไม่ประมวลผลผลลัพธ์) วนแค่ delay เฉยๆ จนกว่าจะถูก toggle กลับ ดู BypassCoordinator
+            if (_bypassState.IsBypassed)
+            {
+                await Task.Delay(TimeSpan.FromSeconds(_settings.PollIntervalSeconds), stoppingToken);
+                continue;
+            }
+
             var polled = await _serverClient.PollAsync(_clientGuid, _machineName, stoppingToken);
             if (polled is not null)
             {
@@ -123,10 +134,33 @@ public class Worker : BackgroundService
     /// <summary>
     /// เรียกตอน service กำลังจะหยุด (ก่อน ExecuteAsync ถูกยกเลิกเสร็จสมบูรณ์) - ปิด SignalR connection
     /// ให้เรียบร้อยคู่กับตอน start ใน ExecuteAsync (ไม่กระทบ poll loop ที่หยุดผ่าน stoppingToken ตามปกติอยู่แล้ว)
+    ///
+    /// บั๊กจริงที่เจอ (2026-08-11, live-tested): ถ้า LabHubConnection กำลัง mid-connect อยู่พอดีตอนนั้น
+    /// (เช่น server เข้าไม่ถึง/เครือข่ายมีปัญหา - ConnectWithRetryAsync ยัง await _connection.StartAsync
+    /// ค้างอยู่) DisposeAsync() อาจใช้เวลานานผิดปกติกว่าจะ unwind - ทำให้ทั้ง service หยุดช้า/ไม่ตอบสนอง
+    /// ต่อ SCM's stop request ภายในเวลาที่ควร ยืนยันจาก uninstall จริงที่ค้างอยู่ที่ StopServices เกิน
+    /// นาทีนึงโดยไม่ขยับ (Windows Installer log ยืนยัน service ยังอยู่ใน STATE=RUNNING ไม่ใช่แม้แต่
+    /// STOP_PENDING) - ผลกระทบร้ายแรงกว่าแค่ "ช้า": ถ้า SCM/msiexec ตัดสินใจ DeleteService() ไปก่อนที่
+    /// service จะหยุดจริงๆ (เพราะรอนานเกินไป) จะเกิด "phantom service" ค้างอยู่ใน Service Control
+    /// Manager (registry key ถูกลบไปแล้วแต่ SCM ยังจำ entry เดิมไว้จนกว่าจะ reboot) ทำให้ install ครั้งถัดไป
+    /// สร้าง service ใหม่ไม่ได้/start ไม่ได้เลย (WIN32_EXIT_CODE 1067) - ตรงกับบั๊กที่เจอจริงพอดี
+    ///
+    /// แก้ด้วยการจำกัดเวลารอ DisposeAsync() ไว้ไม่เกิน 5 วิ - ถ้าเกิน ปล่อยผ่านไปเลย (ไม่ throw, ไม่ block
+    /// service shutdown ต่อไป) service กำลังจะปิดตัวอยู่แล้ว connection ที่ยังค้างจะถูกทิ้งไปพร้อม process
+    /// เองตอน exit จริง ไม่มีผลเสียอะไรเพิ่มจากการไม่รอให้ dispose "สวยงาม" ครบ
     /// </summary>
     public override async Task StopAsync(CancellationToken cancellationToken)
     {
-        await _labHubConnection.DisposeAsync();
+        using var disposeTimeoutCts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        try
+        {
+            await _labHubConnection.DisposeAsync().AsTask().WaitAsync(disposeTimeoutCts.Token);
+        }
+        catch (OperationCanceledException)
+        {
+            _logger.LogWarning("LabHubConnection.DisposeAsync ไม่เสร็จภายใน 5 วิ (อาจ mid-connect อยู่) - ข้ามไปเลย กัน service shutdown ค้าง");
+        }
+
         await base.StopAsync(cancellationToken);
     }
 
@@ -138,6 +172,14 @@ public class Worker : BackgroundService
     {
         while (!stoppingToken.IsCancellationRequested)
         {
+            // ดู comment เดียวกันใน ExecuteAsync's main loop - bypass เปิดอยู่ต้องไม่ยิง request ออกไปเลย
+            if (_bypassState.IsBypassed)
+            {
+                var bypassedIntervalSeconds = _state.PollIntervalOverrideSeconds ?? _settings.PollIntervalSeconds;
+                await Task.Delay(TimeSpan.FromSeconds(bypassedIntervalSeconds), stoppingToken);
+                continue;
+            }
+
             var polled = await _serverClient.PollAsync(_clientGuid, _machineName, stoppingToken);
             if (polled is not null)
             {

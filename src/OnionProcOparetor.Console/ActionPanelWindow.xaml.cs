@@ -43,6 +43,7 @@ public partial class ActionPanelWindow : Window
         HeaderText.Text = $"Actions - {client.MachineName}";
         TargetPanel.Visibility = Visibility.Collapsed;
         SettingsButton.Visibility = Visibility.Visible;
+        ConfigRuleButton.Visibility = Visibility.Visible;
         DeleteButton.Visibility = Visibility.Visible;
         ViewScreenButton.Visibility = Visibility.Visible;
         ToggleButton.Content = client.IsEnabled ? "DISABLE ENFORCEMENT" : "ENABLE ENFORCEMENT";
@@ -70,6 +71,7 @@ public partial class ActionPanelWindow : Window
         HeaderText.Text = $"Applying to {selectedClients.Count} selected machines";
 
         SettingsButton.Visibility = Visibility.Collapsed;
+        ConfigRuleButton.Visibility = Visibility.Collapsed;
         DeleteButton.Visibility = Visibility.Collapsed;
         ViewScreenButton.Visibility = Visibility.Collapsed;
         ToggleButton.Content = "TOGGLE ENFORCEMENT";
@@ -78,8 +80,7 @@ public partial class ActionPanelWindow : Window
     private List<ClientMachineDto> CurrentTargets =>
         _isBulk && ApplyToAllRadio.IsChecked == true ? _allClients : _selectedClients;
 
-    private static bool Confirm(string message, string title) =>
-        System.Windows.MessageBox.Show(message, title, MessageBoxButton.YesNo, MessageBoxImage.Warning) == MessageBoxResult.Yes;
+    private bool Confirm(string message, string title) => ConfirmWindow.Show(message, title, this);
 
     private async void ToggleButton_Click(object sender, RoutedEventArgs e)
     {
@@ -116,6 +117,21 @@ public partial class ActionPanelWindow : Window
         {
             DataChanged = true;
             StatusText.Text = "บันทึก Settings สำเร็จ";
+        }
+    }
+
+    private void ConfigRuleButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_singleClient is null)
+        {
+            return;
+        }
+
+        var ruleOverridesWindow = new RuleOverridesWindow(_apiClient, _singleClient) { Owner = this };
+        if (ruleOverridesWindow.ShowDialog() == true)
+        {
+            DataChanged = true;
+            StatusText.Text = "อัปเดต Rule override สำเร็จ";
         }
     }
 

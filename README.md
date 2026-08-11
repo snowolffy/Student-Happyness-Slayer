@@ -31,7 +31,7 @@ OnionProcOparetor/
 │   ├── OnionProcOparetor.Agent/       Onion Agent (service part) - Windows Service บนเครื่องนักเรียน
 │   ├── OnionProcOparetor.AgentTray/   Onion Agent (tray part) - Tray GUI, login-gated
 │   └── OnionProcOparetor.Shared/      Models/DTOs ที่ใช้ร่วมกันทุกโปรเจกต์
-├── installer/                        Inno Setup installer (เลือกโหมดติดตั้งได้ 3 แบบ)
+├── installer/                        WiX v5 installer (.msi, เลือกโหมดติดตั้งได้ 3 แบบ)
 ├── docs/                             เอกสารประกอบ / บันทึกการตัดสินใจ (architecture.md)
 ├── .gitignore
 └── OnionProcOparetor.sln

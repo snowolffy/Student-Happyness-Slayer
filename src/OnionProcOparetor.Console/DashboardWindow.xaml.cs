@@ -42,6 +42,12 @@ public partial class DashboardWindow : Window
     private WriteableBitmap? _liveViewFullscreenBitmap;
     private VncViewMode? _liveViewFullscreenBitmapMode;
 
+    // Toggle target input (block/unblock physical keyboard/mouse บนเครื่อง target ระหว่าง fullscreen -
+    // ดู ToggleTargetInputButton_Click) - default false (ไม่บล็อก) เสมอทุกครั้งที่เข้า fullscreen ใหม่
+    // (ดู ExpandLiveViewCell) และต้องคืนเป็น false ทุกครั้งที่ออกจาก fullscreen ไม่ว่าทางไหน (ดู
+    // ReleaseFullscreenInputState) กัน state ค้าง "บล็อกอยู่" ข้าม session ผิดเครื่อง
+    private bool _targetInputBlocked;
+
     // ==================== Step 4h: Live View full-screen input capture ====================
     // ปุ่มเมาส์ที่กำลังกดค้างอยู่บน target (ผ่าน overlay นี้) - null = ไม่มีปุ่มไหนค้าง ใช้สอง field นี้คู่กัน
     // ตอนต้อง force-release ปุ่มถ้าออกจาก fullscreen (กด BACK TO GRID/ปิด tab/ปิด window) กลางที่ยังลากอยู่
@@ -177,6 +183,7 @@ public partial class DashboardWindow : Window
 
             var users = await _apiClient.GetUsersAsync();
             UsersGrid.ItemsSource = users;
+            UsersEmptyText.Visibility = users.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
 
             StatusText.Text = $"อัพเดตล่าสุด: {DateTime.Now:HH:mm:ss}";
         }
@@ -255,13 +262,8 @@ public partial class DashboardWindow : Window
     {
         if (sender is Button { Tag: int ruleId })
         {
-            var confirm = System.Windows.MessageBox.Show(
-                "ยืนยันการลบกฎนี้? การกระทำนี้ย้อนกลับไม่ได้",
-                "ยืนยันการลบ",
-                MessageBoxButton.YesNo,
-                MessageBoxImage.Warning);
-
-            if (confirm != MessageBoxResult.Yes)
+            var confirmed = ConfirmWindow.Show("ยืนยันการลบกฎนี้? การกระทำนี้ย้อนกลับไม่ได้", "ยืนยันการลบ", this);
+            if (!confirmed)
             {
                 return;
             }
@@ -345,13 +347,8 @@ public partial class DashboardWindow : Window
     {
         if (sender is Button { Tag: int userId })
         {
-            var confirm = System.Windows.MessageBox.Show(
-                "ยืนยันการลบ user นี้? การกระทำนี้ย้อนกลับไม่ได้",
-                "ยืนยันการลบ",
-                MessageBoxButton.YesNo,
-                MessageBoxImage.Warning);
-
-            if (confirm != MessageBoxResult.Yes)
+            var confirmed = ConfirmWindow.Show("ยืนยันการลบ user นี้? การกระทำนี้ย้อนกลับไม่ได้", "ยืนยันการลบ", this);
+            if (!confirmed)
             {
                 return;
             }
@@ -366,21 +363,6 @@ public partial class DashboardWindow : Window
     {
         var count = ClientsGrid.SelectedItems.Count;
         SelectedClientsCountText.Text = count > 0 ? $"เลือกไว้ {count} เครื่อง" : "";
-    }
-
-    /// <summary>ชั่วคราวสำหรับยืนยัน VncSessionPool + RfbClient Thumbnail mode (Step 4e) เท่านั้น - เปิดทุกเครื่องที่เลือกไว้ผ่าน VncPoolTestWindow (ไม่ใช่ production UI - ดู comment ในไฟล์นั้น)</summary>
-    private void PoolTestButton_Click(object sender, RoutedEventArgs e)
-    {
-        var selected = ClientsGrid.SelectedItems.Cast<ClientMachineDto>().ToList();
-
-        if (selected.Count == 0)
-        {
-            StatusText.Text = "กรุณาเลือกเครื่องอย่างน้อย 1 เครื่อง (Ctrl+คลิก หรือ Shift+คลิก เพื่อเลือกหลายเครื่อง)";
-            return;
-        }
-
-        var testWindow = new VncPoolTestWindow(_apiClient, _labHubClient, selected) { Owner = this };
-        testWindow.Show();
     }
 
     private async void BroadcastMessageButton_Click(object sender, RoutedEventArgs e)
@@ -483,6 +465,7 @@ public partial class DashboardWindow : Window
             : _allClients.Where(c => c.MachineName.Contains(keyword, StringComparison.OrdinalIgnoreCase)).ToList();
 
         ClientsGrid.ItemsSource = filtered;
+        ClientsEmptyText.Visibility = filtered.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
 
         foreach (var client in filtered.Where(c => selectedIds.Contains(c.Id)))
         {
@@ -493,22 +476,26 @@ public partial class DashboardWindow : Window
     private void ApplyRulesFilter()
     {
         var keyword = RulesSearchBox.Text.Trim();
-        RulesGrid.ItemsSource = string.IsNullOrEmpty(keyword)
+        var filtered = string.IsNullOrEmpty(keyword)
             ? _allRules
             : _allRules.Where(r =>
                 r.Name.Contains(keyword, StringComparison.OrdinalIgnoreCase) ||
                 r.PublisherName.Contains(keyword, StringComparison.OrdinalIgnoreCase)).ToList();
+        RulesGrid.ItemsSource = filtered;
+        RulesEmptyText.Visibility = filtered.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
     }
 
     private void ApplyLogsFilter()
     {
         var keyword = LogsSearchBox.Text.Trim();
-        LogsGrid.ItemsSource = string.IsNullOrEmpty(keyword)
+        var filtered = string.IsNullOrEmpty(keyword)
             ? _allLogs
             : _allLogs.Where(l =>
                 l.MachineName.Contains(keyword, StringComparison.OrdinalIgnoreCase) ||
                 (l.ProcessPath?.Contains(keyword, StringComparison.OrdinalIgnoreCase) ?? false) ||
                 (l.DetectedPublisher?.Contains(keyword, StringComparison.OrdinalIgnoreCase) ?? false)).ToList();
+        LogsGrid.ItemsSource = filtered;
+        LogsEmptyText.Visibility = filtered.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
     }
 
     private void ClientsSearchBox_TextChanged(object sender, TextChangedEventArgs e) => ApplyClientsFilter();
@@ -989,6 +976,10 @@ public partial class DashboardWindow : Window
         FullscreenHeaderText.Text = cell.Client.MachineName;
         FullscreenStatusText.Text = "";
 
+        // default ปิด (ไม่บล็อก) เสมอทุกครั้งที่เข้า fullscreen ใหม่ - ไม่สืบทอด state จากเครื่องก่อนหน้า
+        _targetInputBlocked = false;
+        SetToggleTargetInputButtonVisual(blocked: false);
+
         LiveViewFullscreenOverlay.Visibility = Visibility.Visible;
 
         // ต้อง focus หลัง Visibility=Visible เท่านั้น (ตอน Collapsed element ไม่มี layout/ไม่ใช่ส่วนหนึ่ง
@@ -1022,6 +1013,53 @@ public partial class DashboardWindow : Window
     }
 
     /// <summary>
+    /// Toggle target input: กันนักเรียนแย่งเมาส์/คีย์บอร์ดขณะครูควบคุมผ่าน full-screen VNC (ดู
+    /// PhysicalInputBlocker ฝั่ง AgentTray) - ไม่ optimistic update ปุ่ม รอผลจริงของ SendCommandAsync
+    /// ก่อนสลับ state/ปุ่ม เพราะถ้า command ส่งไม่ถึงจริง (เช่น server หลุด) ต้องรู้ตัวว่ายัง
+    /// unblocked/blocked อยู่เหมือนเดิม ไม่ใช่เข้าใจผิดว่าสำเร็จไปแล้ว
+    /// </summary>
+    private async void ToggleTargetInputButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_liveViewFullscreenClientGuid is null)
+        {
+            return; // ไม่ได้อยู่ใน fullscreen แล้ว (เช่น ออกไปพอดีระหว่างรอ event ก่อนหน้า) - เป็น no-op
+        }
+
+        var clientGuid = _liveViewFullscreenClientGuid;
+        var wantBlocked = !_targetInputBlocked;
+
+        ToggleTargetInputButton.IsEnabled = false;
+        var success = await _apiClient.SendCommandAsync(
+            clientGuid, wantBlocked ? "BlockTargetInput" : "UnblockTargetInput", null);
+        ToggleTargetInputButton.IsEnabled = true;
+
+        if (!success)
+        {
+            FullscreenStatusText.Text = wantBlocked
+                ? "บล็อก input ไม่สำเร็จ - ลองใหม่อีกครั้ง"
+                : "คืนสิทธิ์ input ไม่สำเร็จ - ลองใหม่อีกครั้ง";
+            return;
+        }
+
+        // เช็คซ้ำว่ายังอยู่เครื่องเดิม/fullscreen อยู่ไหม (กันกรณีครูออกจาก fullscreen ไปแล้วระหว่างรอ
+        // SendCommandAsync - ReleaseFullscreenInputState จัดการ reset state ไปแล้ว ไม่ควรทับกลับ)
+        if (_liveViewFullscreenClientGuid != clientGuid)
+        {
+            return;
+        }
+
+        _targetInputBlocked = wantBlocked;
+        FullscreenStatusText.Text = "";
+        SetToggleTargetInputButtonVisual(_targetInputBlocked);
+    }
+
+    private void SetToggleTargetInputButtonVisual(bool blocked)
+    {
+        ToggleTargetInputButton.Content = blocked ? "UNBLOCK STUDENT INPUT" : "BLOCK STUDENT INPUT";
+        ToggleTargetInputButton.Style = (Style)FindResource(blocked ? "ButtonDanger" : "ButtonSecondary");
+    }
+
+    /// <summary>
     /// เรียกทุกครั้งก่อนออกจาก fullscreen mode ไม่ว่าทางไหน (BACK TO GRID, เอา cell ออกจาก grid ระหว่าง
     /// fullscreen, ปิดแท็บ LIVE VIEW, ปิด Dashboard) - เคลียร์ mouse capture ที่อาจค้างอยู่ + force-release
     /// ปุ่มเมาส์ที่กำลังกดค้างอยู่บน target ก่อนเสมอ (กัน "stuck mouse-down" ถ้าครูออกจาก fullscreen กลางที่
@@ -1048,6 +1086,21 @@ public partial class DashboardWindow : Window
         }
 
         _fullscreenMouseButtonDown = null;
+
+        // ออกจาก fullscreen ต้องคืนสิทธิ์ physical input ให้นักเรียนเสมอ ไม่ว่าจะออกทางไหน (ทางเดียวกับ
+        // path นี้ครอบคลุมอยู่แล้ว - BACK TO GRID/เอา cell ออก/ปิดแท็บ/ปิด Dashboard) fire-and-forget
+        // เพราะเป็น cleanup ตอนกำลังจะออกจาก fullscreen แล้ว ไม่ควร block UI รอผลลัพธ์ - ยังมี failsafe
+        // ฝั่ง AgentTray (VncProcessManager.Stopped ตอน RequestModeSwitch(Thumbnail) ไม่ได้ปิด VNC session
+        // จริงๆ ก็จริง แต่ path หลักที่ปิด VNC session จริงคือ CloseAsync/CloseAllAsync ซึ่งเรียกหลัง
+        // ReleaseFullscreenInputState เสมอ - ดู RemoveGridCellButton_Click/CloseAllLiveViewSessionsAsync)
+        // เผื่อ command นี้ส่งไม่ถึงจริงๆ
+        if (_targetInputBlocked && _liveViewFullscreenClientGuid is not null)
+        {
+            _ = _apiClient.SendCommandAsync(_liveViewFullscreenClientGuid, "UnblockTargetInput", null);
+        }
+
+        _targetInputBlocked = false;
+        SetToggleTargetInputButtonVisual(blocked: false);
     }
 
     /// <summary>ปุ่ม X บน cell - เอาออกจาก grid + dispose session นั้นทิ้ง ไม่กระทบ session อื่นเลย (ตามที่ตกลงใน Step 4e)</summary>
@@ -1366,5 +1419,10 @@ public partial class DashboardWindow : Window
         {
             FullscreenStatusText.Text = ex.Message;
         }
+    }
+
+    private void NewUserUsernameBox_TextChanged(object sender, TextChangedEventArgs e)
+    {
+
     }
 }

@@ -1,0 +1,227 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  WiX v5 - Server + Console installer only (teacher/admin machine). Split out of the old single
+  3-mode OnionProcOparetor.wxs (2026-08-10, "Stable 1" item 1). Keeps the original product's
+  UpgradeCode/ProductCode identity and INSTALLFOLDER ("Onion ProcOparetor") since this is the
+  closest successor to the old default Mode A - see installer/OnionProcOparetor.Agent.wxs for the
+  Client Agent counterpart (fresh identity there: Mode C/Client Agent installs were already
+  broken by the ADDLOCAL-snapshot bug this split fixes, so there's no working deployment to
+  preserve an upgrade path for). No MODE property, no ModeDlg, no Level/Condition dance - this
+  product only ever installs Server + Console, and has no interactive wizard pages of its own.
+-->
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs"
+     xmlns:util="http://wixtoolset.org/schemas/v4/wxs/util"
+     xmlns:fire="http://wixtoolset.org/schemas/v4/wxs/firewall"
+     xmlns:ui="http://wixtoolset.org/schemas/v4/wxs/ui">
+
+  <?ifndef PublishDir?>
+  <?define PublishDir="..\publish"?>
+  <?endif?>
+
+  <Package Name="Onion ProcOparetor"
+            Manufacturer="OnionProcOparetor"
+            Version="1.2.5.0"
+            UpgradeCode="8C2D41E6-5A6D-4D1A-95E2-FB74C37A6E5A"
+            Scope="perMachine"
+            InstallerVersion="500">
+
+    <SummaryInformation Keywords="Installer" Description="Onion ProcOparetor Server + Console Setup" />
+    <MajorUpgrade DowngradeErrorMessage="A newer version of [ProductName] is already installed." />
+    <MediaTemplate EmbedCab="yes" />
+
+    <!-- ==================== Branding ==================== -->
+    <Icon Id="AppIcon.ico" SourceFile="Assets\icon.ico" />
+    <Property Id="ARPPRODUCTICON" Value="AppIcon.ico" />
+    <WixVariable Id="WixUIBannerBmp" Value="Assets\banner.bmp" />
+    <WixVariable Id="WixUIDialogBmp" Value="Assets\dialog.bmp" />
+
+    <Property Id="WIXUI_EXITDIALOGOPTIONALCHECKBOXTEXT" Value="Launch Onion ProcOparetor Console" />
+    <Property Id="WIXUI_EXITDIALOGOPTIONALCHECKBOX" Value="1" />
+    <Property Id="WIXUI_EXITDIALOGOPTIONALTEXT" Value="The Onion Core Service is now running as a Windows Service; use the Console shortcut to sign in." />
+
+    <!-- ซ่อน ARP entry อัตโนมัติของ MSI เอง ใช้ synthetic ARP entry ของเราเอง
+         (UninstallArpEntryComponent ข้างล่าง) แทน ที่ชี้ไปที่ OnionProcOparetor.UninstallHelper.exe
+         ก่อน (โชว์ popup ได้จริงเพราะถูก Explorer เรียกตรงๆ) แล้วค่อยยิง msiexec /x {ProductCode}
+         ตัวจริงต่อเบื้องหลังเอง - [ProductCode] เดิมยังใช้งานได้ปกติสำหรับ msiexec /x โดยตรง -->
+    <Property Id="ARPSYSTEMCOMPONENT" Value="1" />
+
+    <!-- Optional data wipe, gated purely on the DELETEDATA property (msiexec /x ... DELETEDATA=1)
+         - no interactive prompt (MSI uninstalls run at UILevel=3/no desktop access). Default
+         (DELETEDATA unset) keeps data, for a later reinstall. No uninstall-password gate on this
+         product - that machinery (UNINSTPWD/CheckUninstallPasswordHeadless/UNINSTALLAUTHFLAG) is
+         Agent-only (lab machines share one admin account); this is the teacher/admin machine, and
+         once UninstallPwdDlg doesn't exist here, nothing would ever set a password anyway. -->
+    <Property Id="DELETEDATA" Secure="yes" />
+
+    <!-- ==================== Directory layout ====================
+         Unchanged from before the split ("Onion ProcOparetor", not renamed) so this keeps
+         installing to the same place existing Server+Console deployments already use. -->
+    <StandardDirectory Id="ProgramFiles64Folder">
+      <Directory Id="INSTALLFOLDER" Name="Onion ProcOparetor">
+        <Directory Id="ServerDir" Name="Server" />
+        <Directory Id="ConsoleDir" Name="Console" />
+        <Directory Id="CustomActionsDir" Name="CustomActions" />
+        <Directory Id="UninstallHelperDir" Name="UninstallHelper" />
+      </Directory>
+    </StandardDirectory>
+
+    <StandardDirectory Id="ProgramMenuFolder">
+      <Directory Id="AppProgramMenuFolder" Name="Onion ProcOparetor" />
+    </StandardDirectory>
+
+    <!-- ==================== Feature ====================
+         Single unconditional feature - no MODE property, no Level/Condition dance. This product
+         only ever installs the Server + Console payload. -->
+    <!-- AllowAbsent="no" ถูกลบออก - simplification เฉยๆ ไม่ใช่ bug fix เหตุผลเดียวกับ Agent product's
+         comment (ดู OnionProcOparetor.Agent.wxs) -->
+    <Feature Id="MainFeature" Level="1" Display="hidden">
+      <ComponentRef Id="CustomActionsComponent" />
+      <ComponentRef Id="RunSetupComponent" />
+      <ComponentGroupRef Id="UninstallHelperFiles" />
+      <ComponentRef Id="UninstallHelperExeComponent" />
+      <ComponentRef Id="UninstallArpEntryComponent" />
+      <ComponentGroupRef Id="ServerFiles" />
+      <ComponentGroupRef Id="ConsoleFiles" />
+      <ComponentRef Id="ServerExeComponent" />
+      <ComponentRef Id="ConsoleExeComponent" />
+    </Feature>
+
+    <!-- ==================== Harvested files ==================== -->
+    <ComponentGroup Id="ServerFiles" Directory="ServerDir">
+      <Files Include="$(var.PublishDir)\OnionProcOparetor.Server\**">
+        <Exclude Files="$(var.PublishDir)\OnionProcOparetor.Server\OnionProcOparetor.Server.exe" />
+      </Files>
+    </ComponentGroup>
+
+    <ComponentGroup Id="ConsoleFiles" Directory="ConsoleDir">
+      <Files Include="$(var.PublishDir)\OnionProcOparetor.Console\**">
+        <Exclude Files="$(var.PublishDir)\OnionProcOparetor.Console\OnionProcOparetor.Console.exe" />
+      </Files>
+    </ComponentGroup>
+
+    <ComponentGroup Id="UninstallHelperFiles" Directory="UninstallHelperDir">
+      <Files Include="$(var.PublishDir)\OnionProcOparetor.UninstallHelper\**">
+        <Exclude Files="$(var.PublishDir)\OnionProcOparetor.UninstallHelper\OnionProcOparetor.UninstallHelper.exe" />
+      </Files>
+    </ComponentGroup>
+
+    <!-- ==================== Anchor components ====================
+         Server: OnionCoreService, started declaratively, + firewall rule for the SignalR/HTTP
+         port. -->
+    <Component Id="ServerExeComponent" Directory="ServerDir" Guid="*">
+      <File Id="ServerExeFile" Source="$(var.PublishDir)\OnionProcOparetor.Server\OnionProcOparetor.Server.exe" KeyPath="yes" />
+      <ServiceInstall Id="OnionCoreServiceInstall" Name="OnionCoreService" DisplayName="Onion Core Service"
+                       Type="ownProcess" Start="auto" ErrorControl="normal" />
+      <ServiceControl Id="OnionCoreServiceControl" Name="OnionCoreService" Start="install" Stop="both" Remove="uninstall" Wait="yes" />
+      <fire:FirewallException Id="ServerFirewallRule" Name="OnionProcOparetor Server" Port="8787" Protocol="tcp" Scope="any" />
+    </Component>
+
+    <!-- Console: shortcut only, no service. -->
+    <Component Id="ConsoleExeComponent" Directory="ConsoleDir" Guid="*">
+      <File Id="ConsoleExeFile" Source="$(var.PublishDir)\OnionProcOparetor.Console\OnionProcOparetor.Console.exe" KeyPath="yes">
+        <Shortcut Id="ConsoleShortcut" Directory="AppProgramMenuFolder" Name="Onion ProcOparetor Console"
+                   WorkingDirectory="ConsoleDir" Advertise="no" Icon="AppIcon.ico" />
+      </File>
+      <RemoveFolder Id="RemoveAppProgramMenuFolder_Console" Directory="AppProgramMenuFolder" On="uninstall" />
+    </Component>
+
+    <!-- Add/Remove Programs launches this .exe directly (see UninstallArpEntryComponent below) -
+         it shows a real confirm/delete-data prompt then shells out to the real msiexec /x
+         [ProductCode] itself. Same generic .exe as the Agent product's copy - it takes ProductCode
+         as a command-line arg and resolves guard/flag/install paths relative to its own install
+         location, so no per-product code or build variant is needed. This product never writes a
+         guard file (no UninstallPwdDlg here), so the helper's password panel simply never shows. -->
+    <Component Id="UninstallHelperExeComponent" Directory="UninstallHelperDir" Guid="*">
+      <File Id="UninstallHelperExeFile" Source="$(var.PublishDir)\OnionProcOparetor.UninstallHelper\OnionProcOparetor.UninstallHelper.exe" KeyPath="yes" />
+    </Component>
+
+    <!-- Synthetic ARP entry - unchanged registry key name ("...\Uninstall\OnionProcOparetor")
+         from before the split. The Agent product below uses a distinct
+         "...\Uninstall\OnionProcOparetorAgent" key so both products' entries show up side by side
+         in Add/Remove Programs without one overwriting the other. -->
+    <Component Id="UninstallArpEntryComponent" Directory="INSTALLFOLDER" Guid="8C2D41E6-5A6D-4D1A-95E2-FB74C37A6E71">
+      <RegistryKey Root="HKLM" Key="Software\Microsoft\Windows\CurrentVersion\Uninstall\OnionProcOparetor">
+        <RegistryValue Type="string" Name="DisplayName" Value="Onion ProcOparetor" KeyPath="yes" />
+        <RegistryValue Type="string" Name="DisplayVersion" Value="[ProductVersion]" />
+        <RegistryValue Type="string" Name="Publisher" Value="OnionProcOparetor" />
+        <!-- ส่ง product display name เป็น arg ที่ 3 ด้วย (args[2]) - เหตุผลเดียวกับ Agent product's
+             comment (ดู OnionProcOparetor.Agent.wxs) - UninstallHelper.exe เป็น binary เดียวกันที่
+             bundle เข้าทั้ง 2 MSI ต้องบอกให้ชัดว่ากำลังลบเครื่องไหนอยู่ -->
+        <RegistryValue Type="string" Name="UninstallString" Value="&quot;[#UninstallHelperExeFile]&quot; [ProductCode] &quot;Onion ProcOparetor&quot;" />
+        <RegistryValue Type="string" Name="DisplayIcon" Value="[#UninstallHelperExeFile]" />
+        <RegistryValue Type="integer" Name="NoModify" Value="1" />
+        <RegistryValue Type="integer" Name="NoRepair" Value="1" />
+        <RegistryValue Type="integer" Name="EstimatedSize" Value="1" />
+      </RegistryKey>
+    </Component>
+
+    <!-- run-setup.ps1 (unchanged from the .iss-era file). Untracked runtime-written files under
+         INSTALLFOLDER (install log, ...) are swept on uninstall by RemoveInstallFolderExtras
+         below. -->
+    <Component Id="RunSetupComponent" Directory="INSTALLFOLDER" Guid="*">
+      <File Id="RunSetupPs1" Source="run-setup.ps1" KeyPath="yes" />
+    </Component>
+
+    <Component Id="CustomActionsComponent" Directory="CustomActionsDir" Guid="8C2D41E6-5A6D-4D1A-95E2-FB74C37A6E70">
+      <File Id="DeleteProgramDataPs1" Source="CustomActions\delete-programdata.ps1" KeyPath="yes" />
+    </Component>
+
+    <!-- ==================== Custom Actions ==================== -->
+
+    <!-- Server setup: POST /api/auth/setup once OnionCoreService is actually running (retries
+         internally, never fails the install - see run-setup.ps1). -->
+    <CustomAction Id="SetupServerProps" Property="SetupServer"
+      Value="&quot;[System64Folder]WindowsPowerShell\v1.0\powershell.exe&quot; -NoProfile -NonInteractive -ExecutionPolicy Bypass -File &quot;[#RunSetupPs1]&quot;" />
+    <CustomAction Id="SetupServer" BinaryRef="Wix4UtilCA_$(sys.BUILDARCHSHORT)" DllEntry="WixQuietExec"
+      Execute="deferred" Return="ignore" Impersonate="no" />
+
+    <CustomAction Id="DeleteProgramDataProps" Property="DeleteProgramData"
+      Value="&quot;[System64Folder]WindowsPowerShell\v1.0\powershell.exe&quot; -NoProfile -NonInteractive -ExecutionPolicy Bypass -File &quot;[#DeleteProgramDataPs1]&quot;" />
+    <CustomAction Id="DeleteProgramData" BinaryRef="Wix4UtilCA_$(sys.BUILDARCHSHORT)" DllEntry="WixQuietExec"
+      Execute="deferred" Return="ignore" Impersonate="no" />
+
+    <!-- Final uninstall sweep for INSTALLFOLDER - replaces a broken util:RemoveFolderEx (its
+         extension-provided deferred CA runs at a fixed sequence 799, before INSTALLFOLDER is
+         resolved at CostFinalize/1000, so it always silently no-op'd - confirmed against the
+         compiled MSI's own InstallExecuteSequence table, not assumed). Ships as a fixed
+         -EncodedCommand block, not a reference to an installed .ps1 file, because by the time
+         this runs (after RemoveFiles) any script file under INSTALLFOLDER may already be deleted.
+         Trailing "\&quot;" (not just "&quot;") on the [INSTALLFOLDER] argument is required, not a
+         typo: INSTALLFOLDER always ends in a backslash, and a single backslash immediately before
+         a closing double quote escapes the quote instead of closing the argument - an even number
+         of backslashes before the quote collapses to a literal backslash and closes correctly
+         instead. -->
+    <CustomAction Id="RemoveInstallFolderExtras" Directory="INSTALLFOLDER" Execute="immediate" Return="ignore"
+      ExeCommand="cmd.exe /c &quot;set ONIONPROC_INSTALLDIR=[INSTALLFOLDER]&amp;&amp; powershell.exe -NoProfile -NonInteractive -WindowStyle Hidden -EncodedCommand aQBmACAAKABbAHMAdAByAGkAbgBnAF0AOgA6AEkAcwBOAHUAbABsAE8AcgBXAGgAaQB0AGUAUwBwAGEAYwBlACgAJABlAG4AdgA6AE8ATgBJAE8ATgBQAFIATwBDAF8ASQBOAFMAVABBAEwATABEAEkAUgApACkAIAB7ACAAZQB4AGkAdAAgADAAIAB9AAoAUwB0AGEAcgB0AC0AUwBsAGUAZQBwACAALQBNAGkAbABsAGkAcwBlAGMAbwBuAGQAcwAgADUAMAAwAAoAdAByAHkAIAB7AAoAIAAgACAAIABSAGUAbQBvAHYAZQAtAEkAdABlAG0AIAAtAEwAaQB0AGUAcgBhAGwAUABhAHQAaAAgACQAZQBuAHYAOgBPAE4ASQBPAE4AUABSAE8AQwBfAEkATgBTAFQAQQBMAEwARABJAFIAIAAtAFIAZQBjAHUAcgBzAGUAIAAtAEYAbwByAGMAZQAgAC0ARQByAHIAbwByAEEAYwB0AGkAbwBuACAAUwBpAGwAZQBuAHQAbAB5AEMAbwBuAHQAaQBuAHUAZQAKAH0ACgBjAGEAdABjAGgAIAB7AAoAfQAKAGUAeABpAHQAIAAwAA==&quot;" />
+
+    <!-- ==================== Sequencing ==================== -->
+    <InstallExecuteSequence>
+      <!-- Condition="NOT REMOVE" - install/repair only, never on uninstall. Without this,
+           StartServices (and this CA After it) still fires as a sequence point during uninstall
+           too, needlessly POSTing to a service that's mid-shutdown/removal. SetupServer's
+           Return="ignore" means this was never fatal the way the Agent's equivalent SetupClient
+           (Return="check") was - confirmed live, that one's missing condition did abort the
+           uninstall with exit 1603 - but it's still wrong to run setup on a product being
+           removed, so the same guard is applied here for correctness. -->
+      <Custom Action="SetupServerProps" Before="SetupServer" Condition="NOT REMOVE" />
+      <Custom Action="SetupServer" After="StartServices" Condition="NOT REMOVE" />
+
+      <Custom Action="DeleteProgramDataProps" Before="DeleteProgramData" Condition="REMOVE=&quot;ALL&quot; AND DELETEDATA=&quot;1&quot; AND NOT UPGRADINGPRODUCTCODE" />
+      <Custom Action="DeleteProgramData" After="RemoveFiles" Condition="REMOVE=&quot;ALL&quot; AND DELETEDATA=&quot;1&quot; AND NOT UPGRADINGPRODUCTCODE" />
+
+      <Custom Action="RemoveInstallFolderExtras" After="DeleteProgramData" Condition="REMOVE=&quot;ALL&quot; AND NOT UPGRADINGPRODUCTCODE" />
+    </InstallExecuteSequence>
+
+    <!-- No custom wizard pages, no <Launch> condition - nothing for this product to ask
+         interactively (no server address to configure, no uninstall password gate). Stock
+         WixUI_InstallDir sequence only (Welcome -> InstallDir -> VerifyReady -> Progress -> Exit). -->
+    <UI>
+      <ProgressText Action="SetupServer" Message="Finishing Onion Core Service setup (creating the administrator account)..." />
+      <ProgressText Action="DeleteProgramData" Message="Removing Onion ProcOparetor data (database, logs, rules)..." />
+      <ProgressText Action="RemoveInstallFolderExtras" Message="Cleaning up remaining Onion ProcOparetor files..." />
+    </UI>
+
+    <ui:WixUI Id="WixUI_InstallDir" InstallDirectory="INSTALLFOLDER" />
+
+  </Package>
+</Wix>

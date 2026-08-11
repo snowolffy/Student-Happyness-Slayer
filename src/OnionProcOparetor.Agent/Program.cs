@@ -7,6 +7,10 @@ using OnionProcOparetor.Agent.Services;
 // เสมอ ไม่ว่า .exe จะอยู่ที่ไหนก็ตาม) เพื่อยืนยัน/ปัดตกสมมติฐานเรื่อง working directory ผิด
 StartupDiagnostics.WriteLine("==================================================");
 StartupDiagnostics.WriteLine($"OnionProcOparetor.Agent starting - PID {Environment.ProcessId}");
+// FileVersion (ไม่ใช่ AssemblyVersion ที่ตั้งใจคงที่ตาม Directory.Build.props เสมอ) - เปลี่ยนทุกรอบ
+// publish-all.ps1 (ดู comment ที่นั่น) log ไว้ตรงนี้เพื่อยืนยันได้ทันทีว่า instance ที่กำลังรันอยู่จริง
+// เป็น build ล่าสุดที่ deploy ไปหรือเปล่า โดยไม่ต้องเดา/เชื่อแค่ log ว่า "install สำเร็จ"
+StartupDiagnostics.WriteLine($"FileVersion จริงของ .exe ที่กำลังรันอยู่นี้: {System.Diagnostics.FileVersionInfo.GetVersionInfo(Environment.ProcessPath!).FileVersion}");
 StartupDiagnostics.WriteLine($"Environment.CurrentDirectory (raw, ตอน process เริ่ม): {Environment.CurrentDirectory}");
 StartupDiagnostics.WriteLine($"AppContext.BaseDirectory (ตำแหน่ง .exe จริงเสมอ): {AppContext.BaseDirectory}");
 
@@ -85,6 +89,12 @@ builder.Services.AddSingleton<CommandProcessor>();
 // ---- SignalR hub connection - ชั้นเสริมคู่ขนานกับ poll loop เดิม (ไม่แทนที่) ----
 builder.Services.AddSingleton<LabHubConnection>();
 
+// ---- Bypass toggle (Stable 1 เรื่องที่ 2) - state อยู่ใน memory ของ Agent process เท่านั้น
+// (ไม่ persist) BypassCoordinator เป็นจุดเดียวที่ toggle จริง (ตัด/ต่อ LabHubConnection) เรียกจาก
+// POST /bypass/set ข้างล่าง ----
+builder.Services.AddSingleton<AgentBypassState>();
+builder.Services.AddSingleton<BypassCoordinator>();
+
 // ---- VNC session "หลังบ้าน" ฝั่ง Agent (port discovery + firewall + state เท่านั้น - ไม่ spawn
 // winvnc.exe เองอีกต่อไป ย้ายไปที่ AgentTray แล้วเพราะ Session 0 isolation ทำให้ Agent capture หน้าจอ
 // ไม่ได้เลย ดู comment เต็มใน VncSessionManager.cs) ไม่ใช่ IHostedService อีกต่อไปเช่นกัน (ไม่มี
@@ -103,7 +113,7 @@ StartupDiagnostics.WriteLine("Host build เสร็จแล้ว กำล�
 
 // ---- Local API endpoints (สำหรับ AgentTray เท่านั้น) ----
 
-app.MapGet("/status", (ClientState state, Microsoft.Extensions.Options.IOptions<ServerSettings> settings) =>
+app.MapGet("/status", (ClientState state, AgentBypassState bypassState, Microsoft.Extensions.Options.IOptions<ServerSettings> settings) =>
 {
     return Results.Ok(new
     {
@@ -115,7 +125,8 @@ app.MapGet("/status", (ClientState state, Microsoft.Extensions.Options.IOptions<
         lastPollSucceeded = state.LastPollSucceeded,
         // เพิ่มไว้เพื่อ debug โดยตรง: ยิง GET http://localhost:8788/status แล้วดู serverBaseUrl
         // ตรงนี้ได้เลยว่า agent ตัวที่กำลังรันอยู่จริงใช้ BaseUrl อะไร ไม่ต้องเดาจากไฟล์ config
-        serverBaseUrl = settings.Value.BaseUrl
+        serverBaseUrl = settings.Value.BaseUrl,
+        bypassed = bypassState.IsBypassed
     });
 });
 
@@ -134,6 +145,15 @@ app.MapPost("/vnc/session-result", async (VncSessionResultRequest request, Comma
     return Results.Ok();
 });
 
+// ---- AgentTray toggle "Bypass" จากหน้า Status (login-gated อยู่แล้วฝั่ง AgentTray - ไม่ต้อง auth
+// เพิ่มที่นี่ เหมือน endpoint อื่นๆ ข้างบน loopback เท่านั้น) ----
+app.MapPost("/bypass/set", async (BypassSetRequest request, BypassCoordinator coordinator) =>
+{
+    var confirmed = await coordinator.SetBypassedAsync(request.Bypassed);
+    return Results.Ok(new { bypassed = confirmed });
+});
+
 app.Run();
 
 internal sealed record VncSessionResultRequest(string RequestingConsoleSessionId, bool Success, int Pid, string? Password, string? FailureReason);
+internal sealed record BypassSetRequest(bool Bypassed);

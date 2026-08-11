@@ -28,6 +28,8 @@
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto"/>
                 <RowDefinition Height="12"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="12"/>
                 <RowDefinition Height="*"/>
             </Grid.RowDefinitions>
 
@@ -62,8 +64,31 @@
                 </Grid>
             </Border>
 
-            <!-- Recent logs -->
+            <!-- Connection Card (Bypass toggle) -->
             <Border Grid.Row="2" Style="{StaticResource Card}">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+
+                    <StackPanel Grid.Column="0">
+                        <TextBlock Text="CONNECTION" Style="{StaticResource LabelText}"/>
+                        <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
+                            <Ellipse x:Name="ConnectionDot" Width="10" Height="10" Fill="{StaticResource AccentGreenBrush}"
+                                     VerticalAlignment="Center"/>
+                            <TextBlock x:Name="ConnectionText" Text="Connected" Margin="6,0,0,0"
+                                       FontWeight="SemiBold" VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </StackPanel>
+
+                    <Button Grid.Column="1" x:Name="ToggleBypassButton" Content="BYPASS" VerticalAlignment="Center"
+                            Style="{StaticResource SecondaryButton}" Click="ToggleBypassButton_Click"/>
+                </Grid>
+            </Border>
+
+            <!-- Recent logs -->
+            <Border Grid.Row="4" Style="{StaticResource Card}">
                 <Grid>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>

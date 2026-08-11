@@ -13,6 +13,12 @@ namespace OnionProcOparetor.Agent.Models;
 /// - "StopVncSession" — สั่งให้ AgentTray หยุด winvnc.exe (Message/Title/RequestingConsoleSessionId
 ///   ไม่ใช้) - Agent ส่งเองอัตโนมัติตอน VncSessionManager.MonitorSessionAsync เห็นว่าไม่มี Console
 ///   ต่อเข้ามาเลย/reconnect ไม่ทันเวลา (lazy-start ตั้งแต่ Step 4a ต้องไม่ถือ resource ค้าง)
+/// - "BlockTargetInput" — สั่งให้ AgentTray บล็อก physical keyboard/mouse ของนักเรียนชั่วคราว (Message/
+///   Title/RequestingConsoleSessionId ไม่ใช้) ระหว่างครูควบคุมเครื่องผ่าน full-screen VNC (ดู
+///   PhysicalInputBlocker ฝั่ง AgentTray) - ต้องทำจาก AgentTray เพราะเหตุผลเดียวกับ StartVncSession
+///   (Session 0 isolation กันไม่ให้ Agent ติดตั้ง low-level hook ที่เห็น input ของ user session ได้)
+/// - "UnblockTargetInput" — สั่งให้ AgentTray คืนสิทธิ์ physical input ให้นักเรียน (Message/Title/
+///   RequestingConsoleSessionId ไม่ใช้)
 /// </summary>
 public class AgentTrayPipeMessage
 {

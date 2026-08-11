@@ -1,0 +1,416 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  WiX v5 - Client Agent installer only (student lab machines). Split out of the old single
+  3-mode OnionProcOparetor.wxs (2026-08-10, "Stable 1" item 1) specifically so lab machines never
+  see a Server/Console option at all, and so this product's Feature selection is a plain
+  unconditional Level="1" - no MODE property, no ModeDlg, no Level/Condition workaround. See
+  installer/OnionProcOparetor.ServerConsole.wxs for the Server+Console counterpart - the two
+  products are fully independent (separate UpgradeCode/ProductCode, separate INSTALLFOLDER,
+  separate ARP entry) so they can be installed side by side on the same machine without
+  colliding. installer/CustomActions/*.ps1 (setup-client.ps1, check-uninstall-password.ps1,
+  delete-reg-runkey.ps1) are shared, unmodified scripts - none of them ever referenced MODE.
+-->
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs"
+     xmlns:util="http://wixtoolset.org/schemas/v4/wxs/util"
+     xmlns:fire="http://wixtoolset.org/schemas/v4/wxs/firewall"
+     xmlns:ui="http://wixtoolset.org/schemas/v4/wxs/ui">
+
+  <?ifndef PublishDir?>
+  <?define PublishDir="..\publish"?>
+  <?endif?>
+
+  <Package Name="Onion ProcOparetor Agent"
+            Manufacturer="OnionProcOparetor"
+            Version="1.2.5.0"
+            UpgradeCode="3E2C7EE3-F6AA-49E1-AB2B-D28627DD8F79"
+            Scope="perMachine"
+            InstallerVersion="500">
+
+    <SummaryInformation Keywords="Installer" Description="Onion ProcOparetor Agent Setup" />
+    <MajorUpgrade DowngradeErrorMessage="A newer version of [ProductName] is already installed." />
+    <MediaTemplate EmbedCab="yes" />
+
+    <!-- ==================== Branding ==================== -->
+    <Icon Id="AppIcon.ico" SourceFile="Assets\icon.ico" />
+    <Property Id="ARPPRODUCTICON" Value="AppIcon.ico" />
+    <WixVariable Id="WixUIBannerBmp" Value="Assets\banner.bmp" />
+    <WixVariable Id="WixUIDialogBmp" Value="Assets\dialog.bmp" />
+
+    <!-- ==================== Properties (wizard answers) ====================
+         ServerConnDlg collects SERVERIP/SERVERPORT as two separate fields (IP or hostname +
+         numeric port) for a friendlier form - SERVERADDR itself is not user-facing, it's
+         recomputed as "[SERVERIP]:[SERVERPORT]" on Next (see ServerConnDlg's Next button below)
+         purely so SetupClientProps/setup-client.ps1's BaseUrl format in appsettings.json
+         ("http://<SERVERADDR>") never had to change. Default host is "localhost" (not blank) so
+         a stray Next-click before typing anything still resolves to something valid. -->
+    <Property Id="SERVERADDR" Value="localhost:8787" Secure="yes" />
+    <Property Id="SERVERIP" Value="localhost" Secure="yes" />
+    <Property Id="SERVERPORT" Value="8787" Secure="yes" />
+    <Property Id="UNINSTPWD1" Secure="yes" />
+    <Property Id="UNINSTPWD2" Secure="yes" />
+    <Property Id="WIXUI_EXITDIALOGOPTIONALCHECKBOXTEXT" Value="Launch Onion ProcOparetor Agent" />
+    <Property Id="WIXUI_EXITDIALOGOPTIONALCHECKBOX" Value="1" />
+    <Property Id="WIXUI_EXITDIALOGOPTIONALTEXT" Value="Look for the Onion Agent icon in the system tray after your next sign-in." />
+
+    <!-- ซ่อน ARP entry อัตโนมัติของ MSI เอง ใช้ synthetic ARP entry ของเราเอง
+         (UninstallArpEntryComponent ข้างล่าง) แทน ที่ชี้ไปที่ OnionProcOparetor.UninstallHelper.exe
+         ก่อน (โชว์ popup รหัสผ่านได้จริงเพราะถูก Explorer เรียกตรงๆ) แล้วค่อยยิง msiexec /x {ProductCode}
+         ตัวจริงต่อเบื้องหลังเอง - [ProductCode] เดิมยังใช้งานได้ปกติสำหรับ msiexec /x โดยตรง -->
+    <Property Id="ARPSYSTEMCOMPONENT" Value="1" />
+
+    <!-- ==================== Uninstall-time properties ====================
+         UNINSTPWD: password typed on the uninstall command line (msiexec /x ... UNINSTPWD=xxx),
+         checked against the guard file's salt+hash - see UNINSTALLAUTHFLAG below. This gate is
+         Agent-only (lab machines share one admin account) - dropped entirely from the
+         Server+Console product, see that .wxs's own comment. -->
+    <Property Id="UNINSTPWD" Secure="yes" />
+
+    <!-- Declarative (AppSearch) bridge: CheckUninstallPasswordHeadless (an external EXE-launch
+         CustomAction, no way to write MSI properties directly) communicates pass/fail by
+         creating or not creating this marker file; FileSearch reads its existence into
+         UNINSTALLAUTHFLAG before LaunchConditions runs. Hardcoded to this product's own
+         INSTALLFOLDER path rather than [INSTALLFOLDER] because this all has to happen before
+         AppSearch/CostFinalize, i.e. before the Directory table graph is resolved. -->
+    <Property Id="UNINSTALLAUTHFLAG">
+      <DirectorySearch Id="UninstallAuthFlagDirSearch" Path="[ProgramFiles64Folder]Onion ProcOparetor Agent">
+        <FileSearch Id="UninstallAuthFlagFileSearch" Name="uninstall-auth-ok.flag" />
+      </DirectorySearch>
+    </Property>
+
+    <!-- ==================== Directory layout ====================
+         Distinct folder name ("Onion ProcOparetor Agent", not "Onion ProcOparetor") so this
+         product can be installed side by side with OnionProcOparetor.ServerConsole.wxs's product
+         on the same machine without either one's files/ARP entry colliding with the other's. -->
+    <StandardDirectory Id="ProgramFiles64Folder">
+      <Directory Id="INSTALLFOLDER" Name="Onion ProcOparetor Agent">
+        <Directory Id="ClientDir" Name="Client" />
+        <Directory Id="ClientTrayDir" Name="ClientTray" />
+        <Directory Id="CustomActionsDir" Name="CustomActions" />
+        <Directory Id="UninstallHelperDir" Name="UninstallHelper" />
+      </Directory>
+    </StandardDirectory>
+
+    <StandardDirectory Id="ProgramMenuFolder">
+      <Directory Id="AppProgramMenuFolder" Name="Onion ProcOparetor Agent" />
+    </StandardDirectory>
+
+    <!-- ==================== Feature ====================
+         Single unconditional feature - no MODE property, no Level/Condition dance. This product
+         only ever installs the Client Agent + AgentTray payload. -->
+    <!-- AllowAbsent="no" (ลอก pattern มาจาก CommonFeature เดิมที่ต้องมีเสมอไม่ว่า mode ไหน) ถูกลบออก -
+         ไม่จำเป็นต้องมีอยู่แล้วเพราะมี Feature เดียวครอบคลุมทั้ง product (ไม่มี feature อื่นให้เลือก/ไม่
+         เลือกแข่งกันเหมือนตอนที่ยังมี MODE property) เป็น simplification เฉยๆ ไม่ใช่ bug fix - อาการ
+         "uninstall แล้วไฟล์ยังอยู่ครบ" ที่เจอจริง (2026-08-11) สาเหตุจริงคือ Windows Installer's
+         shared-component reference counting ไปเจอ product registration ผีจากการ install/uninstall
+         ซ้ำๆ หลายรอบระหว่าง test session นี้เอง (component GUID ที่ WiX gen จาก Guid="*" เสถียรข้าม
+         build แต่ ProductCode สุ่มใหม่ทุกรอบ - ยืนยันจาก `Get-CimInstance Win32_Product` เจอ
+         "Onion ProcOparetor Agent"/"Onion ProcOparetor" ค้างอยู่หลาย ProductCode พร้อมกันจริงๆ) ไม่ใช่
+         บั๊กใน .wxs นี้เอง - ล้าง phantom registration พวกนั้นแล้วปัญหาหายเอง ไม่เกี่ยวกับ AllowAbsent เลย -->
+    <Feature Id="MainFeature" Level="1" Display="hidden">
+      <ComponentRef Id="CustomActionsComponent" />
+      <ComponentGroupRef Id="UninstallHelperFiles" />
+      <ComponentRef Id="UninstallHelperExeComponent" />
+      <ComponentRef Id="UninstallArpEntryComponent" />
+      <ComponentGroupRef Id="ClientFiles" />
+      <ComponentGroupRef Id="ClientTrayFiles" />
+      <ComponentRef Id="AgentExeComponent" />
+      <ComponentRef Id="AgentTrayExeComponent" />
+    </Feature>
+
+    <!-- ==================== Harvested files ==================== -->
+    <ComponentGroup Id="ClientFiles" Directory="ClientDir">
+      <Files Include="$(var.PublishDir)\OnionProcOparetor.Agent\**">
+        <Exclude Files="$(var.PublishDir)\OnionProcOparetor.Agent\OnionProcOparetor.Agent.exe" />
+      </Files>
+    </ComponentGroup>
+
+    <ComponentGroup Id="ClientTrayFiles" Directory="ClientTrayDir">
+      <Files Include="$(var.PublishDir)\OnionProcOparetor.AgentTray\**">
+        <Exclude Files="$(var.PublishDir)\OnionProcOparetor.AgentTray\OnionProcOparetor.AgentTray.exe" />
+      </Files>
+    </ComponentGroup>
+
+    <ComponentGroup Id="UninstallHelperFiles" Directory="UninstallHelperDir">
+      <Files Include="$(var.PublishDir)\OnionProcOparetor.UninstallHelper\**">
+        <Exclude Files="$(var.PublishDir)\OnionProcOparetor.UninstallHelper\OnionProcOparetor.UninstallHelper.exe" />
+      </Files>
+    </ComponentGroup>
+
+    <!-- ==================== Anchor components ====================
+         Client Agent: OnionAgent service is created here (Start="auto" sets the persistent
+         startup type) but NOT started here (no ServiceControl Start="install") - actually
+         starting it happens in setup-client.ps1 (SetupClient CA below) only after that script
+         has already patched appsettings.json's BaseUrl: create -> patch config -> start, never
+         start before config is patched. -->
+    <Component Id="AgentExeComponent" Directory="ClientDir" Guid="*">
+      <File Id="AgentExeFile" Source="$(var.PublishDir)\OnionProcOparetor.Agent\OnionProcOparetor.Agent.exe" KeyPath="yes" />
+      <ServiceInstall Id="OnionAgentServiceInstall" Name="OnionAgent" DisplayName="Onion Agent"
+                       Type="ownProcess" Start="auto" ErrorControl="normal" />
+      <ServiceControl Id="OnionAgentServiceControl" Name="OnionAgent" Stop="both" Remove="uninstall" Wait="yes" />
+      <!-- ไม่มี static firewall rule ตรงนี้ (เคยเปิด port 5950 ตายตัว) - winvnc.exe อาจไม่ listen ที่ port
+           ที่ตั้งไว้ใน ini เลยถ้ามี UltraVNC ตัวอื่นรันอยู่ก่อนบนเครื่อง (auto-negotiate display slot ของ
+           ตัวเอง) - เปิด/ปิด firewall rule แบบ dynamic ตาม port จริงที่เจอแทน ดู
+           VncSessionManager.EnsureFirewallExceptionAsync -->
+    </Component>
+
+    <Component Id="AgentTrayExeComponent" Directory="ClientTrayDir" Guid="*">
+      <File Id="AgentTrayExeFile" Source="$(var.PublishDir)\OnionProcOparetor.AgentTray\OnionProcOparetor.AgentTray.exe" KeyPath="yes">
+        <Shortcut Id="AgentTrayShortcut" Directory="AppProgramMenuFolder" Name="Onion ProcOparetor Tray"
+                   WorkingDirectory="ClientTrayDir" Advertise="no" Icon="AppIcon.ico" />
+      </File>
+      <RemoveFolder Id="RemoveAppProgramMenuFolder_Tray" Directory="AppProgramMenuFolder" On="uninstall" />
+      <!-- AgentTray รันเป็น user ธรรมดาที่ login อยู่หน้าเครื่อง (ไม่ใช่ LocalSystem แบบ Agent) ต้องเขียน
+           ultravnc.ini ใหม่ทุกครั้งที่เปิด VNC session แต่ Program Files ปกติ user ธรรมดาเขียนไม่ได้เลย -
+           เปิดสิทธิ์ Modify ให้กลุ่ม "Users" เฉพาะโฟลเดอร์นี้ (ครอบคลุม VncBundle ที่เป็น subfolder ด้วย
+           ผ่าน NTFS inheritance) -->
+      <CreateFolder>
+        <util:PermissionEx User="Users" GenericAll="yes" />
+      </CreateFolder>
+    </Component>
+
+    <!-- Add/Remove Programs launches this .exe directly (see UninstallArpEntryComponent below) -
+         it shows a real password prompt then shells out to the real msiexec /x [ProductCode]
+         itself. Same generic .exe as the Server+Console product's copy - it takes ProductCode as
+         a command-line arg and resolves guard/flag/install paths relative to its own install
+         location, so no per-product code or build variant is needed. -->
+    <Component Id="UninstallHelperExeComponent" Directory="UninstallHelperDir" Guid="*">
+      <File Id="UninstallHelperExeFile" Source="$(var.PublishDir)\OnionProcOparetor.UninstallHelper\OnionProcOparetor.UninstallHelper.exe" KeyPath="yes" />
+    </Component>
+
+    <!-- Synthetic ARP entry - distinct registry key name ("...\Uninstall\OnionProcOparetorAgent")
+         from the Server+Console product's ("...\Uninstall\OnionProcOparetor") so both products'
+         entries show up side by side in Add/Remove Programs without one overwriting the other. -->
+    <Component Id="UninstallArpEntryComponent" Directory="INSTALLFOLDER" Guid="E6434181-04EA-4183-ABAD-3B29CAB5AFC9">
+      <RegistryKey Root="HKLM" Key="Software\Microsoft\Windows\CurrentVersion\Uninstall\OnionProcOparetorAgent">
+        <RegistryValue Type="string" Name="DisplayName" Value="Onion ProcOparetor Agent" KeyPath="yes" />
+        <RegistryValue Type="string" Name="DisplayVersion" Value="[ProductVersion]" />
+        <RegistryValue Type="string" Name="Publisher" Value="OnionProcOparetor" />
+        <!-- ส่ง product display name เป็น arg ที่ 3 ด้วย (args[2]) - UninstallHelper.exe เป็น binary
+             เดียวกันที่ bundle เข้าทั้ง 2 MSI โดยตั้งใจ (ดู comment ด้านบน) แต่ก่อนหน้านี้ title/header
+             เป็น "Onion ProcOparetor" hardcoded เหมือนกันหมดไม่ว่าจะ uninstall ตัวไหน ทำให้แยกไม่ออกว่า
+             กำลังจะลบเครื่อง Agent หรือ Server+Console (บั๊กจริงที่เจอตอน live-test 2026-08-11) -->
+        <RegistryValue Type="string" Name="UninstallString" Value="&quot;[#UninstallHelperExeFile]&quot; [ProductCode] &quot;Onion ProcOparetor Agent&quot;" />
+        <RegistryValue Type="string" Name="DisplayIcon" Value="[#UninstallHelperExeFile]" />
+        <RegistryValue Type="integer" Name="NoModify" Value="1" />
+        <RegistryValue Type="integer" Name="NoRepair" Value="1" />
+        <RegistryValue Type="integer" Name="EstimatedSize" Value="1" />
+      </RegistryKey>
+    </Component>
+
+    <Component Id="CustomActionsComponent" Directory="CustomActionsDir" Guid="50A77972-0C42-4502-957D-10FE20D5AB4E">
+      <File Id="SetupClientPs1" Source="CustomActions\setup-client.ps1" KeyPath="yes" />
+      <File Id="CheckUninstallPasswordPs1" Source="CustomActions\check-uninstall-password.ps1" />
+      <File Id="DeleteRegRunKeyPs1" Source="CustomActions\delete-reg-runkey.ps1" />
+    </Component>
+
+    <!-- ==================== Custom Actions ==================== -->
+
+    <!-- Test Connection button on ServerConnDlg - fires from InstallUISequence (via DoAction
+         ControlEvent) before any files are installed, so it can't reference an installed script
+         file. Ships as a fixed, pre-encoded PowerShell block instead; the user-typed address is
+         passed only as a trailing $args value, never spliced into the script text. Source/regen
+         instructions: CustomActions/test-connection.ps1 -->
+    <CustomAction Id="TestConnection" Directory="INSTALLFOLDER" Execute="immediate" Return="ignore"
+      ExeCommand="cmd.exe /c &quot;set ONIONPROC_HOSTPORT=[SERVERIP]:[SERVERPORT]&amp;&amp; powershell.exe -NoProfile -NonInteractive -WindowStyle Hidden -EncodedCommand aQBmACAAKABbAHMAdAByAGkAbgBnAF0AOgA6AEkAcwBOAHUAbABsAE8AcgBXAGgAaQB0AGUAUwBwAGEAYwBlACgAJABlAG4AdgA6AE8ATgBJAE8ATgBQAFIATwBDAF8ASABPAFMAVABQAE8AUgBUACkAKQAgAHsAIABlAHgAaQB0ACAAMAAgAH0ACgAkAHAAYQByAHQAcwAgAD0AIAAkAGUAbgB2ADoATwBOAEkATwBOAFAAUgBPAEMAXwBIAE8AUwBUAFAATwBSAFQAIAAtAHMAcABsAGkAdAAgACcAOgAnACwAIAAyAAoAJABoAG8AcwB0AE4AYQBtAGUAIAA9ACAAJABwAGEAcgB0AHMAWwAwAF0ACgBpAGYAIAAoACQAcABhAHIAdABzAC4AQwBvAHUAbgB0ACAALQBnAHQAIAAxACAALQBhAG4AZAAgACQAcABhAHIAdABzAFsAMQBdAC4AVAByAGkAbQAoACkAIAAtAG4AZQAgACIAIgApACAAewAgACQAcABvAHIAdAAgAD0AIAAkAHAAYQByAHQAcwBbADEAXQAgAH0AIABlAGwAcwBlACAAewAgACQAcABvAHIAdAAgAD0AIAAiADgANwA4ADcAIgAgAH0ACgBBAGQAZAAtAFQAeQBwAGUAIAAtAEEAcwBzAGUAbQBiAGwAeQBOAGEAbQBlACAAUwB5AHMAdABlAG0ALgBXAGkAbgBkAG8AdwBzAC4ARgBvAHIAbQBzAAoAJABvAGsAIAA9ACAAJABmAGEAbABzAGUACgAkAGUAcgByAG8AcgBEAGUAdABhAGkAbAAgAD0AIAAiACIACgAkAGMAbABpAGUAbgB0ACAAPQAgACQAbgB1AGwAbAAKAHQAcgB5ACAAewAKACAAIAAgACAAJABwAG8AcgB0AE4AdQBtACAAPQAgAFsAaQBuAHQAXQAkAHAAbwByAHQACgAgACAAIAAgACQAYwBsAGkAZQBuAHQAIAA9ACAATgBlAHcALQBPAGIAagBlAGMAdAAgAFMAeQBzAHQAZQBtAC4ATgBlAHQALgBTAG8AYwBrAGUAdABzAC4AVABjAHAAQwBsAGkAZQBuAHQACgAgACAAIAAgACQAYwBvAG4AbgBlAGMAdABUAGEAcwBrACAAPQAgACQAYwBsAGkAZQBuAHQALgBDAG8AbgBuAGUAYwB0AEEAcwB5AG4AYwAoACQAaABvAHMAdABOAGEAbQBlACwAIAAkAHAAbwByAHQATgB1AG0AKQAKACAAIAAgACAAaQBmACAAKAAkAGMAbwBuAG4AZQBjAHQAVABhAHMAawAuAFcAYQBpAHQAKAA1ADAAMAAwACkAKQAgAHsACgAgACAAIAAgACAAIAAgACAAJABvAGsAIAA9ACAAJABjAGwAaQBlAG4AdAAuAEMAbwBuAG4AZQBjAHQAZQBkAAoAIAAgACAAIAAgACAAIAAgAGkAZgAgACgALQBuAG8AdAAgACQAbwBrACkAIAB7ACAAJABlAHIAcgBvAHIARABlAHQAYQBpAGwAIAA9ACAAIgBDAG8AbgBuAGUAYwB0AGkAbwBuACAAZABpAGQAIABuAG8AdAAgAGMAbwBtAHAAbABlAHQAZQAuACIAIAB9AAoAIAAgACAAIAB9AAoAIAAgACAAIABlAGwAcwBlACAAewAKACAAIAAgACAAIAAgACAAIAAkAGUAcgByAG8AcgBEAGUAdABhAGkAbAAgAD0AIAAiAE4AbwAgAHIAZQBzAHAAbwBuAHMAZQAgAHcAaQB0AGgAaQBuACAANQAgAHMAZQBjAG8AbgBkAHMALgAiAAoAIAAgACAAIAB9AAoAfQAKAGMAYQB0AGMAaAAgAHsACgAgACAAIAAgACQAbwBrACAAPQAgACQAZgBhAGwAcwBlAAoAIAAgACAAIAAkAGUAcgByAG8AcgBEAGUAdABhAGkAbAAgAD0AIAAkAF8ALgBFAHgAYwBlAHAAdABpAG8AbgAuAE0AZQBzAHMAYQBnAGUACgB9AAoAZgBpAG4AYQBsAGwAeQAgAHsACgAgACAAIAAgAGkAZgAgACgAJABjAGwAaQBlAG4AdAApACAAewAgACQAYwBsAGkAZQBuAHQALgBDAGwAbwBzAGUAKAApACAAfQAKAH0ACgBpAGYAIAAoACQAbwBrACkAIAB7AAoAIAAgACAAIABbAFMAeQBzAHQAZQBtAC4AVwBpAG4AZABvAHcAcwAuAEYAbwByAG0AcwAuAE0AZQBzAHMAYQBnAGUAQgBvAHgAXQA6ADoAUwBoAG8AdwAoAAoAIAAgACAAIAAgACAAIAAgACIAQwBvAG4AbgBlAGMAdABpAG8AbgAgAHMAdQBjAGMAZQBzAHMAZgB1AGwAIQAgAFQAaABlACAAUwBlAHIAdgBlAHIAIABpAHMAIAByAGUAYQBjAGgAYQBiAGwAZQAgAGEAdAAgACQAewBoAG8AcwB0AE4AYQBtAGUAfQA6ACQAewBwAG8AcgB0AH0ALgAiACwACgAgACAAIAAgACAAIAAgACAAIgBPAG4AaQBvAG4AIABQAHIAbwBjAE8AcABhAHIAZQB0AG8AcgAiACwACgAgACAAIAAgACAAIAAgACAAWwBTAHkAcwB0AGUAbQAuAFcAaQBuAGQAbwB3AHMALgBGAG8AcgBtAHMALgBNAGUAcwBzAGEAZwBlAEIAbwB4AEIAdQB0AHQAbwBuAHMAXQA6ADoATwBLACwACgAgACAAIAAgACAAIAAgACAAWwBTAHkAcwB0AGUAbQAuAFcAaQBuAGQAbwB3AHMALgBGAG8AcgBtAHMALgBNAGUAcwBzAGEAZwBlAEIAbwB4AEkAYwBvAG4AXQA6ADoASQBuAGYAbwByAG0AYQB0AGkAbwBuACkAIAB8ACAATwB1AHQALQBOAHUAbABsAAoAfQAKAGUAbABzAGUAIAB7AAoAIAAgACAAIAAkAHIAZQBhAHMAbwBuAEwAaQBuAGUAIAA9ACAAIgAiAAoAIAAgACAAIABpAGYAIAAoACQAZQByAHIAbwByAEQAZQB0AGEAaQBsACAALQBuAGUAIAAiACIAKQAgAHsAIAAkAHIAZQBhAHMAbwBuAEwAaQBuAGUAIAA9ACAAIgBgAHIAYABuAGAAcgBgAG4ARABlAHQAYQBpAGwAcwA6ACAAJABlAHIAcgBvAHIARABlAHQAYQBpAGwAIgAgAH0ACgAgACAAIAAgAFsAUwB5AHMAdABlAG0ALgBXAGkAbgBkAG8AdwBzAC4ARgBvAHIAbQBzAC4ATQBlAHMAcwBhAGcAZQBCAG8AeABdADoAOgBTAGgAbwB3ACgACgAgACAAIAAgACAAIAAgACAAIgBDAG8AdQBsAGQAIABuAG8AdAAgAHIAZQBhAGMAaAAgAHQAaABlACAAUwBlAHIAdgBlAHIAIABhAHQAIAAkAHsAaABvAHMAdABOAGEAbQBlAH0AOgAkAHsAcABvAHIAdAB9ACAAdwBpAHQAaABpAG4AIAA1ACAAcwBlAGMAbwBuAGQAcwAuAGAAcgBgAG4AIgAgACsACgAgACAAIAAgACAAIAAgACAAIgBUAGgAaQBzACAAbQBhAHkAIABiAGUAIABuAG8AcgBtAGEAbAAgAGkAZgAgAHQAaABlACAAUwBlAHIAdgBlAHIAIABpAHMAIABuAG8AdAAgAHIAdQBuAG4AaQBuAGcAIAB5AGUAdAAsACAAdABoAGUAIABhAGQAZAByAGUAcwBzAC8AcABvAHIAdAAgAGkAcwAgAHcAcgBvAG4AZwAsACAAbwByACAAYQAgAGYAaQByAGUAdwBhAGwAbAAgAGkAcwAgAGIAbABvAGMAawBpAG4AZwAgAGkAdAAuACQAcgBlAGEAcwBvAG4ATABpAG4AZQAiACwACgAgACAAIAAgACAAIAAgACAAIgBPAG4AaQBvAG4AIABQAHIAbwBjAE8AcABhAHIAZQB0AG8AcgAiACwACgAgACAAIAAgACAAIAAgACAAWwBTAHkAcwB0AGUAbQAuAFcAaQBuAGQAbwB3AHMALgBGAG8AcgBtAHMALgBNAGUAcwBzAGEAZwBlAEIAbwB4AEIAdQB0AHQAbwBuAHMAXQA6ADoATwBLACwACgAgACAAIAAgACAAIAAgACAAWwBTAHkAcwB0AGUAbQAuAFcAaQBuAGQAbwB3AHMALgBGAG8AcgBtAHMALgBNAGUAcwBzAGEAZwBlAEIAbwB4AEkAYwBvAG4AXQA6ADoAVwBhAHIAbgBpAG4AZwApACAAfAAgAE8AdQB0AC0ATgB1AGwAbAAKAH0ACgBlAHgAaQB0ACAAMAA=&quot;" />
+
+    <!-- Client Agent setup: create-service(harmless no-op, ServiceInstall above already did
+         it)/patch-config/set-recovery/start, in that exact order. Deferred + Impersonate=no so it
+         runs elevated as part of the execute script, consistent with how service management
+         should run rather than in the (merely elevated-by-UAC) UI-sequence client process.
+         Condition="NOT REMOVE" - install/repair only, never on uninstall. The old single-MSI's
+         MODE=3 condition accidentally also gated this out during a plain uninstall, because MODE
+         silently reverts to its Property-table default outside of an install where it was
+         explicitly passed on the command line (see the removed .wxs's own long comment on this).
+         Once MODE no longer exists there is nothing left to prevent this CA from firing during
+         removal too - and it must not: by the time it would run (After="InstallServices", which
+         still fires as a sequence point during uninstall), RemoveFiles has already deleted the
+         Agent's files, so setup-client.ps1 fails outright and - because Return="check" - aborts
+         the whole uninstall with exit 1603. Confirmed by an actual failed live `msiexec /x` on
+         this build before this condition was added, not assumed. -->
+    <CustomAction Id="SetupClientProps" Property="SetupClient"
+      Value="&quot;[System64Folder]WindowsPowerShell\v1.0\powershell.exe&quot; -NoProfile -NonInteractive -ExecutionPolicy Bypass -File &quot;[#SetupClientPs1]&quot; -InstallDir &quot;[INSTALLFOLDER]\&quot; -ServerAddr &quot;[SERVERADDR]&quot; -UninstallPassword &quot;[UNINSTPWD1]&quot;" />
+    <CustomAction Id="SetupClient" BinaryRef="Wix4UtilCA_$(sys.BUILDARCHSHORT)" DllEntry="WixQuietExec"
+      Execute="deferred" Return="check" Impersonate="no" />
+
+    <!-- Uninstall password gate: headless, no UI/desktop dependency - WinForms popups can't run
+         during a normal MSI uninstall. MUST run After="CostFinalize" (not before AppSearch) - a
+         CustomAction's Directory= source attribute requires the engine's Directory Manager, which
+         only initializes as part of CostInitialize/CostFinalize; scheduling this any earlier
+         throws Error 2732 "Directory Manager not initialized". Return="ignore" because the actual
+         pass/fail decision is made by the <Launch> condition below, via the UNINSTALLAUTHFLAG
+         marker file this script writes only when authorized. -->
+    <CustomAction Id="CheckUninstallPasswordHeadless" Directory="ProgramFiles64Folder" Execute="immediate" Return="ignore"
+      ExeCommand="powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -WindowStyle Hidden -File &quot;[ProgramFiles64Folder]Onion ProcOparetor Agent\CustomActions\check-uninstall-password.ps1&quot; -GuardPath &quot;[ProgramFiles64Folder]Onion ProcOparetor Agent\uninstall-guard.json&quot; -Password &quot;[UNINSTPWD]&quot; -FlagPath &quot;[ProgramFiles64Folder]Onion ProcOparetor Agent\uninstall-auth-ok.flag&quot;" />
+
+    <CustomAction Id="DeleteRegRunKey" Directory="INSTALLFOLDER" Execute="immediate" Return="ignore"
+      ExeCommand="powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -WindowStyle Hidden -File &quot;[#DeleteRegRunKeyPs1]&quot;" />
+
+    <!-- Final uninstall sweep for INSTALLFOLDER - replaces a broken util:RemoveFolderEx (its
+         extension-provided deferred CA runs at a fixed sequence 799, before INSTALLFOLDER is
+         resolved at CostFinalize/1000, so it always silently no-op'd - confirmed against the
+         compiled MSI's own InstallExecuteSequence table, not assumed). Untracked runtime-written
+         files this needs to catch: uninstall-guard.json, uninstall-auth-ok.flag (both written
+         directly under INSTALLFOLDER by check-uninstall-password.ps1/setup-client.ps1) and
+         install-client-setup.log (setup-client.ps1's own log). Ships as a fixed -EncodedCommand
+         block, not a reference to an installed .ps1 file, because by the time this runs (after
+         RemoveFiles) any script file under INSTALLFOLDER may already be deleted. Trailing "\&quot;"
+         (not just "&quot;") on the [INSTALLFOLDER] argument is required, not a typo: INSTALLFOLDER
+         always ends in a backslash, and a single backslash immediately before a closing double
+         quote escapes the quote instead of closing the argument - an even number of backslashes
+         before the quote collapses to a literal backslash and closes correctly instead. -->
+    <CustomAction Id="RemoveInstallFolderExtras" Directory="INSTALLFOLDER" Execute="immediate" Return="ignore"
+      ExeCommand="cmd.exe /c &quot;set ONIONPROC_INSTALLDIR=[INSTALLFOLDER]&amp;&amp; powershell.exe -NoProfile -NonInteractive -WindowStyle Hidden -EncodedCommand aQBmACAAKABbAHMAdAByAGkAbgBnAF0AOgA6AEkAcwBOAHUAbABsAE8AcgBXAGgAaQB0AGUAUwBwAGEAYwBlACgAJABlAG4AdgA6AE8ATgBJAE8ATgBQAFIATwBDAF8ASQBOAFMAVABBAEwATABEAEkAUgApACkAIAB7ACAAZQB4AGkAdAAgADAAIAB9AAoAUwB0AGEAcgB0AC0AUwBsAGUAZQBwACAALQBNAGkAbABsAGkAcwBlAGMAbwBuAGQAcwAgADUAMAAwAAoAdAByAHkAIAB7AAoAIAAgACAAIABSAGUAbQBvAHYAZQAtAEkAdABlAG0AIAAtAEwAaQB0AGUAcgBhAGwAUABhAHQAaAAgACQAZQBuAHYAOgBPAE4ASQBPAE4AUABSAE8AQwBfAEkATgBTAFQAQQBMAEwARABJAFIAIAAtAFIAZQBjAHUAcgBzAGUAIAAtAEYAbwByAGMAZQAgAC0ARQByAHIAbwByAEEAYwB0AGkAbwBuACAAUwBpAGwAZQBuAHQAbAB5AEMAbwBuAHQAaQBuAHUAZQAKAH0ACgBjAGEAdABjAGgAIAB7AAoAfQAKAGUAeABpAHQAIAAwAA==&quot;" />
+
+    <!-- ==================== Sequencing ==================== -->
+    <InstallExecuteSequence>
+      <!-- Condition="NOT REMOVE" - install/repair only, never on uninstall. The old single-MSI's
+           MODE=3 condition accidentally also gated this out during a plain uninstall, because
+           MODE silently reverts to its Property-table default outside of an install where it was
+           explicitly passed on the command line (see the removed .wxs's own long comment on
+           this). Once MODE no longer exists there is nothing left to prevent this CA from firing
+           during removal too - and it must not: InstallServices still fires as a sequence point
+           during uninstall, but by then RemoveFiles has already deleted the Agent's files, so
+           setup-client.ps1 fails outright and - because SetupClient's Return="check" - aborts the
+           whole uninstall with exit 1603. Confirmed by an actual failed live `msiexec /x` on this
+           build before this condition was added, not assumed. -->
+      <Custom Action="SetupClientProps" Before="SetupClient" Condition="NOT REMOVE" />
+      <Custom Action="SetupClient" After="InstallServices" Condition="NOT REMOVE" />
+
+      <!-- CheckUninstallPasswordHeadless needs Directory Manager (ready only after CostFinalize)
+           but must still run before AppSearch populates UNINSTALLAUTHFLAG, which must in turn run
+           before LaunchConditions checks it - so all three are moved together to run right after
+           CostFinalize, still well before any destructive action. -->
+      <Custom Action="CheckUninstallPasswordHeadless" After="CostFinalize" Condition="REMOVE=&quot;ALL&quot; AND NOT UPGRADINGPRODUCTCODE" />
+      <AppSearch After="CheckUninstallPasswordHeadless" />
+      <LaunchConditions After="AppSearch" />
+
+      <!-- Startup-registration cleanup - always runs on a full uninstall (not gated behind an
+           opt-in data-wipe flag like the Server product's DeleteProgramData, since a stale Run
+           key pointing at a deleted exe is installer cruft, not user data). -->
+      <Custom Action="DeleteRegRunKey" After="InstallInitialize" Condition="REMOVE=&quot;ALL&quot; AND NOT UPGRADINGPRODUCTCODE" />
+
+      <Custom Action="RemoveInstallFolderExtras" After="DeleteRegRunKey" Condition="REMOVE=&quot;ALL&quot; AND NOT UPGRADINGPRODUCTCODE" />
+    </InstallExecuteSequence>
+
+    <!-- Native MSI gate, evaluated by the standard LaunchConditions action (repositioned above to
+         run After="AppSearch", itself After="CheckUninstallPasswordHeadless"/CostFinalize): passes
+         on every regular install and every major-upgrade-triggered removal; on a plain uninstall,
+         passes only if CheckUninstallPasswordHeadless authorized it. -->
+    <Launch Condition="REMOVE &lt;&gt; &quot;ALL&quot; OR UPGRADINGPRODUCTCODE OR UNINSTALLAUTHFLAG &lt;&gt; &quot;&quot;"
+            Message="This installation is password-protected. To uninstall, run from an elevated command prompt: msiexec /x [ProductCode] UNINSTPWD=&lt;password&gt;. Contact your system administrator if you don't have the password." />
+
+    <!-- ==================== Custom wizard pages ====================
+         Authored directly in the Package (not a separate Fragment) because WiX v5's linker drops
+         unreferenced Fragments - a plain <UI> block with no inbound reference from anything in
+         this Package's link graph gets silently eliminated.
+
+         ServerConnDlg    <- IP:Port + Test Connection
+         UninstallPwdDlg  <- optional uninstall password (lab machines share one admin account)
+         ErrorMsgDlg       <- generic small popup for the validation errors
+
+         Spliced into the stock WixUI_InstallDir sequence (Welcome -> InstallDir -> VerifyReady ->
+         Progress -> Exit): Welcome -> ServerConn -> UninstallPwd -> InstallDir -> VerifyReady -> ...
+         No ModeDlg - this product only ever installs the Client Agent. -->
+    <UI>
+      <Dialog Id="ServerConnDlg" Width="370" Height="270" Title="!(loc.InstallDirDlg_Title)">
+        <Control Id="Banner" Type="Bitmap" X="0" Y="0" Width="370" Height="44" TabSkip="no" Text="!(loc.InstallDirDlgBannerBitmap)" />
+        <Control Id="BannerLine" Type="Line" X="0" Y="44" Width="370" Height="0" />
+        <Control Id="BottomLine" Type="Line" X="0" Y="234" Width="370" Height="0" />
+
+        <Control Id="Title" Type="Text" X="15" Y="6" Width="240" Height="15" Transparent="yes" NoPrefix="yes" Text="Server Connection" />
+        <Control Id="Description" Type="Text" X="25" Y="23" Width="340" Height="15" Transparent="yes" NoPrefix="yes" Text="Configure the Onion Core Service address" />
+
+        <Control Id="HelpText" Type="Text" X="20" Y="55" Width="330" Height="30" Text="Enter the IP address or hostname, and port, of the Onion Core Service (the Server machine). Default port is 8787. You can leave Test unclicked and fill this in correctly even if the Server isn't running yet - it won't block Next." />
+        <Control Id="IpLabel" Type="Text" X="20" Y="92" Width="150" Height="15" Text="Server IP address or hostname:" />
+        <Control Id="IpEdit" Type="Edit" X="20" Y="107" Width="140" Height="18" Property="SERVERIP" Text="{60}" />
+        <Control Id="PortLabel" Type="Text" X="170" Y="92" Width="50" Height="15" Text="Port:" />
+        <Control Id="PortEdit" Type="Edit" X="170" Y="107" Width="50" Height="18" Property="SERVERPORT" Text="{5}" />
+        <Control Id="TestButton" Type="PushButton" X="230" Y="107" Width="90" Height="18" Text="Test Connection">
+          <!-- Immediate CA, fires synchronously on click - runs during InstallUISequence (full
+               desktop/session access) so the WinForms MessageBox it pops is reliable. Reads
+               SERVERIP/SERVERPORT directly (not the recomputed SERVERADDR, only assembled on Next
+               below) so Test works immediately after typing. Doesn't gate/disable Next - the
+               Server may not be up yet when the Agent is set up, so Test is purely informational. -->
+          <Publish Event="DoAction" Value="TestConnection" Condition="1" />
+        </Control>
+
+        <Control Id="Back" Type="PushButton" X="180" Y="243" Width="56" Height="17" Text="!(loc.WixUIBack)">
+          <Publish Event="NewDialog" Value="WelcomeDlg" Condition="1" />
+        </Control>
+        <Control Id="Next" Type="PushButton" X="236" Y="243" Width="56" Height="17" Default="yes" Text="!(loc.WixUINext)">
+          <!-- SERVERADDR (the "host:port" string setup-client.ps1/SetupClientProps actually
+               consumes) is recomputed from the two fields every time Next is pressed.
+               Port range check relies on MSI's own numeric-vs-lexical Condition comparison rule.
+               SERVERIP intentionally doesn't get a strict IPv4 pattern: the Agent reads BaseUrl
+               via a plain `new Uri(...)` (OnionProcOparetor.Agent/Program.cs), which accepts
+               hostnames as well as IP literals. It DOES get a blocklist for & | ^ % < > though
+               (defense in depth for TestConnection's CA, which passes SERVERIP/SERVERPORT to
+               cmd.exe via `set VAR=...&& powershell...`) - none of these characters ever appear
+               in a legitimate hostname or IP literal. -->
+          <Publish Property="SERVERADDR" Value="[SERVERIP]:[SERVERPORT]" Order="1" Condition="1" />
+          <Publish Property="WIXUI_ERRORMSG" Value="Please enter the Server's IP address or hostname." Order="2" Condition="SERVERIP = &quot;&quot;" />
+          <Publish Event="SpawnDialog" Value="ErrorMsgDlg" Order="3" Condition="SERVERIP = &quot;&quot;" />
+          <Publish Property="WIXUI_ERRORMSG" Value="The Server address contains a character that isn't allowed (&amp; | ^ % &lt; &gt;). Please remove it." Order="4" Condition="SERVERIP &lt;&gt; &quot;&quot; AND (SERVERIP &gt;&lt; &quot;&amp;&quot; OR SERVERIP &gt;&lt; &quot;|&quot; OR SERVERIP &gt;&lt; &quot;^&quot; OR SERVERIP &gt;&lt; &quot;%&quot; OR SERVERIP &gt;&lt; &quot;&lt;&quot; OR SERVERIP &gt;&lt; &quot;&gt;&quot;)" />
+          <Publish Event="SpawnDialog" Value="ErrorMsgDlg" Order="5" Condition="SERVERIP &lt;&gt; &quot;&quot; AND (SERVERIP &gt;&lt; &quot;&amp;&quot; OR SERVERIP &gt;&lt; &quot;|&quot; OR SERVERIP &gt;&lt; &quot;^&quot; OR SERVERIP &gt;&lt; &quot;%&quot; OR SERVERIP &gt;&lt; &quot;&lt;&quot; OR SERVERIP &gt;&lt; &quot;&gt;&quot;)" />
+          <Publish Property="WIXUI_ERRORMSG" Value="Please enter a valid Port number (1-65535)." Order="6" Condition="SERVERIP &lt;&gt; &quot;&quot; AND NOT (SERVERIP &gt;&lt; &quot;&amp;&quot; OR SERVERIP &gt;&lt; &quot;|&quot; OR SERVERIP &gt;&lt; &quot;^&quot; OR SERVERIP &gt;&lt; &quot;%&quot; OR SERVERIP &gt;&lt; &quot;&lt;&quot; OR SERVERIP &gt;&lt; &quot;&gt;&quot;) AND (SERVERPORT = &quot;&quot; OR SERVERPORT &lt; 1 OR SERVERPORT &gt; 65535)" />
+          <Publish Event="SpawnDialog" Value="ErrorMsgDlg" Order="7" Condition="SERVERIP &lt;&gt; &quot;&quot; AND NOT (SERVERIP &gt;&lt; &quot;&amp;&quot; OR SERVERIP &gt;&lt; &quot;|&quot; OR SERVERIP &gt;&lt; &quot;^&quot; OR SERVERIP &gt;&lt; &quot;%&quot; OR SERVERIP &gt;&lt; &quot;&lt;&quot; OR SERVERIP &gt;&lt; &quot;&gt;&quot;) AND (SERVERPORT = &quot;&quot; OR SERVERPORT &lt; 1 OR SERVERPORT &gt; 65535)" />
+          <Publish Event="NewDialog" Value="UninstallPwdDlg" Order="8" Condition="SERVERIP &lt;&gt; &quot;&quot; AND NOT (SERVERIP &gt;&lt; &quot;&amp;&quot; OR SERVERIP &gt;&lt; &quot;|&quot; OR SERVERIP &gt;&lt; &quot;^&quot; OR SERVERIP &gt;&lt; &quot;%&quot; OR SERVERIP &gt;&lt; &quot;&lt;&quot; OR SERVERIP &gt;&lt; &quot;&gt;&quot;) AND SERVERPORT &gt;= 1 AND SERVERPORT &lt;= 65535" />
+        </Control>
+        <Control Id="Cancel" Type="PushButton" X="304" Y="243" Width="56" Height="17" Cancel="yes" Text="!(loc.WixUICancel)">
+          <Publish Event="SpawnDialog" Value="CancelDlg" Condition="1" />
+        </Control>
+      </Dialog>
+
+      <Dialog Id="UninstallPwdDlg" Width="370" Height="270" Title="!(loc.InstallDirDlg_Title)">
+        <Control Id="Banner" Type="Bitmap" X="0" Y="0" Width="370" Height="44" TabSkip="no" Text="!(loc.InstallDirDlgBannerBitmap)" />
+        <Control Id="BannerLine" Type="Line" X="0" Y="44" Width="370" Height="0" />
+        <Control Id="BottomLine" Type="Line" X="0" Y="234" Width="370" Height="0" />
+
+        <Control Id="Title" Type="Text" X="15" Y="6" Width="280" Height="15" Transparent="yes" NoPrefix="yes" Text="Uninstall Protection (Optional)" />
+        <Control Id="Description" Type="Text" X="25" Y="23" Width="340" Height="15" Transparent="yes" NoPrefix="yes" Text="Set an uninstall password for this client machine" />
+
+        <Control Id="HelpText" Type="Text" X="20" Y="52" Width="330" Height="60" Text="Lab machines share one admin account, so any student can normally remove this program from Control Panel. Setting a password here will require it before the program can be uninstalled. This is optional - leave both fields blank to skip.&#13;&#10;&#13;&#10;Note: this only blocks the normal uninstaller. A student with admin access can still stop the service directly (Task Manager / services.msc)." />
+
+        <Control Id="Pwd1Label" Type="Text" X="20" Y="118" Width="280" Height="15" Text="Uninstall password (leave blank to skip):" />
+        <Control Id="Pwd1Edit" Type="Edit" X="20" Y="133" Width="200" Height="18" Property="UNINSTPWD1" Password="yes" />
+        <Control Id="Pwd2Label" Type="Text" X="20" Y="156" Width="280" Height="15" Text="Confirm password:" />
+        <Control Id="Pwd2Edit" Type="Edit" X="20" Y="171" Width="200" Height="18" Property="UNINSTPWD2" Password="yes" />
+
+        <Control Id="Back" Type="PushButton" X="180" Y="243" Width="56" Height="17" Text="!(loc.WixUIBack)">
+          <Publish Event="NewDialog" Value="ServerConnDlg" Condition="1" />
+        </Control>
+        <Control Id="Next" Type="PushButton" X="236" Y="243" Width="56" Height="17" Default="yes" Text="!(loc.WixUINext)">
+          <Publish Property="WIXUI_ERRORMSG" Value="Passwords do not match. Please re-enter, or leave both fields blank to skip." Order="1" Condition="UNINSTPWD1 &lt;&gt; UNINSTPWD2" />
+          <Publish Event="SpawnDialog" Value="ErrorMsgDlg" Order="2" Condition="UNINSTPWD1 &lt;&gt; UNINSTPWD2" />
+          <Publish Event="NewDialog" Value="InstallDirDlg" Order="3" Condition="UNINSTPWD1 = UNINSTPWD2" />
+        </Control>
+        <Control Id="Cancel" Type="PushButton" X="304" Y="243" Width="56" Height="17" Cancel="yes" Text="!(loc.WixUICancel)">
+          <Publish Event="SpawnDialog" Value="CancelDlg" Condition="1" />
+        </Control>
+      </Dialog>
+
+      <Dialog Id="ErrorMsgDlg" Width="260" Height="85" Title="Onion ProcOparetor" NoMinimize="yes">
+        <Control Id="ErrorText" Type="Text" X="10" Y="10" Width="240" Height="40" Property="WIXUI_ERRORMSG" Text="[WIXUI_ERRORMSG]" />
+        <Control Id="OK" Type="PushButton" X="95" Y="57" Width="56" Height="17" Default="yes" Cancel="yes" Text="!(loc.WixUIOK)">
+          <Publish Event="EndDialog" Value="Return" Condition="1" />
+        </Control>
+      </Dialog>
+
+      <!-- Splice the pages above into WixUI_InstallDir's Welcome -> InstallDir -> VerifyReady -> ... chain -->
+      <Publish Dialog="WelcomeDlg" Control="Next" Event="NewDialog" Value="ServerConnDlg" Order="10" Condition="1" />
+      <Publish Dialog="InstallDirDlg" Control="Back" Event="NewDialog" Value="UninstallPwdDlg" Order="10" Condition="1" />
+
+      <!-- ProgressDlg's action-description line (top text) and the execute-sequence log both read
+           from the ActionText table's Description column, keyed by CustomAction Id - without an
+           entry here each of our deferred/immediate CustomActions falls back to a blank line
+           while it's executing. -->
+      <ProgressText Action="SetupClient" Message="Configuring the Onion Agent service (server address, uninstall protection)..." />
+      <ProgressText Action="CheckUninstallPasswordHeadless" Message="Checking the uninstall password..." />
+      <ProgressText Action="DeleteRegRunKey" Message="Removing the Onion Agent Tray startup entry..." />
+      <ProgressText Action="RemoveInstallFolderExtras" Message="Cleaning up remaining Onion ProcOparetor Agent files..." />
+    </UI>
+
+    <ui:WixUI Id="WixUI_InstallDir" InstallDirectory="INSTALLFOLDER" />
+
+  </Package>
+</Wix>

@@ -109,6 +109,12 @@ public class CommandProcessor
             case "StartVncSession":
                 return HandleStartVncSessionAsync(payloadJson, ct);
 
+            case "BlockTargetInput":
+                return HandleBlockTargetInputAsync(ct);
+
+            case "UnblockTargetInput":
+                return HandleUnblockTargetInputAsync(ct);
+
             // TODO Phase 3/4: ใส่ command อื่นๆ ตรงนี้เพิ่ม เช่น "Kill", "RunCommand"
             default:
                 _logger.LogWarning(
@@ -171,6 +177,20 @@ public class CommandProcessor
     {
         _logger.LogInformation("ได้รับ UnlockWorkstation command - ส่งต่อให้ AgentTray ปิดหน้าจอล็อก");
         await _agentTrayNotifier.SendHideLockScreenAsync(ct);
+    }
+
+    /// <summary>ครูกด "BLOCK STUDENT INPUT" ระหว่าง full-screen VNC - ส่งต่อให้ AgentTray ติดตั้ง input hook จริง (ดู PhysicalInputBlocker)</summary>
+    private async Task HandleBlockTargetInputAsync(CancellationToken ct)
+    {
+        _logger.LogInformation("ได้รับ BlockTargetInput command - ส่งต่อให้ AgentTray บล็อก physical input");
+        await _agentTrayNotifier.SendBlockTargetInputAsync(ct);
+    }
+
+    /// <summary>ครูกด "UNBLOCK STUDENT INPUT" หรือออกจาก full-screen - ส่งต่อให้ AgentTray คืนสิทธิ์ physical input</summary>
+    private async Task HandleUnblockTargetInputAsync(CancellationToken ct)
+    {
+        _logger.LogInformation("ได้รับ UnblockTargetInput command - ส่งต่อให้ AgentTray คืนสิทธิ์ physical input");
+        await _agentTrayNotifier.SendUnblockTargetInputAsync(ct);
     }
 
     /// <summary>
