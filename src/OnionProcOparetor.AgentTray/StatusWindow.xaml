@@ -4,6 +4,7 @@
         Title="Onion ProcOparetor - Status"
         Height="500" Width="560"
         WindowStartupLocation="CenterScreen"
+        ResizeMode="NoResize"
         Style="{StaticResource AppWindowStyle}">
     <Grid>
         <Grid.RowDefinitions>

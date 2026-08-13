@@ -1,9 +1,12 @@
+<!-- ResizeMode ต่างจาก StatusWindow (NoResize) โดยตั้งใจ - เนื้อหาเป็น ScrollViewer/TextBlock ล้วน
+     ไม่มี fixed-width column แบบ GridView เลยรองรับการขยายจอเพื่อดู log ยาวๆ ได้จริง -->
 <Window x:Class="OnionProcOparetor.AgentTray.LogTerminalWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Onion ProcOparetor - Log Terminal"
         Height="500" Width="720"
         WindowStartupLocation="CenterScreen"
+        ResizeMode="CanResize"
         Style="{StaticResource AppWindowStyle}">
     <Grid Margin="12">
         <Grid.RowDefinitions>

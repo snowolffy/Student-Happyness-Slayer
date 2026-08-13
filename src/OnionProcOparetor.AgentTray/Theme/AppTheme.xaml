@@ -1,7 +1,7 @@
 <ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
                      xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
 
-    <!-- ==================== Colors (matches OnionProcOparetor.Console/Themes/AppTheme.xaml) ==================== -->
+    <!-- ==================== Colors (synced against OnionProcOparetor.Console/Theme/Colors.xaml) ==================== -->
     <Color x:Key="BgColor">#F1F2F5</Color>
     <Color x:Key="CardColor">#FFFFFF</Color>
     <Color x:Key="CardBorderColor">#D7DBE2</Color>
@@ -9,11 +9,10 @@
     <Color x:Key="TextSecondaryColor">#6B7280</Color>
     <Color x:Key="AccentGreenColor">#2E9B5D</Color>
     <Color x:Key="AccentRedColor">#D64545</Color>
-    <Color x:Key="AccentBlueColor">#3B6FD6</Color>
     <Color x:Key="InputBgColor">#FFFFFF</Color>
     <Color x:Key="AccentNeutralColor">#9AA1AC</Color>
-    <Color x:Key="BrandColor">#C97A2C</Color>
-    <Color x:Key="BrandDarkColor">#A8621F</Color>
+    <Color x:Key="BrandColor">#F5A623</Color>
+    <Color x:Key="BrandDarkColor">#D6890F</Color>
     <Color x:Key="TableHeaderBgColor">#E9EBEF</Color>
     <Color x:Key="RowHoverBgColor">#F5F7FA</Color>
 
@@ -24,7 +23,6 @@
     <SolidColorBrush x:Key="TextSecondaryBrush" Color="{StaticResource TextSecondaryColor}"/>
     <SolidColorBrush x:Key="AccentGreenBrush" Color="{StaticResource AccentGreenColor}"/>
     <SolidColorBrush x:Key="AccentRedBrush" Color="{StaticResource AccentRedColor}"/>
-    <SolidColorBrush x:Key="AccentBlueBrush" Color="{StaticResource AccentBlueColor}"/>
     <SolidColorBrush x:Key="InputBgBrush" Color="{StaticResource InputBgColor}"/>
     <SolidColorBrush x:Key="AccentNeutralBrush" Color="{StaticResource AccentNeutralColor}"/>
     <SolidColorBrush x:Key="BrandBrush" Color="{StaticResource BrandColor}"/>
