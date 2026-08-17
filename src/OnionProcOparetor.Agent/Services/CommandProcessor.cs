@@ -13,8 +13,9 @@ namespace OnionProcOparetor.Agent.Services;
 /// </summary>
 public class CommandProcessor
 {
-    /// <summary>วินาทีที่เตือน user ก่อน shutdown/restart จริง - ให้เวลา save งานก่อนเครื่องดับ</summary>
-    private const int PowerActionWarningDelaySeconds = 10;
+    // หมายเหตุ: const PowerActionWarningDelaySeconds = 10 เดิมถูกย้ายไปเป็น
+    // PowerActionPayload.DefaultDelaySeconds แล้ว - ตอนนี้ค่าหน่วงมาจาก payload ที่ครูตั้งจาก
+    // Console เป็นหลัก (1-120 วิ) ค่า default เดิมใช้เฉพาะตอนไม่มี payload มาด้วยเท่านั้น
 
     private readonly ILogger<CommandProcessor> _logger;
     private readonly ServerClient _serverClient;
@@ -98,10 +99,10 @@ public class CommandProcessor
                 return HandleHideLockScreenAsync(ct);
 
             case "Shutdown":
-                return HandlePowerActionAsync(isRestart: false, ct);
+                return HandlePowerActionAsync(isRestart: false, payloadJson, ct);
 
             case "Restart":
-                return HandlePowerActionAsync(isRestart: true, ct);
+                return HandlePowerActionAsync(isRestart: true, payloadJson, ct);
 
             case "UpdateSettings":
                 return HandleUpdateSettingsAsync(payloadJson, ct);
@@ -307,33 +308,100 @@ public class CommandProcessor
 
     /// <summary>
     /// Shutdown/Restart - เรียกจาก Agent (Session 0) ได้ตรงๆ เพราะเป็น system-level operation
-    /// (ต่างจาก LockWorkstation ที่เป็น per-session) ส่ง broadcast เตือน user ล่วงหน้าก่อนเสมอ
-    /// แล้วค่อย delay จริงแบบ fire-and-forget - method นี้ return ทันทีหลังส่ง broadcast สำเร็จ
+    /// (ต่างจาก LockWorkstation ที่เป็น per-session) ส่งคำสั่งให้ AgentTray โชว์หน้าต่างนับถอยหลัง
+    /// ก่อนเสมอ แล้วค่อย delay จริงแบบ fire-and-forget - method นี้ return ทันทีหลังส่งเสร็จ
     /// เพื่อไม่ block ProcessPendingCommandAsync จาก ack/ประมวลผล command อื่นที่เข้ามาระหว่างรอ
+    ///
+    /// เวลาหน่วงมาจาก payload { "delaySeconds": int } ที่ Console ส่งมา (validate ซ้ำที่นี่เสมอ)
+    /// ถ้าไม่มี payload มาด้วย (Console เวอร์ชันเก่า / command เก่าค้างใน DB) ใช้ 10 วิเท่าเดิม
     /// </summary>
-    private async Task HandlePowerActionAsync(bool isRestart, CancellationToken ct)
+    private async Task HandlePowerActionAsync(bool isRestart, string? payloadJson, CancellationToken ct)
     {
         var actionName = isRestart ? "Restart" : "Shutdown";
-        _logger.LogInformation("ได้รับ {Action} command - เตือน user ก่อน {DelaySeconds} วินาที", actionName, PowerActionWarningDelaySeconds);
+        var delaySeconds = ResolvePowerActionDelaySeconds(payloadJson, actionName);
 
-        var warningPayload = new BroadcastMessagePayload
-        {
-            Title = "แจ้งเตือนจากผู้ดูแลระบบ",
-            Message = isRestart
-                ? $"เครื่องนี้จะรีสตาร์ทใน {PowerActionWarningDelaySeconds} วินาที โดยผู้ดูแลระบบ กรุณาบันทึกงานของท่าน"
-                : $"เครื่องนี้จะปิดใน {PowerActionWarningDelaySeconds} วินาที โดยผู้ดูแลระบบ กรุณาบันทึกงานของท่าน"
-        };
-        await _agentTrayNotifier.SendBroadcastMessageAsync(warningPayload, ct);
+        _logger.LogInformation("ได้รับ {Action} command - เตือน user ก่อน {DelaySeconds} วินาที", actionName, delaySeconds);
 
-        // fire-and-forget โดยตั้งใจ - ไม่ await ตรงนี้ กัน command อื่นที่มาระหว่างรอ 10 วิ ถูก block
-        _ = DelayThenExitWindowsAsync(isRestart, ct);
+        // ส่งให้ Tray "ก่อน" แล้วค่อยเริ่มจับเวลาจริง - ดู DelayThenExitWindowsAsync เรื่อง drift
+        await _agentTrayNotifier.SendShutdownNotifyAsync(isRestart, delaySeconds, ct);
+
+        // fire-and-forget โดยตั้งใจ - ไม่ await ตรงนี้ กัน command อื่นที่มาระหว่างรอถูก block
+        _ = DelayThenExitWindowsAsync(isRestart, delaySeconds, ct);
     }
 
-    private async Task DelayThenExitWindowsAsync(bool isRestart, CancellationToken ct)
+    /// <summary>
+    /// อ่าน DelaySeconds จาก payload แล้ว clamp ให้อยู่ในช่วง 1-120 เสมอ (defense-in-depth ชั้นที่ 2
+    /// ต่อจาก Console - POST /api/commands ไม่ validate payload shape เลย ใครยิง HTTP ตรงเข้ามา
+    /// ก็ใส่ค่าอะไรก็ได้ เช่น 0 (ดับทันทีไม่เตือน) หรือ 86400 (ค้างรอทั้งวัน))
+    /// payload ที่หาย/พังทุกกรณี → ใช้ค่า default เดิม 10 วิ ไม่ throw ไม่ยกเลิก command
+    /// </summary>
+    private int ResolvePowerActionDelaySeconds(string? payloadJson, string actionName)
     {
+        if (string.IsNullOrWhiteSpace(payloadJson))
+        {
+            _logger.LogInformation(
+                "{Action} command ไม่มี payload มาด้วย - ใช้เวลาหน่วง default {DelaySeconds} วิ (พฤติกรรมเดิมก่อนมี DelaySeconds)",
+                actionName, PowerActionPayload.DefaultDelaySeconds);
+            return PowerActionPayload.DefaultDelaySeconds;
+        }
+
+        PowerActionPayload? payload = null;
         try
         {
-            await Task.Delay(TimeSpan.FromSeconds(PowerActionWarningDelaySeconds), ct);
+            payload = JsonSerializer.Deserialize<PowerActionPayload>(
+                payloadJson, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex,
+                "แปลง payload ของ {Action} ไม่สำเร็จ: {Payload} - ใช้เวลาหน่วง default {DelaySeconds} วิแทน",
+                actionName, payloadJson, PowerActionPayload.DefaultDelaySeconds);
+        }
+
+        var requested = payload?.DelaySeconds ?? PowerActionPayload.DefaultDelaySeconds;
+        var clamped = PowerActionPayload.Clamp(requested);
+
+        if (clamped != requested)
+        {
+            _logger.LogWarning(
+                "{Action} command ขอเวลาหน่วง {Requested} วิ ซึ่งอยู่นอกช่วงที่ยอมรับ ({Min}-{Max}) - บีบเป็น {Clamped} วิ",
+                actionName, requested, PowerActionPayload.MinDelaySeconds, PowerActionPayload.MaxDelaySeconds, clamped);
+        }
+
+        return clamped;
+    }
+
+    /// <summary>
+    /// รอจนถึงเวลาที่กำหนดแล้วสั่ง ExitWindowsEx จริง
+    ///
+    /// ใช้ "deadline" (เวลาเป้าหมายสัมบูรณ์) แทน Task.Delay(ทั้งก้อน) ครั้งเดียว เพราะ Task.Delay
+    /// รับประกันแค่ "ไม่ตื่นก่อนเวลา" ไม่ได้รับประกันว่าจะตื่น "ตรงเวลา" - บนเครื่องที่ CPU ตัน
+    /// หรือ thread pool starve อยู่ (เครื่อง lab ที่กำลังโดน enforcement scan อยู่พอดี) อาจคลาด
+    /// ไปหลายวินาที ซึ่งจะเห็นเป็น drift ชัดเจนเทียบกับ progress bar ฝั่ง Tray ที่นับตามนาฬิกาจริง
+    /// วนรอเป็นช่วงสั้นๆ แล้วเช็คนาฬิกาจริงทุกครั้ง ทำให้ error สะสมไม่เกินรอบสุดท้ายรอบเดียว
+    ///
+    /// deadline ถูกตั้ง "หลัง" ส่ง pipe เสร็จแล้ว (ดู HandlePowerActionAsync) ฝั่ง Tray เริ่มนับ
+    /// ตอนรับ message ซึ่งเกิดก่อนบรรทัดนี้เสมอ - แปลว่า progress bar จะแตะ 0 ก่อนเครื่องดับเล็กน้อย
+    /// (หลัก ms) ไม่มีทางที่ user เห็นเลข 0 ค้างแล้วเครื่องยังไม่ดับ ซึ่งเป็นทิศทางที่ถูกต้อง
+    /// </summary>
+    private async Task DelayThenExitWindowsAsync(bool isRestart, int delaySeconds, CancellationToken ct)
+    {
+        var deadlineUtc = DateTime.UtcNow.AddSeconds(delaySeconds);
+
+        try
+        {
+            while (true)
+            {
+                var remaining = deadlineUtc - DateTime.UtcNow;
+                if (remaining <= TimeSpan.Zero)
+                {
+                    break;
+                }
+
+                // ตื่นถี่พอที่จะไม่เลยเวลาเกิน ~250ms แต่ไม่ถี่จนเปลือง CPU ระหว่างรอนานสุด 120 วิ
+                var step = remaining < TimeSpan.FromMilliseconds(250) ? remaining : TimeSpan.FromMilliseconds(250);
+                await Task.Delay(step, ct);
+            }
         }
         catch (OperationCanceledException)
         {

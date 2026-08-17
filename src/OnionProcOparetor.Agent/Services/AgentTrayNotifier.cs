@@ -101,6 +101,29 @@ public class AgentTrayNotifier
         return SendAsync(envelope, "UnblockTargetInput", ct);
     }
 
+    /// <summary>
+    /// สั่งให้ AgentTray แสดงหน้าต่างนับถอยหลังมุมจอก่อน shutdown/restart (ShutdownNotifyWindow)
+    /// แทน Broadcast popup ธรรมดาที่ใช้อยู่เดิม - popup เดิมโชว์ข้อความครั้งเดียวแล้วเงียบไปเลย
+    /// จนเครื่องดับ (user ไม่รู้ว่าเหลือเวลาเท่าไหร่จริงๆ) อันใหม่นับถอยหลังให้เห็นตลอด
+    ///
+    /// สำคัญเรื่อง drift: caller ต้อง await method นี้ให้เสร็จ "ก่อน" เริ่มจับเวลาจริงฝั่ง Agent
+    /// (ดู CommandProcessor.HandlePowerActionAsync) เพื่อไม่ให้เวลาที่ใช้ต่อ pipe + ส่ง JSON
+    /// (ปกติไม่กี่ ms แต่ถ้า Tray ไม่ได้รันอยู่จะ timeout ถึง 3 วิ) ถูกนับรวมไปในเวลาที่ user เห็น
+    /// คืนค่า bool เหมือน method อื่นๆ (ส่งถึง Tray สำเร็จไหม) ให้ผู้เรียกใช้ตัดสินใจ retry ได้ (ดู Part 4)
+    /// </summary>
+    public Task<bool> SendShutdownNotifyAsync(bool isRestart, int delaySeconds, CancellationToken ct)
+    {
+        var action = isRestart ? "Restart" : "Shutdown";
+        var envelope = new AgentTrayPipeMessage
+        {
+            Type = "ShowShutdownNotify",
+            Action = action,
+            DelaySeconds = delaySeconds
+        };
+
+        return SendAsync(envelope, $"ShowShutdownNotify ({action}, {delaySeconds} วิ)", ct);
+    }
+
     private async Task<bool> SendAsync(AgentTrayPipeMessage envelope, string logContext, CancellationToken ct)
     {
         try

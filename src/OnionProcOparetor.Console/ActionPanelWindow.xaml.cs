@@ -14,6 +14,15 @@ namespace OnionProcOparetor.Console;
 /// </summary>
 public partial class ActionPanelWindow : Window
 {
+    /// <summary>ต้องตรงกับฝั่ง Agent (PowerActionPayload.MinDelaySeconds) - validate ทั้ง 2 ฝั่ง</summary>
+    public const int MinDelaySeconds = 1;
+
+    /// <summary>ต้องตรงกับฝั่ง Agent (PowerActionPayload.MaxDelaySeconds) - validate ทั้ง 2 ฝั่ง</summary>
+    public const int MaxDelaySeconds = 120;
+
+    /// <summary>ค่าเดิมที่ Agent เคย hardcode ไว้ - คงเป็น default เพื่อไม่เปลี่ยนพฤติกรรมที่ครูคุ้นเคย</summary>
+    public const int DefaultDelaySeconds = 10;
+
     private readonly ApiClient _apiClient;
     private readonly bool _isBulk;
     private readonly ClientMachineDto? _singleClient;
@@ -40,6 +49,7 @@ public partial class ActionPanelWindow : Window
         _selectedClients = new List<ClientMachineDto> { client };
         _allClients = _selectedClients;
 
+        DelaySecondsBox.Text = DefaultDelaySeconds.ToString();
         HeaderText.Text = $"Actions - {client.MachineName}";
         TargetPanel.Visibility = Visibility.Collapsed;
         SettingsButton.Visibility = Visibility.Visible;
@@ -61,6 +71,7 @@ public partial class ActionPanelWindow : Window
         _selectedClients = selectedClients;
         _allClients = allClients;
 
+        DelaySecondsBox.Text = DefaultDelaySeconds.ToString();
         TargetPanel.Visibility = Visibility.Visible;
         ApplyToSelectedRadio.Content = $"เครื่องที่เลือกไว้ ({selectedClients.Count} เครื่อง)";
         ApplyToAllRadio.Content = $"ทุกเครื่อง ({allClients.Count} เครื่อง)";
@@ -158,20 +169,80 @@ public partial class ActionPanelWindow : Window
     private async void RestartButton_Click(object sender, RoutedEventArgs e) => await SendPowerActionAsync("Restart");
     private async void ShutdownButton_Click(object sender, RoutedEventArgs e) => await SendPowerActionAsync("Shutdown");
 
+    /// <summary>
+    /// กันพิมพ์อย่างอื่นนอกจากตัวเลขลงช่องหน่วงเวลาตั้งแต่แรก (ชั้นที่ 1 ของ 3 ชั้น:
+    /// input filter → TryResolveDelaySeconds ตอนกดปุ่ม → clamp ซ้ำฝั่ง Agent)
+    /// ยังต้องมีชั้นที่ 2 อยู่ดีเพราะ paste (Ctrl+V) ไม่ผ่าน PreviewTextInput
+    /// </summary>
+    private void DelaySecondsBox_PreviewTextInput(object sender, System.Windows.Input.TextCompositionEventArgs e)
+    {
+        e.Handled = !e.Text.All(char.IsAsciiDigit);
+    }
+
+    /// <summary>
+    /// อ่านค่าหน่วงเวลาจากช่องกรอก - คืน null ถ้าค่าใช้ไม่ได้จริงๆ (caller ต้องยกเลิก action ทันที
+    /// ห้ามส่ง command ต่อ) ถ้าอยู่นอกช่วง 1-120 จะ "บีบ" ให้อยู่ในช่วงแล้วเขียนค่าที่บีบแล้ว
+    /// กลับลงช่องให้ user เห็นด้วย (ไม่ใช่บีบเงียบๆ แล้วส่งค่าที่ user ไม่ได้ตั้งใจ)
+    ///
+    /// ตัดสินใจแยก 2 กรณีต่างกันโดยตั้งใจ:
+    /// - กรอกไม่ใช่ตัวเลข/ว่าง = "ไม่รู้ว่าครูตั้งใจอะไร" → ยกเลิก ให้แก้ก่อน (fail-safe)
+    /// - กรอกตัวเลขแต่นอกช่วง = "รู้ว่าครูตั้งใจอะไร แค่เกินขอบ" → บีบเข้าขอบ + แจ้งให้เห็น
+    /// </summary>
+    private int? TryResolveDelaySeconds()
+    {
+        var raw = DelaySecondsBox.Text.Trim();
+
+        if (!int.TryParse(raw, out var seconds))
+        {
+            System.Windows.MessageBox.Show(
+                $"กรุณากรอกเวลาหน่วงเป็นตัวเลขระหว่าง {MinDelaySeconds} ถึง {MaxDelaySeconds} วินาที\n\n" +
+                $"ค่าที่กรอกไว้ตอนนี้: '{raw}'",
+                "เวลาหน่วงไม่ถูกต้อง", MessageBoxButton.OK, MessageBoxImage.Warning);
+
+            DelaySecondsBox.Focus();
+            DelaySecondsBox.SelectAll();
+            return null;
+        }
+
+        var clamped = Math.Clamp(seconds, MinDelaySeconds, MaxDelaySeconds);
+
+        if (clamped != seconds)
+        {
+            DelaySecondsBox.Text = clamped.ToString();
+
+            System.Windows.MessageBox.Show(
+                $"เวลาหน่วงต้องอยู่ระหว่าง {MinDelaySeconds} ถึง {MaxDelaySeconds} วินาที\n\n" +
+                $"ค่าที่กรอก ({seconds}) ถูกปรับเป็น {clamped} วินาทีให้แล้ว กรุณากดปุ่มอีกครั้งเพื่อยืนยัน",
+                "ปรับเวลาหน่วงให้อยู่ในช่วงที่รองรับ", MessageBoxButton.OK, MessageBoxImage.Warning);
+
+            // คืน null โดยตั้งใจ - บังคับให้ครูกดยืนยันอีกครั้งหลังเห็นค่าที่ถูกปรับแล้ว
+            // (ไม่ส่งค่าที่ครูไม่ได้พิมพ์เองออกไปดับเครื่องนักเรียนทันทีในคลิกเดียว)
+            return null;
+        }
+
+        return clamped;
+    }
+
     /// <summary>Shutdown/Restart - ต้อง confirm เสมอ (destructive, ทำคืนไม่ได้ทันที ต่างจาก Lock/Toggle)</summary>
     private async Task SendPowerActionAsync(string commandType)
     {
         var targets = CurrentTargets;
 
+        var delaySeconds = TryResolveDelaySeconds();
+        if (delaySeconds is null)
+        {
+            return; // ค่าใช้ไม่ได้ - ไม่ปล่อยให้หลุดไปถึง command เด็ดขาด
+        }
+
         if (!Confirm(
             $"ยืนยัน {commandType} เครื่อง {targets.Count} เครื่อง?\n\n" +
-            "แต่ละเครื่องจะเตือน user ล่วงหน้า 10 วินาทีก่อนดำเนินการจริง การกระทำนี้ย้อนกลับไม่ได้ทันที",
+            $"แต่ละเครื่องจะเตือน user ล่วงหน้า {delaySeconds} วินาทีก่อนดำเนินการจริง การกระทำนี้ย้อนกลับไม่ได้ทันที",
             $"ยืนยัน {commandType} {targets.Count} เครื่อง"))
         {
             return;
         }
 
-        await SendToTargetsAsync(commandType, null, commandType);
+        await SendToTargetsAsync(commandType, new { delaySeconds = delaySeconds.Value }, commandType);
     }
 
     private async Task SendToTargetsAsync(string commandType, object? payload, string actionLabel)

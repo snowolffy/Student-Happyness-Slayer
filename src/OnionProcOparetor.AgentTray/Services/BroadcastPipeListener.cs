@@ -11,7 +11,8 @@ namespace OnionProcOparetor.AgentTray.Services;
 /// ฟัง named pipe รอรับ message จาก OnionProcOparetor.Agent (Windows Service ที่รันใน Session 0)
 /// - วนรับ connection ทีละอันไม่มีที่สิ้นสุด (ฝั่ง Agent ต่อมา ส่ง 1 message แล้วตัดการเชื่อมต่อทันที
 /// ไม่ใช่ connection ค้างยาว) ใช้ envelope { Type, Message?, Title? } เดียวกันสำหรับทุก message
-/// เพื่อขยาย Type ใหม่ๆ ต่อได้ง่าย (ตอนนี้รองรับ "Broadcast", "ShowLockScreen", "HideLockScreen")
+/// เพื่อขยาย Type ใหม่ๆ ต่อได้ง่าย (ตอนนี้รองรับ "Broadcast", "ShowLockScreen", "HideLockScreen",
+/// "ShowShutdownNotify")
 ///
 /// ต้องเปิด ACL ให้ "Everyone" อ่าน/เขียนได้ เพราะ Agent (client) รันเป็น Windows Service
 /// (มักเป็นบัญชีคนละตัวกับ user session นี้ เช่น LocalSystem) การเชื่อมต่อข้าม session/account
@@ -42,6 +43,12 @@ public class BroadcastPipeListener
 
     /// <summary>เรียกทุกครั้งที่ครูกด "UNBLOCK STUDENT INPUT" หรือออกจาก full-screen - เรียกจาก background thread ไม่ใช่ UI thread</summary>
     public event Action? UnblockTargetInputRequested;
+
+    /// <summary>
+    /// เรียกทุกครั้งที่ Agent สั่งให้โชว์หน้าต่างนับถอยหลังก่อน shutdown/restart
+    /// - เรียกจาก background thread ไม่ใช่ UI thread
+    /// </summary>
+    public event Action<ShutdownNotifyDto>? ShutdownNotifyRequested;
 
     /// <summary>เริ่มฟัง pipe แบบ fire-and-forget - มี retry loop ในตัว ไม่ throw ออกมาแม้เปิด pipe ไม่สำเร็จ</summary>
     public void Start(CancellationToken ct)
@@ -140,6 +147,16 @@ public class BroadcastPipeListener
 
                 case "UnblockTargetInput":
                     UnblockTargetInputRequested?.Invoke();
+                    break;
+
+                case "ShowShutdownNotify":
+                    // clamp ซ้ำอีกชั้น (Console + Agent clamp มาแล้ว) - ฝั่ง UI ต้องไม่พังถ้าได้ค่า
+                    // แปลกๆ เช่น 0 หรือค่าลบ ซึ่งจะทำให้ progress bar หาร 0
+                    ShutdownNotifyRequested?.Invoke(new ShutdownNotifyDto
+                    {
+                        IsRestart = string.Equals(envelope.Action, "Restart", StringComparison.OrdinalIgnoreCase),
+                        DelaySeconds = Math.Clamp(envelope.DelaySeconds ?? 10, 1, 120)
+                    });
                     break;
 
                 default:

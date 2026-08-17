@@ -19,6 +19,12 @@ namespace OnionProcOparetor.Agent.Models;
 ///   (Session 0 isolation กันไม่ให้ Agent ติดตั้ง low-level hook ที่เห็น input ของ user session ได้)
 /// - "UnblockTargetInput" — สั่งให้ AgentTray คืนสิทธิ์ physical input ให้นักเรียน (Message/Title/
 ///   RequestingConsoleSessionId ไม่ใช้)
+/// - "ShowShutdownNotify" — โชว์หน้าต่างนับถอยหลังมุมจอก่อน shutdown/restart
+///   (ใช้ Action = "Shutdown"|"Restart" และ DelaySeconds)
+///
+/// สำคัญ: ไฟล์นี้ถูก "ก๊อปมือ" ไว้ 2 ที่ (Agent/Models + AgentTray/Models) เพราะ solution นี้
+/// ไม่มี shared class library ระหว่างโปรเจกต์เลย (ดู LogEntryDto ที่ก๊อปแบบเดียวกัน) -
+/// แก้ field ตรงนี้เมื่อไหร่ต้องแก้อีกฝั่งให้ตรงกันเสมอ ไม่งั้น JSON deserialize แล้ว field หาย
 /// </summary>
 public class AgentTrayPipeMessage
 {
@@ -26,4 +32,10 @@ public class AgentTrayPipeMessage
     public string? Message { get; set; }
     public string? Title { get; set; }
     public string? RequestingConsoleSessionId { get; set; }
+
+    /// <summary>ใช้เฉพาะ Type = "ShowShutdownNotify" - "Shutdown" หรือ "Restart"</summary>
+    public string? Action { get; set; }
+
+    /// <summary>ใช้เฉพาะ Type = "ShowShutdownNotify" - จำนวนวินาทีที่จะนับถอยหลังก่อนเครื่องดับจริง</summary>
+    public int? DelaySeconds { get; set; }
 }

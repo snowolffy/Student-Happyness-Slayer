@@ -21,6 +21,7 @@ public partial class App : System.Windows.Application
     // keyboard/mouse hook + Agent watchdog จริง (ดู LockScreenWindow doc comment) รายการนี้ว่างเปล่า =
     // ไม่ได้ล็อกอยู่ (ใช้แทนการเช็ค field เดี่ยวเดิมที่รองรับแค่จอเดียว)
     private readonly List<LockScreenWindow> _lockScreenWindows = new();
+    private ShutdownNotifyWindow? _shutdownNotifyWindow;
 
     protected override void OnStartup(StartupEventArgs e)
     {
@@ -39,6 +40,7 @@ public partial class App : System.Windows.Application
         _broadcastListener.StopVncSessionRequested += OnStopVncSessionRequested;
         _broadcastListener.BlockTargetInputRequested += OnBlockTargetInputRequested;
         _broadcastListener.UnblockTargetInputRequested += OnUnblockTargetInputRequested;
+        _broadcastListener.ShutdownNotifyRequested += OnShutdownNotifyRequested;
         _broadcastListener.Start(_broadcastListenerCts.Token);
 
         // Failsafe path 1 (ดู PhysicalInputBlocker doc comment): winvnc.exe หยุดไม่ว่าเพราะอะไร ต้องคืน
@@ -223,12 +225,33 @@ public partial class App : System.Windows.Application
         _vncProcessManager.Stop();
     }
 
+    /// <summary>
+    /// เรียกจาก background thread ของ pipe listener ตอน Agent สั่ง shutdown/restart -
+    /// เปิดหน้าต่างนับถอยหลังมุมจอ (ปิดตัวเองเมื่อนับครบ)
+    ///
+    /// ถ้ามีหน้าต่างเดิมค้างอยู่ (เช่นครูสั่ง Shutdown แล้วเปลี่ยนใจสั่ง Restart ทับ หรือส่งคำสั่ง
+    /// ซ้ำด้วยเวลาใหม่) ให้ทิ้งอันเดิมแล้วเปิดใหม่ตามคำสั่งล่าสุดเสมอ - ไม่ใช่ idempotent
+    /// แบบ lock screen เพราะเวลาที่เหลือของคำสั่งใหม่ต่างจากของเดิม ถ้าไม่ทับจะโชว์เวลาผิด
+    /// </summary>
+    private void OnShutdownNotifyRequested(ShutdownNotifyDto notify)
+    {
+        Dispatcher.Invoke(() =>
+        {
+            _shutdownNotifyWindow?.ForceClose();
+
+            _shutdownNotifyWindow = new ShutdownNotifyWindow(notify);
+            _shutdownNotifyWindow.Closed += (_, _) => _shutdownNotifyWindow = null;
+            _shutdownNotifyWindow.Show();
+        });
+    }
+
     protected override void OnExit(ExitEventArgs e)
     {
         _broadcastListenerCts.Cancel();
         HideAllLockScreens();
         _physicalInputBlocker.Unblock();
         _vncProcessManager.Stop();
+        _shutdownNotifyWindow?.ForceClose();
         _trayIcon?.Dispose();
         base.OnExit(e);
     }

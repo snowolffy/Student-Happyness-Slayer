@@ -1,0 +1,24 @@
+<UserControl x:Class="OnionProcOparetor.AgentTray.Controls.CountdownProgressBar"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <StackPanel>
+        <TextBlock x:Name="CountdownLabel"
+                   FontSize="13" FontWeight="SemiBold"
+                   TextWrapping="Wrap"
+                   Foreground="{StaticResource TextPrimaryBrush}"
+                   Margin="0,0,0,8"/>
+
+        <!--
+            ไม่ใช้ ProgressBar มาตรฐาน เพราะ theme ของ Windows override สีเองได้ (บาง OEM theme
+            บังคับเป็นสีเขียวตายตัว) วาดเองด้วย Border 2 ชั้นแทน คุมหน้าตาได้แน่นอนทุกเครื่อง
+        -->
+        <Border Height="8" CornerRadius="4"
+                Background="{StaticResource CardBorderBrush}"
+                SizeChanged="TrackBorder_SizeChanged"
+                x:Name="TrackBorder">
+            <Border x:Name="FillBorder" Height="8" CornerRadius="4"
+                    HorizontalAlignment="Left" Width="0"
+                    Background="{StaticResource AccentRedBrush}"/>
+        </Border>
+    </StackPanel>
+</UserControl>
