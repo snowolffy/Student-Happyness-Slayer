@@ -39,6 +39,15 @@ public class LabHubClient : IAsyncDisposable
     public event Action<string, string>? VncSessionFailed;
 
     /// <summary>
+    /// เรียกทุกครั้งที่ Server แจ้ง "ผลจริง" ของ command ตัวใดตัวหนึ่ง (Agent รายงานผลกลับมา
+    /// หรือ Server mark เป็น TimedOut เอง) - หน้า ActionReportWindow ใช้ตัวนี้อัปเดตแถวแบบ real-time
+    ///
+    /// หมายเหตุเดียวกับ ClientStatusChanged: เรียกจาก SignalR background thread ไม่ใช่ UI thread
+    /// ผู้ subscribe ต้อง marshal เข้า UI thread เอง
+    /// </summary>
+    public event Action<CommandResultDto>? CommandResultChanged;
+
+    /// <summary>
     /// เริ่มต่อ SignalR ไปยัง {baseUrl}/hubs/lab - ไม่ throw ออกไปแม้ server จะยังไม่พร้อม/offline
     /// มี retry loop ของตัวเองข้างใน เรียกแบบ fire-and-forget ได้เลย (ไม่ block caller)
     /// </summary>
@@ -62,6 +71,7 @@ public class LabHubClient : IAsyncDisposable
             ConsoleDiagnostics.WriteLine($"[LabHubClient] ได้รับ VncSessionFailed จาก hub - ClientGuid: {clientGuid}, Reason: {reason} (SessionId ของเรา: {SessionId})");
             VncSessionFailed?.Invoke(clientGuid, reason);
         });
+        _connection.On<CommandResultDto>("CommandResultChanged", dto => CommandResultChanged?.Invoke(dto));
 
         _connection.Reconnecting += ex =>
         {

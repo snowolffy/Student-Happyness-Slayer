@@ -84,6 +84,12 @@ builder.Services.AddSingleton<ClientState>();
 
 // ---- Command processing (SignalR real-time + poll fallback ใช้ logic เดียวกัน) ----
 builder.Services.AddSingleton<AgentTrayNotifier>();
+
+// รายงาน "ผลจริง" ของ command กลับ Server (SignalR ก่อน ไม่ได้ค่อย HTTP) - ต้องเป็น singleton
+// เพราะ LabHubConnection มา set SignalRSender ให้ทีหลังตอน StartAsync (ดู CommandResultReporter
+// เรื่องการตัด circular dependency ระหว่าง CommandProcessor กับ LabHubConnection)
+builder.Services.AddSingleton<CommandResultReporter>();
+
 builder.Services.AddSingleton<CommandProcessor>();
 
 // ---- SignalR hub connection - ชั้นเสริมคู่ขนานกับ poll loop เดิม (ไม่แทนที่) ----

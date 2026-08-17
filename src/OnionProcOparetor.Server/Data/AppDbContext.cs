@@ -58,6 +58,17 @@ public class AppDbContext : DbContext
             .HasIndex(o => new { o.ClientGuid, o.RuleId })
             .IsUnique();
 
+        // Console ดึงสถานะทั้งชุดด้วย BatchId (GET /api/commands/batch/{batchId}) ทุกๆ 2 วิ
+        // ระหว่างที่หน้า report เปิดอยู่ - ต้องมี index ไม่งั้นเป็น full table scan บนตารางที่
+        // โตขึ้นเรื่อยๆ ทุกครั้งที่ครูสั่ง action
+        modelBuilder.Entity<ClientCommand>()
+            .HasIndex(c => c.BatchId);
+
+        // CommandResultTimeoutService สแกนหา command ที่ยังไม่มีผลจริงกลับมาทุก 5 วิ - query
+        // ด้วย ExecutionStatus + CreatedAt ตรงๆ
+        modelBuilder.Entity<ClientCommand>()
+            .HasIndex(c => new { c.ExecutionStatus, c.CreatedAt });
+
         // Seed ค่าเริ่มต้นของ GlobalState ให้มี row เดียวเสมอ (Id = 1, เปิดใช้งานเป็นค่าเริ่มต้น)
         // สำคัญ: ต้องใช้ค่า DateTime แบบ fixed/static เท่านั้น ห้ามใช้ DateTime.UtcNow หรือ
         // Guid.NewGuid() ใน HasData() เด็ดขาด เพราะ EF Core จะมองว่า model "ไม่นิ่ง" แล้ว throw

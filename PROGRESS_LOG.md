@@ -247,3 +247,178 @@ Three layers total:
 - **Backward compatible on purpose:** a `Shutdown`/`Restart` command with a null
   payload (an older Console, or a row already sitting in `ClientCommands` from
   before this deploy) still behaves exactly as before at 10 s.
+
+---
+
+## Checkpoint 2 — 2026-08-17 19:45 — PART 2 COMPLETE (command ack/tracking backend)
+
+**Built:** YES — 0 errors, 23 warnings (unchanged from baseline).
+**Scope respected:** backend infrastructure only. No report UI in this part.
+
+### Chosen approach — and why it is the least invasive one
+
+**Kept the existing `int` command id.** No GUID introduced. `ClientCommand.Id`
+already exists, is already returned by `POST /api/commands/{clientGuid}`, and is
+already what the Agent dedups and acks with. The only gap was that
+`ApiClient.SendCommandAsync` threw the response body away — so the change is
+"stop discarding the id", not "invent an identifier".
+
+**Added execution status as new columns rather than extending
+`ClientCommandStatus`.** This was the key call. `GET /api/poll/{clientGuid}`
+selects `Status == Pending` — that enum *is* the redelivery switch. Overloading
+it with execution outcomes would silently entangle "did the action work" with
+"should we send this again", and any future status added for reporting would risk
+changing redelivery behaviour. So delivery and execution are now two independent
+axes on the same row:
+
+- `Status` / `DeliveredAt` — delivery. **Completely untouched semantics.**
+- `ExecutionStatus` / `ExecutionMessage` / `ExecutedAt` — execution result. New.
+
+Not one line of the existing poll or ack logic changed as a result.
+
+### Schema changes (migration `20260817115444_AddCommandExecutionTracking`)
+
+Additive only — 4 new nullable-or-defaulted columns on `ClientCommands`, 2 new
+indexes, no column altered or dropped:
+
+| Column | Type | Notes |
+|---|---|---|
+| `BatchId` | TEXT null | groups one Console click across N machines |
+| `ExecutionStatus` | INTEGER not null, default 0 | `CommandExecutionStatus`; 0 = Pending |
+| `ExecutionMessage` | TEXT null | error detail / note |
+| `ExecutedAt` | TEXT null | when the real result arrived |
+
+Indexes added: `IX_ClientCommands_BatchId` (the report window polls by batch) and
+`IX_ClientCommands_ExecutionStatus_CreatedAt` (the timeout sweeper's query).
+`db.Database.Migrate()` already runs at Server startup, so it self-applies.
+
+*Note on generating it:* the first `dotnet ef migrations add --no-build` produced
+an **empty** migration because it read a stale assembly. Caught it, deleted both
+files (the model snapshot was still untouched — verified against git), and
+regenerated with a real build. Worth knowing if this needs repeating.
+
+### Full status enum list (checkpoint requirement)
+
+**Delivery — `ClientCommandStatus`** (pre-existing, unchanged, values pinned
+because SQLite stores them as ints):
+`Pending = 0`, `Delivered = 1`, `Failed = 2`.
+
+**Execution — `CommandExecutionStatus`** (new):
+- `Pending = 0` — no result yet, still inside the timeout window.
+- `Succeeded = 1` — the Agent confirmed the action worked.
+- `Failed = 2` — the Agent confirmed it did *not* work; `ExecutionMessage` says why.
+- `TimedOut = 3` — nothing came back in time. **Deliberately distinct from
+  Failed**: Failed means the machine tried and could not; TimedOut means we have
+  no idea what happened (powered off? network? Agent dead?). For a teacher
+  standing in the room those call for completely different responses.
+
+### How the result travels back (SignalR + HTTP fallback, matching the existing pattern)
+
+- **SignalR:** new hub method `LabHub.ReportCommandResult(commandId, success, message)`.
+- **HTTP fallback:** new `POST /api/commands/{commandId}/result`, unauthenticated
+  to match the existing `/ack` and `/poll` endpoints.
+- Both funnel into one `CommandResultRecorder.RecordAsync` — the same
+  "one entry point for both transports" discipline `ProcessPendingCommandAsync`
+  already uses Agent-side.
+- `RecordAsync` is idempotent (a row that already has a real result is not
+  overwritten), with one deliberate exception: a **late real result may overwrite
+  `TimedOut`**, because genuine data from the machine beats our guess.
+
+### How Console gets status in real time (checkpoint requirement)
+
+Three layers, deliberately overlapping:
+
+1. **Push** — Server broadcasts `CommandResultChanged` to the existing `"console"`
+   SignalR group on every result *and* every timeout. `LabHubClient` exposes it
+   as a new `CommandResultChanged` event. No new connection or group needed.
+2. **Pull** — `GET /api/commands/batch/{batchId}` returns every command in a
+   batch with current status. Used to seed the report window (results can land
+   before the window subscribes) and as a poll fallback if the hub drops. This
+   mirrors DashboardWindow, which already polls alongside SignalR.
+3. **Server-side timeout sweeper** — `CommandResultTimeoutService`, a
+   `BackgroundService` on a 5 s `PeriodicTimer`, flips still-`Pending` commands
+   older than the configured timeout to `TimedOut` and pushes that too.
+
+**Timeout is configurable:** `CommandTracking:ResultTimeoutSeconds` in
+`appsettings.json`, default **30 s**, guarded against nonsense values (<= 0 falls
+back to the default with a warning — otherwise every command would time out the
+instant it was created).
+
+### Files created (Part 2)
+
+- `src/OnionProcOparetor.Server/Services/CommandResultTimeoutService.cs`
+- `src/OnionProcOparetor.Server/Migrations/20260817115444_AddCommandExecutionTracking.cs` (+ `.Designer.cs`)
+- `src/OnionProcOparetor.Agent/Models/CommandExecutionResult.cs`
+- `src/OnionProcOparetor.Agent/Services/CommandResultReporter.cs`
+- `src/OnionProcOparetor.Console/Models/CommandResultDto.cs`
+
+### Files modified (Part 2)
+
+- `src/OnionProcOparetor.Server/Models/ClientCommand.cs` — 4 new columns, new
+  `CommandExecutionStatus` enum.
+- `src/OnionProcOparetor.Server/Data/AppDbContext.cs` — 2 new indexes.
+- `src/OnionProcOparetor.Server/Hubs/LabHub.cs` — `ReportCommandResult` hub
+  method, `CommandResultRecorder`, `CommandResultDto`, `BroadcastCommandResult`.
+- `src/OnionProcOparetor.Server/Program.cs` — accepts `BatchId` on command
+  create; new `/result` and `/batch/{batchId}` endpoints; registers the timeout
+  service; new `CommandResultRequest` record.
+- `src/OnionProcOparetor.Server/Migrations/AppDbContextModelSnapshot.cs` (EF-generated)
+- `src/OnionProcOparetor.Server/appsettings.json` — `CommandTracking` section.
+- `src/OnionProcOparetor.Agent/Services/AgentTrayNotifier.cs` — all four `Send*`
+  methods now return `Task<bool>` instead of `Task`.
+- `src/OnionProcOparetor.Agent/Services/CommandProcessor.cs` — every handler now
+  returns `CommandExecutionResult`; results reported after the ack.
+- `src/OnionProcOparetor.Agent/Services/ServerClient.cs` — `ReportCommandResultAsync`.
+- `src/OnionProcOparetor.Agent/Services/LabHubConnection.cs` — registers the
+  SignalR sender into the reporter.
+- `src/OnionProcOparetor.Agent/Program.cs` — registers `CommandResultReporter`.
+- `src/OnionProcOparetor.Console/Services/ApiClient.cs` — `SendCommandTrackedAsync`,
+  `GetBatchStatusAsync`, `CreatedCommandDto`.
+- `src/OnionProcOparetor.Console/Services/LabHubClient.cs` — `CommandResultChanged`.
+
+### Unprompted decisions made in Part 2
+
+- **Execution result as new columns, not an extended `ClientCommandStatus`** —
+  full reasoning above. This is the central decision of Part 2.
+- **Circular DI broken with a settable delegate.** `LabHubConnection` already
+  injects `CommandProcessor`; having `CommandProcessor` inject `LabHubConnection`
+  back to send results would make the container throw at resolve time. Instead
+  `CommandResultReporter` (depends only on `ServerClient`) exposes a
+  `SignalRSender` property that `LabHubConnection` plugs itself into during
+  `StartAsync`. One seam, at the one place the cycle would otherwise close.
+- **`AgentTrayNotifier.Send*` changed from `Task` to `Task<bool>`.** Unavoidable:
+  the methods swallowed all failures and returned void, so nothing downstream
+  could ever know whether the action actually happened. Still fail-secure — it
+  returns `false` rather than throwing, so no caller's control flow changes.
+- **"Success" for Shutdown/Restart means "scheduled", not "powered off".**
+  Reporting an actual power-off is impossible by construction — the process
+  reporting it dies with the machine. The `ExecutionMessage` states the scheduled
+  delay explicitly so the teacher knows what was promised, and the Dashboard's
+  existing offline indicator is the real confirmation the machine went down.
+  **This is the one action whose Success has a weaker meaning than the others,
+  and it is inherent to the action, not a shortcut.**
+- **A power action whose tray warning failed still reports Success, with a
+  message saying the warning could not be shown.** The shutdown genuinely is
+  scheduled and genuinely will happen (fail-secure — the teacher's command must
+  not be cancelled just because nobody is logged in), so reporting Failed would
+  be a lie. But "nobody saw a warning" matters a lot when someone *is* at the
+  machine, so it is surfaced in the message rather than hidden.
+- **Unknown command types now report Failed** instead of only logging a warning.
+  A Console newer than the Agent should show up in the report, not vanish.
+- **Duplicate commands re-ack but do not re-report.** The dedup path already
+  proved the real result was reported on the first pass, and the recorder is
+  idempotent anyway.
+- **Every handler exception is converted to `Failed` + the exception message**
+  (`ExecuteAndCaptureResultAsync`). Letting it escape would produce a `TimedOut`
+  — the strictly less informative outcome — when we already know exactly what
+  went wrong.
+- **The timeout sweeper lives on the Server, not the Console.** The teacher may
+  close the report window or the whole Console; those commands still need a
+  terminal state, and two Consoles open at once must not disagree about what
+  timed out.
+- **Known one-time effect on first deploy:** existing `ClientCommands` rows get
+  `ExecutionStatus = 0 (Pending)` from the migration default, so the sweeper
+  marks them all `TimedOut` on first startup, with one warning log line each.
+  This is semantically correct (their real outcome is genuinely unknown) but
+  expect a short burst of warnings in `server.log` the first time. Not treated as
+  a bug; noted so nobody chases it.

@@ -60,6 +60,11 @@ builder.Services.AddSignalR();
 // ด้วยการ kill service ตรงผ่าน Task Manager/services.msc ----
 builder.Services.AddHostedService<MissingClientMonitorService>();
 
+// ---- Background scan หา command ที่ส่งไปแล้วแต่ Agent ไม่เคยรายงานผลจริงกลับมา แล้ว mark
+// เป็น TimedOut (ดู CommandResultTimeoutService) - ต้องอยู่ฝั่ง Server เพราะครูอาจปิดหน้า
+// report ไปแล้ว แต่ command ที่ค้างยังต้องถูกสรุปผลอยู่ดี ----
+builder.Services.AddHostedService<CommandResultTimeoutService>();
+
 // ---- รองรับ Windows Service host (ให้ publish เป็น service ได้ทีหลัง) ----
 builder.Host.UseWindowsService();
 
@@ -463,7 +468,11 @@ app.MapPost("/api/commands/{clientGuid}", async (string clientGuid, CommandReque
         CommandType = req.CommandType,
         PayloadJson = req.Payload,
         CreatedAt = DateTime.UtcNow,
-        Status = ClientCommandStatus.Pending
+        Status = ClientCommandStatus.Pending,
+        // BatchId ผูกคำสั่งทุกเครื่องที่ครูกดพร้อมกันครั้งเดียวไว้ด้วยกัน - Console สร้างค่านี้เอง
+        // แล้วส่งมาให้เหมือนกันทุก request ในชุดนั้น (null ได้ถ้ายิง API ตรงโดยไม่ผ่าน Console)
+        BatchId = string.IsNullOrWhiteSpace(req.BatchId) ? null : req.BatchId,
+        ExecutionStatus = CommandExecutionStatus.Pending
     };
     db.ClientCommands.Add(command);
     await db.SaveChangesAsync(); // ต้อง save ก่อนถึงจะได้ command.Id จริง (SQLite autoincrement) เอาไปส่งต่อให้ SignalR ได้
@@ -471,6 +480,41 @@ app.MapPost("/api/commands/{clientGuid}", async (string clientGuid, CommandReque
     await hub.Clients.SendCommandToAgent(clientGuid, command.Id, command.CommandType, command.PayloadJson);
 
     return Results.Created($"/api/commands/{command.Id}", command);
+});
+
+// Agent รายงาน "ผลจริง" ของ command กลับมาหลัง process เสร็จ - fallback ของ SignalR hub method
+// LabHub.ReportCommandResult (ใช้เมื่อ Agent ไม่ได้ connect SignalR อยู่) ทั้ง 2 ทางเรียก
+// CommandResultRecorder ตัวเดียวกัน ไม่ต้อง auth เหมือน /api/poll และ /api/commands/{id}/ack
+//
+// ต่างจาก /ack ตรงที่ /ack บอกแค่ "ได้รับแล้ว" (delivery) ส่วนอันนี้บอก "ทำได้จริงไหม" (execution)
+app.MapPost("/api/commands/{commandId:int}/result", async (
+    int commandId, CommandResultRequest req, AppDbContext db, IHubContext<LabHub> hub) =>
+{
+    var command = await CommandResultRecorder.RecordAsync(db, commandId, req.Success, req.Message);
+    if (command is null) return Results.NotFound();
+
+    await hub.Clients.BroadcastCommandResult(command);
+
+    return Results.Ok(CommandResultDto.From(command));
+});
+
+// Console ดึงสถานะทั้งชุดของ action ที่กดไปครั้งเดียว (หลายเครื่อง = หลาย command แต่ BatchId
+// เดียวกัน) - ใช้เป็น fallback ของ SignalR "CommandResultChanged" และใช้ตอนเปิดหน้า report
+// ครั้งแรกเพื่อดึงสถานะปัจจุบันทั้งหมดทีเดียว (บาง result อาจมาถึงก่อนหน้าต่างจะ subscribe ทัน)
+app.MapGet("/api/commands/batch/{batchId}", async (string batchId, HttpRequest request, AppDbContext db) =>
+{
+    var admin = await GetAuthorizedAdmin(request, db);
+    if (admin is null)
+        return Results.Unauthorized();
+    if (admin.HasDefaultPassword)
+        return Results.Json(new { error = "Password change required before continuing." }, statusCode: 403);
+
+    var commands = await db.ClientCommands
+        .Where(c => c.BatchId == batchId)
+        .OrderBy(c => c.Id)
+        .ToListAsync();
+
+    return Results.Ok(commands.Select(CommandResultDto.From).ToList());
 });
 
 // Agent เรียก ack กลับมาหลังได้รับ command แล้ว (ไม่ว่าจะรับผ่าน SignalR หรือเจอผ่าน poll fallback ก็ตาม)
@@ -698,5 +742,10 @@ app.Run();
 // ---- Request DTOs ----
 record CreateUserRequest(string Username, string Password);
 record ChangePasswordRequest(string NewPassword);
-record CommandRequest(string CommandType, string? Payload);
 record RuleOverrideRequest(bool IsEnabled);
+
+/// <summary>BatchId เป็น optional - Console เวอร์ชันเก่าที่ไม่ส่งมาก็ยังใช้งานได้ตามปกติ (เป็น null)</summary>
+record CommandRequest(string CommandType, string? Payload, string? BatchId = null);
+
+/// <summary>ผลจริงที่ Agent รายงานกลับมาหลัง process command เสร็จ</summary>
+record CommandResultRequest(bool Success, string? Message);

@@ -14,14 +14,37 @@ public class LabHubConnection : IAsyncDisposable
     private readonly ILogger<LabHubConnection> _logger;
     private readonly ServerSettings _settings;
     private readonly CommandProcessor _commandProcessor;
+    private readonly CommandResultReporter _resultReporter;
     private HubConnection? _connection;
     private string _clientGuid = string.Empty;
 
-    public LabHubConnection(ILogger<LabHubConnection> logger, IOptions<ServerSettings> settings, CommandProcessor commandProcessor)
+    public LabHubConnection(
+        ILogger<LabHubConnection> logger,
+        IOptions<ServerSettings> settings,
+        CommandProcessor commandProcessor,
+        CommandResultReporter resultReporter)
     {
         _logger = logger;
         _settings = settings.Value;
         _commandProcessor = commandProcessor;
+        _resultReporter = resultReporter;
+    }
+
+    /// <summary>
+    /// ส่ง "ผลจริง" ของ command กลับไปหา Server ผ่าน hub method ReportCommandResult
+    /// คืน false ถ้า connection ยังไม่พร้อม (ผู้เรียกจะ fallback ไป HTTP เอง) - ไม่ throw
+    /// ออกไปเอง แต่ปล่อยให้ exception จริงจาก InvokeAsync หลุดขึ้นไปให้ CommandResultReporter
+    /// log แล้ว fallback ต่อ (แยกให้ชัดระหว่าง "ไม่ได้ต่ออยู่" กับ "ต่ออยู่แต่ส่งพัง")
+    /// </summary>
+    private async Task<bool> TrySendCommandResultAsync(int commandId, bool success, string? message, CancellationToken ct)
+    {
+        if (_connection is null || _connection.State != HubConnectionState.Connected)
+        {
+            return false;
+        }
+
+        await _connection.InvokeAsync("ReportCommandResult", commandId, success, message, ct);
+        return true;
     }
 
     /// <summary>
@@ -37,6 +60,11 @@ public class LabHubConnection : IAsyncDisposable
             .WithUrl(hubUrl)
             .WithAutomaticReconnect(new ExponentialBackoffRetryPolicy())
             .Build();
+
+        // "เสียบ" ตัวส่งผลผ่าน SignalR ให้ CommandResultReporter ตรงนี้ แทนที่จะให้
+        // CommandProcessor inject LabHubConnection ตรงๆ (ซึ่งจะเป็น circular dependency
+        // เพราะ LabHubConnection inject CommandProcessor อยู่แล้ว) - ดู CommandResultReporter
+        _resultReporter.SignalRSender = TrySendCommandResultAsync;
 
         // path เดียวกับที่ใช้ตอนเจอ pendingCommands จาก poll (ProcessPendingCommandAsync มี dedup + ack
         // ในตัวอยู่แล้ว ผ่าน commandId) - ไม่ให้ logic แยกกันคนละที่ กันกรณี execute ซ้ำถ้า poll เห็น

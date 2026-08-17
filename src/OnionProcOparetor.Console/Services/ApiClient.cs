@@ -275,12 +275,73 @@ public class ApiClient
     /// payload ถูก serialize เป็น JSON string ก่อนส่ง เพราะ Server เก็บเป็น PayloadJson (string) ไม่ใช่ object ดิบ
     /// </summary>
     public async Task<bool> SendCommandAsync(string clientGuid, string commandType, object? payload)
+        => (await SendCommandTrackedAsync(clientGuid, commandType, payload, batchId: null)).CommandId is not null;
+
+    /// <summary>
+    /// เหมือน SendCommandAsync แต่ "เก็บ" commandId ที่ Server สร้างให้กลับมาด้วย (เดิมถูกทิ้งไป
+    /// ทั้งที่ Server คืนมาให้อยู่แล้วใน response body) - Console ใช้ id นี้ track ผลจริงของแต่ละ
+    /// เครื่องในหน้า report ได้
+    ///
+    /// batchId ผูกทุกเครื่องที่ครูกดพร้อมกันครั้งเดียวไว้เป็นชุดเดียว เพื่อดึงสถานะทั้งชุดทีเดียว
+    /// ผ่าน GET /api/commands/batch/{batchId}
+    ///
+    /// คืน CommandId = null ถ้าส่งไม่สำเร็จ พร้อม Error อธิบายสาเหตุ (เอาไปแสดงในหน้า report
+    /// ได้เลยว่าเครื่องนี้ "ส่งคำสั่งไม่ออก" ซึ่งต่างจาก "ส่งออกแล้วแต่เครื่องไม่ตอบ")
+    /// </summary>
+    public async Task<(int? CommandId, string? Error)> SendCommandTrackedAsync(
+        string clientGuid, string commandType, object? payload, string? batchId)
     {
-        var payloadJson = payload is null ? null : System.Text.Json.JsonSerializer.Serialize(payload);
-        var response = await _httpClient.PostAsJsonAsync(
-            $"/api/commands/{clientGuid}",
-            new { commandType, payload = payloadJson });
-        return response.IsSuccessStatusCode;
+        try
+        {
+            var payloadJson = payload is null ? null : System.Text.Json.JsonSerializer.Serialize(payload);
+            var response = await _httpClient.PostAsJsonAsync(
+                $"/api/commands/{clientGuid}",
+                new { commandType, payload = payloadJson, batchId });
+
+            if (!response.IsSuccessStatusCode)
+            {
+                return (null, $"Server ปฏิเสธคำสั่ง: {(int)response.StatusCode} {response.StatusCode}");
+            }
+
+            var created = await response.Content.ReadFromJsonAsync<CreatedCommandDto>();
+
+            if (created is null || created.Id <= 0)
+            {
+                // ส่งสำเร็จแต่ไม่ได้ id กลับมา (เช่น Server เวอร์ชันเก่า) - ยังถือว่าสั่งไปแล้ว
+                // แค่ track ผลไม่ได้ ผู้เรียกต้องรับมือกับ CommandId = null ให้ถูกต้อง
+                return (null, "ส่งคำสั่งสำเร็จ แต่ Server ไม่ได้คืน command id กลับมา (ติดตามผลไม่ได้)");
+            }
+
+            return (created.Id, null);
+        }
+        catch (HttpRequestException ex)
+        {
+            return (null, $"ต่อ server ไม่ได้: {ex.Message}");
+        }
+        catch (TaskCanceledException)
+        {
+            return (null, "หมดเวลาเชื่อมต่อ (timeout) ตอนส่งคำสั่ง");
+        }
+    }
+
+    /// <summary>
+    /// ดึงสถานะปัจจุบันของ command ทั้งชุด - ใช้ 2 กรณี: (1) ตอนเปิดหน้า report ครั้งแรกเพื่อ
+    /// sync สถานะที่อาจมาถึงก่อน subscribe ทัน (2) เป็น fallback poll ระหว่างที่หน้าเปิดอยู่
+    /// เผื่อ SignalR หลุด (pattern เดียวกับ DashboardWindow ที่ poll คู่กับ SignalR อยู่แล้ว)
+    /// </summary>
+    public async Task<List<CommandResultDto>> GetBatchStatusAsync(string batchId)
+    {
+        try
+        {
+            var result = await _httpClient.GetFromJsonAsync<List<CommandResultDto>>($"/api/commands/batch/{batchId}");
+            return result ?? new List<CommandResultDto>();
+        }
+        catch
+        {
+            // fail เงียบๆ โดยตั้งใจ - นี่เป็นแค่ fallback ของ SignalR ถ้าดึงไม่ได้รอบนี้
+            // รอบหน้า (อีก 2 วิ) ลองใหม่เอง ไม่ควรเด้ง error ใส่ครูระหว่างรอผล
+            return new List<CommandResultDto>();
+        }
     }
 
     public async Task<(bool Success, string Message)> ResetUserPasswordAsync(int userId, string newPassword)
@@ -320,4 +381,13 @@ public class ApiClient
 public class ErrorResponse
 {
     public string? Error { get; set; }
+}
+
+/// <summary>
+/// ส่วนที่ Console สนใจจาก response ของ POST /api/commands/{clientGuid} - Server คืน
+/// ClientCommand ทั้งก้อนมาให้อยู่แล้ว แต่ตรงนี้ต้องการแค่ Id ไปใช้ track ผลจริง
+/// </summary>
+public class CreatedCommandDto
+{
+    public int Id { get; set; }
 }

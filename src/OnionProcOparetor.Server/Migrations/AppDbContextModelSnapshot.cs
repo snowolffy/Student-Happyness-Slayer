@@ -88,6 +88,9 @@ namespace OnionProcOparetor.Server.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("INTEGER");
 
+                    b.Property<string>("BatchId")
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("ClientGuid")
                         .IsRequired()
                         .HasColumnType("TEXT");
@@ -102,6 +105,15 @@ namespace OnionProcOparetor.Server.Migrations
                     b.Property<DateTime?>("DeliveredAt")
                         .HasColumnType("TEXT");
 
+                    b.Property<DateTime?>("ExecutedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ExecutionMessage")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("ExecutionStatus")
+                        .HasColumnType("INTEGER");
+
                     b.Property<string>("PayloadJson")
                         .HasColumnType("TEXT");
 
@@ -110,7 +122,11 @@ namespace OnionProcOparetor.Server.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("BatchId");
+
                     b.HasIndex("ClientGuid", "Status");
+
+                    b.HasIndex("ExecutionStatus", "CreatedAt");
 
                     b.ToTable("ClientCommands");
                 });

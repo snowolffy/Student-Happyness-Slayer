@@ -27,6 +27,7 @@ public class CommandProcessor
     // LabHubConnection เองก็ต้องพึ่ง CommandProcessor อยู่แล้ว (รับ "ReceiveCommand" แล้วส่งต่อมาที่นี่)
     // - inject ตรงๆ ทั้งคู่จะเกิด circular DI dependency ที่ container resolve ไม่ได้ตอน startup
     private readonly IServiceProvider _serviceProvider;
+    private readonly CommandResultReporter _resultReporter;
 
     // เก็บ commandId ที่ process ไปแล้วล่าสุด กันประมวลผลซ้ำตอน network race
     // (เช่น SignalR ReceiveCommand กับ poll loop เห็น command เดียวกันเกือบพร้อมกัน หรือ ExecuteAsync
@@ -43,7 +44,8 @@ public class CommandProcessor
         AgentTrayNotifier agentTrayNotifier,
         ClientState clientState,
         VncSessionManager vncSessionManager,
-        IServiceProvider serviceProvider)
+        IServiceProvider serviceProvider,
+        CommandResultReporter resultReporter)
     {
         _logger = logger;
         _serverClient = serverClient;
@@ -51,6 +53,7 @@ public class CommandProcessor
         _clientState = clientState;
         _vncSessionManager = vncSessionManager;
         _serviceProvider = serviceProvider;
+        _resultReporter = resultReporter;
     }
 
     /// <summary>
@@ -63,29 +66,62 @@ public class CommandProcessor
     public async Task<bool> ProcessPendingCommandAsync(int commandId, string commandType, string? payloadJson, CancellationToken ct = default)
     {
         var isFirstTime = TryMarkAsProcessed(commandId);
+        CommandExecutionResult result;
 
         if (!isFirstTime)
         {
             _logger.LogDebug(
                 "Command {CommandId} ({CommandType}) ถูก process ไปแล้วก่อนหน้านี้ - ข้าม (กัน duplicate จาก SignalR/poll race)",
                 commandId, commandType);
+
+            // ของซ้ำ = เคยรายงานผลจริงไปแล้วรอบก่อน ฝั่ง Server ก็ไม่เขียนทับผลเดิมอยู่แล้ว
+            // (CommandResultRecorder เป็น idempotent) เลยไม่ต้องรายงานซ้ำ - แค่ ack ให้ครบ
+            result = CommandExecutionResult.Ok("ข้ามเพราะเป็น command ซ้ำ (รายงานผลไปแล้วก่อนหน้านี้)");
         }
         else
         {
-            await ProcessCommandAsync(commandType, payloadJson, ct);
+            result = await ExecuteAndCaptureResultAsync(commandId, commandType, payloadJson, ct);
         }
 
         // ack เสมอไม่ว่าจะเพิ่ง process จริงหรือข้ามเพราะซ้ำ - ฝั่ง server ทำ idempotent ไว้แล้ว เรียกซ้ำได้ปลอดภัย
+        // (ack = "ได้รับแล้ว" คนละเรื่องกับผลจริงด้านล่าง - ตัวนี้เท่านั้นที่หยุดไม่ให้ poll ส่ง command ซ้ำ)
         await _serverClient.AckCommandAsync(commandId, ct);
+
+        if (isFirstTime)
+        {
+            await _resultReporter.ReportAsync(commandId, result.Success, result.Message, ct);
+        }
 
         return isFirstTime;
     }
 
     /// <summary>
+    /// เรียก handler จริงแล้วดักทุก exception ให้กลายเป็นผลลัพธ์ Failed พร้อมข้อความ - สำคัญมาก
+    /// เพราะถ้าปล่อย exception หลุดออกไป Agent จะไม่ได้รายงานผลใดๆ กลับไปเลย แล้ว Server จะ
+    /// mark เป็น TimedOut ทั้งที่จริงๆ เรารู้สาเหตุที่ล้มเหลวอยู่แล้ว (ครูควรได้เห็นข้อความนั้น)
+    /// </summary>
+    private async Task<CommandExecutionResult> ExecuteAndCaptureResultAsync(
+        int commandId, string commandType, string? payloadJson, CancellationToken ct)
+    {
+        try
+        {
+            return await ProcessCommandAsync(commandType, payloadJson, ct);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex,
+                "ประมวลผล command {CommandId} ('{CommandType}') ล้มเหลวด้วย exception", commandId, commandType);
+
+            return CommandExecutionResult.Fail($"{ex.GetType().Name}: {ex.Message}");
+        }
+    }
+
+    /// <summary>
     /// ประมวลผล command จริง (ไม่ dedup ไม่ ack) - เรียกจาก ProcessPendingCommandAsync เท่านั้น
     /// (ทั้ง SignalR ReceiveCommand และ poll fallback เข้าทาง ProcessPendingCommandAsync เหมือนกันหมดแล้ว)
+    /// คืนผลจริงของ action เพื่อให้ผู้เรียกรายงานกลับ Server ได้
     /// </summary>
-    public Task ProcessCommandAsync(string commandType, string? payloadJson, CancellationToken ct = default)
+    public Task<CommandExecutionResult> ProcessCommandAsync(string commandType, string? payloadJson, CancellationToken ct = default)
     {
         switch (commandType)
         {
@@ -99,10 +135,10 @@ public class CommandProcessor
                 return HandleHideLockScreenAsync(ct);
 
             case "Shutdown":
-                return HandlePowerActionAsync(isRestart: false, payloadJson, ct);
+                return HandlePowerActionAsync(isRestart: false, payloadJson: payloadJson, ct);
 
             case "Restart":
-                return HandlePowerActionAsync(isRestart: true, payloadJson, ct);
+                return HandlePowerActionAsync(isRestart: true, payloadJson: payloadJson, ct);
 
             case "UpdateSettings":
                 return HandleUpdateSettingsAsync(payloadJson, ct);
@@ -121,22 +157,24 @@ public class CommandProcessor
                 _logger.LogWarning(
                     "ได้รับ command ชนิดที่ยังไม่รู้จัก: '{CommandType}' (payload: {Payload}) - ยังไม่ implement (Phase 3/4)",
                     commandType, payloadJson);
-                break;
-        }
 
-        return Task.CompletedTask;
+                // รายงานเป็น Failed ไม่ใช่ Ok - ครูสั่งอะไรบางอย่างไปแล้วเครื่องนี้ทำไม่ได้จริงๆ
+                // (เช่น Console เวอร์ชันใหม่กว่า Agent) ต้องเห็นในหน้า report ไม่ใช่เงียบหายไป
+                return Task.FromResult(CommandExecutionResult.Fail(
+                    $"Agent เวอร์ชันนี้ไม่รู้จัก command '{commandType}' (อาจต้องอัปเดต Agent ให้ตรงกับ Console)"));
+        }
     }
 
     /// <summary>
     /// ครูพิมพ์ข้อความจาก Console ส่งมาโชว์เป็น popup บนเครื่อง client - payload คาดว่าเป็น
     /// { "message": string, "title": string? } ส่งต่อให้ AgentTray แสดงผลจริง (ดู AgentTrayNotifier)
     /// </summary>
-    private async Task HandleBroadcastMessageAsync(string? payloadJson, CancellationToken ct)
+    private async Task<CommandExecutionResult> HandleBroadcastMessageAsync(string? payloadJson, CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(payloadJson))
         {
             _logger.LogWarning("BroadcastMessage command ไม่มี payload มาด้วย - ข้าม");
-            return;
+            return CommandExecutionResult.Fail("BroadcastMessage command ไม่มี payload มาด้วย");
         }
 
         BroadcastMessagePayload? payload;
@@ -148,18 +186,31 @@ public class CommandProcessor
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "แปลง payload ของ BroadcastMessage ไม่สำเร็จ: {Payload}", payloadJson);
-            return;
+            return CommandExecutionResult.Fail($"payload ของ BroadcastMessage ไม่ถูกต้อง: {ex.Message}");
         }
 
         if (payload is null || string.IsNullOrWhiteSpace(payload.Message))
         {
             _logger.LogWarning("BroadcastMessage payload ไม่มีข้อความ - ข้าม");
-            return;
+            return CommandExecutionResult.Fail("BroadcastMessage payload ไม่มีข้อความ");
         }
 
         _logger.LogInformation("ได้รับ BroadcastMessage: '{Message}' (title: {Title})", payload.Message, payload.Title);
-        await _agentTrayNotifier.SendBroadcastMessageAsync(payload, ct);
+
+        var sent = await _agentTrayNotifier.SendBroadcastMessageAsync(payload, ct);
+
+        return sent
+            ? CommandExecutionResult.Ok()
+            : CommandExecutionResult.Fail(TrayUnreachableMessage("แสดงข้อความ"));
     }
+
+    /// <summary>
+    /// ข้อความอธิบายกรณีที่ส่งให้ AgentTray ไม่สำเร็จ - รวมไว้ที่เดียวเพราะครูจะเห็นข้อความนี้
+    /// ในหน้า report บ่อยที่สุด (เป็นสาเหตุความล้มเหลวที่พบบ่อยที่สุดจริงๆ: เครื่องเปิดอยู่
+    /// Agent ทำงานปกติ แต่ไม่มีใคร login อยู่หน้าเครื่อง เลยไม่มี Tray ให้แสดงผล)
+    /// </summary>
+    private static string TrayUnreachableMessage(string whatFailed) =>
+        $"ติดต่อ AgentTray บนเครื่องนี้ไม่ได้ จึง{whatFailed}ไม่ได้ (อาจไม่มี user login อยู่หน้าเครื่อง หรือ Tray ถูกปิดไป)";
 
     /// <summary>
     /// สั่งแสดงหน้าจอล็อกเต็มจอ - ต้องส่งผ่าน AgentTray เสมอ (Agent เอง Session 0 ไม่มี desktop
@@ -167,31 +218,51 @@ public class CommandProcessor
     /// ไม่โชว์ให้ใครเห็น) หน้าจอล็อกนี้ปลดได้ทางเดียวคือ UnlockWorkstation command จาก Console เท่านั้น
     /// (ไม่ใช่แค่ LockWorkStation() ธรรมดาเหมือนกด Win+L ที่ user ปลดเองด้วย password ตัวเองได้)
     /// </summary>
-    private async Task HandleShowLockScreenAsync(CancellationToken ct)
+    private async Task<CommandExecutionResult> HandleShowLockScreenAsync(CancellationToken ct)
     {
         _logger.LogInformation("ได้รับ LockWorkstation command - ส่งต่อให้ AgentTray แสดงหน้าจอล็อกเต็มจอ");
-        await _agentTrayNotifier.SendShowLockScreenAsync(ct);
+
+        var sent = await _agentTrayNotifier.SendShowLockScreenAsync(ct);
+
+        return sent
+            ? CommandExecutionResult.Ok()
+            : CommandExecutionResult.Fail(TrayUnreachableMessage("ล็อกหน้าจอ"));
     }
 
     /// <summary>สั่งปิดหน้าจอล็อก - ครูกดปลดจาก Console เท่านั้น (ไม่มี local password/timeout ฝั่ง client)</summary>
-    private async Task HandleHideLockScreenAsync(CancellationToken ct)
+    private async Task<CommandExecutionResult> HandleHideLockScreenAsync(CancellationToken ct)
     {
         _logger.LogInformation("ได้รับ UnlockWorkstation command - ส่งต่อให้ AgentTray ปิดหน้าจอล็อก");
-        await _agentTrayNotifier.SendHideLockScreenAsync(ct);
+
+        var sent = await _agentTrayNotifier.SendHideLockScreenAsync(ct);
+
+        return sent
+            ? CommandExecutionResult.Ok()
+            : CommandExecutionResult.Fail(TrayUnreachableMessage("ปลดล็อกหน้าจอ"));
     }
 
     /// <summary>ครูกด "BLOCK STUDENT INPUT" ระหว่าง full-screen VNC - ส่งต่อให้ AgentTray ติดตั้ง input hook จริง (ดู PhysicalInputBlocker)</summary>
-    private async Task HandleBlockTargetInputAsync(CancellationToken ct)
+    private async Task<CommandExecutionResult> HandleBlockTargetInputAsync(CancellationToken ct)
     {
         _logger.LogInformation("ได้รับ BlockTargetInput command - ส่งต่อให้ AgentTray บล็อก physical input");
-        await _agentTrayNotifier.SendBlockTargetInputAsync(ct);
+
+        var sent = await _agentTrayNotifier.SendBlockTargetInputAsync(ct);
+
+        return sent
+            ? CommandExecutionResult.Ok()
+            : CommandExecutionResult.Fail(TrayUnreachableMessage("บล็อก physical input"));
     }
 
     /// <summary>ครูกด "UNBLOCK STUDENT INPUT" หรือออกจาก full-screen - ส่งต่อให้ AgentTray คืนสิทธิ์ physical input</summary>
-    private async Task HandleUnblockTargetInputAsync(CancellationToken ct)
+    private async Task<CommandExecutionResult> HandleUnblockTargetInputAsync(CancellationToken ct)
     {
         _logger.LogInformation("ได้รับ UnblockTargetInput command - ส่งต่อให้ AgentTray คืนสิทธิ์ physical input");
-        await _agentTrayNotifier.SendUnblockTargetInputAsync(ct);
+
+        var sent = await _agentTrayNotifier.SendUnblockTargetInputAsync(ct);
+
+        return sent
+            ? CommandExecutionResult.Ok()
+            : CommandExecutionResult.Fail(TrayUnreachableMessage("คืนสิทธิ์ physical input"));
     }
 
     /// <summary>
@@ -201,12 +272,12 @@ public class CommandProcessor
     /// Console ผ่าน endpoint เดิมอยู่แล้วเสมอ (เป็น poll safety-net เผื่อเครื่องนี้ไม่ได้ connect
     /// SignalR อยู่ตอนที่ครูกดส่ง - จะเห็นค่าใหม่ตอน poll รอบถัดไปเหมือนเดิม)
     /// </summary>
-    private Task HandleUpdateSettingsAsync(string? payloadJson, CancellationToken ct)
+    private Task<CommandExecutionResult> HandleUpdateSettingsAsync(string? payloadJson, CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(payloadJson))
         {
             _logger.LogWarning("UpdateSettings command ไม่มี payload มาด้วย - ข้าม");
-            return Task.CompletedTask;
+            return Task.FromResult(CommandExecutionResult.Fail("UpdateSettings command ไม่มี payload มาด้วย"));
         }
 
         UpdateSettingsPayload? payload;
@@ -218,12 +289,12 @@ public class CommandProcessor
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "แปลง payload ของ UpdateSettings ไม่สำเร็จ: {Payload}", payloadJson);
-            return Task.CompletedTask;
+            return Task.FromResult(CommandExecutionResult.Fail($"payload ของ UpdateSettings ไม่ถูกต้อง: {ex.Message}"));
         }
 
         if (payload is null)
         {
-            return Task.CompletedTask;
+            return Task.FromResult(CommandExecutionResult.Fail("payload ของ UpdateSettings ว่างเปล่า"));
         }
 
         _logger.LogInformation(
@@ -231,7 +302,7 @@ public class CommandProcessor
             payload.PollIntervalOverrideSeconds);
         _clientState.SetPollIntervalOverride(payload.PollIntervalOverrideSeconds);
 
-        return Task.CompletedTask;
+        return Task.FromResult(CommandExecutionResult.Ok());
     }
 
     /// <summary>
@@ -242,12 +313,12 @@ public class CommandProcessor
     /// ซึ่งใช้เวลา ถ้า pipe ส่งไม่ถึง AgentTray เลย (เช่นไม่มี user login อยู่หน้าเครื่อง) ค่อย fail ทันที
     /// ตรงนี้เพราะรู้อยู่แล้วว่าไม่มีทางสำเร็จแน่นอน ไม่ต้องรอ callback ที่ไม่มีวันมา
     /// </summary>
-    private async Task HandleStartVncSessionAsync(string? payloadJson, CancellationToken ct)
+    private async Task<CommandExecutionResult> HandleStartVncSessionAsync(string? payloadJson, CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(payloadJson))
         {
             _logger.LogWarning("StartVncSession command ไม่มี payload มาด้วย (ต้องมี RequestingConsoleSessionId) - ข้าม");
-            return;
+            return CommandExecutionResult.Fail("StartVncSession command ไม่มี payload มาด้วย");
         }
 
         StartVncSessionPayload? payload;
@@ -259,13 +330,13 @@ public class CommandProcessor
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "แปลง payload ของ StartVncSession ไม่สำเร็จ: {Payload}", payloadJson);
-            return;
+            return CommandExecutionResult.Fail($"payload ของ StartVncSession ไม่ถูกต้อง: {ex.Message}");
         }
 
         if (payload is null || string.IsNullOrWhiteSpace(payload.RequestingConsoleSessionId))
         {
             _logger.LogWarning("StartVncSession payload ไม่มี RequestingConsoleSessionId - ข้าม (ไม่รู้จะตอบกลับใคร)");
-            return;
+            return CommandExecutionResult.Fail("StartVncSession payload ไม่มี RequestingConsoleSessionId");
         }
 
         _logger.LogInformation("ได้รับ StartVncSession command จาก Console session {SessionId} - กำลังสั่ง AgentTray ให้ start winvnc.exe", payload.RequestingConsoleSessionId);
@@ -276,7 +347,13 @@ public class CommandProcessor
             var labHubConnection = _serviceProvider.GetRequiredService<LabHubConnection>();
             _logger.LogWarning("StartVncSession: ส่งคำสั่งให้ AgentTray ไม่สำเร็จ (อาจไม่มี user login อยู่หน้าเครื่อง) - แจ้งกลับ Console session {SessionId} ทันที", payload.RequestingConsoleSessionId);
             await labHubConnection.NotifyVncSessionFailedAsync(payload.RequestingConsoleSessionId, "ไม่สามารถเปิด VNC ได้ - ไม่มี user login อยู่หน้าเครื่องนี้ (ต้องมีคน login ถึงจะเปิด VNC ได้)", ct);
+            return CommandExecutionResult.Fail(TrayUnreachableMessage("เปิด VNC session"));
         }
+
+        // ผลจริงของ VNC (สำเร็จ/ไม่สำเร็จ) มาทาง flow คู่ขนาน HandleVncSessionResultAsync แยกต่างหาก
+        // (รอ AgentTray start process จริง ซึ่งช้ากว่า command processing ปกติมาก - ดู doc comment ด้านบน)
+        // Ok ตรงนี้แปลว่า "ส่งคำสั่งถึง AgentTray แล้ว" เท่านั้น เหมือน pattern ของ HandlePowerActionAsync
+        return CommandExecutionResult.Ok("ส่งคำสั่งเปิด VNC session ให้ AgentTray แล้ว (รอผลจริงแยกต่างหาก ผ่าน SignalR VncSession ready/failed)");
     }
 
     /// <summary>
@@ -315,7 +392,7 @@ public class CommandProcessor
     /// เวลาหน่วงมาจาก payload { "delaySeconds": int } ที่ Console ส่งมา (validate ซ้ำที่นี่เสมอ)
     /// ถ้าไม่มี payload มาด้วย (Console เวอร์ชันเก่า / command เก่าค้างใน DB) ใช้ 10 วิเท่าเดิม
     /// </summary>
-    private async Task HandlePowerActionAsync(bool isRestart, string? payloadJson, CancellationToken ct)
+    private async Task<CommandExecutionResult> HandlePowerActionAsync(bool isRestart, string? payloadJson, CancellationToken ct)
     {
         var actionName = isRestart ? "Restart" : "Shutdown";
         var delaySeconds = ResolvePowerActionDelaySeconds(payloadJson, actionName);
@@ -323,10 +400,24 @@ public class CommandProcessor
         _logger.LogInformation("ได้รับ {Action} command - เตือน user ก่อน {DelaySeconds} วินาที", actionName, delaySeconds);
 
         // ส่งให้ Tray "ก่อน" แล้วค่อยเริ่มจับเวลาจริง - ดู DelayThenExitWindowsAsync เรื่อง drift
-        await _agentTrayNotifier.SendShutdownNotifyAsync(isRestart, delaySeconds, ct);
+        var notifyShown = await _agentTrayNotifier.SendShutdownNotifyAsync(isRestart, delaySeconds, ct);
 
         // fire-and-forget โดยตั้งใจ - ไม่ await ตรงนี้ กัน command อื่นที่มาระหว่างรอถูก block
         _ = DelayThenExitWindowsAsync(isRestart, delaySeconds, ct);
+
+        // **ความหมายของ Success สำหรับ Shutdown/Restart โดยเฉพาะ:** = "รับคำสั่งและตั้งเวลาดับ
+        // เรียบร้อยแล้ว" ไม่ใช่ "เครื่องดับไปแล้วจริง" - รายงานว่าดับสำเร็จจริงเป็นไปไม่ได้ตาม
+        // ธรรมชาติของ action นี้ เพราะตอนที่เครื่องดับ process นี้ก็ตายไปพร้อมกัน ไม่มีใครเหลือ
+        // ให้รายงานอะไรกลับไปได้อีก (ครูดูจากสถานะ offline ของเครื่องใน Dashboard แทน)
+        //
+        // ยังคงส่งคำสั่งดับต่อแม้ Tray จะติดต่อไม่ได้ (fail-secure ตามดีไซน์เดิม - คำสั่งของครู
+        // ต้องมีผลเสมอ ไม่ใช่ถูกยกเลิกเพราะไม่มีใคร login อยู่) แต่บอกครูให้รู้ว่าคำเตือนไม่ได้
+        // ถูกแสดงให้ user เห็น ซึ่งเป็นข้อมูลที่ต่างกันมากเวลามีคนนั่งใช้เครื่องอยู่
+        return notifyShown
+            ? CommandExecutionResult.Ok($"ตั้งเวลา{actionName}ใน {delaySeconds} วินาที และแสดงคำเตือนให้ user แล้ว")
+            : CommandExecutionResult.Ok(
+                $"ตั้งเวลา{actionName}ใน {delaySeconds} วินาทีแล้ว แต่แสดงคำเตือนบนหน้าจอไม่ได้ " +
+                "(ติดต่อ AgentTray ไม่ได้ - อาจไม่มี user login อยู่หน้าเครื่อง)");
     }
 
     /// <summary>

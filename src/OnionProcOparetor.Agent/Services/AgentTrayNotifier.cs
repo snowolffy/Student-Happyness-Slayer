@@ -34,7 +34,7 @@ public class AgentTrayNotifier
         _logger = logger;
     }
 
-    public Task SendBroadcastMessageAsync(BroadcastMessagePayload payload, CancellationToken ct)
+    public Task<bool> SendBroadcastMessageAsync(BroadcastMessagePayload payload, CancellationToken ct)
     {
         var envelope = new AgentTrayPipeMessage
         {
@@ -50,14 +50,14 @@ public class AgentTrayNotifier
     /// สั่งให้ AgentTray แสดงหน้าจอล็อกเต็มจอ (LockScreenWindow) - ต้องส่งผ่าน AgentTray เสมอ เพราะ
     /// Session 0 (Agent) ไม่มี desktop ให้แสดง window ได้เลย
     /// </summary>
-    public Task SendShowLockScreenAsync(CancellationToken ct)
+    public Task<bool> SendShowLockScreenAsync(CancellationToken ct)
     {
         var envelope = new AgentTrayPipeMessage { Type = "ShowLockScreen" };
         return SendAsync(envelope, "ShowLockScreen", ct);
     }
 
     /// <summary>สั่งให้ AgentTray ปิดหน้าจอล็อก - ทางเดียวที่ปลดล็อกเครื่องได้ตามดีไซน์ (ครูกดจาก Console เท่านั้น)</summary>
-    public Task SendHideLockScreenAsync(CancellationToken ct)
+    public Task<bool> SendHideLockScreenAsync(CancellationToken ct)
     {
         var envelope = new AgentTrayPipeMessage { Type = "HideLockScreen" };
         return SendAsync(envelope, "HideLockScreen", ct);
@@ -124,31 +124,45 @@ public class AgentTrayNotifier
         return SendAsync(envelope, $"ShowShutdownNotify ({action}, {delaySeconds} วิ)", ct);
     }
 
+    /// <summary>
+    /// คืน true ถ้าส่งถึง AgentTray สำเร็จจริง, false ถ้าไม่สำเร็จ (ยังคง fail-secure เหมือนเดิม -
+    /// ไม่ throw ออกไป เพื่อไม่ให้ command processing ทั้งสายพัง) ผู้เรียกใช้ค่านี้ไปรายงาน
+    /// "ผลจริง" กลับ Server ได้ (ดู CommandProcessor) - เดิม method นี้คืน void เลยไม่มีใคร
+    /// รู้เลยว่า action ที่สั่งไปทำได้จริงหรือเปล่า
+    /// </summary>
     private async Task<bool> SendAsync(AgentTrayPipeMessage envelope, string logContext, CancellationToken ct)
     {
         try
         {
-            using var client = new NamedPipeClientStream(".", PipeName, PipeDirection.Out, PipeOptions.Asynchronous);
-
-            // timeout สั้นๆ พอ - ถ้า Tray ไม่ได้รันอยู่ (ไม่มี user login) ต้อง fail เร็ว ไม่ค้าง command processing
-            using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
-            timeoutCts.CancelAfter(TimeSpan.FromSeconds(3));
-            await client.ConnectAsync(timeoutCts.Token);
-
-            var json = JsonSerializer.Serialize(envelope);
-            var bytes = Encoding.UTF8.GetBytes(json + "\n");
-            await client.WriteAsync(bytes, ct);
-            await client.FlushAsync(ct);
-
+            await SendOnceAsync(envelope, ct);
             _logger.LogInformation("ส่ง {LogContext} ให้ AgentTray สำเร็จ", logContext);
             return true;
         }
         catch (Exception ex)
         {
             _logger.LogWarning(ex,
-                "ส่ง {LogContext} ให้ AgentTray ไม่สำเร็จ (Tray อาจไม่ได้รันอยู่ - เช่นไม่มี user login อยู่หน้าเครื่อง) - ข้ามไป",
+                "ส่ง {LogContext} ให้ AgentTray ไม่สำเร็จ (Tray อาจไม่ได้รันอยู่ - เช่นไม่มี user login อยู่หน้าเครื่อง)",
                 logContext);
             return false;
         }
     }
+
+    /// <summary>ส่งจริงครั้งเดียว - throw ถ้าไม่สำเร็จ (ผู้เรียกเป็นคนจัดการ)</summary>
+    private static async Task SendOnceAsync(AgentTrayPipeMessage envelope, CancellationToken ct)
+    {
+        using var client = new NamedPipeClientStream(".", PipeName, PipeDirection.Out, PipeOptions.Asynchronous);
+
+        // timeout สั้นๆ พอ - ถ้า Tray ไม่ได้รันอยู่ (ไม่มี user login) ต้อง fail เร็ว ไม่ค้าง command processing
+        using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        timeoutCts.CancelAfter(ConnectTimeout);
+        await client.ConnectAsync(timeoutCts.Token);
+
+        var json = JsonSerializer.Serialize(envelope);
+        var bytes = Encoding.UTF8.GetBytes(json + "\n");
+        await client.WriteAsync(bytes, ct);
+        await client.FlushAsync(ct);
+    }
+
+    /// <summary>เวลารอต่อ pipe สูงสุดต่อ 1 ครั้ง - สั้นพอที่จะไม่ค้าง command processing นาน</summary>
+    private static readonly TimeSpan ConnectTimeout = TimeSpan.FromSeconds(3);
 }

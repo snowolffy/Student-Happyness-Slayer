@@ -66,4 +66,32 @@ public class ServerClient
             _logger.LogWarning(ex, "Ack command {CommandId} ไม่สำเร็จ (จะเจอ command นี้ซ้ำในรอบ poll ถัดไป)", commandId);
         }
     }
+
+    /// <summary>
+    /// รายงาน "ผลจริง" ของ command กลับไปหา Server (ทาง HTTP) - fallback ของ SignalR hub method
+    /// "ReportCommandResult" ใช้เมื่อ Agent ไม่ได้ connect SignalR อยู่ (ดู CommandResultReporter)
+    ///
+    /// ต่างจาก AckCommandAsync: ack บอกแค่ "ได้รับแล้ว" อันนี้บอก "ทำได้จริงไหม"
+    /// ไม่ throw ถ้า fail - Server จะ mark เป็น TimedOut ให้เองหลังครบเวลา ซึ่งถูกต้องแล้ว
+    /// สำหรับกรณีที่เครื่องนี้ติดต่อ server ไม่ได้จริงๆ
+    /// </summary>
+    public async Task ReportCommandResultAsync(int commandId, bool success, string? message, CancellationToken ct)
+    {
+        try
+        {
+            await _httpClient.PostAsJsonAsync(
+                $"/api/commands/{commandId}/result",
+                new { success, message },
+                ct);
+
+            _logger.LogInformation(
+                "รายงานผลจริงของ command {CommandId} ผ่าน HTTP สำเร็จ (success: {Success})", commandId, success);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex,
+                "รายงานผลจริงของ command {CommandId} ไม่สำเร็จทั้ง SignalR และ HTTP - Server จะ mark เป็น TimedOut ให้เองหลังครบเวลา",
+                commandId);
+        }
+    }
 }
