@@ -19,8 +19,11 @@ namespace OnionProcOparetor.Agent.Services;
 /// Protocol: ส่ง JSON บรรทัดเดียวเป็น envelope { Type, Message?, Title? } - Type บอกว่า
 /// AgentTray ควรทำอะไร (ดู AgentTrayPipeMessage) ออกแบบให้ขยาย Type ใหม่ๆ ต่อได้ง่าย
 ///
-/// fail-secure: ถ้า AgentTray ไม่ได้รันอยู่ (เช่นไม่มี user login อยู่หน้าเครื่อง) จะไม่ throw
-/// ออกไป แค่ log warning แล้วปล่อยผ่าน - command ยัง ack กลับ server ตามปกติ ไม่ retry ส่งซ้ำ
+/// fail-secure: ถ้าส่งไม่สำเร็จจะไม่ throw ออกไปเด็ดขาด - command ยัง ack กลับ server ตามปกติ
+///
+/// มี safety net ในตัว: ถ้าส่งไม่สำเร็จครั้งแรก จะพยายามสตาร์ท AgentTray ขึ้นมาใหม่ใน user
+/// session ที่ active อยู่ (ดู AgentTrayRecoveryService) แล้วลองส่งซ้ำ "อีกครั้งเดียว" -
+/// ครอบคลุมทั้งเคสที่ Tray ถูก kill ทิ้งกลางคัน และเคสที่ไม่เคยมี Tray รันอยู่เลยตั้งแต่แรก
 /// </summary>
 public class AgentTrayNotifier
 {
@@ -28,10 +31,12 @@ public class AgentTrayNotifier
     public const string PipeName = "OnionProcOparetor.AgentTray.Broadcast";
 
     private readonly ILogger<AgentTrayNotifier> _logger;
+    private readonly AgentTrayRecoveryService _recoveryService;
 
-    public AgentTrayNotifier(ILogger<AgentTrayNotifier> logger)
+    public AgentTrayNotifier(ILogger<AgentTrayNotifier> logger, AgentTrayRecoveryService recoveryService)
     {
         _logger = logger;
+        _recoveryService = recoveryService;
     }
 
     public Task<bool> SendBroadcastMessageAsync(BroadcastMessagePayload payload, CancellationToken ct)
@@ -138,10 +143,61 @@ public class AgentTrayNotifier
             _logger.LogInformation("ส่ง {LogContext} ให้ AgentTray สำเร็จ", logContext);
             return true;
         }
-        catch (Exception ex)
+        catch (Exception firstAttemptError)
         {
-            _logger.LogWarning(ex,
-                "ส่ง {LogContext} ให้ AgentTray ไม่สำเร็จ (Tray อาจไม่ได้รันอยู่ - เช่นไม่มี user login อยู่หน้าเครื่อง)",
+            _logger.LogWarning(firstAttemptError,
+                "ส่ง {LogContext} ให้ AgentTray ไม่สำเร็จในครั้งแรก - จะลอง auto-recover (สตาร์ท AgentTray ใหม่) แล้วส่งซ้ำอีกครั้งเดียว",
+                logContext);
+
+            return await TryRecoverThenRetryAsync(envelope, logContext, ct);
+        }
+    }
+
+    /// <summary>
+    /// safety net: สตาร์ท AgentTray ใหม่ใน user session แล้วลองส่งซ้ำ "ครั้งเดียว"
+    /// ถ้ายังไม่สำเร็จอีก log error แล้วปล่อยผ่าน (คืน false) - ไม่ throw ตามหลัก fail-secure เดิม
+    ///
+    /// จำกัดที่ retry ครั้งเดียวโดยตั้งใจ: ทั้ง flow นี้ถูกเรียกจาก CommandProcessor ซึ่งมี
+    /// command อื่นรอคิวอยู่ ยิ่ง retry มากยิ่งหน่วงทั้งสาย - ถ้าสตาร์ทใหม่แล้วยังส่งไม่ได้
+    /// แปลว่าปัญหาไม่ใช่แค่ "Tray ไม่ได้รันอยู่" การลองซ้ำอีกก็ไม่ช่วยอะไร
+    ///
+    /// เวลารวมสูงสุดต่อ 1 command ที่ Tray ตายอยู่: 3 วิ (connect ครั้งแรก timeout)
+    /// + ~0.2 วิ (สตาร์ท process) + 2.5 วิ (รอ Tray เปิด pipe) + 3 วิ (connect ครั้งที่ 2 timeout)
+    /// ≈ 8.7 วิ ในกรณีแย่ที่สุด - และเฉพาะตอนที่ recover ไม่ติด cooldown เท่านั้น
+    /// ถ้าติด cooldown จะเหลือแค่ 3 วิเท่าพฤติกรรมเดิม
+    /// </summary>
+    private async Task<bool> TryRecoverThenRetryAsync(AgentTrayPipeMessage envelope, string logContext, CancellationToken ct)
+    {
+        bool recovered;
+        try
+        {
+            recovered = await _recoveryService.TryRecoverAsync(ct);
+        }
+        catch (Exception recoveryError)
+        {
+            _logger.LogError(recoveryError, "AgentTray auto-recover ล้มเหลวด้วย exception ที่ไม่คาดคิด - ข้าม {LogContext} ไป", logContext);
+            return false;
+        }
+
+        if (!recovered)
+        {
+            _logger.LogError(
+                "ส่ง {LogContext} ให้ AgentTray ไม่สำเร็จ และ auto-recover ก็ไม่สำเร็จ - ข้ามไป (fail-secure: command ยัง ack กลับ server ตามปกติ)",
+                logContext);
+            return false;
+        }
+
+        try
+        {
+            await SendOnceAsync(envelope, ct);
+            _logger.LogInformation(
+                "AgentTray auto-recover สำเร็จ: ส่ง {LogContext} ได้แล้วหลังสตาร์ท AgentTray ใหม่", logContext);
+            return true;
+        }
+        catch (Exception retryError)
+        {
+            _logger.LogError(retryError,
+                "AgentTray auto-recover: สตาร์ท AgentTray ใหม่สำเร็จแล้วแต่ยังส่ง {LogContext} ไม่ได้อยู่ดี - ข้ามไป (ไม่ retry ต่อ)",
                 logContext);
             return false;
         }

@@ -16,6 +16,11 @@ public partial class StatusWindow : Window
     {
         InitializeComponent();
         _apiClient = apiClient;
+
+        // กากบาท = ซ่อน ไม่ใช่ปิด + ไม่โผล่บน taskbar (ดู HideOnCloseWindowBehavior)
+        // เปิดกลับมาได้จาก tray icon เสมอ และไม่ต้อง login ใหม่ทุกครั้งที่กดกากบาท
+        this.EnableHideOnClose();
+
         Loaded += async (_, _) => await RefreshDataAsync();
     }
 
@@ -84,6 +89,26 @@ public partial class StatusWindow : Window
 
     private void OpenTerminalButton_Click(object sender, RoutedEventArgs e)
     {
+        // ใช้หน้าต่างเดิมถ้ามีอยู่แล้ว - ตอนนี้กากบาทของ LogTerminalWindow = ซ่อน ไม่ใช่ปิด
+        // ถ้ายัง new ใหม่ทุกครั้งเหมือนเดิม การกดปุ่มนี้ซ้ำๆ จะสะสมหน้าต่างที่ซ่อนอยู่ไปเรื่อยๆ
+        var existing = Application.Current.Windows.OfType<LogTerminalWindow>().FirstOrDefault();
+
+        if (existing is not null)
+        {
+            if (!existing.IsVisible)
+            {
+                existing.Show();
+            }
+
+            if (existing.WindowState == WindowState.Minimized)
+            {
+                existing.WindowState = WindowState.Normal;
+            }
+
+            existing.Activate();
+            return;
+        }
+
         var terminalWindow = new LogTerminalWindow(_apiClient);
         terminalWindow.Show();
     }

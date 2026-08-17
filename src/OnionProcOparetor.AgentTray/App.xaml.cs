@@ -16,6 +16,7 @@ public partial class App : System.Windows.Application
     private readonly CancellationTokenSource _broadcastListenerCts = new();
     private readonly VncProcessManager _vncProcessManager = new();
     private readonly PhysicalInputBlocker _physicalInputBlocker = new();
+    private readonly SingleInstanceGuard _singleInstanceGuard = new();
 
     // instance ต่อจอ (System.Windows.Forms.Screen.AllScreens) - เฉพาะตัวแรก (index 0) เท่านั้นที่ติดตั้ง
     // keyboard/mouse hook + Agent watchdog จริง (ดู LockScreenWindow doc comment) รายการนี้ว่างเปล่า =
@@ -26,6 +27,17 @@ public partial class App : System.Windows.Application
     protected override void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
+
+        // กันรันซ้อนกันหลาย instance ใน session เดียวกัน - จำเป็นเพราะ Agent จะสตาร์ท Tray ใหม่
+        // อัตโนมัติทุกครั้งที่ส่ง pipe ไม่สำเร็จ ซึ่งบางครั้ง Tray ก็ยังรันอยู่ดีๆ อยู่แล้ว
+        // (ดู SingleInstanceGuard) - ต้องเช็คก่อนทำอย่างอื่นทั้งหมด
+        if (!_singleInstanceGuard.TryAcquire())
+        {
+            // ปิดเงียบๆ ไม่เด้ง MessageBox - instance นี้ถูกสตาร์ทโดยอัตโนมัติจาก Agent
+            // ไม่ใช่ user กดเอง การเด้ง dialog จะกวนคนที่กำลังใช้เครื่องอยู่โดยไม่จำเป็น
+            Shutdown();
+            return;
+        }
 
         // ตั้งค่า auto-start ผ่าน Registry Run key (HKCU) ให้อัตโนมัติทุกครั้งที่ Tray เริ่มทำงาน
         // ทำงานแบบ idempotent - เรียกซ้ำได้ไม่มีผลข้างเคียง ถ้าตั้งไว้แล้วและ path ไม่เปลี่ยนจะไม่เขียนซ้ำ
@@ -69,7 +81,7 @@ public partial class App : System.Windows.Application
             contextMenu.Items.Add(new System.Windows.Controls.Separator());
 
             var exitMenuItem = new System.Windows.Controls.MenuItem { Header = "Exit Tray" };
-            exitMenuItem.Click += (_, _) => Shutdown();
+            exitMenuItem.Click += (_, _) => ConfirmThenExit();
             contextMenu.Items.Add(exitMenuItem);
 
             _trayIcon.ContextMenu = contextMenu;
@@ -84,20 +96,93 @@ public partial class App : System.Windows.Application
         }
     }
 
+    /// <summary>
+    /// "Exit Tray" ต้องยืนยันก่อนเสมอ - เดิมกดปุ่มเดียวปิดทันทีโดยไม่มีคำเตือนใดๆ ทั้งที่มันอยู่
+    /// ติดกับ "Open Status..." ในเมนูเดียวกัน กดพลาดง่ายมาก และผลของการกดพลาดคือความสามารถ
+    /// ควบคุมเครื่องนี้จากฝั่งครูตายไปทั้งหมดแบบเงียบๆ (lock/shutdown warning/broadcast ใช้ไม่ได้เลย)
+    ///
+    /// ยังปิดโปรแกรมได้อยู่ตามโจทย์ (ไม่ได้ตัดความสามารถทิ้ง) แค่ไม่ใช่ปุ่มกดพลาดอีกต่อไป -
+    /// dialog บอกผลที่จะตามมาชัดเจน และ default เป็น "No" (กด Enter/Esc = ไม่ปิด)
+    /// </summary>
+    private void ConfirmThenExit()
+    {
+        var confirmed = MessageBox.Show(
+            "ต้องการปิด Onion ProcOparetor Tray ใช่หรือไม่?\n\n" +
+            "ถ้าปิด ผู้ดูแลระบบจะควบคุมเครื่องนี้ไม่ได้อีก:\n" +
+            "  • สั่งล็อก/ปลดล็อกหน้าจอไม่ได้\n" +
+            "  • คำเตือนก่อนปิด/รีสตาร์ทเครื่องจะไม่แสดง (เครื่องจะดับโดยไม่เตือนล่วงหน้า)\n" +
+            "  • ข้อความแจ้งเตือนจากครูจะไม่แสดง\n\n" +
+            "โดยปกติไม่ควรปิด - ให้ปิดเฉพาะเมื่อผู้ดูแลระบบสั่งเท่านั้น",
+            "ยืนยันการปิด Onion ProcOparetor Tray",
+            MessageBoxButton.YesNo,
+            MessageBoxImage.Warning,
+            MessageBoxResult.No) == MessageBoxResult.Yes;
+
+        if (!confirmed)
+        {
+            return;
+        }
+
+        // ปิดหน้าต่างที่กันปิดไว้ให้ "จริงๆ" ก่อน แล้วค่อย Shutdown()
+        // WPF ตั้งใจให้ Application.Shutdown() ข้าม e.Cancel ของ Closing อยู่แล้ว แต่การพึ่ง
+        // พฤติกรรมภายในตรงนั้นเสี่ยงเกินไปสำหรับจุดที่ "ปิดไม่ลง" แปลว่า Tray ค้างอยู่ตลอด
+        //
+        // LockScreenWindow/ShutdownNotifyWindow มี ForceClose() เป็น method ของตัวเอง (กันปิด
+        // ด้วย _allowClose คนละกลไกกับ hide-on-close) ต้องเรียกของมันเองเท่านั้น - ถ้าปล่อยให้
+        // ตกไปที่ extension method ตัว flag _allowClose จะไม่ถูกตั้ง แล้วหน้าต่างจะปิดไม่ลง
+        HideAllLockScreens();
+        _shutdownNotifyWindow?.ForceClose();
+        _shutdownNotifyWindow = null;
+
+        // ToList ก่อนวนลูป เพราะ Windows collection เปลี่ยนระหว่างที่ปิดทีละอัน
+        foreach (var window in Windows.Cast<Window>().ToList())
+        {
+            HideOnCloseWindowBehavior.ForceClose(window);
+        }
+
+        Shutdown();
+    }
+
+    /// <summary>
+    /// เปิดหน้า Status - รองรับหน้าต่างที่ถูก "ซ่อน" ไว้ (Hide()) ไม่ใช่ปิดจริง ด้วย
+    /// (ดู HideOnCloseWindowBehavior) เลยต้องเรียก Show() ก่อน Activate() เสมอ ไม่งั้นกด
+    /// "Open Status..." หลังจากเคยกดกากบาทปิดไปแล้วจะไม่มีอะไรเกิดขึ้นเลย
+    /// </summary>
     private void OpenLoginWindow()
     {
-        // ป้องกันเปิดซ้ำหลายหน้าต่างพร้อมกัน
-        foreach (Window window in Windows)
+        // ป้องกันเปิดซ้ำหลายหน้าต่างพร้อมกัน - เช็ค StatusWindow ก่อน LoginWindow เสมอ
+        // เพราะถ้า login ไปแล้ว user ต้องการเห็นหน้า Status ไม่ใช่หน้า login ที่ค้างอยู่
+        var existing = Windows.OfType<StatusWindow>().Cast<Window>().FirstOrDefault()
+            ?? Windows.OfType<LoginWindow>().Cast<Window>().FirstOrDefault();
+
+        if (existing is not null)
         {
-            if (window is LoginWindow or StatusWindow)
-            {
-                window.Activate();
-                return;
-            }
+            RestoreAndActivate(existing);
+            return;
         }
 
         var loginWindow = new LoginWindow(_apiClient);
         loginWindow.Show();
+    }
+
+    /// <summary>
+    /// เอาหน้าต่างที่ถูกซ่อน/ย่อไว้กลับมาให้เห็น - ต้องมีเพราะกากบาทตอนนี้ = Hide() ไม่ใช่ Close()
+    /// (ดู HideOnCloseWindowBehavior) ถ้าเรียกแค่ Activate() บนหน้าต่างที่ Hide() ไว้จะไม่มี
+    /// อะไรเกิดขึ้นเลย - user จะกด "Open Status..." แล้วรู้สึกว่าโปรแกรมค้าง
+    /// </summary>
+    private static void RestoreAndActivate(Window window)
+    {
+        if (!window.IsVisible)
+        {
+            window.Show();
+        }
+
+        if (window.WindowState == WindowState.Minimized)
+        {
+            window.WindowState = WindowState.Normal;
+        }
+
+        window.Activate();
     }
 
     private void OnBroadcastMessageReceived(BroadcastMessageDto message)
@@ -253,6 +338,7 @@ public partial class App : System.Windows.Application
         _vncProcessManager.Stop();
         _shutdownNotifyWindow?.ForceClose();
         _trayIcon?.Dispose();
+        _singleInstanceGuard.Dispose();
         base.OnExit(e);
     }
 }

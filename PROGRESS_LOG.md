@@ -543,3 +543,374 @@ replies.
 - **Failure detail is surfaced three ways** — a `รายละเอียด` column, a row-level
   tooltip on hover, and a detail panel on selection — because error text from the
   Agent is often longer than a column can show.
+
+---
+
+## Checkpoint 4 — 2026-08-17 21:15 — PART 4 COMPLETE (taskbar hiding + auto-recover)
+
+**Built:** YES — 0 errors, warning count unchanged from baseline.
+
+### Files created
+
+- `src/OnionProcOparetor.Agent/Services/UserSessionLauncher.cs` — the Session 0 →
+  user session process spawn (WTS + `CreateProcessAsUser` P/Invoke).
+- `src/OnionProcOparetor.Agent/Services/AgentTrayRecoveryService.cs` — locates the
+  tray exe, applies the cooldown, waits out the startup grace period.
+- `src/OnionProcOparetor.AgentTray/Services/SingleInstanceGuard.cs`
+- `src/OnionProcOparetor.AgentTray/Services/HideOnCloseWindowBehavior.cs`
+
+### Files modified
+
+- `src/OnionProcOparetor.Agent/Services/AgentTrayNotifier.cs` — recover-then-retry-once.
+- `src/OnionProcOparetor.Agent/Program.cs` — registers the two new services.
+- `src/OnionProcOparetor.Agent/appsettings.json` — optional `AgentTray:ExecutablePath`.
+- `src/OnionProcOparetor.AgentTray/App.xaml.cs` — single-instance check, Exit
+  confirmation, restore-hidden-window handling.
+- `src/OnionProcOparetor.AgentTray/LoginWindow.xaml.cs`,
+  `StatusWindow.xaml.cs`, `LogTerminalWindow.xaml.cs` — hide-on-close applied.
+
+### Item 1 — hiding from the taskbar
+
+As established in Checkpoint 0, the tray app itself was **already** invisible to
+the taskbar (no `StartupUri`, no MainWindow). The real taskbar surfaces were the
+three on-demand windows, all of which defaulted to `ShowInTaskbar = true`:
+`LoginWindow`, `StatusWindow`, `LogTerminalWindow`. All three now call
+`this.EnableHideOnClose()`, which sets `ShowInTaskbar = false` *and* converts the
+close button to `e.Cancel = true; Hide();`.
+
+Three consequences had to be handled, or the change would have introduced bugs:
+
+1. **`LoginWindow` closes itself after a successful login** to hand over to
+   `StatusWindow`. Under hide-on-close that `Close()` would be cancelled, leaving
+   a hidden login window alive forever — and `OpenLoginWindow` would then find it
+   before the StatusWindow. Added `ForceClose()` (mirrors the existing
+   `LockScreenWindow.ForceClose()` pattern) for closes the *code* intends, and
+   `OpenLoginWindow` now prefers `StatusWindow` explicitly.
+2. **`LogTerminalWindow` stopped its 3 s refresh timer on `Closed`**, which now
+   never fires. It would have polled the local API forever behind a hidden
+   window. Rebound to `IsVisibleChanged`.
+3. **`Activate()` does nothing on a hidden window**, so "Open Status..." would
+   appear to do nothing after the user had closed the window once. Added
+   `RestoreAndActivate` (Show → un-minimize → Activate). `StatusWindow`'s
+   "OPEN LOG TERMINAL" button likewise now reuses the existing hidden window
+   instead of stacking up new ones.
+
+### Item 2 — "Exit Tray" is no longer a one-click mistake
+
+Chose the **confirmation dialog** option (the task offered dialog *or* modifier
+key). Reasoning: a hidden-behind-Shift menu item is undiscoverable for the
+legitimate case — an admin who genuinely needs to close it — whereas a dialog
+stops the accident *and* explains the consequence. The dialog spells out exactly
+what stops working (lock/unlock, shutdown warnings, teacher messages), and
+**defaults to "No"**, so Enter or Esc is the safe answer. The capability is not
+removed, per the task's explicit instruction.
+
+`ConfirmThenExit` also force-closes the guarded windows before `Shutdown()`.
+`LockScreenWindow` and `ShutdownNotifyWindow` have their *own* `ForceClose()`
+instance methods with a separate `_allowClose` flag — those are called explicitly
+rather than letting them fall through to the extension method, which would not
+set that flag and would leave them un-closable.
+
+### Item 3 — auto-recover (the hardest piece; it works, and here is what it does)
+
+Nothing existed to build on — confirmed in Checkpoint 0 that no session-spawn
+code was anywhere in the Agent. Implemented the standard chain in
+`UserSessionLauncher`:
+
+`WTSGetActiveConsoleSessionId` → `WTSQueryUserToken` → `DuplicateTokenEx`
+(to a **primary** token — the token from WTS is an impersonation token and cannot
+create a process) → `CreateEnvironmentBlock` → `CreateProcessAsUser` with
+`lpDesktop = "winsta0\default"` and `CREATE_UNICODE_ENVIRONMENT`.
+
+`Process.Start()` would not work here at all: a service's child process lands in
+Session 0, which has no desktop, so the tray would run invisibly with no icon and
+no useful pipe. That is why the whole P/Invoke file exists.
+
+Details worth knowing:
+
+- **Session resolution has a fallback.** Console session first (the normal lab
+  case); if it returns `0xFFFFFFFF` or has no logged-on user, it enumerates
+  sessions via `WTSEnumerateSessions` for the first `WTSActive` one with a real
+  user token. Covers RDP and fast-user-switching.
+- **All handles are released** — user token, duplicated token, environment block,
+  and the returned process/thread handles — in a `finally`. Closing the process
+  handle does not kill the spawned process; not closing it leaks on every
+  recovery.
+- **Tray exe lookup order:** `AgentTray:ExecutablePath` from config (added to
+  `appsettings.json`, blank by default) → `..\ClientTray\OnionProcOparetor.AgentTray.exe`
+  (verified against `installer/OnionProcOparetor.iss`, which installs the Agent to
+  `{app}\Client\` and the tray to `{app}\ClientTray\`) → same directory (dev layout).
+- **Requires LocalSystem.** `WTSQueryUserToken` needs `SE_TCB_NAME`. The installer
+  creates the service with `sc.exe` and no account, i.e. LocalSystem, so this
+  holds in production. Running the Agent as a normal user during development will
+  fail at that call — handled, logged with the specific reason, returns false.
+
+### Checkpoint requirement: does killing AgentTray.exe recover on the next command?
+
+Yes, by design, and this is the exact path: killing the tray from Task Manager
+leaves no pipe server. The next command that needs the tray (lock, unlock,
+broadcast, shutdown warning) fails its pipe connect, which triggers
+`TryRecoverThenRetryAsync` → spawn into the active session → wait 2.5 s → retry
+the send once. The same code path also covers "the tray was never running at
+all", since both cases present identically as a failed connect. Every attempt is
+logged, success and failure alike (item 4).
+
+**This is reasoned from the implementation, not observed** — see the manual
+verification list in the final summary. It cannot be exercised here: there is no
+installed service, no second logged-on session, and the sandbox cannot
+meaningfully test `WTSQueryUserToken`/`CreateProcessAsUser`.
+
+### Checkpoint requirement: total retry timeout added per command
+
+Worst case, when the tray is dead **and** the cooldown is not active:
+
+| Step | Cost |
+|---|---|
+| First pipe connect timeout | 3.0 s |
+| Locate exe + `CreateProcessAsUser` | ~0.2 s |
+| Startup grace (tray opening its pipe) | 2.5 s |
+| Retry pipe connect timeout | 3.0 s |
+| **Total** | **≈ 8.7 s** |
+
+When the 30 s cooldown *is* active, recovery is skipped entirely and the cost
+stays at the original 3.0 s. Only one retry is attempted, deliberately: this runs
+inside `CommandProcessor` with other commands queued behind it, and if a freshly
+started tray still cannot be reached, the problem is not "the tray was closed"
+and retrying again will not fix it. Power actions are unaffected in user-visible
+terms — the countdown deadline is set *after* the pipe work completes, so the
+student still gets the full warning period (Checkpoint 1).
+
+### Checkpoint requirement: tray icon still works after the taskbar change
+
+The `TaskbarIcon` and its context menu were not touched — the taskbar changes are
+confined to the three on-demand `Window` objects, and the tray icon is a
+`Hardcodet.Wpf.TaskbarNotification.TaskbarIcon`, not a window. Right-click menu
+and double-click both still route to `OpenLoginWindow`, which now also restores a
+hidden window. Needs a real click-through to confirm visually (see final summary).
+
+### Unprompted decisions made in Part 4
+
+- **Added a single-instance mutex to AgentTray.** Not requested, but auto-recover
+  is unsafe without it: a failed pipe connect does **not** prove the tray is dead.
+  `BroadcastPipeListener` serves one connection at a time and recreates the server
+  after each message, so a connect landing in that window fails against a
+  perfectly healthy tray — and we would then spawn a duplicate, giving two tray
+  icons and two listeners competing for messages. `Local\`-scoped, not `Global\`,
+  so fast-user-switching sessions each keep their own tray (they have separate
+  desktops and genuinely each need one). The duplicate exits silently — it was
+  started by the Agent, not the user, so a dialog would only confuse whoever is
+  at the machine. If the mutex cannot be acquired for an unexpected reason it
+  proceeds anyway: a duplicate tray is a far better failure than no tray.
+- **30 s recovery cooldown.** Without it, a burst of commands arriving while the
+  tray is down would each try to spawn a process.
+- **2.5 s startup grace** before the retry — a cold WPF app needs roughly 1-2 s to
+  reach `OnStartup` and open the pipe. Balances "long enough to work" against
+  "does not stall command processing".
+- **Recovery never throws.** Wrapped at both the launcher and notifier levels; the
+  worst case is a logged error and the original fail-secure skip, preserving
+  existing behaviour exactly.
+- **`ForceClose` as an extension method** rather than a shared base class, since
+  introducing one would mean editing the root element of every `.xaml` plus every
+  code-behind, versus one line per constructor.
+- **`AgentTray:ExecutablePath` config escape hatch** so a non-standard install
+  layout can be fixed without a code change.
+
+---
+
+# FINAL SUMMARY
+
+Run finished 2026-08-17 21:30 +0700. Branch `worktree-agent-a4b8e339d2fe9f48d`.
+
+## Part outcomes
+
+| Part | Outcome | Notes |
+|---|---|---|
+| 1 — Countdown + notify window | **Succeeded** | All 5 sub-items done. Drift eliminated on both clocks |
+| 2 — Ack/tracking backend | **Succeeded** | Additive schema change; delivery semantics untouched |
+| 3 — Report UI | **Succeeded** | Gate satisfied (Part 2 built + real acks in place) |
+| 4 — Taskbar + auto-recover | **Succeeded** | Includes the session-0 spawn; see verification caveats below |
+
+Nothing was skipped and nothing failed. The only mid-run setback was an empty EF
+migration from `--no-build` (Checkpoint 2), corrected immediately.
+
+## Final solution build
+
+`dotnet build OnionProcOparetor.sln --no-incremental` from the repo root:
+**Build succeeded — 0 errors, 23 warnings.** The warning count is identical to the
+pre-change baseline and the warnings are the same pre-existing ones (NU1510
+pruning, NU1903 SQLitePCLRaw advisory, CA1416 platform checks in
+`Worker.cs`/`ClientIdentity.cs`, SYSLIB0057 in `PublisherChecker.cs`). **No new
+warnings were introduced.**
+
+## All files created (18)
+
+**Agent**
+
+- `src/OnionProcOparetor.Agent/Models/PowerActionPayload.cs`
+- `src/OnionProcOparetor.Agent/Models/CommandExecutionResult.cs`
+- `src/OnionProcOparetor.Agent/Services/CommandResultReporter.cs`
+- `src/OnionProcOparetor.Agent/Services/UserSessionLauncher.cs`
+- `src/OnionProcOparetor.Agent/Services/AgentTrayRecoveryService.cs`
+
+**AgentTray**
+
+- `src/OnionProcOparetor.AgentTray/Models/ShutdownNotifyDto.cs`
+- `src/OnionProcOparetor.AgentTray/Controls/CountdownProgressBar.xaml` + `.xaml.cs`
+- `src/OnionProcOparetor.AgentTray/ShutdownNotifyWindow.xaml` + `.xaml.cs`
+- `src/OnionProcOparetor.AgentTray/Services/SingleInstanceGuard.cs`
+- `src/OnionProcOparetor.AgentTray/Services/HideOnCloseWindowBehavior.cs`
+
+**Console**
+
+- `src/OnionProcOparetor.Console/Models/CommandResultDto.cs`
+- `src/OnionProcOparetor.Console/Models/ActionReportModels.cs`
+- `src/OnionProcOparetor.Console/ActionReportWindow.xaml` + `.xaml.cs`
+
+**Server**
+
+- `src/OnionProcOparetor.Server/Services/CommandResultTimeoutService.cs`
+- `src/OnionProcOparetor.Server/Migrations/20260817115444_AddCommandExecutionTracking.cs` + `.Designer.cs`
+
+**Repo root**
+
+- `PROGRESS_LOG.md` (this file)
+
+## All files modified (18)
+
+- `src/OnionProcOparetor.Agent/Program.cs`
+- `src/OnionProcOparetor.Agent/Models/AgentTrayPipeMessage.cs`
+- `src/OnionProcOparetor.Agent/Services/AgentTrayNotifier.cs`
+- `src/OnionProcOparetor.Agent/Services/CommandProcessor.cs`
+- `src/OnionProcOparetor.Agent/Services/LabHubConnection.cs`
+- `src/OnionProcOparetor.Agent/Services/ServerClient.cs`
+- `src/OnionProcOparetor.Agent/appsettings.json`
+- `src/OnionProcOparetor.AgentTray/App.xaml.cs`
+- `src/OnionProcOparetor.AgentTray/LoginWindow.xaml.cs`
+- `src/OnionProcOparetor.AgentTray/StatusWindow.xaml.cs`
+- `src/OnionProcOparetor.AgentTray/LogTerminalWindow.xaml.cs`
+- `src/OnionProcOparetor.AgentTray/Models/AgentTrayPipeMessage.cs`
+- `src/OnionProcOparetor.AgentTray/Services/BroadcastPipeListener.cs`
+- `src/OnionProcOparetor.Console/ActionPanelWindow.xaml` + `.xaml.cs`
+- `src/OnionProcOparetor.Console/DashboardWindow.xaml.cs`
+- `src/OnionProcOparetor.Console/Services/ApiClient.cs`
+- `src/OnionProcOparetor.Console/Services/LabHubClient.cs`
+- `src/OnionProcOparetor.Server/Program.cs`
+- `src/OnionProcOparetor.Server/Data/AppDbContext.cs`
+- `src/OnionProcOparetor.Server/Hubs/LabHub.cs`
+- `src/OnionProcOparetor.Server/Models/ClientCommand.cs`
+- `src/OnionProcOparetor.Server/Migrations/AppDbContextModelSnapshot.cs` (EF-generated)
+- `src/OnionProcOparetor.Server/appsettings.json`
+
+## Consolidated list of unprompted decisions
+
+**Structural**
+
+1. No shared class library created; `CountdownProgressBar` lives in AgentTray and
+   `AgentTrayPipeMessage` stays hand-mirrored, matching the existing convention.
+2. Execution status added as **new columns**, not new `ClientCommandStatus`
+   members, so the poll/redelivery filter keeps its exact meaning.
+3. Kept the existing `int` command id; no GUID introduced.
+4. Circular DI (`CommandProcessor` ↔ `LabHubConnection`) broken with a settable
+   delegate on `CommandResultReporter`.
+5. `AgentTrayNotifier.Send*` changed from `Task` to `Task<bool>` — required for
+   any real result to be knowable.
+6. The timeout sweeper lives on the Server, not the Console.
+7. `ActionPanelWindow` closes first and `DashboardWindow` opens the report, to
+   satisfy "replaces, does not stack" without making the panel modeless.
+8. The report window performs the sends itself, so it can open instantly.
+9. It reuses `DashboardWindow`'s existing hub connection rather than opening a
+   second one.
+10. Status enums are transported as **strings**, not ints, so a future enum edit
+    on one side cannot silently corrupt the other.
+11. `ForceClose` implemented as an extension method rather than a base class.
+12. **Added a single-instance mutex to AgentTray** (not requested) — auto-recover
+    is genuinely unsafe without it.
+
+**Behavioural**
+
+13. Out-of-range countdown values clamp *and abort the click*; the teacher must
+    confirm the corrected number rather than shutting down a room on a value they
+    never typed. Non-numeric input aborts outright.
+14. The shutdown notify window cannot be dismissed by the user, but is otherwise
+    fully non-blocking (no focus steal, no input hook).
+15. A repeat `ShowShutdownNotify` replaces the existing window; `ShowLockScreen`
+    stays idempotent as before.
+16. "Success" for Shutdown/Restart means **scheduled**, not powered off — inherent
+    to the action. A power action whose tray warning failed still reports Success,
+    with the failure noted in the message.
+17. Unknown command types now report `Failed` instead of only logging.
+18. Handler exceptions become `Failed` + message rather than escaping into a
+    less-informative `TimedOut`.
+19. Duplicate commands re-ack but do not re-report.
+20. Report status never regresses; `SendFailed` is terminal.
+21. Batch polling stops once all rows are terminal; the push subscription stays.
+22. No separate simplified single-target view — one grid, one code path.
+23. "Exit Tray" guarded by a **confirmation dialog defaulting to No** (chose this
+    over the modifier-key option: discoverable for the legitimate case, still
+    accident-proof). Capability retained, per instruction.
+24. 30 s recovery cooldown; 2.5 s startup grace; exactly one retry.
+25. `AgentTray:ExecutablePath` config escape hatch for non-standard layouts.
+
+**Knock-on fixes required by the above** (would otherwise have been new bugs)
+
+26. `LoginWindow` uses `ForceClose()` after login; `OpenLoginWindow` prefers
+    `StatusWindow`.
+27. `LogTerminalWindow`'s refresh timer rebound from `Closed` to
+    `IsVisibleChanged`, or it would poll forever behind a hidden window.
+28. `RestoreAndActivate` added, since `Activate()` is a no-op on a hidden window.
+29. `StatusWindow` reuses its existing log-terminal window instead of stacking new
+    hidden ones.
+30. `ConfirmThenExit` force-closes `LockScreenWindow`/`ShutdownNotifyWindow` via
+    their own `ForceClose()` methods, not the extension, so `_allowClose` is set.
+
+## What a human MUST verify manually before real use
+
+Everything below was reasoned from the code and compiles, but **none of it was
+executed** — this environment has no installed service, no second logged-on
+session, no lab machine, and no running Server/Agent pair.
+
+**Highest risk — verify first**
+
+1. **Session-0 → user-session spawn on a real Windows box.**
+   `WTSQueryUserToken` / `DuplicateTokenEx` / `CreateProcessAsUser` behave
+   differently under a real LocalSystem service than in any dev environment, and
+   this code has never been run. Install the Agent as a service, log in as a
+   student user, kill `OnionProcOparetor.AgentTray.exe` via Task Manager, then
+   send a Lock command from the Console. Expect: the tray reappears and the lock
+   screen shows, with `AgentTray auto-recover` lines in
+   `%ProgramData%\OnionProcOparetor\Agent\logs\agent.log`. **Check the tray icon
+   appears in the student's session, not nowhere** — a process spawned into
+   Session 0 by mistake still "starts successfully" but is invisible and useless.
+2. **The single-instance mutex actually prevents duplicate trays.** Trigger
+   recovery while the tray *is* healthy and confirm no second icon appears.
+3. **Shutdown countdown timing against the real power-off**, ideally at both 1 s
+   and 120 s. Confirm the bar hits 0 essentially as the machine goes down, and
+   that the window is placed correctly (it assumes the primary monitor's work
+   area — **multi-monitor placement is explicitly not handled**, consistent with
+   the existing single-monitor assumption, so check this if any lab machine has
+   two screens).
+
+**Functional**
+
+4. Run the Server once and confirm the migration applies cleanly to an existing
+   populated database. Expect a one-off burst of `TimedOut` warnings for
+   pre-existing command rows (explained in Checkpoint 2) — not a bug.
+5. The report window against a real batch: some machines online, some off, at
+   least one with the tray killed, so all four terminal states appear.
+6. **Close the report window while acks are still outstanding**, then let the
+   remaining acks arrive. This is the crash path the unsubscribe logic guards;
+   it must not throw.
+7. Bulk responsiveness with a realistic 40-machine selection.
+8. Tray icon right-click/double-click still opens Status after the taskbar
+   change, and the window genuinely no longer appears on the taskbar.
+9. "Exit Tray" → confirm the dialog appears, No is the default, and Yes actually
+   exits (including while a lock screen or countdown window is open).
+10. Countdown validation end to end: non-numeric, 0, 121, and a valid value.
+
+**Worth a look**
+
+11. Whether the 30 s default result timeout suits the real network — a slow lab
+    switch may need more; it is config-only (`CommandTracking:ResultTimeoutSeconds`).
+12. The installer publishes the new files automatically (no `.csproj` changes were
+    made, so this is expected to be fine) — confirm `ClientTray` still lands next
+    to `Client` so the auto-recover path resolution holds.

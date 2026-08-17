@@ -14,6 +14,9 @@ public partial class LoginWindow : Window
         InitializeComponent();
         _apiClient = apiClient;
 
+        // กากบาท = ซ่อน ไม่ใช่ปิด + ไม่โผล่บน taskbar (ดู HideOnCloseWindowBehavior)
+        this.EnableHideOnClose();
+
         var config = new ConfigurationBuilder()
             .SetBasePath(AppContext.BaseDirectory)
             .AddJsonFile("appsettings.json", optional: true)
@@ -44,7 +47,12 @@ public partial class LoginWindow : Window
         {
             var statusWindow = new StatusWindow(_apiClient);
             statusWindow.Show();
-            Close();
+
+            // ต้อง ForceClose ไม่ใช่ Close() ธรรมดา - นี่คือการปิดที่ "โค้ดตั้งใจ" (login เสร็จแล้ว
+            // ให้ StatusWindow ทำงานแทน) ไม่ใช่ user กดกากบาท ถ้าใช้ Close() เฉยๆ hide-on-close
+            // จะยกเลิกให้แล้วซ่อนไว้แทน ทำให้หน้า login ค้างอยู่ในระบบตลอดและตอนกด
+            // "Open Status..." ครั้งถัดไปจะเจอหน้า login ที่ซ่อนอยู่ก่อน แทนที่จะเป็นหน้า Status
+            this.ForceClose();
         }
         else
         {

@@ -83,6 +83,11 @@ builder.Services.AddHttpClient<ServerClient>((serviceProvider, client) =>
 builder.Services.AddSingleton<ClientState>();
 
 // ---- Command processing (SignalR real-time + poll fallback ใช้ logic เดียวกัน) ----
+// safety net: สตาร์ท AgentTray ใหม่ใน user session ถ้าติดต่อไม่ได้ (นักเรียนปิดทิ้ง/ไม่เคยรัน)
+// singleton เพราะ AgentTrayRecoveryService เก็บ cooldown ไว้ใน state ของตัวเอง
+builder.Services.AddSingleton<UserSessionLauncher>();
+builder.Services.AddSingleton<AgentTrayRecoveryService>();
+
 builder.Services.AddSingleton<AgentTrayNotifier>();
 
 // รายงาน "ผลจริง" ของ command กลับ Server (SignalR ก่อน ไม่ได้ค่อย HTTP) - ต้องเป็น singleton

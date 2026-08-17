@@ -17,6 +17,9 @@ public partial class LogTerminalWindow : Window
         InitializeComponent();
         _apiClient = apiClient;
 
+        // กากบาท = ซ่อน ไม่ใช่ปิด + ไม่โผล่บน taskbar (ดู HideOnCloseWindowBehavior)
+        this.EnableHideOnClose();
+
         _autoRefreshTimer = new DispatcherTimer
         {
             Interval = TimeSpan.FromSeconds(3)
@@ -29,7 +32,21 @@ public partial class LogTerminalWindow : Window
             _autoRefreshTimer.Start();
         };
 
-        // หยุด timer ตอนปิดหน้าต่าง กันเรียก API ต่อทั้งที่ไม่มีใครดูอยู่แล้ว
+        // ผูกกับ "มองเห็นอยู่ไหม" แทน "ปิดไปแล้วหรือยัง" เพราะตอนนี้กากบาท = ซ่อน ไม่ใช่ปิด
+        // (Closed จะไม่ถูกเรียกอีกต่อไปตอน user กดกากบาท) ถ้ายังผูกกับ Closed เหมือนเดิม
+        // timer จะยิง API ทุก 3 วิต่อไปเรื่อยๆ ตลอดอายุของ Tray ทั้งที่ไม่มีใครดูอยู่แล้ว
+        IsVisibleChanged += (_, _) =>
+        {
+            if (IsVisible)
+            {
+                _autoRefreshTimer.Start();
+            }
+            else
+            {
+                _autoRefreshTimer.Stop();
+            }
+        };
+
         Closed += (_, _) => _autoRefreshTimer.Stop();
     }
 
