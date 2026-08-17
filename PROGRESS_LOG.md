@@ -422,3 +422,124 @@ instant it was created).
   This is semantically correct (their real outcome is genuinely unknown) but
   expect a short burst of warnings in `server.log` the first time. Not treated as
   a bug; noted so nobody chases it.
+
+---
+
+## Checkpoint 3 — 2026-08-17 20:20 — PART 3 COMPLETE (ActionReportWindow)
+
+**Gate check:** Part 3 was permitted to proceed — Part 2 built successfully, and
+the identifier (`CommandId`), the real execution ack, and the status tracking are
+all in place and recorded in Checkpoint 2. Gate satisfied, so Part 3 was done.
+
+**Built:** YES — 0 errors.
+
+### Files created
+
+- `src/OnionProcOparetor.Console/Models/ActionReportModels.cs` —
+  `ActionReportStatus`, `ActionReportRow` (INotifyPropertyChanged),
+  `ActionReportRequest`.
+- `src/OnionProcOparetor.Console/ActionReportWindow.xaml` + `.xaml.cs`.
+
+### Files modified
+
+- `src/OnionProcOparetor.Console/ActionPanelWindow.xaml.cs` — added
+  `PendingReport`, `OpenReportFor(...)`; Toggle/Lock/Unlock/Shutdown/Restart now
+  route through the report instead of updating `StatusText` inline.
+- `src/OnionProcOparetor.Console/DashboardWindow.xaml.cs` — new
+  `RunActionPanelAsync` shared by both entry points; opens the report window.
+
+### Checkpoint requirement: how ActionPanelWindow triggers ActionReportWindow
+
+`ActionPanelWindow` is opened with **`ShowDialog()` (modal)** from two places in
+`DashboardWindow`. A modal dialog opening another window before it closes gives
+exactly the stacked-windows result the task forbids. So the panel never opens the
+report itself. Instead:
+
+1. Teacher clicks an action → the panel builds an `ActionReportRequest` (label,
+   target rows, batch id, and a `SendAsync` delegate that knows how to dispatch
+   to one machine), assigns it to the public `PendingReport` property, sets
+   `DialogResult`, and calls `Close()`.
+2. Control returns to `DashboardWindow.RunActionPanelAsync`, which — now that the
+   panel is fully closed — checks `panel.PendingReport` and opens
+   `ActionReportWindow` non-modally.
+
+**The report window is what actually sends the commands, not the panel.** That is
+deliberate: dispatching 40 HTTP POSTs before opening the window would freeze the
+UI for seconds with no feedback. This way the window appears instantly with all
+targets listed as "กำลังส่ง" and fills in as each send completes. Sends run
+through a `SemaphoreSlim` capped at 8 concurrent.
+
+### Checkpoint requirement: closing mid-flight must not crash on late acks
+
+This is the real hazard here, because `LabHubClient` belongs to `DashboardWindow`
+and therefore **outlives** the report window. Three guards, all needed:
+
+1. `Closed` → unsubscribes `CommandResultChanged`. Without this the dead window's
+   handler keeps firing for the rest of the session.
+2. An `_isClosed` flag set first thing in the `Closed` handler. Unsubscribing
+   alone is not sufficient — callbacks already queued via `Dispatcher.BeginInvoke`
+   still run after unsubscribe, and would touch a closed window's Dispatcher.
+   Both the SignalR callback and the queued lambda re-check the flag.
+3. The `DispatcherTimer` poll is stopped, and the in-flight send loop checks
+   `_isClosed` before touching any row.
+
+`Dispatcher.BeginInvoke` is used rather than `Invoke` so the SignalR receive loop
+is never blocked waiting on the UI thread — with 40 machines replying at once,
+blocking per-message would stall the whole hub connection.
+
+### Checkpoint requirement: which actions are handled differently, and why
+
+| Action | Handling | Why |
+|---|---|---|
+| Shutdown, Restart, LockWorkstation, UnlockWorkstation | **Tracked** report (batch id, waits for real per-client acks) | genuine `ClientCommand`s with real execution results |
+| Toggle Enforcement | **Immediate** report (batch id `null`, terminal on HTTP response) | `POST /api/clients/{id}/toggle` is a server-side DB write. There is no client-side command and no per-client ack — the Agent notices at its next poll. Waiting for an ack that structurally does not exist would leave every row Pending until it timed out |
+| Settings, Delete | **No report window** — unchanged | Single-client-only, and both already have their own modal confirmation/dialog flow. Neither is a per-client fan-out, so a per-machine result table for one row would add a window without adding information. `Delete` also closes the panel with `DialogResult = true` as its own completion signal |
+
+So the report is the central pattern for every fan-out action, with Toggle using
+the immediate variant and the two single-client management actions staying as
+they were.
+
+### Checkpoint requirement: 40 machines without UI lag
+
+`DataGrid` with `EnableRowVirtualization`, `EnableColumnVirtualization`,
+`VirtualizingPanel.IsVirtualizing="True"`,
+`VirtualizationMode="Recycling"`, and `ScrollViewer.CanContentScroll="True"` —
+explicitly set rather than relying on defaults, so a later edit cannot silently
+regress it. No plain `StackPanel`/`ItemsControl` anywhere in the list.
+
+Critically, rows are an `ObservableCollection<ActionReportRow>` where
+`ActionReportRow` implements `INotifyPropertyChanged`. Individual cells update in
+place as results stream in. The alternative — reassigning `ItemsSource` on each
+result, which is what `DashboardWindow` does for its grids — would rebuild the
+whole visual tree per arriving ack and visibly stutter with 40 near-simultaneous
+replies.
+
+### Unprompted decisions made in Part 3
+
+- **Panel closes first; Dashboard opens the report.** The only way to satisfy
+  "replaces, does not stack" given the existing modal `ShowDialog()` call sites,
+  without converting the panel to modeless (which would change how both existing
+  entry points behave).
+- **The report window owns the sending**, via the `SendAsync` delegate on the
+  request. Keeps the window responsive from the first frame.
+- **Reuses `DashboardWindow`'s existing `LabHubClient`** instead of opening a
+  second hub connection — it has already joined the `"console"` group. The
+  parameter is nullable, and with `null` the window still works correctly on
+  polling alone.
+- **Two extra UI-only statuses, `Sending` and `SendFailed`,** which have no
+  backend equivalent because they describe failures that happen before a command
+  row exists. `SendFailed` is terminal and is never overwritten by later results —
+  the distinction between "could not send" and "sent but no reply" is exactly
+  what the teacher needs to tell "my Console/network is broken" from "that
+  machine is broken".
+- **Status never regresses.** A `Pending` poll result cannot overwrite a terminal
+  status already delivered by SignalR — the two channels race by design.
+- **Polling stops once every row is terminal**, while the SignalR subscription
+  stays live. Avoids hammering the Server if a teacher leaves the window open.
+- **No single-target special-case window.** The task allows a simpler view for
+  one machine; the same grid with one row already reads as simple, and the header
+  switches to naming the machine directly. One code path, no divergence, and the
+  ack status is shown identically as required.
+- **Failure detail is surfaced three ways** — a `รายละเอียด` column, a row-level
+  tooltip on hover, and a detail panel on selection — because error text from the
+  Agent is often longer than a column can show.

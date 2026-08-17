@@ -39,6 +39,16 @@ public partial class ActionPanelWindow : Window
     /// </summary>
     public ClientMachineDto? ViewScreenRequested { get; private set; }
 
+    /// <summary>
+    /// ไม่ null = ครูกด action ที่ต้องมีหน้ารายงานผล DashboardWindow จะเปิด ActionReportWindow
+    /// ต่อทันทีหลัง panel นี้ปิดลง (ดู DashboardWindow.OpenActionPanelAsync)
+    ///
+    /// ทำไมไม่เปิดหน้า report เองตรงนี้: panel นี้ถูกเปิดด้วย ShowDialog() (modal) ถ้าเปิด
+    /// หน้าต่างใหม่ก่อนปิดตัวเองจะกลายเป็นซ้อนกัน 2 ชั้น ซึ่งโจทย์ห้ามไว้ ("ปิด ActionPanelWindow
+    /// แล้วเปิดหน้านี้ต่อ ไม่ซ้อนกัน") - ฝากไว้ให้ Dashboard เปิดแทนจึงไม่มีการซ้อนกันเลย
+    /// </summary>
+    public ActionReportRequest? PendingReport { get; private set; }
+
     /// <summary>Single-client mode - เปิดจากปุ่ม ACTIONS ต่อแถว</summary>
     public ActionPanelWindow(ApiClient apiClient, ClientMachineDto client)
     {
@@ -93,7 +103,13 @@ public partial class ActionPanelWindow : Window
 
     private bool Confirm(string message, string title) => ConfirmWindow.Show(message, title, this);
 
-    private async void ToggleButton_Click(object sender, RoutedEventArgs e)
+    /// <summary>
+    /// Toggle enforcement - เป็น action เดียวที่ใช้หน้า report แบบ "immediate" (BatchId = null)
+    /// เพราะไม่ได้ผ่านระบบ command/ack เลย: มันคือ POST /api/clients/{id}/toggle ที่ Server
+    /// แก้ DB ให้เสร็จในคำขอเดียว เครื่อง client จะรู้ตัวตอน poll รอบถัดไปเอง ไม่มี ack ราย
+    /// เครื่องให้รอ ผลจึงเป็นที่สิ้นสุดทันทีที่ HTTP response กลับมา (ดู ActionReportRequest)
+    /// </summary>
+    private void ToggleButton_Click(object sender, RoutedEventArgs e)
     {
         var targets = CurrentTargets;
 
@@ -102,18 +118,43 @@ public partial class ActionPanelWindow : Window
             return;
         }
 
-        StatusText.Text = $"กำลัง toggle {targets.Count} เครื่อง...";
-        var successCount = 0;
-        foreach (var client in targets)
-        {
-            if (await _apiClient.ToggleClientAsync(client.Id))
-            {
-                successCount++;
-            }
-        }
-
         DataChanged = true;
-        StatusText.Text = $"Toggle สำเร็จ {successCount}/{targets.Count} เครื่อง";
+
+        // จับคู่ ClientGuid → Id ไว้ก่อน เพราะ ToggleClientAsync ใช้ Id (int) ไม่ใช่ ClientGuid
+        var idByGuid = targets.ToDictionary(c => c.ClientGuid, c => c.Id);
+
+        OpenReportFor("Toggle Enforcement", targets, batchId: null, async row =>
+        {
+            var success = await _apiClient.ToggleClientAsync(idByGuid[row.ClientGuid]);
+
+            return success
+                ? (true, "เปลี่ยนสถานะ enforcement แล้ว (เครื่องจะรับค่าใหม่ตอน poll รอบถัดไป)")
+                : (false, "Server ปฏิเสธคำขอ toggle");
+        });
+    }
+
+    /// <summary>
+    /// สร้าง ActionReportRequest แล้วปิด panel นี้ทันที - DashboardWindow จะเปิดหน้า report ต่อ
+    /// ใช้ร่วมกันทุก action ที่มีหน้ารายงานผล (Toggle/Lock/Unlock/Shutdown/Restart) เป็น pattern กลาง
+    /// </summary>
+    private void OpenReportFor(
+        string actionLabel,
+        List<ClientMachineDto> targets,
+        string? batchId,
+        Func<ActionReportRow, Task<(bool Ok, string? Message)>> sendAsync)
+    {
+        PendingReport = new ActionReportRequest
+        {
+            ActionLabel = actionLabel,
+            BatchId = batchId,
+            SendAsync = sendAsync,
+            Rows = targets
+                .Select(c => new ActionReportRow { ClientGuid = c.ClientGuid, MachineName = c.MachineName })
+                .ToList()
+        };
+
+        DialogResult = DataChanged;
+        Close();
     }
 
     private void SettingsButton_Click(object sender, RoutedEventArgs e)
@@ -160,14 +201,14 @@ public partial class ActionPanelWindow : Window
     }
 
     // Lock ไม่ต้อง confirm (ทำคืนง่าย - ครูกด Unlock จาก panel นี้ได้ทันที)
-    private Task LockButton_ClickAsync() => SendToTargetsAsync("LockWorkstation", null, "Lock Workstation");
-    private async void LockButton_Click(object sender, RoutedEventArgs e) => await LockButton_ClickAsync();
+    private void LockButton_Click(object sender, RoutedEventArgs e) =>
+        SendToTargets("LockWorkstation", null, "Lock Workstation");
 
-    private Task UnlockButton_ClickAsync() => SendToTargetsAsync("UnlockWorkstation", null, "Unlock Workstation");
-    private async void UnlockButton_Click(object sender, RoutedEventArgs e) => await UnlockButton_ClickAsync();
+    private void UnlockButton_Click(object sender, RoutedEventArgs e) =>
+        SendToTargets("UnlockWorkstation", null, "Unlock Workstation");
 
-    private async void RestartButton_Click(object sender, RoutedEventArgs e) => await SendPowerActionAsync("Restart");
-    private async void ShutdownButton_Click(object sender, RoutedEventArgs e) => await SendPowerActionAsync("Shutdown");
+    private void RestartButton_Click(object sender, RoutedEventArgs e) => SendPowerAction("Restart");
+    private void ShutdownButton_Click(object sender, RoutedEventArgs e) => SendPowerAction("Shutdown");
 
     /// <summary>
     /// กันพิมพ์อย่างอื่นนอกจากตัวเลขลงช่องหน่วงเวลาตั้งแต่แรก (ชั้นที่ 1 ของ 3 ชั้น:
@@ -224,7 +265,7 @@ public partial class ActionPanelWindow : Window
     }
 
     /// <summary>Shutdown/Restart - ต้อง confirm เสมอ (destructive, ทำคืนไม่ได้ทันที ต่างจาก Lock/Toggle)</summary>
-    private async Task SendPowerActionAsync(string commandType)
+    private void SendPowerAction(string commandType)
     {
         var targets = CurrentTargets;
 
@@ -242,24 +283,33 @@ public partial class ActionPanelWindow : Window
             return;
         }
 
-        await SendToTargetsAsync(commandType, new { delaySeconds = delaySeconds.Value }, commandType);
+        SendToTargets(commandType, new { delaySeconds = delaySeconds.Value }, commandType);
     }
 
-    private async Task SendToTargetsAsync(string commandType, object? payload, string actionLabel)
+    /// <summary>
+    /// action ที่ผ่านระบบ command/ack จริง (Lock/Unlock/Shutdown/Restart) - สร้าง BatchId ใหม่
+    /// ต่อการกด 1 ครั้ง ผูกทุกเครื่องในชุดนั้นไว้ด้วยกัน แล้วเปิดหน้า report ให้ครูดูผลราย
+    /// เครื่องแบบ real-time (ตัวหน้า report เป็นคนยิงคำสั่งจริง ไม่ใช่ที่นี่ - ดู ActionReportRequest)
+    /// </summary>
+    private void SendToTargets(string commandType, object? payload, string actionLabel)
     {
         var targets = CurrentTargets;
+        var batchId = Guid.NewGuid().ToString("N");
 
-        StatusText.Text = $"กำลังส่งคำสั่ง {actionLabel} ไป {targets.Count} เครื่อง...";
-        var successCount = 0;
-        foreach (var client in targets)
+        OpenReportFor(actionLabel, targets, batchId, async row =>
         {
-            if (await _apiClient.SendCommandAsync(client.ClientGuid, commandType, payload))
-            {
-                successCount++;
-            }
-        }
+            var (commandId, error) = await _apiClient.SendCommandTrackedAsync(
+                row.ClientGuid, commandType, payload, batchId);
 
-        StatusText.Text = $"ส่งคำสั่ง {actionLabel} สำเร็จ {successCount}/{targets.Count} เครื่อง";
+            if (commandId is null)
+            {
+                return (false, error);
+            }
+
+            // ต้องเซ็ตก่อน return - หน้า report ใช้ CommandId จับคู่ผลที่เข้ามาทาง SignalR
+            row.CommandId = commandId;
+            return (true, null);
+        });
     }
 
     private async void DeleteButton_Click(object sender, RoutedEventArgs e)

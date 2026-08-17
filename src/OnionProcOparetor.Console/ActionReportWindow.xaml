@@ -1,0 +1,133 @@
+<Window x:Class="OnionProcOparetor.Console.ActionReportWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="ผลการทำงาน"
+        Height="560" Width="720"
+        MinHeight="360" MinWidth="520"
+        WindowStartupLocation="CenterOwner"
+        Style="{StaticResource AppWindowStyle}">
+    <Window.Resources>
+        <!-- ใช้สไตล์ตารางชุดเดียวกับ DashboardWindow เพื่อให้หน้าตาเป็นระบบเดียวกันทั้ง Console -->
+        <Style x:Key="ReportGridColumnHeaderStyle" TargetType="DataGridColumnHeader">
+            <Setter Property="Background" Value="{StaticResource Brush.Background.Primary}"/>
+            <Setter Property="Foreground" Value="{StaticResource Brush.Text.Secondary}"/>
+            <Setter Property="FontFamily" Value="{StaticResource FontFamily.Primary}"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="Padding" Value="10,8"/>
+            <Setter Property="BorderBrush" Value="{StaticResource Brush.Border.Default}"/>
+            <Setter Property="BorderThickness" Value="0,0,1,1"/>
+        </Style>
+        <Style x:Key="ReportGridRowStyle" TargetType="DataGridRow">
+            <Setter Property="Background" Value="Transparent"/>
+            <!-- tooltip ระดับแถว - ครู hover ตรงไหนของแถวก็เห็น error message ได้ทันที -->
+            <Setter Property="ToolTip" Value="{Binding TooltipText}"/>
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background">
+                        <Setter.Value>
+                            <SolidColorBrush Color="{StaticResource Color.Accent.Light}" Opacity="0.15"/>
+                        </Setter.Value>
+                    </Setter>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+        <Style x:Key="ReportGridCellStyle" TargetType="DataGridCell">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Foreground" Value="{StaticResource Brush.Text.Primary}"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding" Value="10,4"/>
+            <Setter Property="FontFamily" Value="{StaticResource FontFamily.Primary}"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Style.Triggers>
+                <Trigger Property="IsSelected" Value="True">
+                    <Setter Property="Background" Value="{StaticResource Brush.Background.Primary}"/>
+                    <Setter Property="Foreground" Value="{StaticResource Brush.Text.Primary}"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+        <Style x:Key="RowStatusBadge" TargetType="ContentControl" BasedOn="{StaticResource StatusBadge}">
+            <Setter Property="Tag" Value="{Binding StatusTag}"/>
+            <Setter Property="Content" Value="{Binding StatusText}"/>
+        </Style>
+    </Window.Resources>
+
+    <Grid Margin="16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- ==================== หัวเรื่อง ==================== -->
+        <TextBlock Grid.Row="0" x:Name="HeaderText" Style="{StaticResource Heading2}" TextWrapping="Wrap"/>
+
+        <!-- ==================== สรุปผลรวม ==================== -->
+        <Border Grid.Row="1" Margin="0,12,0,0" CornerRadius="10" Padding="14"
+                Background="{StaticResource Brush.Background.Primary}"
+                BorderBrush="{StaticResource Brush.Border.Default}" BorderThickness="1">
+            <StackPanel>
+                <TextBlock x:Name="SummaryText" FontSize="15" FontWeight="SemiBold"
+                           Foreground="{StaticResource Brush.Text.Primary}" TextWrapping="Wrap"/>
+                <TextBlock x:Name="PendingIndicatorText" Margin="0,6,0,0" FontSize="12"
+                           Foreground="{StaticResource Brush.Accent.Dark}" TextWrapping="Wrap"/>
+            </StackPanel>
+        </Border>
+
+        <!--
+            ==================== ตารางผลรายเครื่อง ====================
+            EnableRowVirtualization + VirtualizationMode=Recycling สำคัญมากสำหรับเคส 40 เครื่อง:
+            DataGrid สร้าง visual tree เฉพาะแถวที่มองเห็นจริงแล้วหมุนเวียนใช้ซ้ำตอน scroll
+            (ค่า default ของ DataGrid เปิด virtualization อยู่แล้ว แต่เขียนไว้ชัดเจนกันคนแก้
+            ทีหลังเผลอเปลี่ยนเป็น StackPanel/ItemsControl ธรรมดาแล้วประสิทธิภาพตกโดยไม่รู้ตัว)
+        -->
+        <DataGrid Grid.Row="2" Margin="0,12,0,0" x:Name="ResultsGrid"
+                  AutoGenerateColumns="False" IsReadOnly="True"
+                  SelectionMode="Single" SelectionUnit="FullRow"
+                  SelectionChanged="ResultsGrid_SelectionChanged"
+                  Background="{StaticResource Brush.Background.Card}"
+                  BorderBrush="{StaticResource Brush.Border.Default}" BorderThickness="1"
+                  RowBackground="{StaticResource Brush.Background.Card}"
+                  AlternatingRowBackground="{StaticResource Brush.Background.Card}"
+                  HorizontalGridLinesBrush="{StaticResource Brush.Border.Default}"
+                  VerticalGridLinesBrush="{StaticResource Brush.Border.Default}"
+                  RowHeight="36" CanUserAddRows="False"
+                  EnableRowVirtualization="True" EnableColumnVirtualization="True"
+                  VirtualizingPanel.IsVirtualizing="True"
+                  VirtualizingPanel.VirtualizationMode="Recycling"
+                  ScrollViewer.CanContentScroll="True"
+                  ColumnHeaderStyle="{StaticResource ReportGridColumnHeaderStyle}"
+                  RowStyle="{StaticResource ReportGridRowStyle}"
+                  CellStyle="{StaticResource ReportGridCellStyle}">
+            <DataGrid.Columns>
+                <DataGridTemplateColumn Header="สถานะ" Width="110">
+                    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate>
+                            <ContentControl Style="{StaticResource RowStatusBadge}"/>
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                </DataGridTemplateColumn>
+
+                <DataGridTextColumn Header="MACHINE NAME" Width="180" Binding="{Binding MachineName}"/>
+                <DataGridTextColumn Header="CLIENT GUID" Width="230" Binding="{Binding ClientGuid}"/>
+                <DataGridTextColumn Header="รายละเอียด" Width="*" Binding="{Binding Message}"/>
+            </DataGrid.Columns>
+        </DataGrid>
+
+        <!-- รายละเอียดของแถวที่เลือก - เผื่อข้อความยาวเกินกว่าจะอ่านจบใน tooltip/คอลัมน์ -->
+        <Border Grid.Row="3" Margin="0,12,0,0" CornerRadius="8" Padding="12"
+                Background="{StaticResource Brush.Background.Primary}"
+                BorderBrush="{StaticResource Brush.Border.Default}" BorderThickness="1">
+            <TextBlock x:Name="SelectedDetailText" TextWrapping="Wrap" MinHeight="32"
+                       Style="{StaticResource Caption}"
+                       Text="เลือกแถวเพื่อดูรายละเอียดของเครื่องนั้น"/>
+        </Border>
+
+        <StackPanel Grid.Row="4" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">
+            <Button x:Name="CloseButton" Content="ปิด" Width="100"
+                    Style="{StaticResource ButtonSecondary}" Click="CloseButton_Click"/>
+        </StackPanel>
+    </Grid>
+</Window>

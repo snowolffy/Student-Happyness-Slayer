@@ -235,7 +235,27 @@ public partial class DashboardWindow : Window
         }
 
         var panel = new ActionPanelWindow(_apiClient, client) { Owner = this };
+        await RunActionPanelAsync(panel);
+    }
+
+    /// <summary>
+    /// เปิด ActionPanelWindow แบบ modal แล้วจัดการสิ่งที่ต้องทำต่อหลังมันปิด - ใช้ร่วมกันทั้ง
+    /// โหมด single-client (ปุ่มต่อแถว) และ bulk (ปุ่มบน header)
+    ///
+    /// หน้า report ถูกเปิด "หลัง" panel ปิดสนิทแล้วเสมอ ไม่ใช่ตอนที่ panel ยังอยู่ - ตรงตาม
+    /// โจทย์ที่ว่าต้องเปิดแทนที่กัน ไม่ซ้อนกัน (ดู ActionPanelWindow.PendingReport)
+    /// </summary>
+    private async Task RunActionPanelAsync(ActionPanelWindow panel)
+    {
         panel.ShowDialog();
+
+        if (panel.PendingReport is not null)
+        {
+            // ส่ง LabHubClient ตัวเดิมของ Dashboard เข้าไปใช้ต่อ (join group "console" ไว้แล้ว)
+            // ไม่เปิด connection ใหม่ให้เปลือง - หน้า report unsubscribe ตัวเองตอนปิด
+            var report = new ActionReportWindow(_apiClient, _labHubClient, panel.PendingReport) { Owner = this };
+            report.Show();
+        }
 
         if (panel.DataChanged)
         {
@@ -419,12 +439,7 @@ public partial class DashboardWindow : Window
         }
 
         var panel = new ActionPanelWindow(_apiClient, selected, _allClients) { Owner = this };
-        panel.ShowDialog();
-
-        if (panel.DataChanged)
-        {
-            await LoadAllDataAsync();
-        }
+        await RunActionPanelAsync(panel);
     }
 
     private async void ResetUserPasswordButton_Click(object sender, RoutedEventArgs e)
