@@ -39,7 +39,8 @@
     </Style>
 
     <!-- ==================== TextBlock ==================== -->
-    <!-- จงใจไม่ตั้ง implicit Style TargetType="TextBlock" ตรงนี้ - ดูเหตุผลใน Console/Themes/AppTheme.xaml -->
+    <!-- จงใจไม่ตั้ง implicit Style TargetType="TextBlock" ตรงนี้ - Console/Theme/ ก็เลี่ยงแบบเดียวกัน
+         (ใช้ Style ตั้งชื่อเจาะจงอย่าง Heading1/Body/Caption/Label แทน implicit) -->
 
     <Style x:Key="LabelText" TargetType="TextBlock">
         <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>

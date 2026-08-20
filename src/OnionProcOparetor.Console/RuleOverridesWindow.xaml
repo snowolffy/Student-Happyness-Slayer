@@ -8,14 +8,19 @@
         Icon="/Theme/icon.ico"
         Style="{StaticResource AppWindowStyle}">
     <!-- Grid layout (no Canvas) - modeled on ClientSettingsWindow.xaml's fixed-pixel RowDefinitions
-         pattern, sized taller to fit a scrollable per-rule list since the rule count is variable. -->
+         pattern, sized taller to fit a scrollable per-rule list since the rule count is variable.
+         Row 0 (title), Row 1 (intro caption), and Row 4 (StatusText) are "Auto" rather than fixed
+         pixels: MachineNameText interpolates the machine name, the intro text is a long static
+         string that wraps to 2 lines at this width, and StatusText interpolates a variable-length
+         rule name at runtime - all three would silently bleed into the row below them under a fixed
+         height, since Grid doesn't clip children to their row bounds. -->
     <Grid Margin="20">
         <Grid.RowDefinitions>
-            <RowDefinition Height="29"/>
-            <RowDefinition Height="18"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
             <RowDefinition Height="8"/>
             <RowDefinition Height="*"/>
-            <RowDefinition Height="27"/>
+            <RowDefinition Height="Auto"/>
             <RowDefinition Height="40"/>
         </Grid.RowDefinitions>
 

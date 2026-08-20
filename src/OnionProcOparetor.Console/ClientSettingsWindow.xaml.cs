@@ -12,6 +12,7 @@ public partial class ClientSettingsWindow : Window
     public ClientSettingsWindow(ApiClient apiClient, ClientMachineDto client)
     {
         InitializeComponent();
+        Loaded += (_, _) => WindowCenteringHelper.CenterOverOwnerOrScreen(this);
         _apiClient = apiClient;
         _client = client;
 

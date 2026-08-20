@@ -1,4 +1,5 @@
 using System.Windows;
+using OnionProcOparetor.Console.Services;
 
 namespace OnionProcOparetor.Console;
 
@@ -9,6 +10,7 @@ public partial class ResetPasswordWindow : Window
     public ResetPasswordWindow(string username)
     {
         InitializeComponent();
+        Loaded += (_, _) => WindowCenteringHelper.CenterOverOwnerOrScreen(this);
         TitleText.Text = $"Reset Password - {username}";
     }
 

@@ -9,6 +9,7 @@ public partial class SettingsWindow : Window
     public SettingsWindow()
     {
         InitializeComponent();
+        Loaded += (_, _) => WindowCenteringHelper.CenterOverOwnerOrScreen(this);
 
         var settings = SettingsService.Current;
         VncLimitBox.Text = settings.Vnc.MaxConcurrentSessions.ToString();

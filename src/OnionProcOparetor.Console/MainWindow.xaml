@@ -59,8 +59,12 @@
                         Style="{StaticResource ButtonPrimary}"
                         Click="ConnectButton_Click" HorizontalAlignment="Center" VerticalAlignment="Top" Margin="0,189,0,0"/>
 
+                <!-- ไม่ตั้ง Height ตายตัวเหมือนเดิม (16px) - StatusText โชว์ข้อความ runtime จริงที่ยาวได้
+                     กว่า 1 บรรทัด (เช่น "เชื่อมต่อสำเร็จ กรุณาเปลี่ยน password ก่อนใช้งาน...") ปล่อยให้
+                     TextBlock วัดความสูงจริงของตัวเองแทน ไม่งั้นข้อความจะ render ล้นออกไปทับขอบล่างของ
+                     card border (Height=273) โดยไม่มีการ clip ใดๆ กันไว้เลย -->
                 <TextBlock Width="344" x:Name="StatusText"
-                           TextWrapping="Wrap" TextAlignment="Center" FontSize="12" HorizontalAlignment="Center" VerticalAlignment="Top" Height="16" Margin="0,227,0,0"/>
+                           TextWrapping="Wrap" TextAlignment="Center" FontSize="12" HorizontalAlignment="Center" VerticalAlignment="Top" Margin="0,227,0,0"/>
             </Grid>
         </Border>
     </Grid>

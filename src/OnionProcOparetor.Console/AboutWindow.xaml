@@ -7,12 +7,28 @@
         ResizeMode="NoResize"
         Icon="/Theme/icon.ico"
         Style="{StaticResource AppWindowStyle}">
-    <!-- Free-form Canvas layout - drag any element to reposition it in the VS Designer. -->
-    <Canvas Margin="20">
+    <!-- Grid layout with fixed-pixel RowDefinitions matching the old Canvas.Top deltas - see
+         ClientSettingsWindow.xaml/SettingsWindow.xaml for the same pattern. Old Canvas hand-centered
+         the logo/button via Canvas.Left math (148 = (344-48)/2, 127 = (344-90)/2) tuned by eye in the
+         Designer at one specific DPI/font metrics - HorizontalAlignment="Center" here does the same
+         centering but recalculates it for real at layout time, so it can't drift out of position. -->
+    <Grid Margin="19,20,21,20">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="60"/>
+            <RowDefinition Height="36"/>
+            <RowDefinition Height="22"/>
+            <RowDefinition Height="36"/>
+            <RowDefinition Height="16"/>
+            <RowDefinition Height="22"/>
+            <RowDefinition Height="34"/>
+            <RowDefinition Height="60"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
         <!-- ==================== Logo mark (uses logo-source.png - same 4000x4000 master the installer
              banner is generated from - instead of the pre-downscaled logo.png MainWindow/Dashboard use,
              since this is the one place the mark gets shown at meaningfully larger badge sizes) ==================== -->
-        <Border Canvas.Left="148" Canvas.Top="0" Width="48" Height="48" CornerRadius="12"
+        <Border Grid.Row="0" Width="48" Height="48" CornerRadius="12" HorizontalAlignment="Center" VerticalAlignment="Top"
                 Background="{StaticResource Brush.Accent.Default}">
             <Border.Clip>
                 <RectangleGeometry RadiusX="12" RadiusY="12" Rect="0,0,48,48"/>
@@ -21,26 +37,26 @@
         </Border>
 
         <!-- ==================== Name / tagline ==================== -->
-        <TextBlock Canvas.Left="0" Canvas.Top="60" Width="344" Text="Onion ProcOparetor"
+        <TextBlock Grid.Row="1" Width="344" Text="Onion ProcOparetor" VerticalAlignment="Top"
                     Style="{StaticResource Heading1}" TextAlignment="Center"/>
-        <TextBlock Canvas.Left="0" Canvas.Top="96" Width="344" Text="We peel, We See, We Oparete"
+        <TextBlock Grid.Row="2" Width="344" Text="We peel, We See, We Oparete" VerticalAlignment="Top"
                     FontFamily="{StaticResource FontFamily.Primary}" FontStyle="Italic" FontWeight="Light"
                     FontSize="11" Foreground="{StaticResource Brush.Text.Secondary}" TextAlignment="Center"/>
-        <TextBlock Canvas.Left="0" Canvas.Top="118" Width="344" Text="by OnionProcOparetor"
+        <TextBlock Grid.Row="3" Width="344" Text="by OnionProcOparetor" VerticalAlignment="Top"
                     Style="{StaticResource Caption}" TextAlignment="Center"/>
 
-        <Border Canvas.Left="0" Canvas.Top="154" Width="344" Height="1" Background="{StaticResource Brush.Border.Default}"/>
+        <Border Grid.Row="4" Width="344" Height="1" VerticalAlignment="Top" Background="{StaticResource Brush.Border.Default}"/>
 
         <!-- ==================== Version / build / copyright ==================== -->
-        <TextBlock Canvas.Left="0" Canvas.Top="170" Width="344" x:Name="VersionText"
+        <TextBlock Grid.Row="5" Width="344" x:Name="VersionText" VerticalAlignment="Top"
                     Style="{StaticResource Body}" TextAlignment="Center"/>
-        <TextBlock Canvas.Left="0" Canvas.Top="192" Width="344" x:Name="BuildText"
+        <TextBlock Grid.Row="6" Width="344" x:Name="BuildText" VerticalAlignment="Top"
                     Style="{StaticResource Caption}" TextAlignment="Center"/>
-        <TextBlock Canvas.Left="0" Canvas.Top="226" Width="344"
+        <TextBlock Grid.Row="7" Width="344" VerticalAlignment="Top"
                     Text="© 2026 OnionProcOparetor. All rights reserved."
                     Style="{StaticResource Caption}" TextAlignment="Center" TextWrapping="Wrap"/>
 
-        <Button Canvas.Left="127" Canvas.Top="286" Width="90" Content="CLOSE" Style="{StaticResource ButtonSecondary}"
-                Click="CloseButton_Click"/>
-    </Canvas>
+        <Button Grid.Row="8" Width="90" Content="CLOSE" Style="{StaticResource ButtonSecondary}"
+                HorizontalAlignment="Center" VerticalAlignment="Top" Click="CloseButton_Click"/>
+    </Grid>
 </Window>

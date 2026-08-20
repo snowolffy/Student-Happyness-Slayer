@@ -53,6 +53,7 @@ public partial class ActionPanelWindow : Window
     public ActionPanelWindow(ApiClient apiClient, ClientMachineDto client)
     {
         InitializeComponent();
+        Loaded += (_, _) => WindowCenteringHelper.CenterOverOwnerOrScreen(this);
         _apiClient = apiClient;
         _isBulk = false;
         _singleClient = client;
@@ -76,6 +77,7 @@ public partial class ActionPanelWindow : Window
     public ActionPanelWindow(ApiClient apiClient, List<ClientMachineDto> selectedClients, List<ClientMachineDto> allClients)
     {
         InitializeComponent();
+        Loaded += (_, _) => WindowCenteringHelper.CenterOverOwnerOrScreen(this);
         _apiClient = apiClient;
         _isBulk = true;
         _selectedClients = selectedClients;

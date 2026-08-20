@@ -1,4 +1,5 @@
 using System.Windows;
+using OnionProcOparetor.Console.Services;
 
 namespace OnionProcOparetor.Console;
 
@@ -11,6 +12,7 @@ public partial class BroadcastMessageWindow : Window
     public BroadcastMessageWindow(int selectedCount)
     {
         InitializeComponent();
+        Loaded += (_, _) => WindowCenteringHelper.CenterOverOwnerOrScreen(this);
 
         if (selectedCount > 0)
         {

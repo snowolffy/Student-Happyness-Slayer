@@ -1,4 +1,5 @@
 using System.Windows;
+using OnionProcOparetor.Console.Services;
 
 namespace OnionProcOparetor.Console;
 
@@ -7,6 +8,7 @@ public partial class ConfirmWindow : Window
     private ConfirmWindow(string message, string title)
     {
         InitializeComponent();
+        Loaded += (_, _) => WindowCenteringHelper.CenterOverOwnerOrScreen(this);
         Title = title;
         MessageText.Text = message;
     }
