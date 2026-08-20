@@ -26,14 +26,19 @@
             InstallerVersion="500">
 
     <SummaryInformation Keywords="Installer" Description="Onion ProcOparetor Server + Console Setup" />
-    <MajorUpgrade DowngradeErrorMessage="A newer version of [ProductName] is already installed." />
+    <!-- ดู installer\OnionProcOparetor.Agent.wxs's comment เดียวกันนี้สำหรับเหตุผลเต็ม - บั๊กเดียวกัน
+         (Version ไม่เคย bump ทำให้ MajorUpgrade ไม่ trigger เพราะ AllowSameVersionUpgrades default เป็น
+         "no") กระทบทั้ง 2 product เหมือนกัน แก้ด้วยวิธีเดียวกัน -->
+    <MajorUpgrade DowngradeErrorMessage="A newer version of [ProductName] is already installed." AllowSameVersionUpgrades="yes" />
     <MediaTemplate EmbedCab="yes" />
 
     <!-- ==================== Branding ==================== -->
     <Icon Id="AppIcon.ico" SourceFile="Assets\icon.ico" />
     <Property Id="ARPPRODUCTICON" Value="AppIcon.ico" />
-    <WixVariable Id="WixUIBannerBmp" Value="Assets\banner.bmp" />
-    <WixVariable Id="WixUIDialogBmp" Value="Assets\dialog.bmp" />
+    <!-- ขอกลับไปใช้ banner/dialog bitmap ค่า default ของ WiX เองก่อน - เหตุผลเดียวกับ Agent product's
+         comment (ดู OnionProcOparetor.Agent.wxs) -->
+    <!-- <WixVariable Id="WixUIBannerBmp" Value="Assets\banner.bmp" /> -->
+    <!-- <WixVariable Id="WixUIDialogBmp" Value="Assets\dialog.bmp" /> -->
 
     <Property Id="WIXUI_EXITDIALOGOPTIONALCHECKBOXTEXT" Value="Launch Onion ProcOparetor Console" />
     <Property Id="WIXUI_EXITDIALOGOPTIONALCHECKBOX" Value="1" />
@@ -60,7 +65,6 @@
       <Directory Id="INSTALLFOLDER" Name="Onion ProcOparetor">
         <Directory Id="ServerDir" Name="Server" />
         <Directory Id="ConsoleDir" Name="Console" />
-        <Directory Id="CustomActionsDir" Name="CustomActions" />
         <Directory Id="UninstallHelperDir" Name="UninstallHelper" />
       </Directory>
     </StandardDirectory>
@@ -75,7 +79,6 @@
     <!-- AllowAbsent="no" ถูกลบออก - simplification เฉยๆ ไม่ใช่ bug fix เหตุผลเดียวกับ Agent product's
          comment (ดู OnionProcOparetor.Agent.wxs) -->
     <Feature Id="MainFeature" Level="1" Display="hidden">
-      <ComponentRef Id="CustomActionsComponent" />
       <ComponentRef Id="RunSetupComponent" />
       <ComponentGroupRef Id="UninstallHelperFiles" />
       <ComponentRef Id="UninstallHelperExeComponent" />
@@ -146,8 +149,12 @@
         <RegistryValue Type="string" Name="Publisher" Value="OnionProcOparetor" />
         <!-- ส่ง product display name เป็น arg ที่ 3 ด้วย (args[2]) - เหตุผลเดียวกับ Agent product's
              comment (ดู OnionProcOparetor.Agent.wxs) - UninstallHelper.exe เป็น binary เดียวกันที่
-             bundle เข้าทั้ง 2 MSI ต้องบอกให้ชัดว่ากำลังลบเครื่องไหนอยู่ -->
-        <RegistryValue Type="string" Name="UninstallString" Value="&quot;[#UninstallHelperExeFile]&quot; [ProductCode] &quot;Onion ProcOparetor&quot;" />
+             bundle เข้าทั้ง 2 MSI ต้องบอกให้ชัดว่ากำลังลบเครื่องไหนอยู่
+
+             args[3] = [INSTALLFOLDER] จริง, args[4] = "1" (product นี้รองรับ "delete data") - เหตุผล
+             เดียวกับ Agent product's comment ทุกประการ (ดู OnionProcOparetor.Agent.wxs และ
+             MainWindow.xaml.cs) -->
+        <RegistryValue Type="string" Name="UninstallString" Value="&quot;[#UninstallHelperExeFile]&quot; [ProductCode] &quot;Onion ProcOparetor&quot; &quot;[INSTALLFOLDER]\&quot; &quot;1&quot;" />
         <RegistryValue Type="string" Name="DisplayIcon" Value="[#UninstallHelperExeFile]" />
         <RegistryValue Type="integer" Name="NoModify" Value="1" />
         <RegistryValue Type="integer" Name="NoRepair" Value="1" />
@@ -162,10 +169,6 @@
       <File Id="RunSetupPs1" Source="run-setup.ps1" KeyPath="yes" />
     </Component>
 
-    <Component Id="CustomActionsComponent" Directory="CustomActionsDir" Guid="8C2D41E6-5A6D-4D1A-95E2-FB74C37A6E70">
-      <File Id="DeleteProgramDataPs1" Source="CustomActions\delete-programdata.ps1" KeyPath="yes" />
-    </Component>
-
     <!-- ==================== Custom Actions ==================== -->
 
     <!-- Server setup: POST /api/auth/setup once OnionCoreService is actually running (retries
@@ -175,10 +178,19 @@
     <CustomAction Id="SetupServer" BinaryRef="Wix4UtilCA_$(sys.BUILDARCHSHORT)" DllEntry="WixQuietExec"
       Execute="deferred" Return="ignore" Impersonate="no" />
 
-    <CustomAction Id="DeleteProgramDataProps" Property="DeleteProgramData"
-      Value="&quot;[System64Folder]WindowsPowerShell\v1.0\powershell.exe&quot; -NoProfile -NonInteractive -ExecutionPolicy Bypass -File &quot;[#DeleteProgramDataPs1]&quot;" />
-    <CustomAction Id="DeleteProgramData" BinaryRef="Wix4UtilCA_$(sys.BUILDARCHSHORT)" DllEntry="WixQuietExec"
-      Execute="deferred" Return="ignore" Impersonate="no" />
+    <!-- บั๊กจริงที่เจอ (2026-08-20): เดิม DeleteProgramData ใช้ pattern เดียวกับ SetupServer ข้างบน คือ
+         อ้างอิงไฟล์ที่ install ไว้ ([#DeleteProgramDataPs1]) แต่ตัวมันเองถูก schedule ไว้ที่
+         After="RemoveFiles" - เท่ากับพอถึงตอนที่ deferred CA นี้รันจริง ไฟล์ CustomActions\
+         delete-programdata.ps1 (component ของมันเองก็โดน REMOVE=ALL ลบไปแล้วเหมือนกัน) ไม่มีอยู่บนดิสก์
+         อีกต่อไป - powershell.exe -File ชี้ไปที่ไฟล์ที่ไม่มีอยู่จริง ล้มเหลวเงียบๆ (Return="ignore") ทุกครั้ง
+         %ProgramData%\OnionProcOparetor เลยไม่เคยถูกลบจริงเลยไม่ว่าจะติ๊ก checkbox หรือไม่ก็ตาม - บทเรียน
+         เดียวกันกับที่เคยเจอมาแล้วจริงกับ RemoveInstallFolderExtras ด้านล่าง (ดู comment ของมัน) แต่ตอนนั้น
+         แก้แค่ตัวเดียว ไม่ได้ทันสังเกตว่า DeleteProgramData เข้าข่ายปัญหาเดียวกันทุกประการ แก้ด้วย pattern
+         เดียวกัน: ฝัง script เป็น -EncodedCommand ตรงๆ ไม่พึ่งไฟล์ที่ install ไว้อีกต่อไป source ของ blob
+         นี้ยังเก็บไว้ที่ CustomActions\delete-programdata.ps1 เป็น source-of-truth สำหรับ regenerate
+         (ไม่ได้ bundle เข้า MSI แล้ว - ดู comment ในไฟล์นั้นเอง) -->
+    <CustomAction Id="DeleteProgramData" Directory="INSTALLFOLDER" Execute="immediate" Return="ignore"
+      ExeCommand="powershell.exe -NoProfile -NonInteractive -WindowStyle Hidden -EncodedCommand JABwAHIAbwBnAHIAYQBtAEQAYQB0AGEAUABhAHQAaAAgAD0AIABKAG8AaQBuAC0AUABhAHQAaAAgACQAZQBuAHYAOgBQAHIAbwBnAHIAYQBtAEQAYQB0AGEAIAAiAE8AbgBpAG8AbgBQAHIAbwBjAE8AcABhAHIAZQB0AG8AcgAiAAoAaQBmACAAKABUAGUAcwB0AC0AUABhAHQAaAAgACQAcAByAG8AZwByAGEAbQBEAGEAdABhAFAAYQB0AGgAKQAgAHsACgAgACAAIAAgAFIAZQBtAG8AdgBlAC0ASQB0AGUAbQAgAC0AUABhAHQAaAAgACQAcAByAG8AZwByAGEAbQBEAGEAdABhAFAAYQB0AGgAIAAtAFIAZQBjAHUAcgBzAGUAIAAtAEYAbwByAGMAZQAgAC0ARQByAHIAbwByAEEAYwB0AGkAbwBuACAAUwBpAGwAZQBuAHQAbAB5AEMAbwBuAHQAaQBuAHUAZQAKAH0ACgBlAHgAaQB0ACAAMAA=" />
 
     <!-- Final uninstall sweep for INSTALLFOLDER - replaces a broken util:RemoveFolderEx (its
          extension-provided deferred CA runs at a fixed sequence 799, before INSTALLFOLDER is
@@ -206,7 +218,6 @@
       <Custom Action="SetupServerProps" Before="SetupServer" Condition="NOT REMOVE" />
       <Custom Action="SetupServer" After="StartServices" Condition="NOT REMOVE" />
 
-      <Custom Action="DeleteProgramDataProps" Before="DeleteProgramData" Condition="REMOVE=&quot;ALL&quot; AND DELETEDATA=&quot;1&quot; AND NOT UPGRADINGPRODUCTCODE" />
       <Custom Action="DeleteProgramData" After="RemoveFiles" Condition="REMOVE=&quot;ALL&quot; AND DELETEDATA=&quot;1&quot; AND NOT UPGRADINGPRODUCTCODE" />
 
       <Custom Action="RemoveInstallFolderExtras" After="DeleteProgramData" Condition="REMOVE=&quot;ALL&quot; AND NOT UPGRADINGPRODUCTCODE" />

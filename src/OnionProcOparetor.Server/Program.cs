@@ -55,10 +55,15 @@ builder.Services.AddDbContext<AppDbContext>(options =>
 // ---- SignalR: real-time push คู่ขนานกับ HTTP polling เดิม (ไม่แทนที่ poll) ----
 builder.Services.AddSignalR();
 
-// ---- Background scan หาเครื่องที่ IsEnabled=true แต่ Agent หายไปผิดปกติ (ดู
-// MissingClientMonitorService) - ชั้นป้องกันที่สองเผื่อนักเรียนหลบ uninstall password gate
-// ด้วยการ kill service ตรงผ่าน Task Manager/services.msc ----
-builder.Services.AddHostedService<MissingClientMonitorService>();
+// ---- เก็บว่า Agent เครื่องไหนเปิด SignalR connection ค้างอยู่ตอนนี้บ้าง (LabHub.RegisterAgent/
+// OnDisconnectedAsync เขียน, endpoint ต่างๆ ที่คืน/broadcast ClientMachine อ่าน) - ดู
+// AgentConnectionRegistry สำหรับเหตุผลเต็ม ต้องเป็น singleton (state ต้องอยู่ข้ามทุก request/hub
+// invocation ไม่ใช่ scoped ตาม request เดียว) ----
+builder.Services.AddSingleton<AgentConnectionRegistry>();
+
+// ---- Background scan หาเครื่องที่เปลี่ยนสถานะ online/offline (ดู
+// ClientOnlineStatusMonitorService) - ชั้นเสริมสำหรับเครื่องที่ไม่เคย connect SignalR เลย ----
+builder.Services.AddHostedService<ClientOnlineStatusMonitorService>();
 
 // ---- Background scan หา command ที่ส่งไปแล้วแต่ Agent ไม่เคยรายงานผลจริงกลับมา แล้ว mark
 // เป็น TimedOut (ดู CommandResultTimeoutService) - ต้องอยู่ฝั่ง Server เพราะครูอาจปิดหน้า
@@ -169,7 +174,7 @@ app.MapPost("/api/auth/login", async (LoginRequest req, AppDbContext db) =>
 });
 
 // ดึงรายชื่อ client ทั้งหมด + สถานะ
-app.MapGet("/api/clients", async (HttpRequest request, AppDbContext db) =>
+app.MapGet("/api/clients", async (HttpRequest request, AppDbContext db, AgentConnectionRegistry connectionRegistry) =>
 {
     var admin = await GetAuthorizedAdmin(request, db);
     if (admin is null)
@@ -178,11 +183,17 @@ app.MapGet("/api/clients", async (HttpRequest request, AppDbContext db) =>
         return Results.Json(new { error = "Password change required before continuing." }, statusCode: 403);
 
     var clients = await db.ClientMachines.OrderBy(c => c.MachineName).ToListAsync();
+    // เติม IsConnectedViaSignalR ก่อน serialize เสมอ (ไม่ set = default false = IsOnline พึ่ง LastSeenAt
+    // อย่างเดียว ยังถูกอยู่แต่ไม่ได้สัญญาณเร็วจาก SignalR - ดู ClientMachine.IsConnectedViaSignalR)
+    foreach (var client in clients)
+    {
+        client.IsConnectedViaSignalR = connectionRegistry.IsConnected(client.ClientGuid);
+    }
     return Results.Ok(clients);
 });
 
 // toggle เครื่องใดเครื่องหนึ่ง (per-machine)
-app.MapPost("/api/clients/{id:int}/toggle", async (int id, HttpRequest request, AppDbContext db) =>
+app.MapPost("/api/clients/{id:int}/toggle", async (int id, HttpRequest request, AppDbContext db, AgentConnectionRegistry connectionRegistry) =>
 {
     var admin = await GetAuthorizedAdmin(request, db);
     if (admin is null)
@@ -195,6 +206,7 @@ app.MapPost("/api/clients/{id:int}/toggle", async (int id, HttpRequest request, 
 
     client.IsEnabled = !client.IsEnabled;
     await db.SaveChangesAsync();
+    client.IsConnectedViaSignalR = connectionRegistry.IsConnected(client.ClientGuid);
     return Results.Ok(client);
 });
 
@@ -367,7 +379,7 @@ app.MapDelete("/api/clients/{clientGuid}/rule-overrides/{ruleId:int}", async (st
 });
 
 // แก้ setting ของเครื่องใดเครื่องหนึ่งจากศูนย์กลาง (ตอนนี้มีแค่ poll interval override)
-app.MapPut("/api/clients/{id:int}/settings", async (int id, ClientSettingsRequest request, HttpRequest httpRequest, AppDbContext db) =>
+app.MapPut("/api/clients/{id:int}/settings", async (int id, ClientSettingsRequest request, HttpRequest httpRequest, AppDbContext db, AgentConnectionRegistry connectionRegistry) =>
 {
     var admin = await GetAuthorizedAdmin(httpRequest, db);
     if (admin is null)
@@ -381,12 +393,13 @@ app.MapPut("/api/clients/{id:int}/settings", async (int id, ClientSettingsReques
     client.PollIntervalOverrideSeconds = request.PollIntervalOverrideSeconds;
     await db.SaveChangesAsync();
 
+    client.IsConnectedViaSignalR = connectionRegistry.IsConnected(client.ClientGuid);
     return Results.Ok(client);
 });
 
 // client เอาไว้ poll เพื่อดึง rules + สถานะ enabled/disabled ของตัวเอง
 // (endpoint สำคัญที่สุดสำหรับฝั่ง Client Service) - ไม่ต้อง auth เพราะใช้ clientGuid ยืนยันตัวเองแทน
-app.MapGet("/api/poll/{clientGuid}", async (string clientGuid, string machineName, HttpContext httpContext, AppDbContext db, IHubContext<LabHub> hub) =>
+app.MapGet("/api/poll/{clientGuid}", async (string clientGuid, string machineName, HttpContext httpContext, AppDbContext db, IHubContext<LabHub> hub, AgentConnectionRegistry connectionRegistry) =>
 {
     var client = await db.ClientMachines.FirstOrDefaultAsync(c => c.ClientGuid == clientGuid);
 
@@ -441,6 +454,7 @@ app.MapGet("/api/poll/{clientGuid}", async (string clientGuid, string machineNam
     await db.SaveChangesAsync();
 
     // เสริม real-time status ให้ console ที่เปิดอยู่ - ไม่กระทบ response ที่คืนให้ agent เลย
+    client.IsConnectedViaSignalR = connectionRegistry.IsConnected(clientGuid);
     await hub.Clients.BroadcastClientStatus(client);
 
     return Results.Ok(new

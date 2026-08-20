@@ -3,6 +3,7 @@ using System.IO.Pipes;
 using System.Security.AccessControl;
 using System.Security.Principal;
 using System.Text.Json;
+using System.Threading.Channels;
 using OnionProcOparetor.AgentTray.Models;
 
 namespace OnionProcOparetor.AgentTray.Services;
@@ -17,11 +18,27 @@ namespace OnionProcOparetor.AgentTray.Services;
 /// ต้องเปิด ACL ให้ "Everyone" อ่าน/เขียนได้ เพราะ Agent (client) รันเป็น Windows Service
 /// (มักเป็นบัญชีคนละตัวกับ user session นี้ เช่น LocalSystem) การเชื่อมต่อข้าม session/account
 /// แบบนี้ต้องอาศัย security descriptor ที่อนุญาตไว้ชัดเจน ไม่งั้น default ACL อาจกันการเชื่อมต่อไว้
+///
+/// บั๊กจริงที่เจอตอน field test (2026-08-20): เดิม accept-loop เรียก HandleMessageLine "อยู่ใน loop
+/// เดียวกัน" ก่อนวนกลับไป WaitForConnectionAsync รอบถัดไป - ถ้า handler ของ message ใดค้าง (เช่น
+/// StartVncSession ที่ไปค้างใน VncProcessManager เพราะ createpassword.exe/winvnc.exe แฮงค์) จะไม่มีวัน
+/// วนกลับไปรับ connection ใหม่ได้อีกเลย (maxNumberOfServerInstances=1 ด้วย) = AgentTray ไม่ตอบสนอง
+/// "ทุก" คำสั่งถัดไปทั้งหมด (lock/unlock/broadcast/shutdown notify) ไม่ใช่แค่ VNC เท่านั้น ต้องปิด process
+/// เองแล้วให้ Agent ยิงคำสั่งใหม่มา (trigger auto-recover ที่สตาร์ท instance ใหม่) ถึงจะกลับมาทำงาน
+///
+/// แก้โดยแยก "accept connection" ออกจาก "ประมวลผล message" เป็นคนละงาน เชื่อมกันด้วย Channel -
+/// accept-loop แค่ read บรรทัดเดียวแล้วส่งเข้า channel ทันที ไม่รอ handler เลย วนกลับไปรับ connection
+/// ถัดไปได้ต่อเนื่องเสมอไม่ว่า handler ของ message ก่อนหน้าจะค้างอยู่นานแค่ไหน ส่วนการประมวลผลจริงยังรัน
+/// เรียงลำดับทีละอันเหมือนเดิม (single consumer) เพื่อคงพฤติกรรมเดิมที่ handler บางตัวไม่ idempotent
+/// (เช่น ShutdownNotify ที่ต้อง "ทับด้วยคำสั่งล่าสุดเสมอ" - ดู OnShutdownNotifyRequested ฝั่ง App.xaml.cs)
+/// ต้องมาถึง UI ตามลำดับที่ Agent ส่งจริง
 /// </summary>
 public class BroadcastPipeListener
 {
     /// <summary>ต้องตรงกับ AgentTrayNotifier.PipeName ฝั่ง Agent เป๊ะๆ</summary>
     public const string PipeName = "OnionProcOparetor.AgentTray.Broadcast";
+
+    private readonly Channel<string> _messageQueue = Channel.CreateUnbounded<string>();
 
     /// <summary>เรียกทุกครั้งที่ได้ broadcast message ใหม่ - เรียกจาก background thread ไม่ใช่ UI thread</summary>
     public event Action<BroadcastMessageDto>? MessageReceived;
@@ -54,8 +71,14 @@ public class BroadcastPipeListener
     public void Start(CancellationToken ct)
     {
         _ = RunAsync(ct);
+        _ = ProcessQueueAsync(ct);
     }
 
+    /// <summary>
+    /// รับ connection ทีละอัน - แค่อ่านบรรทัดเดียวแล้วส่งเข้า queue ทันที ไม่เรียก handler ตรงๆ ที่นี่
+    /// (ดู doc comment บนสุดของ class ว่าทำไม) ทำให้วนกลับไปรับ connection ถัดไปได้เสมอไม่ว่า message
+    /// ก่อนหน้าจะถูกประมวลผลเสร็จหรือยัง
+    /// </summary>
     private async Task RunAsync(CancellationToken ct)
     {
         var pipeSecurity = new PipeSecurity();
@@ -78,7 +101,7 @@ public class BroadcastPipeListener
 
                 if (!string.IsNullOrWhiteSpace(line))
                 {
-                    HandleMessageLine(line);
+                    await _messageQueue.Writer.WriteAsync(line, ct);
                 }
             }
             catch (OperationCanceledException)
@@ -98,6 +121,26 @@ public class BroadcastPipeListener
                     return;
                 }
             }
+        }
+    }
+
+    /// <summary>
+    /// consumer เดี่ยว ประมวลผล message ทีละอันเรียงตามลำดับที่รับมาจริง (คงพฤติกรรมเดิมไว้) แยกออกจาก
+    /// accept-loop ข้างบนโดยสิ้นเชิง - ถ้า handler ตัวใดค้าง จะมีแค่ consumer ตัวนี้ที่หยุดเดินหน้าต่อ
+    /// (message ถัดไปจะรอคิวอยู่) แต่ accept-loop จะยังรับ connection ใหม่ๆ เข้ามาเก็บใน queue ต่อได้
+    /// เรื่อยๆ ไม่ตายไปด้วยกัน
+    /// </summary>
+    private async Task ProcessQueueAsync(CancellationToken ct)
+    {
+        try
+        {
+            await foreach (var line in _messageQueue.Reader.ReadAllAsync(ct))
+            {
+                HandleMessageLine(line);
+            }
+        }
+        catch (OperationCanceledException)
+        {
         }
     }
 

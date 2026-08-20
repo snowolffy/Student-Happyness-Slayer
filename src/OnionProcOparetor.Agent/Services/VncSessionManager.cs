@@ -90,7 +90,19 @@ public sealed class VncSessionManager
             // เปิด firewall เฉพาะ port จริงที่เจอ - ต้องทำก่อนตอบกลับ Console เสมอ ไม่งั้น connect ได้
             // ผ่าน handshake ทุกอย่างยกเว้นโดน Windows Firewall บล็อก TCP เงียบๆ (อาการที่เจอจริงตอน
             // debug: RfbClient timeout แม้ winvnc.exe listen อยู่จริง)
-            await EnsureFirewallExceptionAsync(actualPort.Value, ct);
+            //
+            // บั๊กจริงที่เจอตอน field test (2026-08-20): เดิม return value ของ EnsureFirewallExceptionAsync
+            // ไม่ถูกเช็คเลย (แค่ log warning ข้างในแล้วปล่อยผ่านต่อ) - ทำให้เครื่องที่ netsh add rule ล้มเหลว
+            // จริง (พบบ่อยบนเครื่อง lab ที่ join domain แล้ว Group Policy คุม Windows Firewall อยู่ - local
+            // rule ถูกปฏิเสธ หรือถูก merge setting ของ GPO เมินไปเฉยๆ) ยังถูกรายงานกลับ Console ว่า "พร้อมใช้
+            // งาน" เหมือนเดิมทุกครั้ง ครูเห็น session ready แต่ connect ไม่ติดเลยโดยไม่รู้สาเหตุจริง ตรงกับ
+            // อาการ "VNC ปฏิเสธการเชื่อมต่อ" ที่เจอจริงหลายเครื่อง ตอนนี้เช็คผลจริงแล้ว fail ทันทีถ้าเปิด
+            // firewall ไม่สำเร็จ พร้อมส่งเหตุผลที่เจาะจงกลับไปให้ครูเห็นแทนที่จะเงียบ
+            var (firewallOk, firewallFailureReason) = await EnsureFirewallExceptionAsync(actualPort.Value, ct);
+            if (!firewallOk)
+            {
+                return (false, 0, firewallFailureReason);
+            }
 
             CurrentPort = actualPort.Value;
             CurrentPassword = password;
@@ -310,22 +322,29 @@ public sealed class VncSessionManager
     /// rule อยู่แล้วไม่ต้อง elevate เพิ่ม (ต่างจาก AgentTray ที่รันเป็น user ธรรมดา - เหตุผลที่ port
     /// discovery/firewall ทั้งหมดยังอยู่ฝั่ง Agent แม้ตัว winvnc.exe เองย้ายไป AgentTray แล้ว)
     /// </summary>
-    private async Task EnsureFirewallExceptionAsync(int port, CancellationToken ct)
+    private async Task<(bool Success, string? FailureReason)> EnsureFirewallExceptionAsync(int port, CancellationToken ct)
     {
         await RunNetshAsync($"advfirewall firewall delete rule name=\"{FirewallRuleName}\"", ct);
 
-        var addExitCode = await RunNetshAsync(
+        var (addExitCode, addStdErr) = await RunNetshAsync(
             $"advfirewall firewall add rule name=\"{FirewallRuleName}\" dir=in action=allow protocol=TCP localport={port}", ct);
 
         if (addExitCode != 0)
         {
-            _logger.LogWarning(
-                "VncSessionManager: เปิด Windows Firewall rule สำหรับ port {Port} ไม่สำเร็จ (exit code {ExitCode}) - Console อาจต่อ VNC ไม่ได้ถ้ามี firewall block อยู่",
-                port, addExitCode);
+            var reason =
+                $"เปิด Windows Firewall inbound rule สำหรับ port {port} ไม่สำเร็จ (netsh exit code {addExitCode}" +
+                (string.IsNullOrWhiteSpace(addStdErr) ? ")" : $": {addStdErr.Trim()})") +
+                " - เครื่องนี้อาจ join domain ที่มี Group Policy คุม Windows Firewall อยู่ ให้ผู้ดูแลระบบเปิด inbound TCP " +
+                $"port {port} ให้ OnionProcOparetor.Agent.exe เอง (หรือปิด GPO ที่บล็อก local firewall rule)";
+
+            _logger.LogWarning("VncSessionManager: {Reason}", reason);
+            return (false, reason);
         }
+
+        return (true, null);
     }
 
-    private static async Task<int> RunNetshAsync(string arguments, CancellationToken ct)
+    private static async Task<(int ExitCode, string StdErr)> RunNetshAsync(string arguments, CancellationToken ct)
     {
         var psi = new ProcessStartInfo
         {
@@ -340,11 +359,12 @@ public sealed class VncSessionManager
         using var process = Process.Start(psi);
         if (process is null)
         {
-            return -1;
+            return (-1, string.Empty);
         }
 
+        var stdErr = await process.StandardError.ReadToEndAsync(ct);
         await process.WaitForExitAsync(ct);
-        return process.ExitCode;
+        return (process.ExitCode, stdErr);
     }
 
     /// <summary>ลบ firewall rule แบบ sync - ตาม principle เดิมของฟีเจอร์นี้: ลด attack surface ไม่เปิดอะไรค้างทิ้งไว้เกินความจำเป็น</summary>

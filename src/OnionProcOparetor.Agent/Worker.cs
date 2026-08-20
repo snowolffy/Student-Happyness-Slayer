@@ -167,46 +167,40 @@ public class Worker : BackgroundService
     /// <summary>
     /// Loop แยกต่างหาก สแกน process ที่รันอยู่ทั้งหมดทุก ProcessScanIntervalSeconds วินาที
     /// จับกรณีที่ WMI event พลาดไป (process เปิดค้างอยู่ก่อน service เริ่ม, หรือก่อน rule ถูกเพิ่ม/เปิดใช้งาน)
+    ///
+    /// บั๊กที่เจอ (2026-08-18): เดิม loop นี้ก็อป logic ของ main poll loop ใน ExecuteAsync มาทั้งดุ้น
+    /// (เรียก _serverClient.PollAsync ซ้ำ) แทนที่จะเรียก ScanRunningProcessesAsync() ตามชื่อ method -
+    /// ผลคือ process ที่เปิดค้างอยู่ก่อน service เริ่ม/ก่อน rule เปิดใช้งาน ไม่เคยถูกสแกนเลยจริงๆ จะโดน
+    /// action ก็ต่อเมื่อถูกเปิดใหม่ผ่าน WMI watcher เท่านั้น ไม่ต้องเช็ค bypass/poll ที่นี่อีก เพราะ
+    /// ExecuteAsync's main loop ทำหน้าที่ poll+update _lastKnownState อยู่แล้ว ที่นี่แค่อ่านค่าล่าสุดมาสแกน
+    /// (เหมือน OnProcessCreated ที่ก็ไม่เช็ค bypass เพราะสแกน local ล้วนๆ ไม่ยิง request ออกไปหา Server)
     /// </summary>
     private async Task RunPeriodicProcessScanAsync(CancellationToken stoppingToken)
     {
         while (!stoppingToken.IsCancellationRequested)
         {
-            // ดู comment เดียวกันใน ExecuteAsync's main loop - bypass เปิดอยู่ต้องไม่ยิง request ออกไปเลย
-            if (_bypassState.IsBypassed)
+            try
             {
-                var bypassedIntervalSeconds = _state.PollIntervalOverrideSeconds ?? _settings.PollIntervalSeconds;
-                await Task.Delay(TimeSpan.FromSeconds(bypassedIntervalSeconds), stoppingToken);
-                continue;
+                await ScanRunningProcessesAsync();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "เกิดข้อผิดพลาดระหว่าง periodic full-scan ของ process ที่รันอยู่");
             }
 
-            var polled = await _serverClient.PollAsync(_clientGuid, _machineName, stoppingToken);
-            if (polled is not null)
-            {
-                _lastKnownState = polled;
-                _state.UpdatePollResult(polled.Enabled, polled.Rules.Count, succeeded: true);
-                _state.SetPollIntervalOverride(polled.PollIntervalOverrideSeconds);
-                _logger.LogInformation("Poll สำเร็จ - Enabled: {Enabled}, Rules: {Count} ข้อ",
-                    polled.Enabled, polled.Rules.Count);
-
-                await ProcessPendingCommandsAsync(polled.PendingCommands, stoppingToken);
-            }
-            else
-            {
-                _state.UpdatePollResult(_lastKnownState.Enabled, _lastKnownState.Rules.Count, succeeded: false);
-            }
-
-            // ใช้ override จาก ClientState (sync จาก DB ทุก poll หรือถูก command "UpdateSettings" เขียนทับ
-            // ทันทีก็ได้ - ดู CommandProcessor.HandleUpdateSettingsAsync) ไม่งั้นใช้ค่า default จาก appsettings.json
-            var effectiveIntervalSeconds = _state.PollIntervalOverrideSeconds ?? _settings.PollIntervalSeconds;
-            await Task.Delay(TimeSpan.FromSeconds(effectiveIntervalSeconds), stoppingToken);
+            await Task.Delay(TimeSpan.FromSeconds(ProcessScanIntervalSeconds), stoppingToken);
         }
     }
 
     private async Task ScanRunningProcessesAsync()
     {
-        // ถ้า enforcement ปิดอยู่ (global หรือ per-machine) ไม่ต้อง scan เลย
-        if (!_lastKnownState.Enabled)
+        // Bypass เปิดอยู่ = ครูตั้งใจให้เครื่องนี้หยุด enforce ชั่วคราว (ดู AgentBypassState) ต้องไม่ scan/kill
+        // ต่อด้วย _lastKnownState เก่าที่ค้างมาจากก่อน bypass - ไม่งั้น toggle "BYPASS" ที่ AgentTray
+        // จะกัน "คำสั่งใหม่" ได้ (ตัด SignalR/poll) แต่กัน "rule ที่ทำงานอยู่" ไม่ได้จริง ซึ่งขัดจุดประสงค์
+        // ของปุ่มนี้ที่มีไว้ให้ทำงานกับ process ที่ปกติจะโดน rule เล่นงานโดยไม่ถูกยุ่ง
+        //
+        // ถ้า enforcement ปิดอยู่ (global หรือ per-machine) ก็ไม่ต้อง scan เลยเหมือนกัน
+        if (_bypassState.IsBypassed || !_lastKnownState.Enabled)
         {
             return;
         }
@@ -306,8 +300,10 @@ public class Worker : BackgroundService
     {
         try
         {
-            // ถ้า enforcement ปิดอยู่ (global หรือ per-machine) ไม่ต้องเช็คอะไรเลย
-            if (!_lastKnownState.Enabled)
+            // เหตุผลเดียวกับใน ScanRunningProcessesAsync - bypass ต้องกันทั้ง rule ที่กำลัง enforce อยู่
+            // ไม่ใช่แค่คำสั่งใหม่จาก Server เท่านั้น ไม่งั้น process ที่เพิ่งเปิดระหว่าง bypass จะยังโดน
+            // WMI watcher นี้ kill อยู่ดีทั้งที่ครูกด BYPASS ไปแล้ว
+            if (_bypassState.IsBypassed || !_lastKnownState.Enabled)
             {
                 return;
             }

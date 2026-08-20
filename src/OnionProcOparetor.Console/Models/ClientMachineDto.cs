@@ -10,15 +10,16 @@ public class ClientMachineDto
     public bool IsEnabled { get; set; }
     public DateTime LastSeenAt { get; set; }
     public DateTime RegisteredAt { get; set; }
-
-    /// <summary>ถือว่า offline ถ้าไม่ poll เข้ามาเกิน 90 วิ (3 เท่าของ PollIntervalSeconds ปกติ 30 วิ)</summary>
-    public bool IsOffline => (DateTime.UtcNow - LastSeenAt).TotalSeconds > 90;
     public int? PollIntervalOverrideSeconds { get; set; }
 
     /// <summary>
-    /// คำนวณฝั่ง Server (ClientMachine.IsMissingUnexpectedly) ส่งมาเป็น field นี้ตรงๆ ทั้งจาก
-    /// GET /api/clients และ SignalR ClientStatusChanged - true = เครื่องนี้ IsEnabled อยู่แต่ Agent
-    /// หายไปนานผิดปกติ (เกิน 5 นาที) น่าสงสัยกว่า Offline ธรรมดา (ปิดเครื่องตอนเลิกเรียน)
+    /// คำนวณฝั่ง Server (ClientMachine.IsOnline) ส่งมาเป็น field นี้ตรงๆ ทั้งจาก GET /api/clients และ
+    /// SignalR ClientStatusChanged - ไม่คำนวณเองฝั่ง Console อีกต่อไป (เดิมมี IsOffline คำนวณจาก
+    /// LastSeenAt ที่นี่แยกกับ IsMissingUnexpectedly ที่คำนวณฝั่ง Server คนละเกณฑ์กัน สับสน และเสี่ยง
+    /// clock skew ระหว่าง 2 เครื่อง - ยุบเหลือ IsOnline ตัวเดียว คำนวณที่ Server แหล่งเดียว 2026-08-20)
+    ///
+    /// เป็นคนละเรื่องกับ IsEnabled โดยสิ้นเชิง - IsOnline บอกว่า "เครื่องติดต่อได้ไหม" ส่วน IsEnabled บอกว่า
+    /// "ครูเปิดใช้งาน enforcement เครื่องนี้ไว้ไหม" ดู DashboardWindow.xaml's STATUS/ENFORCEMENT column
     /// </summary>
-    public bool IsMissingUnexpectedly { get; set; }
+    public bool IsOnline { get; set; }
 }

@@ -155,7 +155,7 @@ public partial class DashboardWindow : Window
                 existing.LastSeenAt = updated.LastSeenAt;
                 existing.RegisteredAt = updated.RegisteredAt;
                 existing.PollIntervalOverrideSeconds = updated.PollIntervalOverrideSeconds;
-                existing.IsMissingUnexpectedly = updated.IsMissingUnexpectedly;
+                existing.IsOnline = updated.IsOnline;
             }
             else
             {

@@ -51,13 +51,39 @@ public partial class MainWindow : Window
         ProductNameText.Text = _productDisplayName;
 
         // .exe นี้ถูกติดตั้งที่ [INSTALLFOLDER]\UninstallHelper\ แต่ guard/flag file ทั้งคู่อยู่ที่
-        // [INSTALLFOLDER] ตรงๆ (เขียนโดย setup-client.ps1/check-uninstall-password.ps1 - path เดิม
-        // จากก่อนมี wrapper นี้ด้วยซ้ำ ไม่เปลี่ยนเพื่อไม่ต้องแตะสคริปต์ PowerShell ที่ทำงานถูกอยู่แล้ว)
-        _installFolder = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, ".."));
+        // [INSTALLFOLDER] ตรงๆ (เขียนโดย setup-client.ps1/check-uninstall-password.ps1)
+        //
+        // บั๊กจริงที่เจอ (2026-08-20): เดิม derive _installFolder จาก AppContext.BaseDirectory ตรงๆ
+        // (".." จาก exe's own folder) แต่ App.xaml.cs.RelaunchFromTempAndExit copy ตัวเองไป %TEMP%\...
+        // แล้ว relaunch จากตรงนั้นก่อนถึงจุดนี้เสมอ (กันปัญหา lock ไฟล์ตัวเองตอน msiexec ลบ - ดู comment
+        // ที่นั่น) เท่ากับ AppContext.BaseDirectory ของ instance ที่รันจริงกลายเป็น %TEMP%\<guid>\ ไม่ใช่
+        // [INSTALLFOLDER]\UninstallHelper\ อีกต่อไป - _installFolder เดิมเลยคำนวณผิดเป็น %TEMP% เฉยๆ
+        // ทำให้ TryReadGuard(_guardPath) หาไฟล์ guard ไม่เจอเสมอ (ไม่ว่าเครื่องนั้นจะตั้ง uninstall
+        // password ไว้จริงหรือเปล่าก็ตาม) = _hasPassword เป็น false ตลอด = ไม่มีวันโชว์ช่องกรอกรหัสผ่านเลย
+        // บนเครื่องที่ตั้งรหัสไว้จริง กด uninstall ไปก็โดน CheckUninstallPasswordHeadless (ซึ่งอ่าน path
+        // ที่ถูกต้องจริงๆ เพราะรับมาเป็น literal string ผ่าน MSI property ไม่ได้พึ่ง exe's own location)
+        // บล็อกไว้เงียบๆ ทุกครั้ง - ตรงกับอาการที่เจอจริง (ไม่มีช่องรหัสผ่าน, ลบไม่ได้)
+        //
+        // แก้ด้วยการรับ [INSTALLFOLDER] ตัวจริงมาเป็น arg ที่ 4 (args[3]) จาก UninstallString โดยตรง
+        // (เหมือนที่ args[2] ส่ง product display name มาแล้ว) ไม่ต้อง derive จาก exe's own location อีก
+        // ต่อไป - fallback กลับไปวิธีเดิมถ้าไม่มี arg นี้มา (เผื่อ ARP entry เก่าจาก build ก่อนหน้าที่ยัง
+        // ไม่มี arg นี้ - จะพังแบบเดิมก็ไม่แย่ไปกว่าที่เป็นอยู่)
+        _installFolder = args.Length > 3 && !string.IsNullOrWhiteSpace(args[3])
+            ? args[3]
+            : Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, ".."));
         _guardPath = Path.Combine(_installFolder, "uninstall-guard.json");
         _flagPath = Path.Combine(_installFolder, "uninstall-auth-ok.flag");
 
         _hasPassword = TryReadGuard(_guardPath);
+
+        // args[4] = "1" เฉพาะ product ที่รองรับ "delete data on uninstall" จริง (Server+Console เท่านั้น -
+        // ดู OnionProcOparetor.ServerConsole.wxs) บั๊กจริงที่เจอ (2026-08-20): checkbox นี้เดิมโชว์เสมอไม่ว่า
+        // product ไหน (เป็น .exe ตัวเดียวกันที่ bundle เข้าทั้ง 2 MSI) ทั้งที่ Agent product ไม่มี DELETEDATA
+        // property/CustomAction รองรับเลย - ครูเห็น checkbox บนเครื่อง lab ที่ไม่มีอะไรให้มันลบจริง
+        if (args.Length <= 4 || args[4] != "1")
+        {
+            DeleteDataCheckBox.Visibility = Visibility.Collapsed;
+        }
 
         if (string.IsNullOrEmpty(_productCode))
         {

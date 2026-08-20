@@ -166,49 +166,55 @@
                                     RowStyle="{StaticResource ConsoleGridRowStyle}"
                                     CellStyle="{StaticResource ConsoleGridCellStyle}">
                                 <DataGrid.Resources>
-                                    <!-- Status badge: no "Status" string property exists on ClientMachineDto (only
-                                         IsEnabled/IsOffline booleans) - this reproduces the exact 3-state logic the
-                                         original status Ellipse used (Offline wins over Enabled), expressed as
-                                         StatusBadge's Tag rather than a nonexistent Status binding. -->
-                                    <Style x:Key="ClientStatusBadge" TargetType="ContentControl" BasedOn="{StaticResource StatusBadge}">
-                                        <Setter Property="Tag" Value="Danger"/>
+                                    <!-- แยก 2 badge ชัดเจน เป็นคนละคอลัมน์ ไม่ปนกันเหมือนเดิม (บั๊กจริงที่เจอตอน
+                                         field test 2026-08-20: badge เดิมรวม 4 สถานะ DISABLED/ONLINE/OFFLINE/MISSING
+                                         ไว้ในตัวเดียว ทำให้ครูงงว่า "ออนไลน์" กับ "เปิดใช้งานกฎ" คือเรื่องเดียวกันไหม
+                                         แถม MISSING ยังกระพริบทะลุไปโผล่คอลัมน์/แถวอื่นด้วย เพราะ Storyboard
+                                         RepeatBehavior="Forever" ผูกกับ Style ที่ share กันทุกแถวใน DataGrid ที่มี
+                                         virtualization - container ถูก recycle ระหว่าง storyboard ยังเล่นอยู่)
+
+                                         STATUS = เครื่องติดต่อได้ไหมจริงๆ (IsOnline จาก Server - ดู ClientMachine.
+                                         IsOnline/AgentConnectionRegistry) ไม่เกี่ยวกับ enforcement เลย ไม่มี state
+                                         MISSING แยกอีกต่อไป และไม่มีการกระพริบใดๆ ทั้งสิ้น -->
+                                    <Style x:Key="ClientOnlineStatusBadge" TargetType="ContentControl" BasedOn="{StaticResource StatusBadge}">
+                                        <Setter Property="Tag" Value="Offline"/>
+                                        <Setter Property="Content" Value="OFFLINE"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsOnline}" Value="True">
+                                                <Setter Property="Tag" Value="Online"/>
+                                                <Setter Property="Content" Value="ONLINE"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+
+                                    <!-- ENFORCEMENT = ครูเปิดใช้งานการบังคับใช้กฎเครื่องนี้ไว้ไหม (IsEnabled) - ใช้ชื่อ
+                                         เดียวกับปุ่ม "ENABLE/DISABLE ENFORCEMENT" ใน ActionPanelWindow ให้สอดคล้องกัน
+                                         DISABLED ใช้สี Warning (เหลือง) ไม่ใช่ Danger (แดง) เพราะเป็นสถานะปกติที่ครู
+                                         ตั้งใจปิดเอง ไม่ใช่ error -->
+                                    <Style x:Key="ClientEnforcementBadge" TargetType="ContentControl" BasedOn="{StaticResource StatusBadge}">
+                                        <Setter Property="Tag" Value="Warning"/>
                                         <Setter Property="Content" Value="DISABLED"/>
                                         <Style.Triggers>
                                             <DataTrigger Binding="{Binding IsEnabled}" Value="True">
                                                 <Setter Property="Tag" Value="Online"/>
-                                                <Setter Property="Content" Value="ONLINE"/>
-                                            </DataTrigger>
-                                            <DataTrigger Binding="{Binding IsOffline}" Value="True">
-                                                <Setter Property="Tag" Value="Offline"/>
-                                                <Setter Property="Content" Value="OFFLINE"/>
-                                            </DataTrigger>
-                                            <!-- ต้องอยู่หลัง IsOffline trigger เสมอ - IsMissingUnexpectedly (>5 นาที) เป็น
-                                                 superset ของ IsOffline (>90 วิ) เลยต้อง match ทีหลังเพื่อ override สี/ข้อความ
-                                                 ให้เด่นกว่า OFFLINE ธรรมดา (กระพริบแดง แทนที่จะเป็นเทาเฉยๆ) -->
-                                            <DataTrigger Binding="{Binding IsMissingUnexpectedly}" Value="True">
-                                                <Setter Property="Tag" Value="Danger"/>
-                                                <Setter Property="Content" Value="MISSING"/>
-                                                <DataTrigger.EnterActions>
-                                                    <BeginStoryboard x:Name="MissingBlinkStoryboard">
-                                                        <Storyboard RepeatBehavior="Forever" AutoReverse="True">
-                                                            <DoubleAnimation Storyboard.TargetProperty="Opacity"
-                                                                             From="1.0" To="0.35" Duration="0:0:0.6"/>
-                                                        </Storyboard>
-                                                    </BeginStoryboard>
-                                                </DataTrigger.EnterActions>
-                                                <DataTrigger.ExitActions>
-                                                    <StopStoryboard BeginStoryboardName="MissingBlinkStoryboard"/>
-                                                </DataTrigger.ExitActions>
+                                                <Setter Property="Content" Value="ENABLED"/>
                                             </DataTrigger>
                                         </Style.Triggers>
                                     </Style>
                                 </DataGrid.Resources>
                                 <DataGrid.Columns>
-                                    <DataGridTemplateColumn Header="STATUS" Width="90" SortMemberPath="IsOffline">
+                                    <DataGridTemplateColumn Header="STATUS" Width="90" SortMemberPath="IsOnline">
                                         <DataGridTemplateColumn.CellTemplate>
                                             <DataTemplate>
-                                                <ContentControl Style="{StaticResource ClientStatusBadge}"
+                                                <ContentControl Style="{StaticResource ClientOnlineStatusBadge}"
                                                                 ToolTip="{Binding LastSeenAt, StringFormat='Last seen: {0:yyyy-MM-dd HH:mm:ss} UTC'}"/>
+                                            </DataTemplate>
+                                        </DataGridTemplateColumn.CellTemplate>
+                                    </DataGridTemplateColumn>
+                                    <DataGridTemplateColumn Header="ENFORCEMENT" Width="110" SortMemberPath="IsEnabled">
+                                        <DataGridTemplateColumn.CellTemplate>
+                                            <DataTemplate>
+                                                <ContentControl Style="{StaticResource ClientEnforcementBadge}"/>
                                             </DataTemplate>
                                         </DataGridTemplateColumn.CellTemplate>
                                     </DataGridTemplateColumn>

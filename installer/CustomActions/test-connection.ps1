@@ -27,6 +27,14 @@
 # PowerShell syntax) กัน command injection เหมือนเดิม - SERVERIP ฝั่ง wizard ยังจำกัดตัวอักษรเป็น
 # host/IP-safe charset เท่านั้นด้วย (ดู ServerConnDlg's Next button ใน .wxs) เป็นชั้นป้องกันซ้อนสำหรับ
 # cmd.exe wrapper ตัวนี้โดยเฉพาะ (& | < > ^ % ในค่าที่ยังไม่ผ่าน validation จะกระทบ cmd.exe parsing ได้)
+#
+# บั๊กจริงที่เจอ (2026-08-20, field test): script เองรันได้ไม่ error (env var fix ด้านบนถูกต้องแล้ว
+# จริง) แต่ MessageBox.Show() ที่ไม่มี owner window จะไม่ถูกบังคับให้ topmost/foreground - เพราะ MSI
+# wizard เองเป็น topmost window อยู่แล้วเสมอ (กัน user เผลอสลับไปหน้าต่างอื่นระหว่างติดตั้ง) popup ที่
+# spawn มาจาก process แยกต่างหาก (ไม่มี owner handle) จะโผล่ "หลัง" wizard แทนที่จะโผล่ทับด้านหน้า - ครู
+# กดปุ่ม Test Connection แล้วดูเหมือนไม่มีอะไรเกิดขึ้นเลย ทั้งที่จริงๆ script ทำงานสำเร็จและ popup ก็ขึ้น
+# มาจริง แค่ซ่อนอยู่หลัง wizard - แก้ด้วยการสร้าง hidden topmost owner form เล็กๆ (ย้ายไปนอกจอ กันแฟลช
+# ให้เห็น) แล้วส่งเป็น owner ให้ MessageBox.Show() เพื่อบังคับให้ popup โผล่ทับ wizard แน่นอน
 
 if ([string]::IsNullOrWhiteSpace($env:ONIONPROC_HOSTPORT)) { exit 0 }
 
@@ -35,6 +43,16 @@ $hostName = $parts[0]
 if ($parts.Count -gt 1 -and $parts[1].Trim() -ne "") { $port = $parts[1] } else { $port = "8787" }
 
 Add-Type -AssemblyName System.Windows.Forms
+
+$owner = New-Object System.Windows.Forms.Form
+$owner.StartPosition = "Manual"
+$owner.Location = New-Object System.Drawing.Point(-2000, -2000)
+$owner.Size = New-Object System.Drawing.Size(1, 1)
+$owner.ShowInTaskbar = $false
+$owner.FormBorderStyle = "FixedToolWindow"
+$owner.TopMost = $true
+$owner.Show()
+$owner.Activate()
 
 $ok = $false
 $errorDetail = ""
@@ -60,7 +78,7 @@ finally {
 }
 
 if ($ok) {
-    [System.Windows.Forms.MessageBox]::Show(
+    [System.Windows.Forms.MessageBox]::Show($owner,
         "Connection successful! The Server is reachable at ${hostName}:${port}.",
         "Onion ProcOparetor",
         [System.Windows.Forms.MessageBoxButtons]::OK,
@@ -69,7 +87,7 @@ if ($ok) {
 else {
     $reasonLine = ""
     if ($errorDetail -ne "") { $reasonLine = "`r`n`r`nDetails: $errorDetail" }
-    [System.Windows.Forms.MessageBox]::Show(
+    [System.Windows.Forms.MessageBox]::Show($owner,
         "Could not reach the Server at ${hostName}:${port} within 5 seconds.`r`n" +
         "This may be normal if the Server is not running yet, the address/port is wrong, or a firewall is blocking it.$reasonLine",
         "Onion ProcOparetor",
@@ -77,4 +95,5 @@ else {
         [System.Windows.Forms.MessageBoxIcon]::Warning) | Out-Null
 }
 
+$owner.Close()
 exit 0

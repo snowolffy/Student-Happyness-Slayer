@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using OnionProcOparetor.Server.Data;
 using OnionProcOparetor.Server.Models;
+using OnionProcOparetor.Server.Services;
 
 namespace OnionProcOparetor.Server.Hubs;
 
@@ -18,16 +19,19 @@ public class LabHub : Hub
     public const string ConsoleGroupName = "console";
 
     private readonly AppDbContext _db;
+    private readonly AgentConnectionRegistry _connectionRegistry;
 
-    public LabHub(AppDbContext db)
+    public LabHub(AppDbContext db, AgentConnectionRegistry connectionRegistry)
     {
         _db = db;
+        _connectionRegistry = connectionRegistry;
     }
 
     /// <summary>Agent เรียกทันทีหลัง connect เสร็จ เพื่อ join group เฉพาะเครื่องตัวเอง (ชื่อ group = clientGuid)</summary>
     public async Task RegisterAgent(string clientGuid)
     {
         await Groups.AddToGroupAsync(Context.ConnectionId, clientGuid);
+        _connectionRegistry.Register(Context.ConnectionId, clientGuid);
 
         // อัปเดต LastSeenAt ทันทีที่ต่อ SignalR สำเร็จ (เสริมจาก poll เดิมที่อัปเดตอยู่แล้วทุกรอบ)
         // ถ้ายังไม่เคยมี ClientMachine ใน DB เลย (ยังไม่เคย poll มาก่อน) ข้ามไปก่อน - รอ poll รอบแรกสร้าง record ให้ตามเดิม
@@ -36,8 +40,33 @@ public class LabHub : Hub
         {
             client.LastSeenAt = DateTime.UtcNow;
             await _db.SaveChangesAsync();
+            client.IsConnectedViaSignalR = true;
             await Clients.Group(ConsoleGroupName).SendAsync("ClientStatusChanged", client);
         }
+    }
+
+    /// <summary>
+    /// เรียกอัตโนมัติทุกครั้งที่ connection หลุดไม่ว่าเหตุผลอะไร (Agent ปิดตัว, network หลุด, Server
+    /// restart) - เป็นสัญญาณ "offline" ที่เร็วและแม่นยำที่สุดที่มี (เร็วกว่ารอ poll timeout มาก) ต้องเช็ค
+    /// ก่อนว่า connection ที่หลุดเป็นของ Agent จริง (ไม่ใช่ของ Console ที่ใช้ hub เดียวกันแต่ไม่เคยเรียก
+    /// RegisterAgent) และต้องเหลือ 0 connection ของเครื่องนั้นจริงๆ ก่อนถึงจะถือว่า "offline" (กัน race
+    /// ตอน reconnect ที่ connection ใหม่ต่อเข้ามาก่อน connection เก่าจะ dispose)
+    /// </summary>
+    public override async Task OnDisconnectedAsync(Exception? exception)
+    {
+        var (clientGuid, isFullyDisconnected) = _connectionRegistry.Unregister(Context.ConnectionId);
+
+        if (clientGuid is not null && isFullyDisconnected)
+        {
+            var client = await _db.ClientMachines.FirstOrDefaultAsync(c => c.ClientGuid == clientGuid);
+            if (client is not null)
+            {
+                client.IsConnectedViaSignalR = false;
+                await Clients.Group(ConsoleGroupName).SendAsync("ClientStatusChanged", client);
+            }
+        }
+
+        await base.OnDisconnectedAsync(exception);
     }
 
     /// <summary>

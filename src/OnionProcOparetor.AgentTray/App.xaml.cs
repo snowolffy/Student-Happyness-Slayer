@@ -187,18 +187,21 @@ public partial class App : System.Windows.Application
 
     private void OnBroadcastMessageReceived(BroadcastMessageDto message)
     {
-        // เรียกจาก background thread ของ pipe listener - ต้อง marshal เข้า UI thread ก่อนสร้าง Window
-        Dispatcher.Invoke(() =>
+        // เรียกจาก background thread ของ pipe message consumer - BeginInvoke (ไม่ใช่ Invoke) ตั้งใจ
+        // ไม่ block consumer thread รอ UI thread ว่าง (เหมือน pattern เดียวกับ ActionReportWindow ฝั่ง
+        // Console) ไม่งั้นถ้า UI thread ไปติดค้างอะไรบางอย่าง (เช่น modal dialog ค้างรอ user) จะทำให้
+        // message ถัดไปในคิว (lock/unlock/VNC ฯลฯ) หยุดรอตามไปด้วยทั้งที่ไม่เกี่ยวข้องกันเลย
+        Dispatcher.BeginInvoke(() =>
         {
             var popup = new BroadcastPopupWindow(message.Title, message.Message);
             popup.Show();
         });
     }
 
-    /// <summary>เรียกจาก background thread ของ pipe listener - idempotent (เรียกซ้ำตอนล็อกอยู่แล้วไม่มีผล) เปิด LockScreenWindow แยกหนึ่งตัวต่อจอที่ต่ออยู่ตอนนี้ (ไม่ใช่แค่จอหลัก)</summary>
+    /// <summary>เรียกจาก background thread ของ pipe message consumer - idempotent (เรียกซ้ำตอนล็อกอยู่แล้วไม่มีผล) เปิด LockScreenWindow แยกหนึ่งตัวต่อจอที่ต่ออยู่ตอนนี้ (ไม่ใช่แค่จอหลัก)</summary>
     private void OnShowLockScreenRequested()
     {
-        Dispatcher.Invoke(() =>
+        Dispatcher.BeginInvoke(() =>
         {
             if (_lockScreenWindows.Count > 0)
             {
@@ -227,10 +230,10 @@ public partial class App : System.Windows.Application
     /// <summary>watchdog ของ instance เจ้าของ hook ตรวจพบว่า process ของ Agent หายไปกลางคันขณะล็อกอยู่ (ดู LockScreenWindow.CheckAgentHealth) - เรียกจาก UI thread อยู่แล้ว (DispatcherTimer.Tick) ไม่ต้อง Dispatcher.Invoke ซ้ำ</summary>
     private void OnAgentDiedWhileLocked() => HideAllLockScreens();
 
-    /// <summary>เรียกจาก background thread ของ pipe listener - idempotent (เรียกซ้ำตอนไม่ได้ล็อกอยู่ไม่มีผล)</summary>
+    /// <summary>เรียกจาก background thread ของ pipe message consumer - idempotent (เรียกซ้ำตอนไม่ได้ล็อกอยู่ไม่มีผล)</summary>
     private void OnHideLockScreenRequested()
     {
-        Dispatcher.Invoke(HideAllLockScreens);
+        Dispatcher.BeginInvoke(HideAllLockScreens);
     }
 
     /// <summary>ปิดทุกจอพร้อมกันเป็นชุดเดียวเสมอ (ไม่มีทางปลดล็อกทีละจอ) - เรียกได้ทั้งจากทาง Console สั่งปกติและจาก watchdog ฉุกเฉิน (OnAgentDiedWhileLocked) ใช้ path เดียวกันทั้งคู่</summary>
@@ -267,7 +270,7 @@ public partial class App : System.Windows.Application
     /// </summary>
     private void OnBlockTargetInputRequested()
     {
-        Dispatcher.Invoke(() =>
+        Dispatcher.BeginInvoke(() =>
         {
             _physicalInputBlocker.AgentDiedWhileBlocked -= OnAgentDiedWhileBlocked; // กัน subscribe ซ้ำถ้ากดสลับเร็วๆ
             _physicalInputBlocker.AgentDiedWhileBlocked += OnAgentDiedWhileBlocked;
@@ -275,10 +278,10 @@ public partial class App : System.Windows.Application
         });
     }
 
-    /// <summary>เรียกจาก background thread ของ pipe listener - เหตุผลเดียวกับ OnBlockTargetInputRequested (marshal เข้า UI thread) idempotent (ครูกดซ้ำตอนไม่ได้บล็อกอยู่ไม่มีผล)</summary>
+    /// <summary>เรียกจาก background thread ของ pipe message consumer - เหตุผลเดียวกับ OnBlockTargetInputRequested (marshal เข้า UI thread) idempotent (ครูกดซ้ำตอนไม่ได้บล็อกอยู่ไม่มีผล)</summary>
     private void OnUnblockTargetInputRequested()
     {
-        Dispatcher.Invoke(() =>
+        Dispatcher.BeginInvoke(() =>
         {
             _physicalInputBlocker.AgentDiedWhileBlocked -= OnAgentDiedWhileBlocked;
             _physicalInputBlocker.Unblock();
@@ -320,7 +323,7 @@ public partial class App : System.Windows.Application
     /// </summary>
     private void OnShutdownNotifyRequested(ShutdownNotifyDto notify)
     {
-        Dispatcher.Invoke(() =>
+        Dispatcher.BeginInvoke(() =>
         {
             _shutdownNotifyWindow?.ForceClose();
 

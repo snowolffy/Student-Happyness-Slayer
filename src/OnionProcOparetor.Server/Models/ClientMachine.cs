@@ -35,19 +35,32 @@ public class ClientMachine
     public int? PollIntervalOverrideSeconds { get; set; }
 
     /// <summary>
-    /// เกิน threshold นี้ (วินาที) โดยที่ IsEnabled=true ถือว่า "หายไปผิดปกติ" - มากกว่า threshold
-    /// "offline ปกติ" ของ Console (90 วิ = 3 เท่าของ PollIntervalSeconds ปกติ) มาก เพื่อกัน false
-    /// alarm จากเครื่อง sleep สั้นๆ หรือ network กระตุกชั่วคราว ก่อนจะถือว่าน่าสงสัยจริงๆ
+    /// เกิน threshold นี้ (วินาที) โดยไม่มี SignalR connection ค้างอยู่เลย ถือว่า offline - เดิมเป็นค่าที่
+    /// Console คำนวณเองฝั่ง client (90 วิ = 3 เท่าของ PollIntervalSeconds ปกติ) ย้ายมารวมไว้ที่นี่แหล่งเดียว
+    /// (2026-08-20: เดิมแยกกัน 2 concept คือ "Missing" ฝั่ง Server เกณฑ์ 5 นาที + IsEnabled กับ "Offline"
+    /// ฝั่ง Console เกณฑ์ 90 วิ คำนวณคนละที่ - ยุบเหลือ IsOnline ตัวเดียว คำนวณที่ Server แหล่งเดียว
+    /// Console แค่อ่านค่านี้ตรงๆ ไม่ต้องคำนวณเองอีก กันปัญหา clock skew ระหว่าง 2 เครื่องด้วย)
     /// </summary>
-    public const int MissingUnexpectedlyThresholdSeconds = 300; // 5 นาที
+    public const int OnlineThresholdSeconds = 90;
 
     /// <summary>
-    /// true = เครื่องนี้ยังถูก enforce อยู่ (IsEnabled) แต่ Agent หายไปนานเกิน threshold ข้างบน -
-    /// ต่างจาก "Offline" ธรรมดา (ปิดเครื่องปกติตอนเลิกเรียน) เพราะเครื่องกลุ่มนี้ควรจะเปิด Agent
-    /// อยู่ตลอด การหายไปกลางคันจึงน่าสงสัยกว่า (เช่น นักเรียนหลบ uninstall password gate ด้วยการ
-    /// kill service ตรงผ่าน Task Manager/services.msc) ไม่ map ลง DB - คำนวณสดทุกครั้งที่ serialize
+    /// ตั้งจากภายนอกก่อน serialize ทุกครั้ง (ไม่ persist ลง DB) - มาจาก AgentConnectionRegistry.IsConnected
+    /// (ดูจุดที่ set: GET /api/clients, POST /api/clients/{id}/toggle, PUT /api/clients/{id}/settings,
+    /// GET /api/poll/{clientGuid} ก่อน broadcast, ClientOnlineStatusMonitorService) ต้อง set ทุกจุดที่คืน/
+    /// broadcast ClientMachine ออกไป ไม่งั้นจะ default เป็น false เสมอ (ตกไปพึ่ง LastSeenAt อย่างเดียว -
+    /// ไม่ผิดร้ายแรง แค่ไม่ได้สัญญาณเร็วจาก SignalR)
     /// </summary>
     [NotMapped]
-    public bool IsMissingUnexpectedly =>
-        IsEnabled && (DateTime.UtcNow - LastSeenAt).TotalSeconds > MissingUnexpectedlyThresholdSeconds;
+    public bool IsConnectedViaSignalR { get; set; }
+
+    /// <summary>
+    /// true = เครื่องนี้ยัง online อยู่ - เชื่อ SignalR connection จริงก่อน (เร็วและแม่นยำที่สุด) ถ้าไม่ได้
+    /// connect อยู่ (หรือ IsConnectedViaSignalR ไม่ได้ถูก set มา) ค่อย fallback ไปดู LastSeenAt แทน (รองรับ
+    /// เครื่องที่ poll สำเร็จปกติแต่ SignalR ต่อไม่ติด - ต้องยังทำงานได้ตามหลักการเดิมของทั้งระบบ: poll ต้อง
+    /// ทำงานได้ครบแม้ hub จะล่ม) ไม่ผูกกับ IsEnabled อีกต่อไป - enforcement กับ online เป็นคนละเรื่องกัน
+    /// (ดู ClientMachineDto ฝั่ง Console สำหรับที่ไปที่มาเต็มๆ)
+    /// </summary>
+    [NotMapped]
+    public bool IsOnline =>
+        IsConnectedViaSignalR || (DateTime.UtcNow - LastSeenAt).TotalSeconds <= OnlineThresholdSeconds;
 }

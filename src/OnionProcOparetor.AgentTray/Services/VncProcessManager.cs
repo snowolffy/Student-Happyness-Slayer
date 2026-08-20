@@ -33,6 +33,12 @@ public sealed class VncProcessManager
     private readonly SemaphoreSlim _lifecycleLock = new(1, 1);
     private Process? _vncProcess;
 
+    /// <summary>timeout ของ Stop()'s lock wait - ดู doc comment เต็มที่ตัว Stop() เอง</summary>
+    private static readonly TimeSpan StopLockTimeout = TimeSpan.FromSeconds(5);
+
+    /// <summary>timeout ของ createpassword.exe - ดู doc comment เต็มที่ RunCreatePasswordAsync</summary>
+    private static readonly TimeSpan CreatePasswordTimeout = TimeSpan.FromSeconds(10);
+
     public int? CurrentPid { get; private set; }
     public string? CurrentPassword { get; private set; }
 
@@ -102,12 +108,26 @@ public sealed class VncProcessManager
         }
     }
 
-    /// <summary>เรียกตอน AgentTray กำลังจะปิด (log off/exit) - กัน winvnc.exe ค้างเป็น orphan process หลัง user ออกจาก session ไปแล้ว (ไม่มี desktop ให้ serve ต่อได้อยู่ดี)</summary>
+    /// <summary>
+    /// เรียกตอน AgentTray กำลังจะปิด (log off/exit) - กัน winvnc.exe ค้างเป็น orphan process หลัง user ออกจาก session ไปแล้ว (ไม่มี desktop ให้ serve ต่อได้อยู่ดี)
+    ///
+    /// เรียกตรงๆ จาก pipe message consumer thread โดยไม่ผ่าน Dispatcher (ดู App.xaml.cs) - ห้าม wait
+    /// เข้า _lifecycleLock แบบไม่มี timeout เด็ดขาด เพราะ EnsureStartedAsync อาจถือ lock นี้ค้างอยู่นาน
+    /// ผิดปกติถ้า createpassword.exe/winvnc.exe แฮงค์ (ดู StopLockTimeout กับ comment ใน
+    /// RunCreatePasswordAsync) ถ้า wait ไม่มี timeout ตรงนี้ค้าง = consumer thread ทั้งเส้นตายไปด้วย
+    /// (บั๊กจริงที่เจอตอน field test 2026-08-20)
+    /// </summary>
     public void Stop()
     {
         var wasRunning = false;
 
-        _lifecycleLock.Wait();
+        if (!_lifecycleLock.Wait(StopLockTimeout))
+        {
+            System.Diagnostics.Debug.WriteLine(
+                "[VncProcessManager] Stop() รอ lifecycle lock เกิน 5 วิ (EnsureStartedAsync น่าจะค้างอยู่) - ข้ามไปเลย กัน caller thread ค้างตามไปด้วย");
+            return;
+        }
+
         try
         {
             if (_vncProcess is null)
@@ -205,6 +225,13 @@ public sealed class VncProcessManager
     /// เข้ารหัสรหัสผ่านลง ultravnc.ini ผ่าน createpassword.exe ของ UltraVNC เอง - ห้ามใส่ -secure
     /// (เปิด UltraVNC's Secure Mode/DSM plugin extension นอกเหนือ RFB มาตรฐาน ทำให้ handshake ล้มเหลว
     /// หลัง ClientInit - verify แล้วจริงตอน debug ดู comment เดิมที่ VncSessionManager ฝั่ง Agent)
+    ///
+    /// บั๊กจริงที่เจอตอน field test (2026-08-20): เดิม await WaitForExitAsync(ct) ใช้ ct ที่ผู้เรียกส่งมา
+    /// จนสุดสาย (App.xaml.cs.OnStartVncSessionRequested ส่ง CancellationToken.None) = ไม่มี timeout เลย
+    /// ถ้า createpassword.exe แฮงค์ (เช่น AV/EDR สแกนไฟล์ค้าง, มี WER crash dialog รอ user กดซึ่งไม่มีใคร
+    /// เห็นเพราะรันจาก background thread) EnsureStartedAsync จะถือ _lifecycleLock ค้างตลอดไป แล้วทำให้
+    /// Stop() ที่มาทีหลัง (เรียกตรงจาก pipe consumer thread) ค้างตามไปด้วย = ทั้ง AgentTray ไม่ตอบสนอง
+    /// เลย ผูก timeout ของตัวเองไว้ตรงนี้เป็นชั้นป้องกัน ไม่พึ่ง ct จากผู้เรียกอย่างเดียว
     /// </summary>
     private async Task<bool> RunCreatePasswordAsync(string password, CancellationToken ct)
     {
@@ -225,7 +252,33 @@ public sealed class VncProcessManager
             return false;
         }
 
-        await process.WaitForExitAsync(ct);
+        using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        timeoutCts.CancelAfter(CreatePasswordTimeout);
+
+        try
+        {
+            await process.WaitForExitAsync(timeoutCts.Token);
+        }
+        catch (OperationCanceledException) when (!ct.IsCancellationRequested)
+        {
+            System.Diagnostics.Debug.WriteLine(
+                $"[VncProcessManager] createpassword.exe ไม่จบภายใน {CreatePasswordTimeout.TotalSeconds} วิ - kill ทิ้งแล้วถือว่าล้มเหลว");
+
+            try
+            {
+                if (!process.HasExited)
+                {
+                    process.Kill(entireProcessTree: true);
+                }
+            }
+            catch
+            {
+                // kill ไม่สำเร็จก็ปล่อยผ่าน - จะคืน false อยู่ดี ไม่ block ต่อ
+            }
+
+            return false;
+        }
+
         return process.ExitCode == 0;
     }
 
