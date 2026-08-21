@@ -178,19 +178,31 @@
     <CustomAction Id="SetupServer" BinaryRef="Wix4UtilCA_$(sys.BUILDARCHSHORT)" DllEntry="WixQuietExec"
       Execute="deferred" Return="ignore" Impersonate="no" />
 
-    <!-- บั๊กจริงที่เจอ (2026-08-20): เดิม DeleteProgramData ใช้ pattern เดียวกับ SetupServer ข้างบน คือ
-         อ้างอิงไฟล์ที่ install ไว้ ([#DeleteProgramDataPs1]) แต่ตัวมันเองถูก schedule ไว้ที่
+    <!-- บั๊กจริงที่เจอ (2026-08-20, รอบที่ 1): เดิม DeleteProgramData ใช้ pattern เดียวกับ SetupServer
+         ข้างบน คือ อ้างอิงไฟล์ที่ install ไว้ ([#DeleteProgramDataPs1]) แต่ตัวมันเองถูก schedule ไว้ที่
          After="RemoveFiles" - เท่ากับพอถึงตอนที่ deferred CA นี้รันจริง ไฟล์ CustomActions\
          delete-programdata.ps1 (component ของมันเองก็โดน REMOVE=ALL ลบไปแล้วเหมือนกัน) ไม่มีอยู่บนดิสก์
          อีกต่อไป - powershell.exe -File ชี้ไปที่ไฟล์ที่ไม่มีอยู่จริง ล้มเหลวเงียบๆ (Return="ignore") ทุกครั้ง
          %ProgramData%\OnionProcOparetor เลยไม่เคยถูกลบจริงเลยไม่ว่าจะติ๊ก checkbox หรือไม่ก็ตาม - บทเรียน
-         เดียวกันกับที่เคยเจอมาแล้วจริงกับ RemoveInstallFolderExtras ด้านล่าง (ดู comment ของมัน) แต่ตอนนั้น
-         แก้แค่ตัวเดียว ไม่ได้ทันสังเกตว่า DeleteProgramData เข้าข่ายปัญหาเดียวกันทุกประการ แก้ด้วย pattern
-         เดียวกัน: ฝัง script เป็น -EncodedCommand ตรงๆ ไม่พึ่งไฟล์ที่ install ไว้อีกต่อไป source ของ blob
-         นี้ยังเก็บไว้ที่ CustomActions\delete-programdata.ps1 เป็น source-of-truth สำหรับ regenerate
-         (ไม่ได้ bundle เข้า MSI แล้ว - ดู comment ในไฟล์นั้นเอง) -->
-    <CustomAction Id="DeleteProgramData" Directory="INSTALLFOLDER" Execute="immediate" Return="ignore"
-      ExeCommand="powershell.exe -NoProfile -NonInteractive -WindowStyle Hidden -EncodedCommand JABwAHIAbwBnAHIAYQBtAEQAYQB0AGEAUABhAHQAaAAgAD0AIABKAG8AaQBuAC0AUABhAHQAaAAgACQAZQBuAHYAOgBQAHIAbwBnAHIAYQBtAEQAYQB0AGEAIAAiAE8AbgBpAG8AbgBQAHIAbwBjAE8AcABhAHIAZQB0AG8AcgAiAAoAaQBmACAAKABUAGUAcwB0AC0AUABhAHQAaAAgACQAcAByAG8AZwByAGEAbQBEAGEAdABhAFAAYQB0AGgAKQAgAHsACgAgACAAIAAgAFIAZQBtAG8AdgBlAC0ASQB0AGUAbQAgAC0AUABhAHQAaAAgACQAcAByAG8AZwByAGEAbQBEAGEAdABhAFAAYQB0AGgAIAAtAFIAZQBjAHUAcgBzAGUAIAAtAEYAbwByAGMAZQAgAC0ARQByAHIAbwByAEEAYwB0AGkAbwBuACAAUwBpAGwAZQBuAHQAbAB5AEMAbwBuAHQAaQBuAHUAZQAKAH0ACgBlAHgAaQB0ACAAMAA=" />
+         เดียวกันกับที่เคยเจอมาแล้วจริงกับ RemoveInstallFolderExtras ด้านล่าง แก้ด้วยการฝัง script เป็น
+         -EncodedCommand ตรงๆ ไม่พึ่งไฟล์ที่ install ไว้อีกต่อไป
+
+         บั๊กจริงที่เจอ (2026-08-20, รอบที่ 2 - ใหญ่กว่า): แก้รอบแรกแล้วยังลบ DB ไม่หมดอยู่ดี (live-tested:
+         onionprocoparetor.db/-shm/-wal ยัง lock อยู่ครบ 3 ไฟล์ ทั้งที่ตอน uninstall เสร็จสมบูรณ์แล้วลบด้วย
+         มือกลับไม่มี error เลย) ต้นตอจริงคือใช้ Execute="immediate" ซึ่งรันทันทีตอน engine เดินมาถึงจุดนั้น
+         ใน sequence table - แต่ StopServices/RemoveFiles ที่แท้จริงเป็น deferred standard action แค่ถูก
+         "คิว" ไว้ตอนนั้น ยังไม่ได้รันจริง (deferred action ทั้งหมดในคิวจะไปรันเป็นชุดพร้อมกันตอน
+         InstallFinalize ท้ายสุดของทั้ง sequence) เท่ากับ DeleteProgramData (immediate) วิ่งไปลบ DB ก่อนที่
+         service จะถูกสั่งหยุดจริงด้วยซ้ำ - แก้โดยเปลี่ยนกลับไปเป็น Execute="deferred" (pattern เดียวกับ
+         SetupServer ข้างบนเป๊ะๆ) ให้ไปอยู่ในคิวเดียวกับ StopServices/RemoveFiles ตามลำดับจริง ไม่ใช่วิ่งแซง
+         หน้า - ยังคงฝัง script เป็น -EncodedCommand ในตัว Value ของ "Props" CA ไม่พึ่งไฟล์ที่ install ไว้
+         เหมือนเดิม (รวม 2 บทเรียนเข้าด้วยกัน) source ของ blob ยังเก็บไว้ที่ CustomActions\
+         delete-programdata.ps1 เป็น source-of-truth สำหรับ regenerate (ไม่ได้ bundle เข้า MSI แล้ว - ดู
+         comment ในไฟล์นั้นเอง) -->
+    <CustomAction Id="DeleteProgramDataProps" Property="DeleteProgramData"
+      Value="&quot;[System64Folder]WindowsPowerShell\v1.0\powershell.exe&quot; -NoProfile -NonInteractive -WindowStyle Hidden -EncodedCommand JABwAHIAbwBnAHIAYQBtAEQAYQB0AGEAUABhAHQAaAAgAD0AIABKAG8AaQBuAC0AUABhAHQAaAAgACQAZQBuAHYAOgBQAHIAbwBnAHIAYQBtAEQAYQB0AGEAIAAiAE8AbgBpAG8AbgBQAHIAbwBjAE8AcABhAHIAZQB0AG8AcgAiAAoAaQBmACAAKABUAGUAcwB0AC0AUABhAHQAaAAgACQAcAByAG8AZwByAGEAbQBEAGEAdABhAFAAYQB0AGgAKQAgAHsACgAgACAAIAAgACQAbQBhAHgAQQB0AHQAZQBtAHAAdABzACAAPQAgADUACgAgACAAIAAgACQAZABlAGwAYQB5AE0AcwAgAD0AIAA1ADAAMAAKACAAIAAgACAAZgBvAHIAIAAoACQAYQB0AHQAZQBtAHAAdAAgAD0AIAAxADsAIAAkAGEAdAB0AGUAbQBwAHQAIAAtAGwAZQAgACQAbQBhAHgAQQB0AHQAZQBtAHAAdABzADsAIAAkAGEAdAB0AGUAbQBwAHQAKwArACkAIAB7AAoAIAAgACAAIAAgACAAIAAgAFIAZQBtAG8AdgBlAC0ASQB0AGUAbQAgAC0AUABhAHQAaAAgACQAcAByAG8AZwByAGEAbQBEAGEAdABhAFAAYQB0AGgAIAAtAFIAZQBjAHUAcgBzAGUAIAAtAEYAbwByAGMAZQAgAC0ARQByAHIAbwByAEEAYwB0AGkAbwBuACAAUwBpAGwAZQBuAHQAbAB5AEMAbwBuAHQAaQBuAHUAZQAKACAAIAAgACAAIAAgACAAIABpAGYAIAAoAC0AbgBvAHQAIAAoAFQAZQBzAHQALQBQAGEAdABoACAAJABwAHIAbwBnAHIAYQBtAEQAYQB0AGEAUABhAHQAaAApACkAIAB7AAoAIAAgACAAIAAgACAAIAAgACAAIAAgACAAYgByAGUAYQBrAAoAIAAgACAAIAAgACAAIAAgAH0ACgAgACAAIAAgACAAIAAgACAAUwB0AGEAcgB0AC0AUwBsAGUAZQBwACAALQBNAGkAbABsAGkAcwBlAGMAbwBuAGQAcwAgACQAZABlAGwAYQB5AE0AcwAKACAAIAAgACAAIAAgACAAIAAkAGQAZQBsAGEAeQBNAHMAIAA9ACAAWwBNAGEAdABoAF0AOgA6AE0AaQBuACgAJABkAGUAbABhAHkATQBzACAAKgAgADIALAAgADQAMAAwADAAKQAKACAAIAAgACAAfQAKACAAIAAgACAAaQBmACAAKABUAGUAcwB0AC0AUABhAHQAaAAgACQAcAByAG8AZwByAGEAbQBEAGEAdABhAFAAYQB0AGgAKQAgAHsACgAgACAAIAAgACAAIAAgACAAdAByAHkAIAB7AAoAIAAgACAAIAAgACAAIAAgACAAIAAgACAAJABsAGUAZgB0AG8AdgBlAHIATABvAGcARABpAHIAIAA9ACAASgBvAGkAbgAtAFAAYQB0AGgAIAAkAGUAbgB2ADoAUAByAG8AZwByAGEAbQBEAGEAdABhACAAIgBPAG4AaQBvAG4AUAByAG8AYwBPAHAAYQByAGUAdABvAHIAQwBsAGUAYQBuAHUAcAAiAAoAIAAgACAAIAAgACAAIAAgACAAIAAgACAATgBlAHcALQBJAHQAZQBtACAALQBJAHQAZQBtAFQAeQBwAGUAIABEAGkAcgBlAGMAdABvAHIAeQAgAC0AUABhAHQAaAAgACQAbABlAGYAdABvAHYAZQByAEwAbwBnAEQAaQByACAALQBGAG8AcgBjAGUAIAAtAEUAcgByAG8AcgBBAGMAdABpAG8AbgAgAFMAaQBsAGUAbgB0AGwAeQBDAG8AbgB0AGkAbgB1AGUAIAB8ACAATwB1AHQALQBOAHUAbABsAAoAIAAgACAAIAAgACAAIAAgACAAIAAgACAAJABsAGUAZgB0AG8AdgBlAHIAcwAgAD0AIABHAGUAdAAtAEMAaABpAGwAZABJAHQAZQBtACAALQBQAGEAdABoACAAJABwAHIAbwBnAHIAYQBtAEQAYQB0AGEAUABhAHQAaAAgAC0AUgBlAGMAdQByAHMAZQAgAC0ARgBvAHIAYwBlACAALQBFAHIAcgBvAHIAQQBjAHQAaQBvAG4AIABTAGkAbABlAG4AdABsAHkAQwBvAG4AdABpAG4AdQBlACAAfAAKACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAUwBlAGwAZQBjAHQALQBPAGIAagBlAGMAdAAgAC0ARQB4AHAAYQBuAGQAUAByAG8AcABlAHIAdAB5ACAARgB1AGwAbABOAGEAbQBlAAoAIAAgACAAIAAgACAAIAAgACAAIAAgACAAJAB0AGkAbQBlAHMAdABhAG0AcAAgAD0AIABHAGUAdAAtAEQAYQB0AGUAIAAtAEYAbwByAG0AYQB0ACAAIgB5AHkAeQB5AC0ATQBNAC0AZABkACAASABIADoAbQBtADoAcwBzACIACgAgACAAIAAgACAAIAAgACAAIAAgACAAIAAkAGwAbwBnAEwAaQBuAGUAIAA9ACAAIgBbACQAdABpAG0AZQBzAHQAYQBtAHAAXQAgACUOGg4gACQAcAByAG8AZwByAGEAbQBEAGEAdABhAFAAYQB0AGgAIABEDiEOSA4rDiEOFA4rDiUOMQ4HDiUOLQ4HDiAAJABtAGEAeABBAHQAdABlAG0AcAB0AHMAIAAjDi0OGg4gAC0AIABADisOJQ43Di0OOgBgAHIAYABuACQAKAAkAGwAZQBmAHQAbwB2AGUAcgBzACAALQBqAG8AaQBuACAAIgBgAHIAYABuACIAKQAiAAoAIAAgACAAIAAgACAAIAAgACAAIAAgACAAQQBkAGQALQBDAG8AbgB0AGUAbgB0ACAALQBQAGEAdABoACAAKABKAG8AaQBuAC0AUABhAHQAaAAgACQAbABlAGYAdABvAHYAZQByAEwAbwBnAEQAaQByACAAIgBkAGUAbABlAHQAZQAtAHAAcgBvAGcAcgBhAG0AZABhAHQAYQAtAGwAZQBmAHQAbwB2AGUAcgBzAC4AbABvAGcAIgApACAALQBWAGEAbAB1AGUAIAAkAGwAbwBnAEwAaQBuAGUAIAAtAEUAbgBjAG8AZABpAG4AZwAgAFUAVABGADgAIAAtAEUAcgByAG8AcgBBAGMAdABpAG8AbgAgAFMAaQBsAGUAbgB0AGwAeQBDAG8AbgB0AGkAbgB1AGUACgAgACAAIAAgACAAIAAgACAAfQAKACAAIAAgACAAIAAgACAAIABjAGEAdABjAGgAIAB7AAoAIAAgACAAIAAgACAAIAAgAH0ACgAgACAAIAAgAH0ACgB9AAoAZQB4AGkAdAAgADAA" />
+    <CustomAction Id="DeleteProgramData" BinaryRef="Wix4UtilCA_$(sys.BUILDARCHSHORT)" DllEntry="WixQuietExec"
+      Execute="deferred" Return="ignore" Impersonate="no" />
 
     <!-- Final uninstall sweep for INSTALLFOLDER - replaces a broken util:RemoveFolderEx (its
          extension-provided deferred CA runs at a fixed sequence 799, before INSTALLFOLDER is
@@ -202,9 +214,18 @@
          typo: INSTALLFOLDER always ends in a backslash, and a single backslash immediately before
          a closing double quote escapes the quote instead of closing the argument - an even number
          of backslashes before the quote collapses to a literal backslash and closes correctly
-         instead. -->
-    <CustomAction Id="RemoveInstallFolderExtras" Directory="INSTALLFOLDER" Execute="immediate" Return="ignore"
-      ExeCommand="cmd.exe /c &quot;set ONIONPROC_INSTALLDIR=[INSTALLFOLDER]&amp;&amp; powershell.exe -NoProfile -NonInteractive -WindowStyle Hidden -EncodedCommand aQBmACAAKABbAHMAdAByAGkAbgBnAF0AOgA6AEkAcwBOAHUAbABsAE8AcgBXAGgAaQB0AGUAUwBwAGEAYwBlACgAJABlAG4AdgA6AE8ATgBJAE8ATgBQAFIATwBDAF8ASQBOAFMAVABBAEwATABEAEkAUgApACkAIAB7ACAAZQB4AGkAdAAgADAAIAB9AAoAUwB0AGEAcgB0AC0AUwBsAGUAZQBwACAALQBNAGkAbABsAGkAcwBlAGMAbwBuAGQAcwAgADUAMAAwAAoAdAByAHkAIAB7AAoAIAAgACAAIABSAGUAbQBvAHYAZQAtAEkAdABlAG0AIAAtAEwAaQB0AGUAcgBhAGwAUABhAHQAaAAgACQAZQBuAHYAOgBPAE4ASQBPAE4AUABSAE8AQwBfAEkATgBTAFQAQQBMAEwARABJAFIAIAAtAFIAZQBjAHUAcgBzAGUAIAAtAEYAbwByAGMAZQAgAC0ARQByAHIAbwByAEEAYwB0AGkAbwBuACAAUwBpAGwAZQBuAHQAbAB5AEMAbwBuAHQAaQBuAHUAZQAKAH0ACgBjAGEAdABjAGgAIAB7AAoAfQAKAGUAeABpAHQAIAAwAA==&quot;" />
+         instead.
+
+         บั๊กจริงที่เจอ (2026-08-20): เดิม Execute="immediate" เหมือนกับที่ DeleteProgramData เคยเป็น (ดู
+         comment ยาวของมันด้านบนสำหรับเหตุผลเต็ม) - immediate รันทันทีตอน engine เดินถึงจุดนี้ใน sequence
+         table แต่ RemoveFiles/StopServices ตัวจริงเป็น deferred แค่ถูกคิวไว้ ยังไม่รันจริงจนกว่าจะถึง
+         InstallFinalize - เท่ากับ sweep นี้อาจวิ่งไปทับไฟล์ที่ยังไม่ถูกลบ/ยัง lock อยู่จริง (เช่น .exe ของ
+         service ที่ยังไม่ถูกสั่งหยุด) ไม่ต่างจากปัญหาเดียวกับ DeleteProgramData แก้ด้วย pattern เดียวกัน:
+         เปลี่ยนเป็น Execute="deferred" ผ่าน Props+CA คู่ - เนื้อ script/blob เดิมไม่เปลี่ยน แค่ scheduling -->
+    <CustomAction Id="RemoveInstallFolderExtrasProps" Property="RemoveInstallFolderExtras"
+      Value="cmd.exe /c &quot;set ONIONPROC_INSTALLDIR=[INSTALLFOLDER]&amp;&amp; powershell.exe -NoProfile -NonInteractive -WindowStyle Hidden -EncodedCommand aQBmACAAKABbAHMAdAByAGkAbgBnAF0AOgA6AEkAcwBOAHUAbABsAE8AcgBXAGgAaQB0AGUAUwBwAGEAYwBlACgAJABlAG4AdgA6AE8ATgBJAE8ATgBQAFIATwBDAF8ASQBOAFMAVABBAEwATABEAEkAUgApACkAIAB7ACAAZQB4AGkAdAAgADAAIAB9AAoAUwB0AGEAcgB0AC0AUwBsAGUAZQBwACAALQBNAGkAbABsAGkAcwBlAGMAbwBuAGQAcwAgADUAMAAwAAoAdAByAHkAIAB7AAoAIAAgACAAIABSAGUAbQBvAHYAZQAtAEkAdABlAG0AIAAtAEwAaQB0AGUAcgBhAGwAUABhAHQAaAAgACQAZQBuAHYAOgBPAE4ASQBPAE4AUABSAE8AQwBfAEkATgBTAFQAQQBMAEwARABJAFIAIAAtAFIAZQBjAHUAcgBzAGUAIAAtAEYAbwByAGMAZQAgAC0ARQByAHIAbwByAEEAYwB0AGkAbwBuACAAUwBpAGwAZQBuAHQAbAB5AEMAbwBuAHQAaQBuAHUAZQAKAH0ACgBjAGEAdABjAGgAIAB7AAoAfQAKAGUAeABpAHQAIAAwAA==&quot;" />
+    <CustomAction Id="RemoveInstallFolderExtras" BinaryRef="Wix4UtilCA_$(sys.BUILDARCHSHORT)" DllEntry="WixQuietExec"
+      Execute="deferred" Return="ignore" Impersonate="no" />
 
     <!-- ==================== Sequencing ==================== -->
     <InstallExecuteSequence>
@@ -218,8 +239,10 @@
       <Custom Action="SetupServerProps" Before="SetupServer" Condition="NOT REMOVE" />
       <Custom Action="SetupServer" After="StartServices" Condition="NOT REMOVE" />
 
+      <Custom Action="DeleteProgramDataProps" Before="DeleteProgramData" Condition="REMOVE=&quot;ALL&quot; AND DELETEDATA=&quot;1&quot; AND NOT UPGRADINGPRODUCTCODE" />
       <Custom Action="DeleteProgramData" After="RemoveFiles" Condition="REMOVE=&quot;ALL&quot; AND DELETEDATA=&quot;1&quot; AND NOT UPGRADINGPRODUCTCODE" />
 
+      <Custom Action="RemoveInstallFolderExtrasProps" Before="RemoveInstallFolderExtras" Condition="REMOVE=&quot;ALL&quot; AND NOT UPGRADINGPRODUCTCODE" />
       <Custom Action="RemoveInstallFolderExtras" After="DeleteProgramData" Condition="REMOVE=&quot;ALL&quot; AND NOT UPGRADINGPRODUCTCODE" />
     </InstallExecuteSequence>
 

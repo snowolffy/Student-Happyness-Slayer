@@ -20,11 +20,13 @@ public class LabHub : Hub
 
     private readonly AppDbContext _db;
     private readonly AgentConnectionRegistry _connectionRegistry;
+    private readonly IActivityLogService _activityLog;
 
-    public LabHub(AppDbContext db, AgentConnectionRegistry connectionRegistry)
+    public LabHub(AppDbContext db, AgentConnectionRegistry connectionRegistry, IActivityLogService activityLog)
     {
         _db = db;
         _connectionRegistry = connectionRegistry;
+        _activityLog = activityLog;
     }
 
     /// <summary>Agent เรียกทันทีหลัง connect เสร็จ เพื่อ join group เฉพาะเครื่องตัวเอง (ชื่อ group = clientGuid)</summary>
@@ -41,7 +43,11 @@ public class LabHub : Hub
             client.LastSeenAt = DateTime.UtcNow;
             await _db.SaveChangesAsync();
             client.IsConnectedViaSignalR = true;
+            client.HasEverConnectedViaSignalR = true;
             await Clients.Group(ConsoleGroupName).SendAsync("ClientStatusChanged", client);
+
+            await _activityLog.LogAgentConnectivityAsync(
+                "AgentConnected", $"เครื่อง '{client.MachineName}' เชื่อมต่อ (SignalR)", clientGuid, client.MachineName);
         }
     }
 
@@ -62,7 +68,11 @@ public class LabHub : Hub
             if (client is not null)
             {
                 client.IsConnectedViaSignalR = false;
+                client.HasEverConnectedViaSignalR = true; // แน่นอนว่า true - เพิ่งหลุดจากการที่เคย connect ได้จริง
                 await Clients.Group(ConsoleGroupName).SendAsync("ClientStatusChanged", client);
+
+                await _activityLog.LogAgentConnectivityAsync(
+                    "AgentDisconnected", $"เครื่อง '{client.MachineName}' หลุดการเชื่อมต่อ (SignalR)", clientGuid, client.MachineName);
             }
         }
 

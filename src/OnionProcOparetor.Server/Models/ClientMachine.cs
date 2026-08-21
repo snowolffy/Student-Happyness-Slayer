@@ -54,13 +54,32 @@ public class ClientMachine
     public bool IsConnectedViaSignalR { get; set; }
 
     /// <summary>
-    /// true = เครื่องนี้ยัง online อยู่ - เชื่อ SignalR connection จริงก่อน (เร็วและแม่นยำที่สุด) ถ้าไม่ได้
-    /// connect อยู่ (หรือ IsConnectedViaSignalR ไม่ได้ถูก set มา) ค่อย fallback ไปดู LastSeenAt แทน (รองรับ
-    /// เครื่องที่ poll สำเร็จปกติแต่ SignalR ต่อไม่ติด - ต้องยังทำงานได้ตามหลักการเดิมของทั้งระบบ: poll ต้อง
-    /// ทำงานได้ครบแม้ hub จะล่ม) ไม่ผูกกับ IsEnabled อีกต่อไป - enforcement กับ online เป็นคนละเรื่องกัน
-    /// (ดู ClientMachineDto ฝั่ง Console สำหรับที่ไปที่มาเต็มๆ)
+    /// ตั้งจากภายนอกคู่กับ IsConnectedViaSignalR เสมอ - มาจาก AgentConnectionRegistry.HasEverConnected
+    /// ดู doc comment ของ IsOnline ข้างล่างว่าทำไมต้องแยกจาก IsConnectedViaSignalR
+    /// </summary>
+    [NotMapped]
+    public bool HasEverConnectedViaSignalR { get; set; }
+
+    /// <summary>
+    /// true = เครื่องนี้ยัง online อยู่
+    ///
+    /// บั๊กจริงที่เจอ (2026-08-20): เดิมใช้ `IsConnectedViaSignalR || LastSeenAt ยังไม่เกิน 90 วิ` เสมอ -
+    /// ตอน SignalR หลุดจริง (เช่น net stop service แบบ graceful) LastSeenAt ที่เพิ่ง poll ไปก่อนหน้ายังคง
+    /// "สด" อยู่ภายใน 90 วิ ทำให้ fallback ฝั่งขวายัง TRUE กลบสัญญาณ disconnect ที่เพิ่งเกิดทันที - ผลคือ
+    /// broadcast ตอน disconnect ยังบอกว่า "online" เหมือนเดิม กว่าจะขึ้น OFFLINE จริงต้องรอ LastSeenAt
+    /// หมดอายุพอดี = ช้าเท่าเดิมกับระบบเก่าทุกประการ ทั้งที่ตั้งใจให้เร็วกว่านั้นมาก
+    ///
+    /// แก้โดยแยก 2 กรณี: เครื่องที่ "เคย" connect SignalR สำเร็จมาก่อน (HasEverConnectedViaSignalR) ให้เชื่อ
+    /// IsConnectedViaSignalR เป็นเกณฑ์เดียวเด็ดขาด ไม่ fallback ไป LastSeenAt อีก (ยอมรับได้ที่เครือข่าย
+    /// กระตุกสั้นๆ อาจเห็น OFFLINE วูบแป๊บนึงก่อน SignalR reconnect เอง - ยังดีกว่าค้าง ONLINE ผิดๆ นานถึง
+    /// 90 วิ) ส่วนเครื่องที่ไม่เคย connect SignalR เลย (เช่น firewall บล็อก WebSocket ถาวร) ยัง fallback ไป
+    /// LastSeenAt ตามปกติเหมือนเดิม (ตรงกับหลักการเดิมของทั้งระบบ: poll ต้องทำงานได้ครบแม้ hub จะล่ม/ต่อไม่ติด)
+    /// ไม่ผูกกับ IsEnabled อีกต่อไป - enforcement กับ online เป็นคนละเรื่องกัน (ดู ClientMachineDto ฝั่ง
+    /// Console สำหรับที่ไปที่มาเต็มๆ)
     /// </summary>
     [NotMapped]
     public bool IsOnline =>
-        IsConnectedViaSignalR || (DateTime.UtcNow - LastSeenAt).TotalSeconds <= OnlineThresholdSeconds;
+        HasEverConnectedViaSignalR
+            ? IsConnectedViaSignalR
+            : (DateTime.UtcNow - LastSeenAt).TotalSeconds <= OnlineThresholdSeconds;
 }

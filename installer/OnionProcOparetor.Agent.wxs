@@ -287,9 +287,19 @@
          (not just "&quot;") on the [INSTALLFOLDER] argument is required, not a typo: INSTALLFOLDER
          always ends in a backslash, and a single backslash immediately before a closing double
          quote escapes the quote instead of closing the argument - an even number of backslashes
-         before the quote collapses to a literal backslash and closes correctly instead. -->
-    <CustomAction Id="RemoveInstallFolderExtras" Directory="INSTALLFOLDER" Execute="immediate" Return="ignore"
-      ExeCommand="cmd.exe /c &quot;set ONIONPROC_INSTALLDIR=[INSTALLFOLDER]&amp;&amp; powershell.exe -NoProfile -NonInteractive -WindowStyle Hidden -EncodedCommand aQBmACAAKABbAHMAdAByAGkAbgBnAF0AOgA6AEkAcwBOAHUAbABsAE8AcgBXAGgAaQB0AGUAUwBwAGEAYwBlACgAJABlAG4AdgA6AE8ATgBJAE8ATgBQAFIATwBDAF8ASQBOAFMAVABBAEwATABEAEkAUgApACkAIAB7ACAAZQB4AGkAdAAgADAAIAB9AAoAUwB0AGEAcgB0AC0AUwBsAGUAZQBwACAALQBNAGkAbABsAGkAcwBlAGMAbwBuAGQAcwAgADUAMAAwAAoAdAByAHkAIAB7AAoAIAAgACAAIABSAGUAbQBvAHYAZQAtAEkAdABlAG0AIAAtAEwAaQB0AGUAcgBhAGwAUABhAHQAaAAgACQAZQBuAHYAOgBPAE4ASQBPAE4AUABSAE8AQwBfAEkATgBTAFQAQQBMAEwARABJAFIAIAAtAFIAZQBjAHUAcgBzAGUAIAAtAEYAbwByAGMAZQAgAC0ARQByAHIAbwByAEEAYwB0AGkAbwBuACAAUwBpAGwAZQBuAHQAbAB5AEMAbwBuAHQAaQBuAHUAZQAKAH0ACgBjAGEAdABjAGgAIAB7AAoAfQAKAGUAeABpAHQAIAAwAA==&quot;" />
+         before the quote collapses to a literal backslash and closes correctly instead.
+
+         บั๊กจริงที่เจอ (2026-08-20, พบใน Server+Console product ก่อน ดู OnionProcOparetor.ServerConsole
+         .wxs's comment สำหรับ live-test evidence เต็ม แล้วพบว่า Agent product เข้าข่ายเดียวกันทุกประการ):
+         เดิม Execute="immediate" รันทันทีตอน engine เดินถึงจุดนี้ใน sequence table แต่ RemoveFiles/
+         StopServices ตัวจริงเป็น deferred แค่ถูกคิวไว้ ยังไม่รันจริงจนกว่าจะถึง InstallFinalize - sweep นี้
+         จึงอาจวิ่งไปทับไฟล์ที่ยังไม่ถูกลบ/ยัง lock อยู่จริง (เช่น OnionAgent.exe ที่ service ยังไม่ถูกสั่งหยุด)
+         แก้ด้วยการเปลี่ยนเป็น Execute="deferred" ผ่าน Props+CA คู่ - เนื้อ script/blob เดิมไม่เปลี่ยน แค่
+         scheduling -->
+    <CustomAction Id="RemoveInstallFolderExtrasProps" Property="RemoveInstallFolderExtras"
+      Value="cmd.exe /c &quot;set ONIONPROC_INSTALLDIR=[INSTALLFOLDER]&amp;&amp; powershell.exe -NoProfile -NonInteractive -WindowStyle Hidden -EncodedCommand aQBmACAAKABbAHMAdAByAGkAbgBnAF0AOgA6AEkAcwBOAHUAbABsAE8AcgBXAGgAaQB0AGUAUwBwAGEAYwBlACgAJABlAG4AdgA6AE8ATgBJAE8ATgBQAFIATwBDAF8ASQBOAFMAVABBAEwATABEAEkAUgApACkAIAB7ACAAZQB4AGkAdAAgADAAIAB9AAoAUwB0AGEAcgB0AC0AUwBsAGUAZQBwACAALQBNAGkAbABsAGkAcwBlAGMAbwBuAGQAcwAgADUAMAAwAAoAdAByAHkAIAB7AAoAIAAgACAAIABSAGUAbQBvAHYAZQAtAEkAdABlAG0AIAAtAEwAaQB0AGUAcgBhAGwAUABhAHQAaAAgACQAZQBuAHYAOgBPAE4ASQBPAE4AUABSAE8AQwBfAEkATgBTAFQAQQBMAEwARABJAFIAIAAtAFIAZQBjAHUAcgBzAGUAIAAtAEYAbwByAGMAZQAgAC0ARQByAHIAbwByAEEAYwB0AGkAbwBuACAAUwBpAGwAZQBuAHQAbAB5AEMAbwBuAHQAaQBuAHUAZQAKAH0ACgBjAGEAdABjAGgAIAB7AAoAfQAKAGUAeABpAHQAIAAwAA==&quot;" />
+    <CustomAction Id="RemoveInstallFolderExtras" BinaryRef="Wix4UtilCA_$(sys.BUILDARCHSHORT)" DllEntry="WixQuietExec"
+      Execute="deferred" Return="ignore" Impersonate="no" />
 
     <!-- ==================== Sequencing ==================== -->
     <InstallExecuteSequence>
@@ -319,6 +329,7 @@
            key pointing at a deleted exe is installer cruft, not user data). -->
       <Custom Action="DeleteRegRunKey" After="InstallInitialize" Condition="REMOVE=&quot;ALL&quot; AND NOT UPGRADINGPRODUCTCODE" />
 
+      <Custom Action="RemoveInstallFolderExtrasProps" Before="RemoveInstallFolderExtras" Condition="REMOVE=&quot;ALL&quot; AND NOT UPGRADINGPRODUCTCODE" />
       <Custom Action="RemoveInstallFolderExtras" After="DeleteRegRunKey" Condition="REMOVE=&quot;ALL&quot; AND NOT UPGRADINGPRODUCTCODE" />
     </InstallExecuteSequence>
 

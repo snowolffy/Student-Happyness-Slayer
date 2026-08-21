@@ -29,7 +29,8 @@ StartupDiagnostics.WriteLine($"builder.Environment.ContentRootPath: {builder.Env
 var serverLogPath = Path.Combine(
     Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData),
     "OnionProcOparetor", "Server", "logs", "server.log");
-builder.Logging.AddProvider(new FileLoggerProvider(serverLogPath));
+var fileLoggerProvider = new FileLoggerProvider(serverLogPath);
+builder.Logging.AddProvider(fileLoggerProvider);
 StartupDiagnostics.WriteLine($"ILogger ทั้งหมดจะถูกเขียนไปที่ไฟล์นี้ด้วย: {serverLogPath}");
 
 // ---- ตั้งค่า Kestrel ให้ฟัง port ตามที่กำหนดใน appsettings.json ----
@@ -51,6 +52,16 @@ if (!string.IsNullOrEmpty(dbDir) && !Directory.Exists(dbDir))
 // ---- ผูก EF Core + SQLite เข้ากับ Dependency Injection ----
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseSqlite(connectionString));
+
+// ---- Activity Log: DB แยกต่างหาก (คนละไฟล์ SQLite) จาก DB หลัก เพราะคาดว่า volume จะสูงกว่า
+// (audit ทุก action ของครู + ทุก agent connect/disconnect + ทุก warning/error) และมี auto-cleanup
+// ทุก 7 วัน (ดู ActivityLogCleanupService) ต่างจาก DB หลักที่ไม่มี retention ----
+var activityLogConnectionString = builder.Configuration.GetConnectionString("ActivityLogConnection")
+    ?? "Data Source=C:\\ProgramData\\OnionProcOparetor\\activitylog.db";
+builder.Services.AddDbContext<ActivityLogDbContext>(options =>
+    options.UseSqlite(activityLogConnectionString));
+builder.Services.AddScoped<IActivityLogService, ActivityLogService>();
+builder.Services.AddHostedService<ActivityLogCleanupService>();
 
 // ---- SignalR: real-time push คู่ขนานกับ HTTP polling เดิม (ไม่แทนที่ poll) ----
 builder.Services.AddSignalR();
@@ -77,6 +88,10 @@ StartupDiagnostics.WriteLine("Host build เสร็จแล้ว");
 
 var app = builder.Build();
 
+// ---- ให้ FileLoggerProvider เริ่มบันทึก Warning ขึ้นไปลง Activity Log ได้ (ต้องรอ app.Build()
+// เสร็จก่อนเพราะ provider ถูกสร้างก่อนหน้านั้นมาก - ดู FileLoggerProvider.AttachServiceScopeFactory) ----
+fileLoggerProvider.AttachServiceScopeFactory(app.Services.GetRequiredService<IServiceScopeFactory>());
+
 // ---- สร้าง/migrate DB อัตโนมัติตอน start ----
 // StartupDiagnostics คร่อม Migrate() ไว้ทั้งสองด้านโดยตั้งใจ: ถ้า log ค้างอยู่ที่บรรทัด
 // "กำลัง migrate..." โดยไม่มี "migrate เสร็จแล้ว" ตามมา แปลว่า Migrate() เองค้าง (เช่น SQLite
@@ -89,6 +104,9 @@ using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
     db.Database.Migrate();
+
+    var activityLogDb = scope.ServiceProvider.GetRequiredService<ActivityLogDbContext>();
+    activityLogDb.Database.Migrate();
 }
 StartupDiagnostics.WriteLine("Migrate เสร็จแล้ว กำลัง Run()...");
 
@@ -134,7 +152,7 @@ app.MapPost("/api/auth/setup", async (AppDbContext db) =>
 });
 
 // login - ตรวจ username/password
-app.MapPost("/api/auth/login", async (LoginRequest req, AppDbContext db) =>
+app.MapPost("/api/auth/login", async (LoginRequest req, AppDbContext db, IActivityLogService activityLog) =>
 {
     var admin = await db.AdminUsers.FirstOrDefaultAsync(u => u.Username == req.Username);
     if (admin is null)
@@ -163,6 +181,8 @@ app.MapPost("/api/auth/login", async (LoginRequest req, AppDbContext db) =>
 
     await db.SaveChangesAsync();
 
+    await activityLog.LogAdminActionAsync(admin, "AdminLoggedIn", $"{admin.Username} เข้าสู่ระบบ");
+
     return Results.Ok(new
     {
         message = "Login successful.",
@@ -183,17 +203,19 @@ app.MapGet("/api/clients", async (HttpRequest request, AppDbContext db, AgentCon
         return Results.Json(new { error = "Password change required before continuing." }, statusCode: 403);
 
     var clients = await db.ClientMachines.OrderBy(c => c.MachineName).ToListAsync();
-    // เติม IsConnectedViaSignalR ก่อน serialize เสมอ (ไม่ set = default false = IsOnline พึ่ง LastSeenAt
-    // อย่างเดียว ยังถูกอยู่แต่ไม่ได้สัญญาณเร็วจาก SignalR - ดู ClientMachine.IsConnectedViaSignalR)
+    // เติม IsConnectedViaSignalR + HasEverConnectedViaSignalR ก่อน serialize เสมอ (ไม่ set = default
+    // false ทั้งคู่ = IsOnline พึ่ง LastSeenAt อย่างเดียว ยังถูกอยู่แต่ไม่ได้สัญญาณเร็วจาก SignalR - ดู
+    // ClientMachine.IsConnectedViaSignalR/HasEverConnectedViaSignalR)
     foreach (var client in clients)
     {
         client.IsConnectedViaSignalR = connectionRegistry.IsConnected(client.ClientGuid);
+        client.HasEverConnectedViaSignalR = connectionRegistry.HasEverConnected(client.ClientGuid);
     }
     return Results.Ok(clients);
 });
 
 // toggle เครื่องใดเครื่องหนึ่ง (per-machine)
-app.MapPost("/api/clients/{id:int}/toggle", async (int id, HttpRequest request, AppDbContext db, AgentConnectionRegistry connectionRegistry) =>
+app.MapPost("/api/clients/{id:int}/toggle", async (int id, HttpRequest request, AppDbContext db, AgentConnectionRegistry connectionRegistry, IActivityLogService activityLog) =>
 {
     var admin = await GetAuthorizedAdmin(request, db);
     if (admin is null)
@@ -207,12 +229,18 @@ app.MapPost("/api/clients/{id:int}/toggle", async (int id, HttpRequest request, 
     client.IsEnabled = !client.IsEnabled;
     await db.SaveChangesAsync();
     client.IsConnectedViaSignalR = connectionRegistry.IsConnected(client.ClientGuid);
+    client.HasEverConnectedViaSignalR = connectionRegistry.HasEverConnected(client.ClientGuid);
+
+    await activityLog.LogAdminActionAsync(admin, "ClientEnforcementToggled",
+        $"{admin.Username} {(client.IsEnabled ? "เปิด" : "ปิด")} enforcement ของเครื่อง '{client.MachineName}'",
+        client.ClientGuid, client.MachineName);
+
     return Results.Ok(client);
 });
 
 // ลบเครื่อง client ออกจากระบบ (LogEntry.ClientGuid ไม่มี FK ผูกกับ ClientMachine โดยตั้งใจ
 // จึงลบ ClientMachine ได้โดย log เก่าของเครื่องนั้นยังอยู่ครบ ไม่ต้อง cascade)
-app.MapDelete("/api/clients/{id:int}", async (int id, HttpRequest request, AppDbContext db) =>
+app.MapDelete("/api/clients/{id:int}", async (int id, HttpRequest request, AppDbContext db, IActivityLogService activityLog) =>
 {
     var admin = await GetAuthorizedAdmin(request, db);
     if (admin is null)
@@ -225,11 +253,16 @@ app.MapDelete("/api/clients/{id:int}", async (int id, HttpRequest request, AppDb
 
     db.ClientMachines.Remove(client);
     await db.SaveChangesAsync();
+
+    await activityLog.LogAdminActionAsync(admin, "ClientDeleted",
+        $"{admin.Username} ลบเครื่อง '{client.MachineName}' ออกจากระบบ",
+        client.ClientGuid, client.MachineName);
+
     return Results.Ok(new { message = "Client deleted." });
 });
 
 // toggle ทั้งห้อง (global)
-app.MapPost("/api/global/toggle", async (HttpRequest request, AppDbContext db) =>
+app.MapPost("/api/global/toggle", async (HttpRequest request, AppDbContext db, IActivityLogService activityLog) =>
 {
     var admin = await GetAuthorizedAdmin(request, db);
     if (admin is null)
@@ -247,6 +280,10 @@ app.MapPost("/api/global/toggle", async (HttpRequest request, AppDbContext db) =
     state.IsEnabled = !state.IsEnabled;
     state.UpdatedAt = DateTime.UtcNow;
     await db.SaveChangesAsync();
+
+    await activityLog.LogAdminActionAsync(admin, "GlobalEnforcementToggled",
+        $"{admin.Username} {(state.IsEnabled ? "เปิด" : "ปิด")} enforcement ทั้งห้อง");
+
     return Results.Ok(state);
 });
 
@@ -264,7 +301,7 @@ app.MapGet("/api/rules", async (HttpRequest request, AppDbContext db) =>
 });
 
 // เพิ่มกฎใหม่
-app.MapPost("/api/rules", async (Rule rule, HttpRequest request, AppDbContext db) =>
+app.MapPost("/api/rules", async (Rule rule, HttpRequest request, AppDbContext db, IActivityLogService activityLog) =>
 {
     var admin = await GetAuthorizedAdmin(request, db);
     if (admin is null)
@@ -276,11 +313,14 @@ app.MapPost("/api/rules", async (Rule rule, HttpRequest request, AppDbContext db
     rule.UpdatedAt = DateTime.UtcNow;
     db.Rules.Add(rule);
     await db.SaveChangesAsync();
+
+    await activityLog.LogAdminActionAsync(admin, "RuleCreated", $"{admin.Username} สร้างกฎ '{rule.Name}'");
+
     return Results.Created($"/api/rules/{rule.Id}", rule);
 });
 
 // ลบกฎทิ้ง (ใช้เมื่อกฎตั้งผิดหรือกว้างเกินไป - สำคัญมากเพื่อความปลอดภัย)
-app.MapDelete("/api/rules/{id:int}", async (int id, HttpRequest request, AppDbContext db) =>
+app.MapDelete("/api/rules/{id:int}", async (int id, HttpRequest request, AppDbContext db, IActivityLogService activityLog) =>
 {
     var admin = await GetAuthorizedAdmin(request, db);
     if (admin is null)
@@ -293,11 +333,14 @@ app.MapDelete("/api/rules/{id:int}", async (int id, HttpRequest request, AppDbCo
 
     db.Rules.Remove(rule);
     await db.SaveChangesAsync();
+
+    await activityLog.LogAdminActionAsync(admin, "RuleDeleted", $"{admin.Username} ลบกฎ '{rule.Name}'");
+
     return Results.Ok(new { message = "Rule deleted." });
 });
 
 // toggle เปิด/ปิดกฎ (ไม่ต้องลบทิ้งถาวร แค่ปิดชั่วคราวได้)
-app.MapPost("/api/rules/{id:int}/toggle", async (int id, HttpRequest request, AppDbContext db) =>
+app.MapPost("/api/rules/{id:int}/toggle", async (int id, HttpRequest request, AppDbContext db, IActivityLogService activityLog) =>
 {
     var admin = await GetAuthorizedAdmin(request, db);
     if (admin is null)
@@ -311,6 +354,10 @@ app.MapPost("/api/rules/{id:int}/toggle", async (int id, HttpRequest request, Ap
     rule.IsEnabled = !rule.IsEnabled;
     rule.UpdatedAt = DateTime.UtcNow;
     await db.SaveChangesAsync();
+
+    await activityLog.LogAdminActionAsync(admin, "RuleToggled",
+        $"{admin.Username} {(rule.IsEnabled ? "เปิด" : "ปิด")} กฎ '{rule.Name}'");
+
     return Results.Ok(rule);
 });
 
@@ -332,7 +379,7 @@ app.MapGet("/api/clients/{clientGuid}/rule-overrides", async (string clientGuid,
 });
 
 // ตั้ง/แก้ override ของกฎหนึ่งสำหรับเครื่องหนึ่ง (upsert - ไม่มีแล้วสร้างใหม่, มีอยู่แล้วแก้ IsEnabled)
-app.MapPut("/api/clients/{clientGuid}/rule-overrides/{ruleId:int}", async (string clientGuid, int ruleId, RuleOverrideRequest req, HttpRequest request, AppDbContext db) =>
+app.MapPut("/api/clients/{clientGuid}/rule-overrides/{ruleId:int}", async (string clientGuid, int ruleId, RuleOverrideRequest req, HttpRequest request, AppDbContext db, IActivityLogService activityLog) =>
 {
     var admin = await GetAuthorizedAdmin(request, db);
     if (admin is null)
@@ -356,11 +403,17 @@ app.MapPut("/api/clients/{clientGuid}/rule-overrides/{ruleId:int}", async (strin
     }
 
     await db.SaveChangesAsync();
+
+    var client = await db.ClientMachines.FirstOrDefaultAsync(c => c.ClientGuid == clientGuid);
+    await activityLog.LogAdminActionAsync(admin, "RuleOverrideSet",
+        $"{admin.Username} ตั้ง override กฎ '{rule.Name}' = {(req.IsEnabled ? "เปิด" : "ปิด")} สำหรับเครื่อง '{client?.MachineName}'",
+        clientGuid, client?.MachineName);
+
     return Results.Ok(existing);
 });
 
 // ลบ override ทิ้ง - เครื่องนี้กลับไปใช้ค่า global ของกฎนี้ตามปกติ (ไม่ error ถ้าไม่เคยมี override อยู่แล้ว)
-app.MapDelete("/api/clients/{clientGuid}/rule-overrides/{ruleId:int}", async (string clientGuid, int ruleId, HttpRequest request, AppDbContext db) =>
+app.MapDelete("/api/clients/{clientGuid}/rule-overrides/{ruleId:int}", async (string clientGuid, int ruleId, HttpRequest request, AppDbContext db, IActivityLogService activityLog) =>
 {
     var admin = await GetAuthorizedAdmin(request, db);
     if (admin is null)
@@ -373,13 +426,19 @@ app.MapDelete("/api/clients/{clientGuid}/rule-overrides/{ruleId:int}", async (st
     {
         db.RuleOverrides.Remove(existing);
         await db.SaveChangesAsync();
+
+        var client = await db.ClientMachines.FirstOrDefaultAsync(c => c.ClientGuid == clientGuid);
+        var rule = await db.Rules.FindAsync(ruleId);
+        await activityLog.LogAdminActionAsync(admin, "RuleOverrideCleared",
+            $"{admin.Username} ล้าง override กฎ '{rule?.Name}' ของเครื่อง '{client?.MachineName}' (กลับไปใช้ค่า global)",
+            clientGuid, client?.MachineName);
     }
 
     return Results.Ok(new { message = "Override cleared." });
 });
 
 // แก้ setting ของเครื่องใดเครื่องหนึ่งจากศูนย์กลาง (ตอนนี้มีแค่ poll interval override)
-app.MapPut("/api/clients/{id:int}/settings", async (int id, ClientSettingsRequest request, HttpRequest httpRequest, AppDbContext db, AgentConnectionRegistry connectionRegistry) =>
+app.MapPut("/api/clients/{id:int}/settings", async (int id, ClientSettingsRequest request, HttpRequest httpRequest, AppDbContext db, AgentConnectionRegistry connectionRegistry, IActivityLogService activityLog) =>
 {
     var admin = await GetAuthorizedAdmin(httpRequest, db);
     if (admin is null)
@@ -394,6 +453,12 @@ app.MapPut("/api/clients/{id:int}/settings", async (int id, ClientSettingsReques
     await db.SaveChangesAsync();
 
     client.IsConnectedViaSignalR = connectionRegistry.IsConnected(client.ClientGuid);
+    client.HasEverConnectedViaSignalR = connectionRegistry.HasEverConnected(client.ClientGuid);
+
+    await activityLog.LogAdminActionAsync(admin, "ClientSettingsChanged",
+        $"{admin.Username} เปลี่ยน poll interval override ของเครื่อง '{client.MachineName}' เป็น {(client.PollIntervalOverrideSeconds?.ToString() ?? "ค่า default")}",
+        client.ClientGuid, client.MachineName);
+
     return Results.Ok(client);
 });
 
@@ -455,6 +520,7 @@ app.MapGet("/api/poll/{clientGuid}", async (string clientGuid, string machineNam
 
     // เสริม real-time status ให้ console ที่เปิดอยู่ - ไม่กระทบ response ที่คืนให้ agent เลย
     client.IsConnectedViaSignalR = connectionRegistry.IsConnected(clientGuid);
+    client.HasEverConnectedViaSignalR = connectionRegistry.HasEverConnected(clientGuid);
     await hub.Clients.BroadcastClientStatus(client);
 
     return Results.Ok(new
@@ -468,7 +534,7 @@ app.MapGet("/api/poll/{clientGuid}", async (string clientGuid, string machineNam
 
 // Console สั่ง command ไปยัง Agent เครื่องใดเครื่องหนึ่ง - บันทึกลง DB เป็น pending เสมอ (fallback ผ่าน poll)
 // แล้ว push ทันทีผ่าน SignalR ถ้า Agent เครื่องนั้น connected อยู่ตอนนี้
-app.MapPost("/api/commands/{clientGuid}", async (string clientGuid, CommandRequest req, HttpRequest request, AppDbContext db, IHubContext<LabHub> hub) =>
+app.MapPost("/api/commands/{clientGuid}", async (string clientGuid, CommandRequest req, HttpRequest request, AppDbContext db, IHubContext<LabHub> hub, IActivityLogService activityLog) =>
 {
     var admin = await GetAuthorizedAdmin(request, db);
     if (admin is null)
@@ -492,6 +558,11 @@ app.MapPost("/api/commands/{clientGuid}", async (string clientGuid, CommandReque
     await db.SaveChangesAsync(); // ต้อง save ก่อนถึงจะได้ command.Id จริง (SQLite autoincrement) เอาไปส่งต่อให้ SignalR ได้
 
     await hub.Clients.SendCommandToAgent(clientGuid, command.Id, command.CommandType, command.PayloadJson);
+
+    var targetClient = await db.ClientMachines.FirstOrDefaultAsync(c => c.ClientGuid == clientGuid);
+    await activityLog.LogAdminActionAsync(admin, "CommandSent",
+        $"{admin.Username} สั่ง '{command.CommandType}' ไปยังเครื่อง '{targetClient?.MachineName}'",
+        clientGuid, targetClient?.MachineName);
 
     return Results.Created($"/api/commands/{command.Id}", command);
 });
@@ -576,6 +647,60 @@ app.MapGet("/api/logs", async (HttpRequest request, AppDbContext db, int take = 
     return Results.Ok(logs);
 });
 
+// ดู Activity Log (audit การกระทำของครู + agent connectivity + system warning/error) พร้อม filter
+// + pagination - ตั้งใจแยก endpoint จาก /api/logs (คนละเรื่องกัน คนละ DbContext) และคืนเป็นหน้าๆ
+// เสมอ ไม่คืนทั้งหมดทีเดียว (volume คาดว่าสูงกว่า LogEntry มาก)
+app.MapGet("/api/activitylog", async (
+    HttpRequest request, AppDbContext db, ActivityLogDbContext activityDb,
+    ActivityLogCategory? category, ActivityLogSeverity? minSeverity,
+    DateTime? from, DateTime? to, string? clientGuid, int? actorAdminUserId,
+    int page = 1, int pageSize = 100) =>
+{
+    var admin = await GetAuthorizedAdmin(request, db);
+    if (admin is null)
+        return Results.Unauthorized();
+    if (admin.HasDefaultPassword)
+        return Results.Json(new { error = "Password change required before continuing." }, statusCode: 403);
+
+    page = Math.Max(page, 1);
+    pageSize = Math.Clamp(pageSize, 1, 500);
+
+    var query = activityDb.ActivityLogEntries.AsQueryable();
+    if (category is not null) query = query.Where(e => e.Category == category);
+    if (minSeverity is not null) query = query.Where(e => e.Severity >= minSeverity);
+    if (from is not null) query = query.Where(e => e.Timestamp >= from);
+    if (to is not null) query = query.Where(e => e.Timestamp <= to);
+    if (!string.IsNullOrWhiteSpace(clientGuid)) query = query.Where(e => e.TargetClientGuid == clientGuid);
+    if (actorAdminUserId is not null) query = query.Where(e => e.ActorAdminUserId == actorAdminUserId);
+
+    var totalCount = await query.CountAsync();
+    var items = await query
+        .OrderByDescending(e => e.Timestamp)
+        .Skip((page - 1) * pageSize)
+        .Take(pageSize)
+        .ToListAsync();
+
+    // Category/Severity ส่งเป็น string ไม่ใช่ enum ตัวเลข (ไม่มี JsonStringEnumConverter ตั้งอยู่
+    // ใน pipeline นี้ - pattern เดียวกับ CommandResultDto ที่แปลง enum เป็น string ก่อนส่งเสมอ
+    // เพื่อให้ Console อ่านตรงๆ ได้โดยไม่ต้องก๊อป enum ไปไว้อีกฝั่ง)
+    var dtoItems = items.Select(e => new
+    {
+        e.Id,
+        e.Timestamp,
+        Category = e.Category.ToString(),
+        Severity = e.Severity.ToString(),
+        e.EventType,
+        e.Description,
+        e.ActorAdminUserId,
+        e.ActorUsername,
+        e.TargetClientGuid,
+        e.TargetMachineName,
+        e.DetailJson
+    });
+
+    return Results.Ok(new { items = dtoItems, totalCount, page, pageSize });
+});
+
 // ---- User Management Endpoints ----
 
 // list admin users ทั้งหมด (ไม่คืน hash/salt ออกไปเด็ดขาด)
@@ -604,7 +729,7 @@ app.MapGet("/api/admin/users", async (HttpRequest request, AppDbContext db) =>
 });
 
 // สร้าง admin user ใหม่ (ไม่ใช่ built-in)
-app.MapPost("/api/admin/users", async (CreateUserRequest req, HttpRequest request, AppDbContext db) =>
+app.MapPost("/api/admin/users", async (CreateUserRequest req, HttpRequest request, AppDbContext db, IActivityLogService activityLog) =>
 {
     var admin = await GetAuthorizedAdmin(request, db);
     if (admin is null)
@@ -644,11 +769,13 @@ app.MapPost("/api/admin/users", async (CreateUserRequest req, HttpRequest reques
     db.AdminUsers.Add(newUser);
     await db.SaveChangesAsync();
 
+    await activityLog.LogAdminActionAsync(admin, "AdminUserCreated", $"{admin.Username} สร้าง admin user '{newUser.Username}'");
+
     return Results.Created($"/api/admin/users/{newUser.Id}", new { newUser.Id, newUser.Username });
 });
 
 // ลบ admin user (ห้ามลบ built-in account - กัน lockout)
-app.MapDelete("/api/admin/users/{id:int}", async (int id, HttpRequest request, AppDbContext db) =>
+app.MapDelete("/api/admin/users/{id:int}", async (int id, HttpRequest request, AppDbContext db, IActivityLogService activityLog) =>
 {
     var admin = await GetAuthorizedAdmin(request, db);
     if (admin is null)
@@ -666,11 +793,14 @@ app.MapDelete("/api/admin/users/{id:int}", async (int id, HttpRequest request, A
 
     db.AdminUsers.Remove(target);
     await db.SaveChangesAsync();
+
+    await activityLog.LogAdminActionAsync(admin, "AdminUserDeleted", $"{admin.Username} ลบ admin user '{target.Username}'");
+
     return Results.Ok(new { message = "User deleted." });
 });
 
 // เปลี่ยน password ของตัวเอง - endpoint เดียวที่ยกเว้นการเช็ค HasDefaultPassword
-app.MapPost("/api/admin/users/{id:int}/change-password", async (int id, ChangePasswordRequest req, HttpRequest request, AppDbContext db) =>
+app.MapPost("/api/admin/users/{id:int}/change-password", async (int id, ChangePasswordRequest req, HttpRequest request, AppDbContext db, IActivityLogService activityLog) =>
 {
     var admin = await GetAuthorizedAdmin(request, db);
     if (admin is null)
@@ -696,12 +826,14 @@ app.MapPost("/api/admin/users/{id:int}/change-password", async (int id, ChangePa
 
     await db.SaveChangesAsync();
 
+    await activityLog.LogAdminActionAsync(admin, "AdminPasswordChanged", $"{admin.Username} เปลี่ยน password ของตัวเอง");
+
     return Results.Ok(new { message = "Password changed successfully." });
 });
 
 // admin คนหนึ่ง reset password ให้ user คนอื่น (ต่างจาก change-password ที่จำกัดแค่ตัวเอง)
 // ไม่ต้องรู้ password เดิมของเป้าหมายเลย เหมาะกับกรณีลืม password
-app.MapPost("/api/admin/users/{id:int}/reset-password", async (int id, ChangePasswordRequest req, HttpRequest request, AppDbContext db) =>
+app.MapPost("/api/admin/users/{id:int}/reset-password", async (int id, ChangePasswordRequest req, HttpRequest request, AppDbContext db, IActivityLogService activityLog) =>
 {
     var admin = await GetAuthorizedAdmin(request, db);
     if (admin is null)
@@ -727,6 +859,8 @@ app.MapPost("/api/admin/users/{id:int}/reset-password", async (int id, ChangePas
     //target.HasDefaultPassword = true;
 
     await db.SaveChangesAsync();
+
+    await activityLog.LogAdminActionAsync(admin, "AdminPasswordReset", $"{admin.Username} reset password ให้ '{target.Username}'");
 
     return Results.Ok(new { message = $"Password for '{target.Username}' has been reset. They must change it on next login." });
 });

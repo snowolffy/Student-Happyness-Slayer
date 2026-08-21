@@ -18,11 +18,24 @@ public class AgentConnectionRegistry
     private readonly Dictionary<string, HashSet<string>> _connectionIdsByClientGuid = new();
     private readonly Dictionary<string, string> _clientGuidByConnectionId = new();
 
+    /// <summary>
+    /// เครื่องที่เคย connect SignalR สำเร็จอย่างน้อย 1 ครั้ง (นับตั้งแต่ Server รอบนี้เริ่มทำงาน) - ไม่เอาออก
+    /// แม้ connection จะหลุดไปแล้วก็ตาม (ต่างจาก _connectionIdsByClientGuid ที่ลบออกเมื่อหลุด) ใช้แยกระหว่าง
+    /// "เครื่องนี้ไม่เคยใช้ SignalR เลย" (fallback ไป LastSeenAt ตามปกติ - ดู ClientMachine.IsOnline) กับ
+    /// "เครื่องนี้เคย connect แล้วแต่ตอนนี้หลุด" (เชื่อสถานะ disconnect นี้ทันที ไม่ fallback อีก) - บั๊กจริงที่
+    /// เจอ (2026-08-20): เดิมไม่แยก 2 กรณีนี้ ใช้ OR กับ LastSeenAt staleness เสมอ ทำให้ตอน SignalR หลุดจริง
+    /// (เช่น net stop service แบบ graceful) แต่ LastSeenAt ยังสดอยู่ (poll ล่าสุดเพิ่งผ่านไปไม่ถึง 90 วิ)
+    /// สัญญาณ disconnect ที่ควรเร็วถูก fallback กลบทันที เท่ากับพฤติกรรมจริงยังช้าเท่าเดิม (รอ LastSeenAt
+    /// หมดอายุ) ทั้งที่ตั้งใจให้เร็วกว่านั้นมาก
+    /// </summary>
+    private readonly HashSet<string> _everConnectedClientGuids = new();
+
     public void Register(string connectionId, string clientGuid)
     {
         lock (_lock)
         {
             _clientGuidByConnectionId[connectionId] = clientGuid;
+            _everConnectedClientGuids.Add(clientGuid);
 
             if (!_connectionIdsByClientGuid.TryGetValue(clientGuid, out var connectionIds))
             {
@@ -31,6 +44,15 @@ public class AgentConnectionRegistry
             }
 
             connectionIds.Add(connectionId);
+        }
+    }
+
+    /// <summary>เครื่องนี้เคย connect SignalR สำเร็จมาก่อนไหม (นับตั้งแต่ Server รอบนี้เริ่ม) - ดู doc comment ของ field ข้างบน</summary>
+    public bool HasEverConnected(string clientGuid)
+    {
+        lock (_lock)
+        {
+            return _everConnectedClientGuids.Contains(clientGuid);
         }
     }
 

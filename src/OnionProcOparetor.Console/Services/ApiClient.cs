@@ -193,6 +193,23 @@ public class ApiClient
         return result ?? new List<LogEntryDto>();
     }
 
+    /// <summary>
+    /// ดึง Activity Log แบบแบ่งหน้า (ไม่โหลดทั้งหมดทีเดียว - volume คาดว่าสูงกว่า LogEntry มาก)
+    /// category/minSeverity เป็น null ได้ = ไม่กรองแกนนั้น
+    /// </summary>
+    public async Task<ActivityLogPageDto> GetActivityLogAsync(
+        string? category = null, string? minSeverity = null, string? clientGuid = null,
+        int page = 1, int pageSize = 100)
+    {
+        var query = new List<string> { $"page={page}", $"pageSize={pageSize}" };
+        if (!string.IsNullOrEmpty(category)) query.Add($"category={Uri.EscapeDataString(category)}");
+        if (!string.IsNullOrEmpty(minSeverity)) query.Add($"minSeverity={Uri.EscapeDataString(minSeverity)}");
+        if (!string.IsNullOrEmpty(clientGuid)) query.Add($"clientGuid={Uri.EscapeDataString(clientGuid)}");
+
+        var result = await _httpClient.GetFromJsonAsync<ActivityLogPageDto>($"/api/activitylog?{string.Join('&', query)}");
+        return result ?? new ActivityLogPageDto();
+    }
+
     public async Task<List<UserDto>> GetUsersAsync()
     {
         var result = await _httpClient.GetFromJsonAsync<List<UserDto>>("/api/admin/users");

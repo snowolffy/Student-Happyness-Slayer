@@ -68,6 +68,7 @@ public class ClientOnlineStatusMonitorService : BackgroundService
     {
         using var scope = _scopeFactory.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var activityLog = scope.ServiceProvider.GetRequiredService<IActivityLogService>();
 
         var allClients = await db.ClientMachines.ToListAsync(ct);
         var currentIds = new HashSet<int>(allClients.Select(c => c.Id));
@@ -81,6 +82,7 @@ public class ClientOnlineStatusMonitorService : BackgroundService
         foreach (var client in allClients)
         {
             client.IsConnectedViaSignalR = _connectionRegistry.IsConnected(client.ClientGuid);
+            client.HasEverConnectedViaSignalR = _connectionRegistry.HasEverConnected(client.ClientGuid);
             var isOnlineNow = client.IsOnline;
             var wasOnline = _lastKnownOnlineState.GetValueOrDefault(client.Id, true); // default true กัน spam broadcast ตอน service เพิ่ง start ถ้าเครื่อง online อยู่แล้ว
 
@@ -96,6 +98,21 @@ public class ClientOnlineStatusMonitorService : BackgroundService
                 _logger.LogInformation(
                     "Client '{MachineName}' ({ClientGuid}) offline - LastSeenAt {LastSeenAt:u} (เกิน {Threshold} วิ, ไม่มี SignalR connection)",
                     client.MachineName, client.ClientGuid, client.LastSeenAt, ClientMachine.OnlineThresholdSeconds);
+            }
+
+            // เครื่องที่ HasEverConnectedViaSignalR แล้ว transition นี้ถูก LabHub.RegisterAgent/
+            // OnDisconnectedAsync log ไปแล้วตั้งแต่ตอนเกิดจริง (เร็วกว่า scan รอบนี้มาก) - ถ้า log
+            // ซ้ำที่นี่อีกจะได้ 2 แถวต่อ 1 transition เดียว เลย log เฉพาะเครื่องที่ "ไม่เคย" connect
+            // SignalR เลย (เช่น firewall บล็อก WebSocket ถาวร) ซึ่งไม่มีทางอื่นให้รู้ transition นี้เลย
+            // นอกจาก poll-timeout scan นี้เท่านั้น
+            if (!client.HasEverConnectedViaSignalR)
+            {
+                await activityLog.LogAgentConnectivityAsync(
+                    isOnlineNow ? "AgentOnlineDetected" : "AgentOfflineDetected",
+                    isOnlineNow
+                        ? $"เครื่อง '{client.MachineName}' online (พบผ่าน poll)"
+                        : $"เครื่อง '{client.MachineName}' offline (ไม่มีสัญญาณเกิน {ClientMachine.OnlineThresholdSeconds} วิ)",
+                    client.ClientGuid, client.MachineName);
             }
 
             await _hub.Clients.BroadcastClientStatus(client);

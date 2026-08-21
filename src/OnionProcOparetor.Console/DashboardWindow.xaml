@@ -429,6 +429,119 @@
                     </Grid>
                 </TabItem>
 
+                <!-- ========== Audit Log tab ==========
+                     ตั้งชื่อ "AUDIT LOG" (ไม่ใช้ "Activity Logs" ซ้ำกับหัวข้อในแท็บ LOGS ข้างบน - แท็บนั้น
+                     คือ log การตรวจจับ process ที่ agent ส่งเข้ามา คนละเรื่องกับแท็บนี้ที่เป็น audit การกระทำ
+                     ของครู + agent connectivity + system warning/error)
+                     ไม่ผูกกับ auto-refresh ทุก tick แบบแท็บอื่น (ดู DashboardWindow.xaml.cs
+                     LoadActivityLogPageAsync) - โหลดเฉพาะตอนแท็บนี้ active เท่านั้น กัน volume สูงไม่ให้
+                     โหลดทั้งหมดฝั่ง client ทุก 10 วิ -->
+                <TabItem x:Name="AuditLogTabItem" Header="AUDIT LOG" Margin="31,0,-23,0">
+                    <Grid Margin="0,12,0,0">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="*"/>
+                        </Grid.RowDefinitions>
+
+                        <TextBlock Grid.Row="0" Text="Audit Log" Style="{StaticResource Heading2}"/>
+
+                        <Grid Grid.Row="1" Margin="0,10,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="8"/>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="8"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <ComboBox Grid.Column="0" x:Name="AuditLogCategoryFilter" Width="160" Height="35" VerticalAlignment="Center"
+                                    SelectedIndex="0" SelectionChanged="AuditLogFilter_Changed">
+                                <ComboBoxItem Content="ทุกหมวด"/>
+                                <ComboBoxItem Content="AdminAction"/>
+                                <ComboBoxItem Content="AgentConnectivity"/>
+                                <ComboBoxItem Content="SystemEvent"/>
+                            </ComboBox>
+                            <ComboBox Grid.Column="2" x:Name="AuditLogSeverityFilter" Width="160" Height="35" VerticalAlignment="Center"
+                                    SelectedIndex="0" SelectionChanged="AuditLogFilter_Changed">
+                                <ComboBoxItem Content="ทุกระดับ"/>
+                                <ComboBoxItem Content="Info ขึ้นไป"/>
+                                <ComboBoxItem Content="Warning ขึ้นไป"/>
+                                <ComboBoxItem Content="Error ขึ้นไป"/>
+                            </ComboBox>
+                            <TextBox Grid.Column="4" x:Name="AuditLogClientGuidFilter" Width="220" Height="35" VerticalAlignment="Center"
+                                    Style="{StaticResource RoundedTextBox}"
+                                    Tag="Client GUID (เว้นว่าง = ทุกเครื่อง)" TextChanged="AuditLogClientGuidFilter_TextChanged"/>
+                        </Grid>
+
+                        <Grid Grid.Row="2" Margin="0,10,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="8"/>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="12"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <Button Grid.Column="0" Content="◀ PREV" Style="{StaticResource ButtonSecondary}"
+                                    Padding="10,5" FontSize="11" Click="AuditLogPrevButton_Click"/>
+                            <Button Grid.Column="2" Content="NEXT ▶" Style="{StaticResource ButtonSecondary}"
+                                    Padding="10,5" FontSize="11" Click="AuditLogNextButton_Click"/>
+                            <TextBlock Grid.Column="4" x:Name="AuditLogPageInfoText" VerticalAlignment="Center"
+                                    Foreground="{StaticResource Brush.Text.Secondary}"/>
+                        </Grid>
+
+                        <Grid Grid.Row="3" Margin="0,10,0,0">
+                            <DataGrid x:Name="AuditLogGrid" AutoGenerateColumns="False" IsReadOnly="True"
+                                    Background="{StaticResource Brush.Background.Card}"
+                                    BorderBrush="{StaticResource Brush.Border.Default}" BorderThickness="1"
+                                    RowBackground="{StaticResource Brush.Background.Card}"
+                                    AlternatingRowBackground="{StaticResource Brush.Background.Card}"
+                                    HorizontalGridLinesBrush="{StaticResource Brush.Border.Default}"
+                                    VerticalGridLinesBrush="{StaticResource Brush.Border.Default}"
+                                    RowHeight="40" CanUserAddRows="False"
+                                    ColumnHeaderStyle="{StaticResource ConsoleGridColumnHeaderStyle}"
+                                    RowStyle="{StaticResource ConsoleGridRowStyle}"
+                                    CellStyle="{StaticResource ConsoleGridCellStyle}">
+                                <DataGrid.Resources>
+                                    <Style x:Key="AuditLogSeverityBadge" TargetType="ContentControl" BasedOn="{StaticResource StatusBadge}">
+                                        <Setter Property="Tag" Value="Online"/>
+                                        <Setter Property="Content" Value="{Binding Severity}"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding Severity}" Value="Warning">
+                                                <Setter Property="Tag" Value="Warning"/>
+                                            </DataTrigger>
+                                            <DataTrigger Binding="{Binding Severity}" Value="Error">
+                                                <Setter Property="Tag" Value="Danger"/>
+                                            </DataTrigger>
+                                            <DataTrigger Binding="{Binding Severity}" Value="Critical">
+                                                <Setter Property="Tag" Value="Danger"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </DataGrid.Resources>
+                                <DataGrid.Columns>
+                                    <DataGridTextColumn Header="TIME (UTC)" Binding="{Binding Timestamp}" Width="150"/>
+                                    <DataGridTextColumn Header="CATEGORY" Binding="{Binding Category}" Width="130"/>
+                                    <DataGridTemplateColumn Header="SEVERITY" Width="90" SortMemberPath="Severity">
+                                        <DataGridTemplateColumn.CellTemplate>
+                                            <DataTemplate>
+                                                <ContentControl Style="{StaticResource AuditLogSeverityBadge}"/>
+                                            </DataTemplate>
+                                        </DataGridTemplateColumn.CellTemplate>
+                                    </DataGridTemplateColumn>
+                                    <DataGridTextColumn Header="EVENT" Binding="{Binding EventType}" Width="150"/>
+                                    <DataGridTextColumn Header="DESCRIPTION" Binding="{Binding Description}" Width="*"/>
+                                    <DataGridTextColumn Header="MACHINE" Binding="{Binding TargetMachineName}" Width="130"/>
+                                    <DataGridTextColumn Header="ADMIN" Binding="{Binding ActorUsername}" Width="110"/>
+                                </DataGrid.Columns>
+                            </DataGrid>
+                            <TextBlock x:Name="AuditLogEmptyText"
+                                    Text="ยังไม่มี activity log" Style="{StaticResource Caption}" TextAlignment="Center"
+                                    VerticalAlignment="Center" Visibility="Collapsed" IsHitTestVisible="False"/>
+                        </Grid>
+                    </Grid>
+                </TabItem>
+
                 <!-- ========== Users tab ========== -->
                 <TabItem Header="USERS" Margin="29,0,-30,0">
                     <Grid Margin="0,12,0,0">

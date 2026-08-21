@@ -94,8 +94,27 @@ public partial class DashboardWindow : Window
         {
             Interval = TimeSpan.FromSeconds(SettingsService.Current.Connection.DashboardPollIntervalSeconds)
         };
-        _autoRefreshTimer.Tick += async (_, _) => await LoadAllDataAsync();
+        _autoRefreshTimer.Tick += async (_, _) =>
+        {
+            await LoadAllDataAsync();
+
+            // AUDIT LOG ไม่รวมอยู่ใน LoadAllDataAsync (volume สูง โหลดเฉพาะตอนแท็บ active เท่านั้น) -
+            // รีเฟรชหน้าปัจจุบันเพิ่มเฉพาะตอนแท็บนี้เปิดอยู่จริง
+            if (ReferenceEquals(MainTabControl.SelectedItem, AuditLogTabItem))
+            {
+                await LoadActivityLogPageAsync();
+            }
+        };
         _autoRefreshTimer.Start();
+
+        // debounce ตอนพิมพ์ filter client GUID ของ Audit Log - กันยิง request ทุกตัวอักษรที่พิมพ์
+        _auditLogFilterDebounceTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(400) };
+        _auditLogFilterDebounceTimer.Tick += async (_, _) =>
+        {
+            _auditLogFilterDebounceTimer.Stop();
+            _auditLogPage = 1;
+            await LoadActivityLogPageAsync();
+        };
 
         // อัพเดต interval แบบ live ทันทีที่บันทึก Settings ใหม่ - ไม่ต้อง restart Console (ดู SettingsWindow)
         SettingsService.Changed += OnSettingsChanged;
@@ -124,6 +143,7 @@ public partial class DashboardWindow : Window
         Closed += async (_, _) =>
         {
             _autoRefreshTimer.Stop();
+            _auditLogFilterDebounceTimer.Stop();
             SettingsService.Changed -= OnSettingsChanged;
             DisconnectVncView();
             await CloseAllLiveViewSessionsAsync();
@@ -468,6 +488,15 @@ public partial class DashboardWindow : Window
     private List<RuleDto> _allRules = new();
     private List<LogEntryDto> _allLogs = new();
 
+    // ==================== Audit Log tab ====================
+    // ตั้งใจไม่ผูกกับ LoadAllDataAsync/_allLogs pattern (โหลดทั้งหมดทุก tick) เพราะ volume คาดว่าสูง
+    // กว่ามาก - โหลดเฉพาะหน้าปัจจุบันตอนแท็บ active เท่านั้น (ดู MainTabControl_SelectionChanged
+    // และ _autoRefreshTimer.Tick ใน constructor)
+    private const int AuditLogPageSize = 100;
+    private int _auditLogPage = 1;
+    private int _auditLogTotalCount;
+    private readonly DispatcherTimer _auditLogFilterDebounceTimer;
+
     private void ApplyClientsFilter()
     {
         // จำ selection เดิมไว้ก่อนเปลี่ยน ItemsSource (ไม่งั้นจะหลุดทุกครั้งที่ reload ข้อมูล
@@ -516,6 +545,102 @@ public partial class DashboardWindow : Window
     private void ClientsSearchBox_TextChanged(object sender, TextChangedEventArgs e) => ApplyClientsFilter();
     private void RulesSearchBox_TextChanged(object sender, TextChangedEventArgs e) => ApplyRulesFilter();
     private void LogsSearchBox_TextChanged(object sender, TextChangedEventArgs e) => ApplyLogsFilter();
+
+    /// <summary>
+    /// โหลด audit log หน้าปัจจุบัน (_auditLogPage) ตาม filter ที่เลือกอยู่ตอนนี้ - เรียกตอนแท็บถูกเลือก,
+    /// filter เปลี่ยน, กด Prev/Next, หรือ auto-refresh tick ขณะแท็บนี้ active เท่านั้น (ไม่โหลดทั้งตาราง
+    /// ทีเดียวแบบแท็บอื่น เพราะ volume คาดว่าสูงกว่ามาก - ดู comment field ด้านบน)
+    /// </summary>
+    private async Task LoadActivityLogPageAsync()
+    {
+        // _apiClient ยังเป็น null ตอน InitializeComponent() กำลังรัน (constructor เรียก
+        // InitializeComponent ก่อนแล้วค่อย assign _apiClient - ComboBox ที่ตั้ง SelectedIndex="0"
+        // ใน XAML ยิง SelectionChanged ทันทีตอน parse ซึ่งเร็วกว่านั้น) ป้องกันไว้เผื่อถูกเรียกเร็วเกินไป
+        if (_apiClient is null)
+        {
+            return;
+        }
+
+        try
+        {
+            var category = AuditLogCategoryFilter.SelectedIndex switch
+            {
+                1 => "AdminAction",
+                2 => "AgentConnectivity",
+                3 => "SystemEvent",
+                _ => (string?)null
+            };
+            var minSeverity = AuditLogSeverityFilter.SelectedIndex switch
+            {
+                1 => "Info",
+                2 => "Warning",
+                3 => "Error",
+                _ => (string?)null
+            };
+            var clientGuid = string.IsNullOrWhiteSpace(AuditLogClientGuidFilter.Text)
+                ? null
+                : AuditLogClientGuidFilter.Text.Trim();
+
+            var pageResult = await _apiClient.GetActivityLogAsync(category, minSeverity, clientGuid, _auditLogPage, AuditLogPageSize);
+
+            AuditLogGrid.ItemsSource = pageResult.Items;
+            AuditLogEmptyText.Visibility = pageResult.Items.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+
+            _auditLogTotalCount = pageResult.TotalCount;
+            var totalPages = Math.Max(1, (int)Math.Ceiling(pageResult.TotalCount / (double)AuditLogPageSize));
+            AuditLogPageInfoText.Text = $"หน้า {pageResult.Page}/{totalPages} ({pageResult.TotalCount} รายการ)";
+        }
+        catch (Exception ex)
+        {
+            StatusText.Text = $"โหลด audit log ไม่สำเร็จ: {ex.Message}";
+        }
+    }
+
+    private async void AuditLogFilter_Changed(object sender, SelectionChangedEventArgs e)
+    {
+        if (_apiClient is null)
+        {
+            return; // ถูกยิงระหว่าง InitializeComponent จาก SelectedIndex="0" ที่ตั้งไว้ใน XAML
+        }
+
+        _auditLogPage = 1;
+        await LoadActivityLogPageAsync();
+    }
+
+    /// <summary>debounce 400ms กันยิง request ทุกตัวอักษรที่พิมพ์ในช่อง client GUID filter</summary>
+    private void AuditLogClientGuidFilter_TextChanged(object sender, TextChangedEventArgs e)
+    {
+        if (_apiClient is null)
+        {
+            return;
+        }
+
+        _auditLogFilterDebounceTimer.Stop();
+        _auditLogFilterDebounceTimer.Start();
+    }
+
+    private async void AuditLogPrevButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_auditLogPage <= 1)
+        {
+            return;
+        }
+
+        _auditLogPage--;
+        await LoadActivityLogPageAsync();
+    }
+
+    private async void AuditLogNextButton_Click(object sender, RoutedEventArgs e)
+    {
+        var totalPages = Math.Max(1, (int)Math.Ceiling(_auditLogTotalCount / (double)AuditLogPageSize));
+        if (_auditLogPage >= totalPages)
+        {
+            return;
+        }
+
+        _auditLogPage++;
+        await LoadActivityLogPageAsync();
+    }
 
     // ==================== Step 4d: embedded VNC screen view ====================
 
@@ -634,6 +759,11 @@ public partial class DashboardWindow : Window
         if (e.RemovedItems.Contains(LiveViewTabItem) && !SettingsService.Current.Vnc.KeepLiveViewOpenOnTabLeave)
         {
             await CloseAllLiveViewSessionsAsync();
+        }
+
+        if (e.AddedItems.Contains(AuditLogTabItem))
+        {
+            await LoadActivityLogPageAsync();
         }
     }
 
