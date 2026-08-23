@@ -31,7 +31,9 @@
 
         <StackPanel x:Name="FormPanel" Grid.Row="2" VerticalAlignment="Top">
             <StackPanel x:Name="PasswordPanel" Visibility="Collapsed" Margin="0,0,0,16">
-                <TextBlock Text="UNINSTALL PASSWORD" FontSize="10" FontWeight="Bold" Foreground="#AAAAAA" Margin="0,0,0,4"/>
+                <TextBlock Text="SERVER ADMIN USERNAME (leave blank to use local password only)" FontSize="10" FontWeight="Bold" Foreground="#AAAAAA" Margin="0,0,0,4"/>
+                <TextBox x:Name="UsernameBox" Height="28" Padding="6,4" FontSize="12" Margin="0,0,0,10"/>
+                <TextBlock Text="SERVER PASSWORD / LOCAL UNINSTALL PASSWORD" FontSize="10" FontWeight="Bold" Foreground="#AAAAAA" Margin="0,0,0,4"/>
                 <PasswordBox x:Name="PasswordBox" Height="28" Padding="6,4" FontSize="12"/>
             </StackPanel>
 

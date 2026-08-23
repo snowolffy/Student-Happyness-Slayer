@@ -730,6 +730,24 @@ app.MapGet("/api/activitylog", async (
     return Results.Ok(new { items = dtoItems, totalCount, page, pageSize });
 });
 
+// UninstallHelper.exe เรียกตรงนี้หลัง admin login สำเร็จ (แทนรหัสผ่าน uninstall แบบ local เดิม) ก่อน
+// จะสั่ง msiexec /x จริง - บันทึกไว้เป็น audit trail ว่าใครอนุมัติถอด Agent ออกจากเครื่องไหนเมื่อไหร่
+// (ดู installer/CustomActions/check-uninstall-password.ps1 สำหรับกลไก verify จริงฝั่ง MSI - endpoint
+// นี้ไม่เกี่ยวกับการอนุญาต uninstall เลย แค่บันทึกผลหลังอนุญาตแล้วเท่านั้น)
+app.MapPost("/api/activitylog/agent-uninstall-authorized", async (
+    AgentUninstallAuthorizedRequest req, HttpRequest request, AppDbContext db, IActivityLogService activityLog) =>
+{
+    var admin = await GetAuthorizedAdmin(request, db);
+    if (admin is null)
+        return Results.Unauthorized();
+
+    await activityLog.LogAdminActionAsync(admin, "AgentUninstallAuthorized",
+        $"{admin.Username} ยืนยัน uninstall Agent บนเครื่อง '{req.MachineName}'",
+        req.ClientGuid, req.MachineName);
+
+    return Results.Ok();
+});
+
 // ---- User Management Endpoints ----
 
 // list admin users ทั้งหมด (ไม่คืน hash/salt ออกไปเด็ดขาด)
@@ -926,3 +944,4 @@ record CommandRequest(string CommandType, string? Payload, string? BatchId = nul
 
 /// <summary>ผลจริงที่ Agent รายงานกลับมาหลัง process command เสร็จ</summary>
 record CommandResultRequest(bool Success, string? Message);
+record AgentUninstallAuthorizedRequest(string ClientGuid, string MachineName);
