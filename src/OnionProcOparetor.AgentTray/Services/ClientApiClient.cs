@@ -73,6 +73,29 @@ public class ClientApiClient
     }
 
     /// <summary>
+    /// แจ้งผลกลับ Agent หลังสแกนโปรแกรมที่มีหน้าต่างบน desktop เสร็จ (เพราะ AgentTray เป็นที่เดียวที่
+    /// เห็นหน้าต่างของ user session ได้จริง - ดู RunningProcessScanner) Agent เป็นคนส่งต่อไป Server/
+    /// Console ผ่าน SignalR relay ต่อ ยิงแบบ fire-and-forget (ไม่ throw ถ้า Agent local API ไม่ตอบ)
+    /// </summary>
+    public async Task PostRunningProcessesResultAsync(string requestingConsoleSessionId, bool success, List<RunningProcessDto> processes, string? failureReason)
+    {
+        try
+        {
+            await _httpClient.PostAsJsonAsync("/processes/list-result", new
+            {
+                requestingConsoleSessionId,
+                success,
+                processes,
+                failureReason
+            });
+        }
+        catch
+        {
+            // Agent local API ไม่ตอบก็ปล่อยผ่าน - ไม่มีอะไรทำต่อได้อยู่ดี (Console จะเห็น timeout เอง)
+        }
+    }
+
+    /// <summary>
     /// สั่ง Agent Service ให้ toggle "Bypass" (ตัด/ต่อการเชื่อมต่อกับ Server ทั้งหมด) - คืนค่า bypass
     /// state ที่ยืนยันแล้วจาก Agent จริงๆ (ไม่ใช่แค่ echo ค่าที่ส่งไป) คืน null ถ้า Agent local API
     /// ไม่ตอบ (เช่น service ไม่ได้รันอยู่) - caller ต้องไม่ถือว่า toggle สำเร็จถ้าได้ null กลับมา

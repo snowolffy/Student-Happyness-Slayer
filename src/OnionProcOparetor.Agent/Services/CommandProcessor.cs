@@ -152,6 +152,9 @@ public class CommandProcessor
             case "UnblockTargetInput":
                 return HandleUnblockTargetInputAsync(ct);
 
+            case "GetRunningProcesses":
+                return HandleGetRunningProcessesAsync(payloadJson, ct);
+
             // TODO Phase 3/4: ใส่ command อื่นๆ ตรงนี้เพิ่ม เช่น "Kill", "RunCommand"
             default:
                 _logger.LogWarning(
@@ -381,6 +384,72 @@ public class CommandProcessor
         }
 
         await labHubConnection.NotifyVncSessionReadyAsync(requestingConsoleSessionId, port, password, ct);
+    }
+
+    /// <summary>
+    /// สั่ง AgentTray (ผ่าน named pipe) ให้สแกนโปรแกรมที่มีหน้าต่างอยู่บน desktop จริง - ต้องทำจาก
+    /// AgentTray เท่านั้น (รันใน user session จริง) เพราะ Process.MainWindowHandle/MainWindowTitle
+    /// ของ Agent เอง (Session 0) มองไม่เห็นหน้าต่างของ user session เลย เหตุผลเดียวกับ StartVncSession
+    /// (ดู comment เต็มใน AgentTrayPipeMessage) ผลจริง (list ของ process) ย้อนกลับมาทาง local HTTP
+    /// callback /processes/list-result แยกต่างหาก เพราะสแกน+เช็ค publisher ทุก process ใช้เวลาสักครู่
+    /// </summary>
+    private async Task<CommandExecutionResult> HandleGetRunningProcessesAsync(string? payloadJson, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(payloadJson))
+        {
+            _logger.LogWarning("GetRunningProcesses command ไม่มี payload มาด้วย (ต้องมี RequestingConsoleSessionId) - ข้าม");
+            return CommandExecutionResult.Fail("GetRunningProcesses command ไม่มี payload มาด้วย");
+        }
+
+        StartVncSessionPayload? payload;
+        try
+        {
+            payload = JsonSerializer.Deserialize<StartVncSessionPayload>(
+                payloadJson, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "แปลง payload ของ GetRunningProcesses ไม่สำเร็จ: {Payload}", payloadJson);
+            return CommandExecutionResult.Fail($"payload ของ GetRunningProcesses ไม่ถูกต้อง: {ex.Message}");
+        }
+
+        if (payload is null || string.IsNullOrWhiteSpace(payload.RequestingConsoleSessionId))
+        {
+            _logger.LogWarning("GetRunningProcesses payload ไม่มี RequestingConsoleSessionId - ข้าม (ไม่รู้จะตอบกลับใคร)");
+            return CommandExecutionResult.Fail("GetRunningProcesses payload ไม่มี RequestingConsoleSessionId");
+        }
+
+        _logger.LogInformation("ได้รับ GetRunningProcesses command จาก Console session {SessionId} - กำลังสั่ง AgentTray ให้สแกน process", payload.RequestingConsoleSessionId);
+
+        var sentToTray = await _agentTrayNotifier.SendGetRunningProcessesAsync(payload.RequestingConsoleSessionId, ct);
+        if (!sentToTray)
+        {
+            var labHubConnection = _serviceProvider.GetRequiredService<LabHubConnection>();
+            _logger.LogWarning("GetRunningProcesses: ส่งคำสั่งให้ AgentTray ไม่สำเร็จ (อาจไม่มี user login อยู่หน้าเครื่อง) - แจ้งกลับ Console session {SessionId} ทันที", payload.RequestingConsoleSessionId);
+            await labHubConnection.NotifyProcessListFailedAsync(payload.RequestingConsoleSessionId, "ไม่สามารถดู process ได้ - ไม่มี user login อยู่หน้าเครื่องนี้", ct);
+            return CommandExecutionResult.Fail(TrayUnreachableMessage("ดู process ที่รันอยู่"));
+        }
+
+        // ผลจริง (list ของ process) มาทาง flow คู่ขนาน HandleRunningProcessesResultAsync แยกต่างหาก
+        return CommandExecutionResult.Ok("ส่งคำสั่งขอ process list ให้ AgentTray แล้ว (รอผลจริงแยกต่างหาก ผ่าน SignalR ProcessList ready/failed)");
+    }
+
+    /// <summary>
+    /// เรียกจาก /processes/list-result (local HTTP endpoint ใน Program.cs) หลัง AgentTray สแกนเสร็จ
+    /// - เป็น flow คู่ขนานผูกกันด้วย RequestingConsoleSessionId เหมือน HandleVncSessionResultAsync
+    /// </summary>
+    public async Task HandleRunningProcessesResultAsync(string requestingConsoleSessionId, bool success, string? processListJson, string? failureReason, CancellationToken ct)
+    {
+        var labHubConnection = _serviceProvider.GetRequiredService<LabHubConnection>();
+
+        if (!success || processListJson is null)
+        {
+            _logger.LogWarning("RunningProcessesResult: AgentTray สแกน process ไม่สำเร็จ ({Reason}) - แจ้งกลับ Console session {SessionId}", failureReason, requestingConsoleSessionId);
+            await labHubConnection.NotifyProcessListFailedAsync(requestingConsoleSessionId, failureReason ?? "สแกน process บนเครื่องนี้ไม่สำเร็จ", ct);
+            return;
+        }
+
+        await labHubConnection.NotifyProcessListReadyAsync(requestingConsoleSessionId, processListJson, ct);
     }
 
     /// <summary>

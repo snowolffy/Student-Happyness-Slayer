@@ -67,6 +67,9 @@ public class BroadcastPipeListener
     /// </summary>
     public event Action<ShutdownNotifyDto>? ShutdownNotifyRequested;
 
+    /// <summary>เรียกทุกครั้งที่ Agent สั่งให้สแกนโปรแกรมที่มีหน้าต่างบน desktop (payload = RequestingConsoleSessionId) - เรียกจาก background thread ไม่ใช่ UI thread</summary>
+    public event Action<string>? GetRunningProcessesRequested;
+
     /// <summary>เริ่มฟัง pipe แบบ fire-and-forget - มี retry loop ในตัว ไม่ throw ออกมาแม้เปิด pipe ไม่สำเร็จ</summary>
     public void Start(CancellationToken ct)
     {
@@ -200,6 +203,13 @@ public class BroadcastPipeListener
                         IsRestart = string.Equals(envelope.Action, "Restart", StringComparison.OrdinalIgnoreCase),
                         DelaySeconds = Math.Clamp(envelope.DelaySeconds ?? 10, 1, 120)
                     });
+                    break;
+
+                case "GetRunningProcesses":
+                    if (!string.IsNullOrWhiteSpace(envelope.RequestingConsoleSessionId))
+                    {
+                        GetRunningProcessesRequested?.Invoke(envelope.RequestingConsoleSessionId);
+                    }
                     break;
 
                 default:

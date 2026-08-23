@@ -11,6 +11,8 @@ namespace OnionProcOparetor.AgentTray.Models;
 /// - "StopVncSession" — หยุด winvnc.exe (Message/Title/RequestingConsoleSessionId ไม่ใช้) - Agent
 ///   ส่งเองอัตโนมัติตอนไม่มี Console ต่อเข้ามาเลย/reconnect ไม่ทันเวลา (lazy-start)
 /// - "ShowShutdownNotify" — โชว์หน้าต่างนับถอยหลังมุมจอก่อน shutdown/restart (ใช้ Action, DelaySeconds)
+/// - "GetRunningProcesses" — สแกนโปรแกรมที่มีหน้าต่างอยู่บน desktop จริง แล้วส่งผลกลับผ่าน local HTTP
+///   callback (ใช้ RequestingConsoleSessionId) - ต้องทำจาก AgentTray เพราะรันใน user session จริง
 ///
 /// ต้อง "ตรงกัน" กับ OnionProcOparetor.Agent/Models/AgentTrayPipeMessage.cs เป๊ะๆ เสมอ เพราะ
 /// solution นี้ไม่มี shared class library ระหว่างโปรเจกต์ (ก๊อปมือแบบเดียวกับ LogEntryDto) -

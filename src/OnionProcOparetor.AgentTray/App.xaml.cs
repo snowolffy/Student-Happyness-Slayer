@@ -53,6 +53,7 @@ public partial class App : System.Windows.Application
         _broadcastListener.BlockTargetInputRequested += OnBlockTargetInputRequested;
         _broadcastListener.UnblockTargetInputRequested += OnUnblockTargetInputRequested;
         _broadcastListener.ShutdownNotifyRequested += OnShutdownNotifyRequested;
+        _broadcastListener.GetRunningProcessesRequested += OnGetRunningProcessesRequested;
         _broadcastListener.Start(_broadcastListenerCts.Token);
 
         // Failsafe path 1 (ดู PhysicalInputBlocker doc comment): winvnc.exe หยุดไม่ว่าเพราะอะไร ต้องคืน
@@ -262,6 +263,28 @@ public partial class App : System.Windows.Application
 
     /// <summary>เรียกจาก background thread ของ pipe listener - หยุด winvnc.exe ไม่ต้อง marshal เข้า UI thread เพราะไม่ได้แตะ WPF UI element ใดๆ เลย (เหมือน OnStartVncSessionRequested)</summary>
     private void OnStopVncSessionRequested() => _vncProcessManager.Stop();
+
+    /// <summary>
+    /// เรียกจาก background thread ของ pipe listener - สแกนโปรแกรมที่มีหน้าต่างบน desktop จริง (ที่นี่
+    /// เท่านั้นที่เห็นหน้าต่างของ user session ได้จริง) แล้วรายงานผลกลับ Agent ผ่าน local HTTP callback
+    /// ไม่ต้อง marshal เข้า UI thread เพราะ Process.GetProcesses()/MainWindowHandle ไม่ต้องใช้ WPF dispatcher
+    /// </summary>
+    private async void OnGetRunningProcessesRequested(string requestingConsoleSessionId)
+    {
+        List<RunningProcessDto> processes;
+        string? error = null;
+        try
+        {
+            processes = RunningProcessScanner.ScanVisibleProcesses();
+        }
+        catch (Exception ex)
+        {
+            processes = new List<RunningProcessDto>();
+            error = ex.Message;
+        }
+
+        await _apiClient.PostRunningProcessesResultAsync(requestingConsoleSessionId, error is null, processes, error);
+    }
 
     /// <summary>
     /// เรียกจาก background thread ของ pipe listener - ต้อง marshal เข้า UI thread เพราะ

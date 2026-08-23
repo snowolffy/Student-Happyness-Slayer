@@ -1,0 +1,67 @@
+<Window x:Class="OnionProcOparetor.Console.RunningProcessesWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Running Processes"
+        Height="520" Width="760"
+        WindowStartupLocation="CenterOwner"
+        Icon="/Theme/icon.ico"
+        Style="{StaticResource AppWindowStyle}">
+    <!-- โชว์เฉพาะโปรแกรมที่มีหน้าต่างบน desktop จริง (ไม่ใช่ process ทั้งหมด) - ได้มาจาก AgentTray
+         สแกน (Session 0 ของ Agent เองมองไม่เห็นหน้าต่างของ user session เลย ดู RunningProcessScanner)
+         ไม่ modal (Show ไม่ใช่ ShowDialog - ดู DashboardWindow.RunActionPanelAsync) เพราะครูอาจเปิด
+         ดูหลายเครื่องพร้อมกันได้เหมือน Screen View -->
+    <Grid Margin="20">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <Grid Grid.Row="0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            <TextBlock Grid.Column="0" x:Name="MachineNameText" Style="{StaticResource Heading2}"/>
+            <Button Grid.Column="1" Content="REFRESH" Style="{StaticResource ButtonSecondary}"
+                    Padding="10,5" FontSize="11" Click="RefreshButton_Click"/>
+        </Grid>
+
+        <TextBlock Grid.Row="1" x:Name="StatusText" Style="{StaticResource Caption}"
+                   TextWrapping="Wrap" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="0,8,0,8"/>
+
+        <Grid Grid.Row="2">
+            <DataGrid x:Name="ProcessesGrid" AutoGenerateColumns="False" IsReadOnly="True"
+                      Background="{StaticResource Brush.Background.Card}"
+                      BorderBrush="{StaticResource Brush.Border.Default}" BorderThickness="1"
+                      RowBackground="{StaticResource Brush.Background.Card}"
+                      AlternatingRowBackground="{StaticResource Brush.Background.Card}"
+                      HorizontalGridLinesBrush="{StaticResource Brush.Border.Default}"
+                      VerticalGridLinesBrush="{StaticResource Brush.Border.Default}"
+                      RowHeight="40" CanUserAddRows="False"
+                      ColumnHeaderStyle="{StaticResource ConsoleGridColumnHeaderStyle}"
+                      RowStyle="{StaticResource ConsoleGridRowStyle}"
+                      CellStyle="{StaticResource ConsoleGridCellStyle}">
+                <DataGrid.Columns>
+                    <DataGridTextColumn Header="PID" Binding="{Binding Pid}" Width="60"/>
+                    <DataGridTextColumn Header="PROCESS" Binding="{Binding ProcessName}" Width="120"/>
+                    <DataGridTextColumn Header="WINDOW TITLE" Binding="{Binding WindowTitle}" Width="*"/>
+                    <DataGridTextColumn Header="PUBLISHER" Binding="{Binding PublisherName}" Width="170"/>
+                    <DataGridTextColumn Header="SIGNED" Binding="{Binding IsSignedMatch}" Width="60"/>
+                    <DataGridTemplateColumn Header="ACTIONS" Width="140">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate>
+                                <Button Content="CREATE RULE" Style="{StaticResource ButtonSecondary}"
+                                        Padding="10,5" FontSize="11"
+                                        Click="CreateRuleButton_Click" Tag="{Binding}"/>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+                </DataGrid.Columns>
+            </DataGrid>
+            <TextBlock x:Name="EmptyText"
+                       Text="ไม่พบโปรแกรมที่มีหน้าต่างอยู่บน desktop" Style="{StaticResource Caption}" TextAlignment="Center"
+                       VerticalAlignment="Center" Visibility="Collapsed" IsHitTestVisible="False"/>
+        </Grid>
+    </Grid>
+</Window>

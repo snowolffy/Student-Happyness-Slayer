@@ -155,6 +155,13 @@ public class ApiClient
         return response.IsSuccessStatusCode;
     }
 
+    /// <summary>แก้ไขกฎแบบ in-place - ไม่ต้องลบแล้วสร้างใหม่ (เก็บ Id/RuleOverride ของกฎเดิมไว้ครบ)</summary>
+    public async Task<bool> UpdateRuleAsync(RuleDto rule)
+    {
+        var response = await _httpClient.PutAsJsonAsync($"/api/rules/{rule.Id}", rule);
+        return response.IsSuccessStatusCode;
+    }
+
     public async Task<bool> DeleteRuleAsync(int ruleId)
     {
         var response = await _httpClient.DeleteAsync($"/api/rules/{ruleId}");

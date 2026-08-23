@@ -81,6 +81,18 @@ public class AgentTrayNotifier
         return SendAsync(envelope, "StartVncSession", ct);
     }
 
+    /// <summary>
+    /// สั่งให้ AgentTray สแกนโปรแกรมที่มีหน้าต่างอยู่บน desktop จริง - ต้องทำจาก AgentTray เท่านั้น
+    /// (รันใน user session จริง) เพราะ Session 0 ของ Agent มองไม่เห็นหน้าต่างของ user session เลย
+    /// เหตุผลเดียวกับ SendStartVncSessionAsync คืนค่า bool บอกว่า "ส่งคำสั่งถึง AgentTray สำเร็จไหม"
+    /// เท่านั้น ผลจริง (list ของ process) มาทาง local HTTP callback /processes/list-result แยกต่างหาก
+    /// </summary>
+    public Task<bool> SendGetRunningProcessesAsync(string requestingConsoleSessionId, CancellationToken ct)
+    {
+        var envelope = new AgentTrayPipeMessage { Type = "GetRunningProcesses", RequestingConsoleSessionId = requestingConsoleSessionId };
+        return SendAsync(envelope, "GetRunningProcesses", ct);
+    }
+
     /// <summary>สั่งให้ AgentTray หยุด winvnc.exe - เรียกจาก VncSessionManager.MonitorSessionAsync ตอนไม่มี Console ต่อเข้ามาเลย (lazy-start ต้องไม่ถือ resource ค้างถ้าไม่มีใครใช้)</summary>
     public Task<bool> SendStopVncSessionAsync(CancellationToken ct)
     {

@@ -186,6 +186,48 @@ public class LabHubConnection : IAsyncDisposable
         }
     }
 
+    /// <summary>
+    /// ส่งผล scan process (JSON ของ List&lt;RunningProcessDto&gt;) กลับไปยัง Console ตัวที่ request เท่านั้น
+    /// (ผ่าน LabHub.RelayProcessListReady -> group ส่วนตัวของ consoleSessionId นั้น) - ส่งเป็น opaque
+    /// string เพราะ Agent ไม่จำเป็นต้องรู้จัก shape ของ RunningProcessDto เลย (แค่ relay ผ่านมือ)
+    /// </summary>
+    public async Task NotifyProcessListReadyAsync(string consoleSessionId, string processListJson, CancellationToken ct)
+    {
+        if (_connection is null || _connection.State != HubConnectionState.Connected)
+        {
+            _logger.LogWarning("Process list พร้อมแล้วแต่ SignalR ไม่ connected อยู่ - ส่งผลกลับ Console ไม่ได้ (ConsoleSessionId: {SessionId})", consoleSessionId);
+            return;
+        }
+
+        try
+        {
+            await _connection.InvokeAsync("RelayProcessListReady", consoleSessionId, _clientGuid, processListJson, ct);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "ส่ง ProcessListReady กลับ Console ไม่สำเร็จ (ConsoleSessionId: {SessionId})", consoleSessionId);
+        }
+    }
+
+    /// <summary>เหมือน NotifyProcessListReadyAsync แต่สำหรับกรณีสแกนไม่สำเร็จ - ส่งเหตุผลกลับไปด้วย</summary>
+    public async Task NotifyProcessListFailedAsync(string consoleSessionId, string reason, CancellationToken ct)
+    {
+        if (_connection is null || _connection.State != HubConnectionState.Connected)
+        {
+            _logger.LogWarning("สแกน process ไม่สำเร็จ ({Reason}) แต่ SignalR ก็ไม่ connected อยู่ด้วย - ส่งผลกลับ Console ไม่ได้ (ConsoleSessionId: {SessionId})", reason, consoleSessionId);
+            return;
+        }
+
+        try
+        {
+            await _connection.InvokeAsync("RelayProcessListFailed", consoleSessionId, _clientGuid, reason, ct);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "ส่ง ProcessListFailed กลับ Console ไม่สำเร็จ (ConsoleSessionId: {SessionId})", consoleSessionId);
+        }
+    }
+
     private async Task RegisterAgentSafeAsync()
     {
         try

@@ -48,6 +48,16 @@ public class LabHubClient : IAsyncDisposable
     public event Action<CommandResultDto>? CommandResultChanged;
 
     /// <summary>
+    /// เรียกตอน Agent สแกนโปรแกรมที่มีหน้าต่างบน desktop เสร็จ (clientGuid, processListJson) -
+    /// background thread เหมือนกัน ต้อง marshal เข้า UI thread เอง และกรองด้วย clientGuid เอง
+    /// (เหตุผลเดียวกับ VncSessionReady - Console ตัวเดียวอาจมี request ค้างรออยู่หลายเครื่องพร้อมกัน)
+    /// </summary>
+    public event Action<string, string>? ProcessListReady;
+
+    /// <summary>เรียกตอน Agent สแกนไม่สำเร็จ (clientGuid, reason) - background thread เหมือนกัน</summary>
+    public event Action<string, string>? ProcessListFailed;
+
+    /// <summary>
     /// เริ่มต่อ SignalR ไปยัง {baseUrl}/hubs/lab - ไม่ throw ออกไปแม้ server จะยังไม่พร้อม/offline
     /// มี retry loop ของตัวเองข้างใน เรียกแบบ fire-and-forget ได้เลย (ไม่ block caller)
     /// </summary>
@@ -72,6 +82,16 @@ public class LabHubClient : IAsyncDisposable
             VncSessionFailed?.Invoke(clientGuid, reason);
         });
         _connection.On<CommandResultDto>("CommandResultChanged", dto => CommandResultChanged?.Invoke(dto));
+        _connection.On<string, string>("ProcessListReady", (clientGuid, json) =>
+        {
+            ConsoleDiagnostics.WriteLine($"[LabHubClient] ได้รับ ProcessListReady จาก hub - ClientGuid: {clientGuid} (SessionId ของเรา: {SessionId})");
+            ProcessListReady?.Invoke(clientGuid, json);
+        });
+        _connection.On<string, string>("ProcessListFailed", (clientGuid, reason) =>
+        {
+            ConsoleDiagnostics.WriteLine($"[LabHubClient] ได้รับ ProcessListFailed จาก hub - ClientGuid: {clientGuid}, Reason: {reason} (SessionId ของเรา: {SessionId})");
+            ProcessListFailed?.Invoke(clientGuid, reason);
+        });
 
         _connection.Reconnecting += ex =>
         {

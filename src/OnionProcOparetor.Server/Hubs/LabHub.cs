@@ -110,6 +110,19 @@ public class LabHub : Hub
         Clients.Group(consoleSessionId).SendAsync("VncSessionFailed", clientGuid, reason);
 
     /// <summary>
+    /// Agent เรียกหลัง AgentTray สแกนโปรแกรมที่มีหน้าต่างอยู่บน desktop เสร็จ เพื่อส่งผลลัพธ์ (JSON
+    /// ของ List&lt;RunningProcessDto&gt;) กลับไปยัง Console ตัวที่ request เท่านั้น (group ส่วนตัวเดียวกับ
+    /// VNC relay) - Server ไม่ต้องรู้จัก shape ของ RunningProcessDto เลย แค่ relay JSON string ผ่านมือ
+    /// เหมือนที่ port/password ของ VNC เป็น primitive ธรรมดา ไม่มี model ฝั่งนี้
+    /// </summary>
+    public Task RelayProcessListReady(string consoleSessionId, string clientGuid, string processListJson) =>
+        Clients.Group(consoleSessionId).SendAsync("ProcessListReady", clientGuid, processListJson);
+
+    /// <summary>เหมือน RelayProcessListReady แต่สำหรับกรณีสแกนไม่สำเร็จ (เช่น ไม่มี AgentTray รันอยู่) - ส่งเหตุผลกลับไปด้วย</summary>
+    public Task RelayProcessListFailed(string consoleSessionId, string clientGuid, string reason) =>
+        Clients.Group(consoleSessionId).SendAsync("ProcessListFailed", clientGuid, reason);
+
+    /// <summary>
     /// Agent รายงาน "ผลจริง" ของ command กลับมาหลัง process เสร็จ (ต่างจาก ack เดิมที่บอกแค่ว่า
     /// ได้รับแล้ว) - ทางนี้ใช้เมื่อ Agent connect SignalR อยู่ ถ้าไม่ได้ connect จะ fallback ไป
     /// POST /api/commands/{id}/result แทน ซึ่งทำงานเหมือนกันเป๊ะ (ดู CommandResultRecorder)

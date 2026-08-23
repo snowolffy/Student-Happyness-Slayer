@@ -21,6 +21,9 @@ namespace OnionProcOparetor.Agent.Models;
 ///   RequestingConsoleSessionId ไม่ใช้)
 /// - "ShowShutdownNotify" — โชว์หน้าต่างนับถอยหลังมุมจอก่อน shutdown/restart
 ///   (ใช้ Action = "Shutdown"|"Restart" และ DelaySeconds)
+/// - "GetRunningProcesses" — สั่งให้ AgentTray สแกนโปรแกรมที่มีหน้าต่างอยู่บน desktop จริง แล้วส่งผล
+///   กลับผ่าน local HTTP callback (ใช้ RequestingConsoleSessionId) - ต้องทำจาก AgentTray (รันใน user
+///   session จริง) ไม่ใช่ Agent (Session 0) เพราะเหตุผลเดียวกับ StartVncSession
 ///
 /// สำคัญ: ไฟล์นี้ถูก "ก๊อปมือ" ไว้ 2 ที่ (Agent/Models + AgentTray/Models) เพราะ solution นี้
 /// ไม่มี shared class library ระหว่างโปรเจกต์เลย (ดู LogEntryDto ที่ก๊อปแบบเดียวกัน) -

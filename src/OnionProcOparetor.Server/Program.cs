@@ -339,6 +339,35 @@ app.MapDelete("/api/rules/{id:int}", async (int id, HttpRequest request, AppDbCo
     return Results.Ok(new { message = "Rule deleted." });
 });
 
+// แก้ไขกฎแบบ in-place (ไม่ต้องลบแล้วสร้างใหม่ - เก็บ Id/CreatedAt/RuleOverride ของกฎเดิมไว้ครบ)
+app.MapPut("/api/rules/{id:int}", async (int id, Rule updated, HttpRequest request, AppDbContext db, IActivityLogService activityLog) =>
+{
+    var admin = await GetAuthorizedAdmin(request, db);
+    if (admin is null)
+        return Results.Unauthorized();
+    if (admin.HasDefaultPassword)
+        return Results.Json(new { error = "Password change required before continuing." }, statusCode: 403);
+
+    var rule = await db.Rules.FindAsync(id);
+    if (rule is null) return Results.NotFound();
+
+    rule.Name = updated.Name;
+    rule.PublisherName = updated.PublisherName;
+    rule.ProcessNameContains = updated.ProcessNameContains;
+    rule.RequireSignedMatch = updated.RequireSignedMatch;
+    rule.KillProcess = updated.KillProcess;
+    rule.ActionCommand = updated.ActionCommand;
+    rule.ActionArguments = updated.ActionArguments;
+    rule.IsEnabled = updated.IsEnabled;
+    rule.UpdatedAt = DateTime.UtcNow;
+
+    await db.SaveChangesAsync();
+
+    await activityLog.LogAdminActionAsync(admin, "RuleUpdated", $"{admin.Username} แก้ไขกฎ '{rule.Name}'");
+
+    return Results.Ok(rule);
+});
+
 // toggle เปิด/ปิดกฎ (ไม่ต้องลบทิ้งถาวร แค่ปิดชั่วคราวได้)
 app.MapPost("/api/rules/{id:int}/toggle", async (int id, HttpRequest request, AppDbContext db, IActivityLogService activityLog) =>
 {

@@ -40,6 +40,13 @@ public partial class ActionPanelWindow : Window
     public ClientMachineDto? ViewScreenRequested { get; private set; }
 
     /// <summary>
+    /// ไม่ null ถ้าผู้ใช้กด VIEW RUNNING PROCESSES... - DashboardWindow เป็นคนเปิด RunningProcessesWindow
+    /// จริงทั้งหมด (ดู DashboardWindow.RunActionPanelAsync) panel นี้แค่ "ส่งสัญญาณ" กลับไปแล้วปิดตัวเองเท่านั้น
+    /// - single-client mode เท่านั้น (เหตุผลเดียวกับ ViewScreenRequested)
+    /// </summary>
+    public ClientMachineDto? ViewProcessesRequested { get; private set; }
+
+    /// <summary>
     /// ไม่ null = ครูกด action ที่ต้องมีหน้ารายงานผล DashboardWindow จะเปิด ActionReportWindow
     /// ต่อทันทีหลัง panel นี้ปิดลง (ดู DashboardWindow.OpenActionPanelAsync)
     ///
@@ -67,6 +74,7 @@ public partial class ActionPanelWindow : Window
         ConfigRuleButton.Visibility = Visibility.Visible;
         DeleteButton.Visibility = Visibility.Visible;
         ViewScreenButton.Visibility = Visibility.Visible;
+        ViewProcessesButton.Visibility = Visibility.Visible;
         ToggleButton.Content = client.IsEnabled ? "DISABLE ENFORCEMENT" : "ENABLE ENFORCEMENT";
     }
 
@@ -97,6 +105,7 @@ public partial class ActionPanelWindow : Window
         ConfigRuleButton.Visibility = Visibility.Collapsed;
         DeleteButton.Visibility = Visibility.Collapsed;
         ViewScreenButton.Visibility = Visibility.Collapsed;
+        ViewProcessesButton.Visibility = Visibility.Collapsed;
         ToggleButton.Content = "TOGGLE ENFORCEMENT";
     }
 
@@ -198,6 +207,19 @@ public partial class ActionPanelWindow : Window
         }
 
         ViewScreenRequested = _singleClient;
+        DialogResult = DataChanged;
+        Close();
+    }
+
+    /// <summary>ปิด panel แล้วส่งสัญญาณกลับ DashboardWindow ให้เปิดหน้าต่าง running processes สำหรับเครื่องนี้ (ดู ViewProcessesRequested)</summary>
+    private void ViewProcessesButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_singleClient is null)
+        {
+            return;
+        }
+
+        ViewProcessesRequested = _singleClient;
         DialogResult = DataChanged;
         Close();
     }

@@ -156,6 +156,21 @@ app.MapPost("/vnc/session-result", async (VncSessionResultRequest request, Comma
     return Results.Ok();
 });
 
+// ---- AgentTray เรียกกลับมาที่นี่หลังสแกนโปรแกรมที่มีหน้าต่างอยู่บน desktop เสร็จ (ต้องทำจาก
+// AgentTray เพราะรันใน user session จริง - เหตุผลเดียวกับ /vnc/session-result ด้านบน) - loopback
+// เท่านั้น รับ Processes เป็น JsonElement ดิบแล้ว forward เป็น raw JSON string ต่อไปเลย ไม่ต้องมี
+// RunningProcessDto ฝั่ง Agent เพราะ Agent แค่ relay ผ่านมือ ไม่ได้อ่าน field ไหนเลย ----
+app.MapPost("/processes/list-result", async (RunningProcessesResultRequest request, CommandProcessor commandProcessor, CancellationToken ct) =>
+{
+    var processListJson = request is { Success: true, Processes: not null }
+        ? request.Processes.Value.GetRawText()
+        : null;
+
+    await commandProcessor.HandleRunningProcessesResultAsync(
+        request.RequestingConsoleSessionId, request.Success, processListJson, request.FailureReason, ct);
+    return Results.Ok();
+});
+
 // ---- AgentTray toggle "Bypass" จากหน้า Status (login-gated อยู่แล้วฝั่ง AgentTray - ไม่ต้อง auth
 // เพิ่มที่นี่ เหมือน endpoint อื่นๆ ข้างบน loopback เท่านั้น) ----
 app.MapPost("/bypass/set", async (BypassSetRequest request, BypassCoordinator coordinator) =>
@@ -167,4 +182,5 @@ app.MapPost("/bypass/set", async (BypassSetRequest request, BypassCoordinator co
 app.Run();
 
 internal sealed record VncSessionResultRequest(string RequestingConsoleSessionId, bool Success, int Pid, string? Password, string? FailureReason);
+internal sealed record RunningProcessesResultRequest(string RequestingConsoleSessionId, bool Success, System.Text.Json.JsonElement? Processes, string? FailureReason);
 internal sealed record BypassSetRequest(bool Bypassed);

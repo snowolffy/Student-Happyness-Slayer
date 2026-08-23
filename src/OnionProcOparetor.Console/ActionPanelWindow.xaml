@@ -67,6 +67,7 @@
                     <RowDefinition Height="Auto"/>
                     <RowDefinition Height="Auto"/>
                     <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
                 </Grid.RowDefinitions>
 
                 <Button Grid.Row="0" Width="350" x:Name="ToggleButton" Content="TOGGLE ENFORCEMENT"
@@ -110,9 +111,12 @@
                 </StackPanel>
 
                 <Button Grid.Row="6" Width="350" x:Name="ViewScreenButton" Content="VIEW SCREEN"
-                        Style="{StaticResource ButtonSecondary}" HorizontalAlignment="Center" VerticalAlignment="Top" Margin="0,0,0,12" Click="ViewScreenButton_Click"/>
+                        Style="{StaticResource ButtonSecondary}" HorizontalAlignment="Center" VerticalAlignment="Top" Margin="0,0,0,4" Click="ViewScreenButton_Click"/>
 
-                <Button Grid.Row="7" Width="350" x:Name="DeleteButton" Content="DELETE"
+                <Button Grid.Row="7" Width="350" x:Name="ViewProcessesButton" Content="VIEW RUNNING PROCESSES..."
+                        Style="{StaticResource ButtonSecondary}" HorizontalAlignment="Center" VerticalAlignment="Top" Margin="0,0,0,12" Click="ViewProcessesButton_Click"/>
+
+                <Button Grid.Row="8" Width="350" x:Name="DeleteButton" Content="DELETE"
                         Style="{StaticResource ButtonDanger}" HorizontalAlignment="Center" VerticalAlignment="Top" Click="DeleteButton_Click"/>
             </Grid>
         </Border>

@@ -263,44 +263,15 @@
                             <RowDefinition Height="*"/>
                         </Grid.RowDefinitions>
 
-                        <TextBlock Grid.Row="0" Text="Rule Management" Style="{StaticResource Heading2}"/>
-
-                        <Border Grid.Row="1" CornerRadius="10" Padding="12" Margin="0,10,0,0"
-                                Background="{StaticResource Brush.Background.Primary}"
-                                BorderBrush="{StaticResource Brush.Border.Default}"
-                                BorderThickness="1">
-                            <Grid>
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="Auto"/>
-                                    <ColumnDefinition Width="8"/>
-                                    <ColumnDefinition Width="Auto"/>
-                                    <ColumnDefinition Width="8"/>
-                                    <ColumnDefinition Width="Auto"/>
-                                    <ColumnDefinition Width="12"/>
-                                    <ColumnDefinition Width="Auto"/>
-                                    <ColumnDefinition Width="8"/>
-                                    <ColumnDefinition Width="Auto"/>
-                                    <ColumnDefinition Width="*"/>
-                                    <ColumnDefinition Width="Auto"/>
-                                </Grid.ColumnDefinitions>
-                                <TextBox Grid.Column="0" x:Name="NewRuleNameBox" Width="110" Height="35" VerticalAlignment="Center"
-                                        Style="{StaticResource RoundedTextBox}"
-                                        ToolTip="ชื่อกฎ" Tag="Rule name"/>
-                                <TextBox Grid.Column="2" x:Name="NewRulePublisherBox" Width="160" Height="35" VerticalAlignment="Center"
-                                        Style="{StaticResource RoundedTextBox}"
-                                        ToolTip="ชื่อ Publisher เช่น Valve Corporation"/>
-                                <TextBox Grid.Column="4" x:Name="NewRuleProcessNameContainsBox" Width="130" Height="35" VerticalAlignment="Center"
-                                        Style="{StaticResource RoundedTextBox}"
-                                        ToolTip="[OPTIONAL] narrow เพิ่มจากชื่อไฟล์ เช่น 'notepad' - เว้นว่างได้ถ้าไม่รู้ชื่อไฟล์ล่วงหน้า"/>
-                                <CheckBox Grid.Column="6" x:Name="NewRuleKillCheckBox" Content="Kill Process" VerticalAlignment="Center"
-                                        Foreground="{StaticResource Brush.Text.Primary}"/>
-                                <TextBox Grid.Column="8" x:Name="NewRuleActionBox" Width="150" Height="35" VerticalAlignment="Center"
-                                        Style="{StaticResource RoundedTextBox}"
-                                        ToolTip="path คำสั่ง/สคริปต์ (ไม่บังคับ)"/>
-                                <Button Grid.Column="10" Content="ADD RULE" Style="{StaticResource ButtonPrimary}"
-                                        VerticalAlignment="Center" Click="AddRuleButton_Click"/>
-                            </Grid>
-                        </Border>
+                        <Grid Grid.Row="0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0" Text="Rule Management" Style="{StaticResource Heading2}"/>
+                            <Button Grid.Column="1" Content="ADD RULE..." Style="{StaticResource ButtonPrimary}"
+                                    VerticalAlignment="Center" Click="AddRuleButton_Click"/>
+                        </Grid>
 
                         <TextBox Grid.Row="2" x:Name="RulesSearchBox" Width="250" Height="40" HorizontalAlignment="Left" Margin="0,10,0,0"
                                 Style="{StaticResource RoundedTextBox}"
@@ -344,10 +315,13 @@
                                     <DataGridTextColumn Header="SIGNED ONLY" Binding="{Binding RequireSignedMatch}" Width="90"/>
                                     <DataGridTextColumn Header="KILL" Binding="{Binding KillProcess}" Width="50"/>
                                     <DataGridTextColumn Header="ACTION COMMAND" Binding="{Binding ActionCommand}" Width="150"/>
-                                    <DataGridTemplateColumn Header="ACTIONS" Width="160">
+                                    <DataGridTemplateColumn Header="ACTIONS" Width="230">
                                         <DataGridTemplateColumn.CellTemplate>
                                             <DataTemplate>
                                                 <StackPanel Orientation="Horizontal">
+                                                    <Button Content="EDIT" Style="{StaticResource ButtonSecondary}"
+                                                            Padding="10,5" FontSize="11"
+                                                            Click="EditRuleButton_Click" Tag="{Binding}" Margin="0,0,4,0"/>
                                                     <Button Content="TOGGLE" Style="{StaticResource ButtonSecondary}"
                                                             Padding="10,5" FontSize="11"
                                                             Click="ToggleRuleButton_Click" Tag="{Binding Id}" Margin="0,0,4,0"/>

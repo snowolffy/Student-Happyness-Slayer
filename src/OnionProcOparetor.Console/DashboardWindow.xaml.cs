@@ -286,6 +286,12 @@ public partial class DashboardWindow : Window
         {
             await ShowVncViewAsync(panel.ViewScreenRequested);
         }
+
+        if (panel.ViewProcessesRequested is not null)
+        {
+            var processesWindow = new RunningProcessesWindow(_apiClient, _labHubClient, panel.ViewProcessesRequested) { Owner = this };
+            processesWindow.Show();
+        }
     }
 
     private async void ToggleRuleButton_Click(object sender, RoutedEventArgs e)
@@ -316,42 +322,25 @@ public partial class DashboardWindow : Window
 
     private async void AddRuleButton_Click(object sender, RoutedEventArgs e)
     {
-        var name = NewRuleNameBox.Text.Trim();
-        var publisher = NewRulePublisherBox.Text.Trim();
-        var processNameContains = NewRuleProcessNameContainsBox.Text.Trim();
-        var actionCommand = NewRuleActionBox.Text.Trim();
-        var killProcess = NewRuleKillCheckBox.IsChecked ?? false;
-
-        if (string.IsNullOrEmpty(name) || string.IsNullOrEmpty(publisher))
+        var dialog = new AddEditRuleWindow(_apiClient) { Owner = this };
+        if (dialog.ShowDialog() == true)
         {
-            StatusText.Text = "กรุณากรอกชื่อกฎและ Publisher อย่างน้อย";
-            return;
+            StatusText.Text = "เพิ่มกฎสำเร็จ";
+            await LoadAllDataAsync();
         }
+    }
 
-        var rule = new RuleDto
+    private async void EditRuleButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button { Tag: RuleDto rule })
         {
-            Name = name,
-            PublisherName = publisher,
-            ProcessNameContains = string.IsNullOrEmpty(processNameContains) ? null : processNameContains,
-            RequireSignedMatch = true,
-            KillProcess = killProcess,
-            ActionCommand = string.IsNullOrEmpty(actionCommand) ? null : actionCommand,
-            IsEnabled = true
-        };
-
-        var success = await _apiClient.AddRuleAsync(rule);
-        StatusText.Text = success ? "เพิ่มกฎสำเร็จ" : "เพิ่มกฎไม่สำเร็จ";
-
-        if (success)
-        {
-            NewRuleNameBox.Clear();
-            NewRulePublisherBox.Clear();
-            NewRuleProcessNameContainsBox.Clear();
-            NewRuleActionBox.Clear();
-            NewRuleKillCheckBox.IsChecked = false;
+            var dialog = new AddEditRuleWindow(_apiClient, rule) { Owner = this };
+            if (dialog.ShowDialog() == true)
+            {
+                StatusText.Text = "แก้ไขกฎสำเร็จ";
+                await LoadAllDataAsync();
+            }
         }
-
-        await LoadAllDataAsync();
     }
 
     private async void AddUserButton_Click(object sender, RoutedEventArgs e)
