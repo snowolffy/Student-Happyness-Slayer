@@ -201,6 +201,20 @@
                                             </DataTrigger>
                                         </Style.Triggers>
                                     </Style>
+
+                                    <!-- CONNECTION = ตอนนี้ Agent poll เข้ามาผ่านทางไหน (UsingFallback จาก Server -
+                                         last-known ค่าจาก poll ล่าสุด ดู ClientMachine.UsingFallback) เหลือง (Warning)
+                                         ไม่ใช่แดง เพราะ fallback ทำงานได้ปกติ แค่ไม่ใช่เส้นทางหลัก ไม่ใช่ error -->
+                                    <Style x:Key="ClientConnectionPathBadge" TargetType="ContentControl" BasedOn="{StaticResource StatusBadge}">
+                                        <Setter Property="Tag" Value="Online"/>
+                                        <Setter Property="Content" Value="LAN"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding UsingFallback}" Value="True">
+                                                <Setter Property="Tag" Value="Warning"/>
+                                                <Setter Property="Content" Value="TAILSCALE"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
                                 </DataGrid.Resources>
                                 <DataGrid.Columns>
                                     <DataGridTemplateColumn Header="STATUS" Width="90" SortMemberPath="IsOnline">
@@ -215,6 +229,14 @@
                                         <DataGridTemplateColumn.CellTemplate>
                                             <DataTemplate>
                                                 <ContentControl Style="{StaticResource ClientEnforcementBadge}"/>
+                                            </DataTemplate>
+                                        </DataGridTemplateColumn.CellTemplate>
+                                    </DataGridTemplateColumn>
+                                    <DataGridTemplateColumn Header="CONNECTION" Width="100" SortMemberPath="UsingFallback">
+                                        <DataGridTemplateColumn.CellTemplate>
+                                            <DataTemplate>
+                                                <ContentControl Style="{StaticResource ClientConnectionPathBadge}"
+                                                                ToolTip="เชื่อมต่อผ่าน LAN ปกติ หรือ Tailscale fallback (ค่าล่าสุดจาก poll)"/>
                                             </DataTemplate>
                                         </DataGridTemplateColumn.CellTemplate>
                                     </DataGridTemplateColumn>

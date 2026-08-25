@@ -160,6 +160,9 @@ namespace OnionProcOparetor.Server.Migrations
                     b.Property<DateTime>("RegisteredAt")
                         .HasColumnType("TEXT");
 
+                    b.Property<bool>("UsingFallback")
+                        .HasColumnType("INTEGER");
+
                     b.HasKey("Id");
 
                     b.HasIndex("ClientGuid")

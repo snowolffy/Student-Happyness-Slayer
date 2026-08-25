@@ -63,7 +63,9 @@ public class ServerClient
         var baseUrl = ActiveBaseUrl;
         try
         {
-            var url = baseUrl.TrimEnd('/') + $"/api/poll/{clientGuid}?machineName={Uri.EscapeDataString(machineName)}";
+            // ส่ง IsUsingFallback ไปด้วยทุกครั้ง - Server เก็บไว้ (ClientMachine.UsingFallback) ให้ Console
+            // แสดงเป็น badge ว่าตอนนี้เครื่องนี้ต่อผ่าน LAN ปกติหรือ fallback (Tailscale) อยู่
+            var url = baseUrl.TrimEnd('/') + $"/api/poll/{clientGuid}?machineName={Uri.EscapeDataString(machineName)}&usingFallback={(IsUsingFallback ? "true" : "false")}";
             var response = await _httpClient.GetFromJsonAsync<PollResponse>(url, ct);
             return response;
         }

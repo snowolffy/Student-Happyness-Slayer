@@ -6,10 +6,13 @@ namespace OnionProcOparetor.Console;
 
 public partial class SettingsWindow : Window
 {
-    public SettingsWindow()
+    private readonly ApiClient _apiClient;
+
+    public SettingsWindow(ApiClient apiClient)
     {
         InitializeComponent();
         Loaded += (_, _) => WindowCenteringHelper.CenterOverOwnerOrScreen(this);
+        _apiClient = apiClient;
 
         var settings = SettingsService.Current;
         VncLimitBox.Text = settings.Vnc.MaxConcurrentSessions.ToString();
@@ -17,6 +20,15 @@ public partial class SettingsWindow : Window
         PollIntervalBox.Text = settings.Connection.DashboardPollIntervalSeconds.ToString();
         ServerHostBox.Text = settings.Connection.ServerHost;
         ServerPortBox.Text = settings.Connection.ServerPort;
+    }
+
+    private void ChangeMyPasswordButton_Click(object sender, RoutedEventArgs e)
+    {
+        var dialog = new ChangeMyPasswordWindow(_apiClient) { Owner = this };
+        if (dialog.ShowDialog() == true)
+        {
+            StatusText.Text = "เปลี่ยน password สำเร็จ";
+        }
     }
 
     private void SaveButton_Click(object sender, RoutedEventArgs e)

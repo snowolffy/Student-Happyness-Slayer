@@ -230,7 +230,7 @@ public partial class DashboardWindow : Window
         var menu = new ContextMenu();
 
         var settingsItem = new MenuItem { Header = "Settings..." };
-        settingsItem.Click += (_, _) => new SettingsWindow { Owner = this }.ShowDialog();
+        settingsItem.Click += (_, _) => new SettingsWindow(_apiClient) { Owner = this }.ShowDialog();
         menu.Items.Add(settingsItem);
 
         var aboutItem = new MenuItem { Header = "About..." };

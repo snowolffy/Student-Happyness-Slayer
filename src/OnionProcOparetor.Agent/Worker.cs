@@ -26,6 +26,12 @@ public class Worker : BackgroundService
     private const int FailuresBeforeFallback = 5;
     private const int SuccessesBeforeRecovery = 7;
 
+    // ตัดสินใจร่วมกับ user 2026-08-25: N=5/M=7 เท่าเดิม (กัน false-positive จากเน็ตสะดุดแป๊บเดียว) แต่
+    // นับให้ครบเร็วขึ้นมาก - แยก "ช่วงปกติ" (poll ทุก PollIntervalSeconds ตามปกติ ไม่เพิ่มโหลด) ออกจาก
+    // "ช่วงสงสัยว่ามีปัญหา" (พอเจอ fail/probe-สำเร็จครั้งแรกที่ยังไม่ครบ N/M ให้ retry ถี่ๆ ทันที) - ใช้
+    // ค่าเดียวกันทั้ง 2 ทิศทาง (สลับไป fallback และสลับกลับ primary) ตามที่ user ยืนยัน
+    private const int FastRetryIntervalSeconds = 5;
+
     // เก็บ (PID, StartTime) ที่เคย action (kill/log) ไปแล้วในรอบ scan ล่าสุด กัน action ซ้ำรัวๆ ทุก 10 วิ
     // ใช้คู่ (PID, StartTime) แทน PID เดี่ยวๆ เพราะ Windows recycle เลข PID ได้หลัง process เดิมตายไป
     private readonly HashSet<(int Pid, DateTime StartTime)> _alreadyActionedProcesses = new();
@@ -171,7 +177,16 @@ public class Worker : BackgroundService
                 }
             }
 
-            await Task.Delay(TimeSpan.FromSeconds(_settings.PollIntervalSeconds), stoppingToken);
+            // เลือก interval ของรอบถัดไป: ถ้ากำลัง "สงสัยว่ามีปัญหา" อยู่ (นับ failure streak บน primary
+            // หรือนับ recovery-probe streak บน fallback ค้างอยู่ ยังไม่ครบ N/M) ใช้ FastRetryIntervalSeconds
+            // แทน PollIntervalSeconds ปกติ - เร่งนับให้ครบเร็วขึ้นโดยไม่ต้องลด N/M เอง (ลด false-positive
+            // risk เท่าเดิม) พอ reset กลับ 0 (poll สำเร็จตอนอยู่ primary, หรือ probe primary fail ตอนอยู่
+            // fallback) ก็กลับไปใช้ interval ปกติทันที ไม่เพิ่มโหลดตอนทุกอย่างปกติเลย
+            var suspectingTrouble = (!_serverClient.IsUsingFallback && _consecutiveFailures > 0)
+                || (_serverClient.IsUsingFallback && _consecutiveSuccesses > 0);
+            var delaySeconds = suspectingTrouble ? FastRetryIntervalSeconds : _settings.PollIntervalSeconds;
+
+            await Task.Delay(TimeSpan.FromSeconds(delaySeconds), stoppingToken);
         }
 
         _processWatcher?.Stop();

@@ -19,6 +19,16 @@ public class ClientMachine
     /// <summary>IP ล่าสุดที่เครื่องนี้ poll เข้ามา (เผื่อ debug)</summary>
     public string? LastKnownIp { get; set; }
 
+    /// <summary>
+    /// true = เครื่องนี้กำลัง poll ผ่าน FallbackBaseUrl (Tailscale) อยู่ตอนนี้ ไม่ใช่ primary LAN address
+    /// ปกติ - Agent ส่งค่านี้มาเองทุกครั้งที่ poll (ดู ServerClient.PollAsync, /api/poll/{clientGuid}
+    /// ด้านล่าง) เป็น real column ที่ persist ลง DB ตรงๆ (ไม่ใช้ pattern [NotMapped] แบบ
+    /// IsConnectedViaSignalR ด้านล่าง) เพราะ semantic เป็นแบบ "ค่าล่าสุดที่รู้" (last-known) เหมือน
+    /// LastKnownIp/LastSeenAt ด้านบน ไม่ใช่ live state ที่เปลี่ยนได้โดยไม่มี poll มาบอกแบบ SignalR -
+    /// ความคลาดเคลื่อนระหว่าง poll แต่ละรอบยอมรับได้เท่ากับ field อื่นๆ ในกลุ่มเดียวกัน
+    /// </summary>
+    public bool UsingFallback { get; set; }
+
     /// <summary>true = เปิดใช้งาน enforcement บนเครื่องนี้, false = ปิด (per-machine toggle)</summary>
     public bool IsEnabled { get; set; } = true;
 

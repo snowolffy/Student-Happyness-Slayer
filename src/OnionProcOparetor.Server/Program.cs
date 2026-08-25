@@ -493,7 +493,7 @@ app.MapPut("/api/clients/{id:int}/settings", async (int id, ClientSettingsReques
 
 // client เอาไว้ poll เพื่อดึง rules + สถานะ enabled/disabled ของตัวเอง
 // (endpoint สำคัญที่สุดสำหรับฝั่ง Client Service) - ไม่ต้อง auth เพราะใช้ clientGuid ยืนยันตัวเองแทน
-app.MapGet("/api/poll/{clientGuid}", async (string clientGuid, string machineName, HttpContext httpContext, AppDbContext db, IHubContext<LabHub> hub, AgentConnectionRegistry connectionRegistry) =>
+app.MapGet("/api/poll/{clientGuid}", async (string clientGuid, string machineName, HttpContext httpContext, AppDbContext db, IHubContext<LabHub> hub, AgentConnectionRegistry connectionRegistry, bool usingFallback = false) =>
 {
     var client = await db.ClientMachines.FirstOrDefaultAsync(c => c.ClientGuid == clientGuid);
 
@@ -511,7 +511,8 @@ app.MapGet("/api/poll/{clientGuid}", async (string clientGuid, string machineNam
             IsEnabled = true,
             RegisteredAt = DateTime.UtcNow,
             LastSeenAt = DateTime.UtcNow,
-            LastKnownIp = remoteIp
+            LastKnownIp = remoteIp,
+            UsingFallback = usingFallback
         };
         db.ClientMachines.Add(client);
     }
@@ -520,6 +521,7 @@ app.MapGet("/api/poll/{clientGuid}", async (string clientGuid, string machineNam
         client.LastSeenAt = DateTime.UtcNow;
         client.MachineName = machineName;
         client.LastKnownIp = remoteIp;
+        client.UsingFallback = usingFallback;
     }
 
     var globalState = await db.GlobalStates.FirstOrDefaultAsync(g => g.Id == 1);
@@ -890,6 +892,16 @@ app.MapPost("/api/admin/users/{id:int}/reset-password", async (int id, ChangePas
 
     var target = await db.AdminUsers.FindAsync(id);
     if (target is null) return Results.NotFound();
+
+    // บั๊กความปลอดภัยจริงที่เจอ (2026-08-25): endpoint นี้ไม่เคยกัน built-in "Administrator" account
+    // เลย - admin คนอื่นที่ login อยู่ (ไม่ว่าจะเป็นใครก็ตาม) reset password ของ built-in account ได้
+    // โดยไม่ต้อง login เป็น built-in เองเลย ขัดกับเจตนาที่อยากให้ built-in account เปลี่ยน password
+    // ตัวเองได้ก็จริง แต่ต้อง login ด้วย built-in account เท่านั้นถึงจะทำได้ (self-service ผ่าน
+    // change-password ด้านบนเท่านั้น ซึ่งบังคับ admin.Id == id อยู่แล้วโดยธรรมชาติ)
+    if (target.IsBuiltIn)
+    {
+        return Results.BadRequest(new { error = "Cannot reset the built-in Administrator's password this way - log in as Administrator and change it from there instead." });
+    }
 
     if (string.IsNullOrEmpty(req.NewPassword) || req.NewPassword.Length < 8)
     {

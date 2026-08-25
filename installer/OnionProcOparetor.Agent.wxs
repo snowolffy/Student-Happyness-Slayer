@@ -241,6 +241,14 @@
            runtime ผ่าน CommandProcessor's "SetTailscaleLockdown" command (remote toggle จาก Console) -
            ดู CommandProcessor.cs -->
       <File Id="SetTailscaleLockdownPs1" Source="CustomActions\set-tailscale-lockdown.ps1" />
+      <!-- Referenced by InstallTailscaleProps's CustomAction Value ([#ScheduleTailscaleInstallPs1]) -
+           registers the delayed Scheduled Task that actually installs Tailscale (see that
+           CustomAction's comment for why this can't run msiexec directly from here). -->
+      <File Id="ScheduleTailscaleInstallPs1" Source="CustomActions\schedule-tailscale-install.ps1" />
+      <!-- NOT invoked directly by any CustomAction here - this is what the Scheduled Task itself
+           runs, referenced only via [#InstallTailscaleDeferredPs1] passed as an argument to
+           schedule-tailscale-install.ps1 above. -->
+      <File Id="InstallTailscaleDeferredPs1" Source="CustomActions\install-tailscale-deferred.ps1" />
     </Component>
 
     <!-- ==================== Custom Actions ==================== -->
@@ -265,24 +273,36 @@
          a remote "RunTailscaleLogin" command the Agent runs itself (CommandProcessor.cs), not at
          install time (deliberately not baking a shared authkey into every install).
 
-         Return="check" (hard-fail, confirmed with the user 2026-08-25) - if the bundled Tailscale
-         MSI fails to install silently, the whole Agent MSI install aborts rather than reporting
-         success on a machine that doesn't actually have the fallback transport ready.
+         บั๊กจริงที่เจอ (2026-08-25, field test): เดิมตั้งใจเรียก msiexec /i ของ Tailscale ตรงๆ จาก
+         CustomAction นี้ (Return="check", hard-fail ตามที่ตกลงไว้ทีแรก) - ทั้ง Agent MSI install ล้ม
+         ทันที เพราะ Windows Installer ใช้ mutex เดียวทั้งเครื่อง (_MSIExecute) ที่ Agent MSI ตัวนอกถือ
+         ค้างไว้ตลอด transaction - เรียก msiexec ซ้อนเข้าไปข้างในจาก CustomAction ที่ยังรันอยู่ใน
+         transaction เดียวกันชนกับ mutex เดิมแน่นอน (deadlock ทางตรรกะ ไม่มีทางแก้ด้วยการปรับ syntax)
 
-         TS_UNATTENDEDMODE=always / TS_NOLAUNCH=1 are real Tailscale MSI properties (verified
-         against https://tailscale.com/docs/install/windows/msi, not assumed) - sets "Run
-         Unattended" at install time and suppresses the GUI popping up during a silent install.
-         AlwaysOn.Enabled is NOT an MSI property (it's a registry policy) - that's set later by
-         set-tailscale-lockdown.ps1 via the SetTailscaleLockdown command, not here.
+         แก้ด้วยการแยกให้รันทีหลัง: CustomAction นี้แค่ "จองคิว" ผ่าน Scheduled Task (schedule-
+         tailscale-install.ps1) ที่ตั้งเวลาไว้ ~90 วิถัดจากนี้ (พอให้ transaction นอกจบจริงและปล่อย
+         mutex ก่อน) ตัวการติดตั้งจริง (msiexec /i ของ Tailscale) อยู่ใน install-tailscale-deferred.ps1
+         ที่ task รันแยกต่างหาก - verify แล้วว่า schtasks /ru SYSTEM สร้างได้จริงจาก context ที่มีสิทธิ์
+         เพียงพอ (ทดสอบจริงกับ user 2026-08-25)
 
-         Scheduled After="InstallFiles" (not After="InstallServices" like SetupClient below) -
-         only needs the bundled .msi file to exist on disk, no dependency on OnionAgent's own
-         service being created first. Condition="NOT REMOVE" - install/repair only, same reasoning
-         as SetupClientProps/SetupClient below (must not fire during a plain uninstall). -->
+         ผลคือ Return="ignore" แทน "check" (ยกเลิก hard-fail ตามที่ตกลงกับ user ใหม่ - ไม่มีทางรู้ผลจริง
+         ของ Tailscale ได้ทันตอน Agent MSI transaction จบ เพราะเพิ่งจะเริ่มรันหลังจากนั้น) เช็คผลจริงทีหลัง
+         ผ่าน GetTailscaleStatus command หรือ log ที่ %ProgramData%\OnionProcOparetor\Agent\logs\
+         tailscale-install.log
+
+         TS_UNATTENDEDMODE=always / TS_NOLAUNCH=1 (ใน install-tailscale-deferred.ps1) เป็น MSI
+         property จริงของ Tailscale (verify จาก https://tailscale.com/docs/install/windows/msi แล้ว
+         ไม่ใช่เดา) - AlwaysOn.Enabled ไม่ใช่ MSI property (เป็น registry policy) - ตั้งทีหลังผ่าน
+         SetTailscaleLockdown command เหมือนเดิม
+
+         Scheduled After="InstallFiles" (ไม่ใช่ After="InstallServices" แบบ SetupClient ด้านล่าง) -
+         ต้องการแค่ไฟล์ .msi/.ps1 ที่ harvest เข้ามาอยู่บน disk แล้วเท่านั้น ไม่ต้องรอ service ของ
+         OnionAgent เอง Condition="NOT REMOVE" - install/repair only เหมือน SetupClientProps/
+         SetupClient ด้านล่าง (ต้องไม่ fire ตอน uninstall ปกติ) -->
     <CustomAction Id="InstallTailscaleProps" Property="InstallTailscale"
-      Value="&quot;[System64Folder]msiexec.exe&quot; /i &quot;[INSTALLFOLDER]Client\TailscaleBundle\tailscale-setup-1.102.3-amd64.msi&quot; /quiet /norestart TS_UNATTENDEDMODE=always TS_NOLAUNCH=1" />
+      Value="&quot;[System64Folder]WindowsPowerShell\v1.0\powershell.exe&quot; -NoProfile -NonInteractive -ExecutionPolicy Bypass -File &quot;[#ScheduleTailscaleInstallPs1]&quot; -TailscaleMsiPath &quot;[INSTALLFOLDER]Client\TailscaleBundle\tailscale-setup-1.102.3-amd64.msi&quot; -DeferredScriptPath &quot;[#InstallTailscaleDeferredPs1]&quot;" />
     <CustomAction Id="InstallTailscale" BinaryRef="Wix4UtilCA_$(sys.BUILDARCHSHORT)" DllEntry="WixQuietExec"
-      Execute="deferred" Return="check" Impersonate="no" />
+      Execute="deferred" Return="ignore" Impersonate="no" />
 
     <!-- Client Agent setup: create-service(harmless no-op, ServiceInstall above already did
          it)/patch-config/set-recovery/start, in that exact order. Deferred + Impersonate=no so it
@@ -510,7 +530,7 @@
            from the ActionText table's Description column, keyed by CustomAction Id - without an
            entry here each of our deferred/immediate CustomActions falls back to a blank line
            while it's executing. -->
-      <ProgressText Action="InstallTailscale" Message="Installing Tailscale (used as a fallback connection path)..." />
+      <ProgressText Action="InstallTailscale" Message="Scheduling Tailscale install (fallback connection path, finishes shortly after setup)..." />
       <ProgressText Action="SetupClient" Message="Configuring the Onion Agent service (server address, uninstall protection)..." />
       <ProgressText Action="CheckUninstallPasswordHeadless" Message="Checking the uninstall password..." />
       <ProgressText Action="DeleteRegRunKey" Message="Removing the Onion Agent Tray startup entry..." />

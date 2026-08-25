@@ -7,6 +7,11 @@ public class ClientMachineDto
     public string ClientGuid { get; set; } = string.Empty;
     public string MachineName { get; set; } = string.Empty;
     public string? LastKnownIp { get; set; }
+
+    /// <summary>true = เครื่องนี้กำลังต่อผ่าน Tailscale fallback อยู่ตอนนี้ ไม่ใช่ LAN ปกติ - ดู
+    /// ClientMachine.UsingFallback ฝั่ง Server สำหรับที่มาเต็มๆ (last-known จาก poll ล่าสุด)</summary>
+    public bool UsingFallback { get; set; }
+
     public bool IsEnabled { get; set; }
     public DateTime LastSeenAt { get; set; }
     public DateTime RegisteredAt { get; set; }
