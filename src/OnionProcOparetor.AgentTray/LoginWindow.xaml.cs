@@ -8,6 +8,7 @@ public partial class LoginWindow : Window
 {
     private readonly ClientApiClient _apiClient;
     private readonly string _serverBaseUrl;
+    private readonly string? _fallbackBaseUrl;
 
     public LoginWindow(ClientApiClient apiClient)
     {
@@ -23,6 +24,7 @@ public partial class LoginWindow : Window
             .Build();
 
         _serverBaseUrl = config["ServerSettings:BaseUrl"] ?? "http://localhost:8787";
+        _fallbackBaseUrl = config["ServerSettings:FallbackBaseUrl"];
     }
 
     private async void LoginButton_Click(object sender, RoutedEventArgs e)
@@ -41,7 +43,7 @@ public partial class LoginWindow : Window
         StatusText.Text = "กำลังตรวจสอบ...";
 
         // ใช้ username คงที่ "admin" ไปก่อน (ตรงกับ default admin ที่ตั้งไว้ฝั่ง Server)
-        var (success, message) = await _apiClient.LoginToServerAsync(_serverBaseUrl, username, password);
+        var (success, message) = await _apiClient.LoginToServerAsync(_serverBaseUrl, _fallbackBaseUrl, username, password);
 
         if (success)
         {

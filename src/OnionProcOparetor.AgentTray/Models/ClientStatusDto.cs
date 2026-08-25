@@ -10,4 +10,5 @@ public class ClientStatusDto
     public DateTime? LastPollAt { get; set; }
     public bool LastPollSucceeded { get; set; }
     public bool Bypassed { get; set; }
+    public bool UsingFallback { get; set; }
 }

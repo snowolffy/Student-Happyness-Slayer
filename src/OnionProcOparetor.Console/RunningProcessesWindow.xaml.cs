@@ -34,23 +34,42 @@ public partial class RunningProcessesWindow : Window
 
     private async void RefreshButton_Click(object sender, RoutedEventArgs e) => await RefreshAsync();
 
+    /// <summary>
+    /// บั๊กจริงที่เจอ (2026-08-25, field test): กด "VIEW RUNNING PROCESSES..." แล้วทั้ง Console
+    /// crash ทันที - สาเหตุคือ handler นี้ (และ Loaded ด้านบน) เป็น "async void" ทั้งคู่ ไม่มี try/catch
+    /// เลยสักจุดตลอด chain (RefreshAsync -> RequestRunningProcessesAsync -> JsonSerializer.Deserialize)
+    /// exception ที่โยนออกมาจาก async void event handler ใน WPF จะไม่มีใครจับได้เลย (ไม่ใช่ async Task
+    /// ที่ caller await ได้) กลายเป็น unhandled exception ที่ terminate ทั้ง process ทันที - แอปนี้ไม่มี
+    /// Application.DispatcherUnhandledException global handler ด้วย เลยไม่มีชั้นไหนกันไว้เลยจริงๆ
+    ///
+    /// แก้ด้วย try/catch คลุมทั้ง method (ไม่ใช่แค่จุดที่คิดว่าจะพังจุดเดียว) - ให้ exception อะไรก็ตาม
+    /// (JSON malform, LabHubClient ยังไม่พร้อม, ฯลฯ) จบแค่ status message สีแดงในหน้าต่างนี้ ไม่ลาม
+    /// ไปทำทั้ง Console ตาย - ตรงกับหลักการเดิมของโปรเจกต์นี้ (fail-secure/fail-visible ไม่ fail-crash)
+    /// </summary>
     private async Task RefreshAsync()
     {
-        StatusText.Text = "กำลังขอรายการโปรแกรมที่รันอยู่จากเครื่องนี้...";
-        ProcessesGrid.ItemsSource = null;
-        EmptyText.Visibility = Visibility.Collapsed;
-
-        var (success, processes, error) = await RequestRunningProcessesAsync();
-
-        if (!success)
+        try
         {
-            StatusText.Text = $"ดึงรายการไม่สำเร็จ: {error}";
-            return;
-        }
+            StatusText.Text = "กำลังขอรายการโปรแกรมที่รันอยู่จากเครื่องนี้...";
+            ProcessesGrid.ItemsSource = null;
+            EmptyText.Visibility = Visibility.Collapsed;
 
-        ProcessesGrid.ItemsSource = processes;
-        EmptyText.Visibility = processes.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
-        StatusText.Text = $"พบ {processes.Count} โปรแกรมที่มีหน้าต่างอยู่บน desktop";
+            var (success, processes, error) = await RequestRunningProcessesAsync();
+
+            if (!success)
+            {
+                StatusText.Text = $"ดึงรายการไม่สำเร็จ: {error}";
+                return;
+            }
+
+            ProcessesGrid.ItemsSource = processes;
+            EmptyText.Visibility = processes.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+            StatusText.Text = $"พบ {processes.Count} โปรแกรมที่มีหน้าต่างอยู่บน desktop";
+        }
+        catch (Exception ex)
+        {
+            StatusText.Text = $"เกิดข้อผิดพลาดขณะดึงรายการโปรแกรม: {ex.Message}";
+        }
     }
 
     /// <summary>
@@ -104,8 +123,18 @@ public partial class RunningProcessesWindow : Window
                 return (false, new List<RunningProcessDto>(), reason ?? "สแกน process บนเครื่องนี้ไม่สำเร็จ");
             }
 
-            var list = JsonSerializer.Deserialize<List<RunningProcessDto>>(
-                json, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+            List<RunningProcessDto>? list;
+            try
+            {
+                list = JsonSerializer.Deserialize<List<RunningProcessDto>>(
+                    json, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+            }
+            catch (JsonException ex)
+            {
+                // แยก catch เฉพาะจุดนี้ (นอกเหนือจาก try/catch ครอบทั้ง RefreshAsync ด้านนอก) เพื่อให้
+                // error message เจาะจงว่าเป็นปัญหา JSON shape ไม่ตรงกัน ไม่ใช่ network/timeout ทั่วไป
+                return (false, new List<RunningProcessDto>(), $"รูปแบบข้อมูลที่ได้จาก Agent ไม่ถูกต้อง: {ex.Message}");
+            }
 
             return (true, list ?? new List<RunningProcessDto>(), null);
         }
@@ -118,13 +147,22 @@ public partial class RunningProcessesWindow : Window
 
     private void CreateRuleButton_Click(object sender, RoutedEventArgs e)
     {
-        if (sender is Button { Tag: RunningProcessDto process })
+        try
         {
-            var dialog = new AddEditRuleWindow(_apiClient, process) { Owner = this };
-            if (dialog.ShowDialog() == true)
+            if (sender is Button { Tag: RunningProcessDto process })
             {
-                StatusText.Text = $"สร้างกฎจาก '{process.ProcessName}' สำเร็จ - ดูได้ที่แท็บ RULES";
+                var dialog = new AddEditRuleWindow(_apiClient, process) { Owner = this };
+                if (dialog.ShowDialog() == true)
+                {
+                    StatusText.Text = $"สร้างกฎจาก '{process.ProcessName}' สำเร็จ - ดูได้ที่แท็บ RULES";
+                }
             }
+        }
+        catch (Exception ex)
+        {
+            // เหตุผลเดียวกับ try/catch ใน RefreshAsync ด้านบน - event handler ของ WPF ไม่มีใครจับ
+            // exception ให้เลยถ้าไม่ทำเอง กัน Console ทั้งตัว crash จากปุ่มนี้ด้วยเหมือนกัน
+            StatusText.Text = $"เปิดหน้าสร้างกฎไม่สำเร็จ: {ex.Message}";
         }
     }
 }

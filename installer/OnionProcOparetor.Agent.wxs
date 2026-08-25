@@ -60,6 +60,17 @@
     <Property Id="SERVERADDR" Value="localhost:8787" Secure="yes" />
     <Property Id="SERVERIP" Value="localhost" Secure="yes" />
     <Property Id="SERVERPORT" Value="8787" Secure="yes" />
+
+    <!-- Fallback (Tailscale) address - optional, unlike SERVERIP above: no default Value, blank
+         FALLBACKSERVERIP means "feature disabled" all the way through (ServerConnDlg leaves it
+         blank -> setup-client.ps1 sees an empty IP-part -> never patches FallbackBaseUrl into
+         appsettings.json -> Worker's ServerSettings.FallbackBaseUrl stays null -> Worker never
+         switches). Same "IP/host + port -> recomputed host:port" pattern as SERVERADDR/SERVERIP/
+         SERVERPORT, for the same reason (setup-client.ps1's -FallbackServerAddr arg format). -->
+    <Property Id="FALLBACKSERVERADDR" Secure="yes" />
+    <Property Id="FALLBACKSERVERIP" Secure="yes" />
+    <Property Id="FALLBACKSERVERPORT" Value="8787" Secure="yes" />
+
     <Property Id="UNINSTPWD1" Secure="yes" />
     <Property Id="UNINSTPWD2" Secure="yes" />
     <Property Id="WIXUI_EXITDIALOGOPTIONALCHECKBOXTEXT" Value="Launch Onion ProcOparetor Agent" />
@@ -258,7 +269,7 @@
          the whole uninstall with exit 1603. Confirmed by an actual failed live `msiexec /x` on
          this build before this condition was added, not assumed. -->
     <CustomAction Id="SetupClientProps" Property="SetupClient"
-      Value="&quot;[System64Folder]WindowsPowerShell\v1.0\powershell.exe&quot; -NoProfile -NonInteractive -ExecutionPolicy Bypass -File &quot;[#SetupClientPs1]&quot; -InstallDir &quot;[INSTALLFOLDER]\&quot; -ServerAddr &quot;[SERVERADDR]&quot; -UninstallPassword &quot;[UNINSTPWD1]&quot;" />
+      Value="&quot;[System64Folder]WindowsPowerShell\v1.0\powershell.exe&quot; -NoProfile -NonInteractive -ExecutionPolicy Bypass -File &quot;[#SetupClientPs1]&quot; -InstallDir &quot;[INSTALLFOLDER]\&quot; -ServerAddr &quot;[SERVERADDR]&quot; -FallbackServerAddr &quot;[FALLBACKSERVERADDR]&quot; -UninstallPassword &quot;[UNINSTPWD1]&quot;" />
     <CustomAction Id="SetupClient" BinaryRef="Wix4UtilCA_$(sys.BUILDARCHSHORT)" DllEntry="WixQuietExec"
       Execute="deferred" Return="check" Impersonate="no" />
 
@@ -375,6 +386,15 @@
           <Publish Event="DoAction" Value="TestConnection" Condition="1" />
         </Control>
 
+        <!-- Fallback (Tailscale) address row - entirely optional, unlike the primary row above.
+             No Test button for this row (kept out of scope for the first pass - TestConnection's
+             CA already parametrizes host/port via env var, so a second button reusing it against
+             FALLBACKSERVERIP/FALLBACKSERVERPORT would be a small follow-up if ever wanted). -->
+        <Control Id="FallbackLabel" Type="Text" X="20" Y="140" Width="330" Height="15" Text="Fallback address (optional - e.g. Tailscale IP/hostname, used automatically if the address above becomes unreachable):" />
+        <Control Id="FallbackIpEdit" Type="Edit" X="20" Y="155" Width="140" Height="18" Property="FALLBACKSERVERIP" Text="{60}" />
+        <Control Id="FallbackPortLabel" Type="Text" X="170" Y="140" Width="50" Height="15" Text="Port:" />
+        <Control Id="FallbackPortEdit" Type="Edit" X="170" Y="155" Width="50" Height="18" Property="FALLBACKSERVERPORT" Text="{5}" />
+
         <Control Id="Back" Type="PushButton" X="180" Y="243" Width="56" Height="17" Text="!(loc.WixUIBack)">
           <Publish Event="NewDialog" Value="WelcomeDlg" Condition="1" />
         </Control>
@@ -395,7 +415,19 @@
           <Publish Event="SpawnDialog" Value="ErrorMsgDlg" Order="5" Condition="SERVERIP &lt;&gt; &quot;&quot; AND (SERVERIP &gt;&lt; &quot;&amp;&quot; OR SERVERIP &gt;&lt; &quot;|&quot; OR SERVERIP &gt;&lt; &quot;^&quot; OR SERVERIP &gt;&lt; &quot;%&quot; OR SERVERIP &gt;&lt; &quot;&lt;&quot; OR SERVERIP &gt;&lt; &quot;&gt;&quot;)" />
           <Publish Property="WIXUI_ERRORMSG" Value="Please enter a valid Port number (1-65535)." Order="6" Condition="SERVERIP &lt;&gt; &quot;&quot; AND NOT (SERVERIP &gt;&lt; &quot;&amp;&quot; OR SERVERIP &gt;&lt; &quot;|&quot; OR SERVERIP &gt;&lt; &quot;^&quot; OR SERVERIP &gt;&lt; &quot;%&quot; OR SERVERIP &gt;&lt; &quot;&lt;&quot; OR SERVERIP &gt;&lt; &quot;&gt;&quot;) AND (SERVERPORT = &quot;&quot; OR SERVERPORT &lt; 1 OR SERVERPORT &gt; 65535)" />
           <Publish Event="SpawnDialog" Value="ErrorMsgDlg" Order="7" Condition="SERVERIP &lt;&gt; &quot;&quot; AND NOT (SERVERIP &gt;&lt; &quot;&amp;&quot; OR SERVERIP &gt;&lt; &quot;|&quot; OR SERVERIP &gt;&lt; &quot;^&quot; OR SERVERIP &gt;&lt; &quot;%&quot; OR SERVERIP &gt;&lt; &quot;&lt;&quot; OR SERVERIP &gt;&lt; &quot;&gt;&quot;) AND (SERVERPORT = &quot;&quot; OR SERVERPORT &lt; 1 OR SERVERPORT &gt; 65535)" />
-          <Publish Event="NewDialog" Value="UninstallPwdDlg" Order="8" Condition="SERVERIP &lt;&gt; &quot;&quot; AND NOT (SERVERIP &gt;&lt; &quot;&amp;&quot; OR SERVERIP &gt;&lt; &quot;|&quot; OR SERVERIP &gt;&lt; &quot;^&quot; OR SERVERIP &gt;&lt; &quot;%&quot; OR SERVERIP &gt;&lt; &quot;&lt;&quot; OR SERVERIP &gt;&lt; &quot;&gt;&quot;) AND SERVERPORT &gt;= 1 AND SERVERPORT &lt;= 65535" />
+
+          <!-- Fallback field validation - same blocklist/port-range checks as SERVERIP above, but
+               gated on FALLBACKSERVERIP <> "" throughout (optional field: blank always passes,
+               mirroring UninstallPwdDlg's optional password fields rather than SERVERIP's
+               required pattern). FALLBACKSERVERADDR is only ever consumed by setup-client.ps1 if
+               non-blank (see that script), so computing it unconditionally here is harmless. -->
+          <Publish Property="FALLBACKSERVERADDR" Value="[FALLBACKSERVERIP]:[FALLBACKSERVERPORT]" Order="9" Condition="1" />
+          <Publish Property="WIXUI_ERRORMSG" Value="The Fallback address contains a character that isn't allowed (&amp; | ^ % &lt; &gt;). Please remove it." Order="10" Condition="FALLBACKSERVERIP &lt;&gt; &quot;&quot; AND (FALLBACKSERVERIP &gt;&lt; &quot;&amp;&quot; OR FALLBACKSERVERIP &gt;&lt; &quot;|&quot; OR FALLBACKSERVERIP &gt;&lt; &quot;^&quot; OR FALLBACKSERVERIP &gt;&lt; &quot;%&quot; OR FALLBACKSERVERIP &gt;&lt; &quot;&lt;&quot; OR FALLBACKSERVERIP &gt;&lt; &quot;&gt;&quot;)" />
+          <Publish Event="SpawnDialog" Value="ErrorMsgDlg" Order="11" Condition="FALLBACKSERVERIP &lt;&gt; &quot;&quot; AND (FALLBACKSERVERIP &gt;&lt; &quot;&amp;&quot; OR FALLBACKSERVERIP &gt;&lt; &quot;|&quot; OR FALLBACKSERVERIP &gt;&lt; &quot;^&quot; OR FALLBACKSERVERIP &gt;&lt; &quot;%&quot; OR FALLBACKSERVERIP &gt;&lt; &quot;&lt;&quot; OR FALLBACKSERVERIP &gt;&lt; &quot;&gt;&quot;)" />
+          <Publish Property="WIXUI_ERRORMSG" Value="Please enter a valid Fallback port number (1-65535), or leave the Fallback address blank." Order="12" Condition="FALLBACKSERVERIP &lt;&gt; &quot;&quot; AND NOT (FALLBACKSERVERIP &gt;&lt; &quot;&amp;&quot; OR FALLBACKSERVERIP &gt;&lt; &quot;|&quot; OR FALLBACKSERVERIP &gt;&lt; &quot;^&quot; OR FALLBACKSERVERIP &gt;&lt; &quot;%&quot; OR FALLBACKSERVERIP &gt;&lt; &quot;&lt;&quot; OR FALLBACKSERVERIP &gt;&lt; &quot;&gt;&quot;) AND (FALLBACKSERVERPORT = &quot;&quot; OR FALLBACKSERVERPORT &lt; 1 OR FALLBACKSERVERPORT &gt; 65535)" />
+          <Publish Event="SpawnDialog" Value="ErrorMsgDlg" Order="13" Condition="FALLBACKSERVERIP &lt;&gt; &quot;&quot; AND NOT (FALLBACKSERVERIP &gt;&lt; &quot;&amp;&quot; OR FALLBACKSERVERIP &gt;&lt; &quot;|&quot; OR FALLBACKSERVERIP &gt;&lt; &quot;^&quot; OR FALLBACKSERVERIP &gt;&lt; &quot;%&quot; OR FALLBACKSERVERIP &gt;&lt; &quot;&lt;&quot; OR FALLBACKSERVERIP &gt;&lt; &quot;&gt;&quot;) AND (FALLBACKSERVERPORT = &quot;&quot; OR FALLBACKSERVERPORT &lt; 1 OR FALLBACKSERVERPORT &gt; 65535)" />
+
+          <Publish Event="NewDialog" Value="UninstallPwdDlg" Order="14" Condition="SERVERIP &lt;&gt; &quot;&quot; AND NOT (SERVERIP &gt;&lt; &quot;&amp;&quot; OR SERVERIP &gt;&lt; &quot;|&quot; OR SERVERIP &gt;&lt; &quot;^&quot; OR SERVERIP &gt;&lt; &quot;%&quot; OR SERVERIP &gt;&lt; &quot;&lt;&quot; OR SERVERIP &gt;&lt; &quot;&gt;&quot;) AND SERVERPORT &gt;= 1 AND SERVERPORT &lt;= 65535 AND (FALLBACKSERVERIP = &quot;&quot; OR (NOT (FALLBACKSERVERIP &gt;&lt; &quot;&amp;&quot; OR FALLBACKSERVERIP &gt;&lt; &quot;|&quot; OR FALLBACKSERVERIP &gt;&lt; &quot;^&quot; OR FALLBACKSERVERIP &gt;&lt; &quot;%&quot; OR FALLBACKSERVERIP &gt;&lt; &quot;&lt;&quot; OR FALLBACKSERVERIP &gt;&lt; &quot;&gt;&quot;) AND FALLBACKSERVERPORT &gt;= 1 AND FALLBACKSERVERPORT &lt;= 65535))" />
         </Control>
         <Control Id="Cancel" Type="PushButton" X="304" Y="243" Width="56" Height="17" Cancel="yes" Text="!(loc.WixUICancel)">
           <Publish Event="SpawnDialog" Value="CancelDlg" Condition="1" />

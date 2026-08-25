@@ -70,12 +70,15 @@ builder.Services.Configure<ServerSettings>(options =>
 {
     options.BaseUrl = resolvedBaseUrl;
     options.PollIntervalSeconds = serverSettings.PollIntervalSeconds;
+    options.FallbackBaseUrl = serverSettings.FallbackBaseUrl;
 });
 
 // ---- ผูก HttpClient สำหรับคุยกับ Server กลาง ----
+// BaseAddress ไม่ได้ set ตรงนี้อีกต่อไป (เดิม set ผ่าน closure ปิด resolvedBaseUrl) - ย้ายไปให้
+// ServerClient's constructor เป็นคน seed เอง จาก IOptions<ServerSettings> เพื่อให้ ServerClient เป็น
+// เจ้าของเดียวของ "กำลังชี้ไป URL ไหนอยู่" (จำเป็นสำหรับรองรับสลับไป FallbackBaseUrl ทีหลัง)
 builder.Services.AddHttpClient<ServerClient>((serviceProvider, client) =>
 {
-    client.BaseAddress = new Uri(resolvedBaseUrl.TrimEnd('/') + "/");
     client.Timeout = TimeSpan.FromSeconds(10);
 });
 
@@ -124,7 +127,7 @@ StartupDiagnostics.WriteLine("Host build เสร็จแล้ว กำล�
 
 // ---- Local API endpoints (สำหรับ AgentTray เท่านั้น) ----
 
-app.MapGet("/status", (ClientState state, AgentBypassState bypassState, Microsoft.Extensions.Options.IOptions<ServerSettings> settings) =>
+app.MapGet("/status", (ClientState state, AgentBypassState bypassState, ServerClient serverClient) =>
 {
     return Results.Ok(new
     {
@@ -135,8 +138,10 @@ app.MapGet("/status", (ClientState state, AgentBypassState bypassState, Microsof
         lastPollAt = state.LastPollAt,
         lastPollSucceeded = state.LastPollSucceeded,
         // เพิ่มไว้เพื่อ debug โดยตรง: ยิง GET http://localhost:8788/status แล้วดู serverBaseUrl
-        // ตรงนี้ได้เลยว่า agent ตัวที่กำลังรันอยู่จริงใช้ BaseUrl อะไร ไม่ต้องเดาจากไฟล์ config
-        serverBaseUrl = settings.Value.BaseUrl,
+        // ตรงนี้ได้เลยว่า agent ตัวที่กำลังรันอยู่จริงใช้ BaseUrl อะไร (ไม่ใช่แค่ config ตอน startup -
+        // อ่านจาก ServerClient.ActiveBaseUrl ที่เป็นค่าจริงหลังสลับไป fallback แล้วด้วย)
+        serverBaseUrl = serverClient.ActiveBaseUrl,
+        usingFallback = serverClient.IsUsingFallback,
         bypassed = bypassState.IsBypassed
     });
 });

@@ -20,6 +20,12 @@ public class Worker : BackgroundService
     // จะไม่โดนตรวจจับเลย ต้องมี periodic full-scan มาเสริมด้วย
     private const int ProcessScanIntervalSeconds = 10;
 
+    // Threshold สำหรับสลับไป/กลับจาก FallbackBaseUrl (Tailscale) - ตัวเลขคงที่ตัดสินใจร่วมกับผู้ใช้แล้ว
+    // ไม่เปิดให้ตั้งค่าผ่าน installer/config เพราะเป็นค่าที่ผ่านการคุยเรื่อง flapping/false-positive มาแล้ว
+    // (แนวทางเดียวกับ ExponentialBackoffRetryPolicy.Delays ใน LabHubConnection.cs ที่ก็ hardcode เช่นกัน)
+    private const int FailuresBeforeFallback = 5;
+    private const int SuccessesBeforeRecovery = 7;
+
     // เก็บ (PID, StartTime) ที่เคย action (kill/log) ไปแล้วในรอบ scan ล่าสุด กัน action ซ้ำรัวๆ ทุก 10 วิ
     // ใช้คู่ (PID, StartTime) แทน PID เดี่ยวๆ เพราะ Windows recycle เลข PID ได้หลัง process เดิมตายไป
     private readonly HashSet<(int Pid, DateTime StartTime)> _alreadyActionedProcesses = new();
@@ -29,6 +35,12 @@ public class Worker : BackgroundService
     private PollResponse _lastKnownState = new() { Enabled = true, Rules = new() };
 
     private ManagementEventWatcher? _processWatcher;
+
+    // นับ poll fail ติดกันบน primary (สำหรับตัดสินใจสลับไป fallback) และ probe สำเร็จติดกันบน primary
+    // ระหว่างที่กำลังใช้ fallback อยู่ (สำหรับตัดสินใจสลับกลับ) - reset เป็น 0 ทุกครั้งที่มีการสลับ
+    private int _consecutiveFailures;
+    private int _consecutiveSuccesses;
+    private bool _loggedFallbackNotConfigured;
 
     private readonly ClientState _state;
     private readonly CommandProcessor _commandProcessor;
@@ -101,15 +113,63 @@ public class Worker : BackgroundService
                     polled.Enabled, polled.Rules.Count);
 
                 await ProcessPendingCommandsAsync(polled.PendingCommands, stoppingToken);
+
+                if (!_serverClient.IsUsingFallback)
+                {
+                    _consecutiveFailures = 0;
+                }
             }
             else
             {
                 // poll ไม่สำเร็จ - รายงานสถานะไปที่ Tray ว่า poll ล้มเหลว
                 // แต่ enabled/rulesCount ยังคงใช้ค่าล่าสุดที่มี (fail-secure)
                 _state.UpdatePollResult(_lastKnownState.Enabled, _lastKnownState.Rules.Count, succeeded: false);
+
+                if (_serverClient.IsUsingFallback)
+                {
+                    // fallback เองก็ติดต่อไม่ได้ตอนนี้ - ไม่ควรให้ recovery counter รอดจากตรงนี้
+                    _consecutiveSuccesses = 0;
+                }
+                else
+                {
+                    _consecutiveFailures++;
+                    if (_consecutiveFailures >= FailuresBeforeFallback)
+                    {
+                        if (!string.IsNullOrWhiteSpace(_settings.FallbackBaseUrl))
+                        {
+                            SwitchToFallback(stoppingToken);
+                        }
+                        else if (!_loggedFallbackNotConfigured)
+                        {
+                            _logger.LogWarning(
+                                "Poll ล้มเหลวติดกัน {Failures} ครั้ง แต่ไม่ได้ตั้งค่า FallbackBaseUrl ไว้ - จะไม่สลับไปที่ไหน (fail-secure ด้วย _lastKnownState ต่อไป)",
+                                _consecutiveFailures);
+                            _loggedFallbackNotConfigured = true;
+                        }
+                    }
+                }
             }
             // ถ้า polled เป็น null (server ติดต่อไม่ได้) จะไม่แตะ _lastKnownState เลย
             // เท่ากับใช้ค่าล่าสุดที่เคยมีต่อไป = fail-secure
+
+            // กำลังใช้ fallback อยู่ - probe primary คู่ขนานไปด้วยทุกรอบ (ไม่กระทบ _lastKnownState/enforcement
+            // เลย ใช้แค่นับ M ครั้งสำเร็จติดกันเพื่อตัดสินใจสลับกลับ primary เท่านั้น)
+            if (_serverClient.IsUsingFallback)
+            {
+                var primaryOk = await _serverClient.ProbePrimaryAsync(_settings.BaseUrl, _clientGuid, _machineName, stoppingToken);
+                if (primaryOk)
+                {
+                    _consecutiveSuccesses++;
+                    if (_consecutiveSuccesses >= SuccessesBeforeRecovery)
+                    {
+                        SwitchToPrimary(stoppingToken);
+                    }
+                }
+                else
+                {
+                    _consecutiveSuccesses = 0;
+                }
+            }
 
             await Task.Delay(TimeSpan.FromSeconds(_settings.PollIntervalSeconds), stoppingToken);
         }
@@ -129,6 +189,39 @@ public class Worker : BackgroundService
         {
             await _commandProcessor.ProcessPendingCommandAsync(command.Id, command.CommandType, command.PayloadJson, ct);
         }
+    }
+
+    /// <summary>
+    /// สลับ ServerClient (HTTP poll) + LabHubConnection (SignalR) ไปที่ FallbackBaseUrl พร้อมกัน หลังจาก
+    /// primary ล้มเหลวติดกันครบ FailuresBeforeFallback ครั้ง - LabHubConnection ใช้ fire-and-forget
+    /// (เหมือนตอน StartAsync เดิม) กัน reconnect ที่อาจช้าไปบล็อค poll loop หลัก
+    /// </summary>
+    private void SwitchToFallback(CancellationToken ct)
+    {
+        var fallbackUrl = _settings.FallbackBaseUrl!;
+        _serverClient.SwitchTo(fallbackUrl, isFallback: true);
+        _ = _labHubConnection.SwitchServerAsync(fallbackUrl, ct);
+        _logger.LogWarning(
+            "Primary server ({PrimaryUrl}) ติดต่อไม่ได้ {Failures} ครั้งติดกัน - สลับไปใช้ FallbackBaseUrl: {FallbackUrl}",
+            _settings.BaseUrl, _consecutiveFailures, fallbackUrl);
+        _consecutiveFailures = 0;
+        _consecutiveSuccesses = 0;
+        _loggedFallbackNotConfigured = false;
+    }
+
+    /// <summary>
+    /// สลับกลับไปที่ primary หลังจาก probe สำเร็จติดกันครบ SuccessesBeforeRecovery ครั้งระหว่างที่ใช้
+    /// fallback อยู่ (hysteresis กัน flapping) - เหมือน SwitchToFallback ในทางกลับกัน
+    /// </summary>
+    private void SwitchToPrimary(CancellationToken ct)
+    {
+        _serverClient.SwitchTo(_settings.BaseUrl, isFallback: false);
+        _ = _labHubConnection.SwitchServerAsync(_settings.BaseUrl, ct);
+        _logger.LogInformation(
+            "Primary server กลับมาใช้งานได้แล้ว (probe สำเร็จติดกัน {Successes} ครั้ง) - สลับกลับจาก fallback ไปใช้ primary: {PrimaryUrl}",
+            _consecutiveSuccesses, _settings.BaseUrl);
+        _consecutiveFailures = 0;
+        _consecutiveSuccesses = 0;
     }
 
     /// <summary>
@@ -527,4 +620,8 @@ public class ServerSettings
 {
     public string BaseUrl { get; set; } = "http://localhost:8787";
     public int PollIntervalSeconds { get; set; } = 30;
+
+    // Tailscale fallback address (optional) - null/ว่าง = ปิดใช้งาน feature นี้ ดู Worker's
+    // consecutive-failure/-success counters สำหรับ threshold ที่ตัดสินใจสลับไป/กลับจากที่อยู่นี้
+    public string? FallbackBaseUrl { get; set; }
 }

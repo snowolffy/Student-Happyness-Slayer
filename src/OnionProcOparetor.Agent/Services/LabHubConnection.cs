@@ -17,6 +17,8 @@ public class LabHubConnection : IAsyncDisposable
     private readonly CommandResultReporter _resultReporter;
     private HubConnection? _connection;
     private string _clientGuid = string.Empty;
+    private string _activeBaseUrl = string.Empty;
+    private readonly SemaphoreSlim _switchLock = new(1, 1);
 
     public LabHubConnection(
         ILogger<LabHubConnection> logger,
@@ -54,7 +56,54 @@ public class LabHubConnection : IAsyncDisposable
     public async Task StartAsync(string clientGuid, CancellationToken ct)
     {
         _clientGuid = clientGuid;
-        var hubUrl = _settings.BaseUrl.TrimEnd('/') + "/hubs/lab";
+        await BuildAndConnectAsync(_settings.BaseUrl, ct);
+    }
+
+    /// <summary>
+    /// เปลี่ยนไป base URL ใหม่ (primary&lt;-&gt;fallback) - เรียกจาก Worker คู่ขนานกับ ServerClient.SwitchTo
+    /// เพื่อให้ HTTP poll กับ SignalR hub ชี้ไปที่เดียวกันเสมอ ปิด connection เดิมแบบมีเวลาจำกัด (เหมือน
+    /// DisposeAsync/StopAsync ของ Worker) ก่อนสร้างใหม่ กัน mid-connect ค้างยาวถ้า URL เดิมกำลังมีปัญหาอยู่พอดี
+    /// SemaphoreSlim กันสอง SwitchServerAsync ทับกันเอง (Worker เรียกแบบ fire-and-forget)
+    /// </summary>
+    public async Task SwitchServerAsync(string newBaseUrl, CancellationToken ct)
+    {
+        await _switchLock.WaitAsync(ct);
+        try
+        {
+            if (string.Equals(_activeBaseUrl, newBaseUrl, StringComparison.OrdinalIgnoreCase))
+            {
+                return;
+            }
+
+            if (_connection is not null)
+            {
+                using var disposeTimeoutCts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+                try
+                {
+                    await _connection.DisposeAsync().AsTask().WaitAsync(disposeTimeoutCts.Token);
+                }
+                catch (OperationCanceledException)
+                {
+                    _logger.LogWarning("ปิด SignalR connection เดิมไม่เสร็จภายใน 5 วิ (อาจ mid-connect อยู่) - ข้ามไปสร้างใหม่เลย");
+                }
+            }
+
+            await BuildAndConnectAsync(newBaseUrl, ct);
+        }
+        finally
+        {
+            _switchLock.Release();
+        }
+    }
+
+    /// <summary>
+    /// สร้าง HubConnection ใหม่ชี้ไป baseUrl ที่ให้มา ผูก handler ครบชุดเดิม แล้ว connect (พร้อม retry)
+    /// - ใช้ร่วมกันทั้งตอน StartAsync ครั้งแรกและตอน SwitchServerAsync กัน handler-wiring ซ้ำกันคนละที่
+    /// </summary>
+    private async Task BuildAndConnectAsync(string baseUrl, CancellationToken ct)
+    {
+        _activeBaseUrl = baseUrl;
+        var hubUrl = baseUrl.TrimEnd('/') + "/hubs/lab";
 
         _connection = new HubConnectionBuilder()
             .WithUrl(hubUrl)

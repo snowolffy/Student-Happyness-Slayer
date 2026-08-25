@@ -119,8 +119,29 @@ public class ClientApiClient
         }
     }
 
-    /// <summary>Login ผ่าน Server กลาง (ใช้ account เดียวกับ Console GUI)</summary>
-    public async Task<(bool Success, string Message)> LoginToServerAsync(string serverBaseUrl, string username, string password)
+    /// <summary>
+    /// Login ผ่าน Server กลาง (ใช้ account เดียวกับ Console GUI) - ลอง primaryBaseUrl ก่อนเสมอ
+    /// ถ้า "ต่อไม่ได้เลย" (network unreachable - ไม่ใช่ username/password ผิด) และมี fallbackBaseUrl
+    /// ตั้งค่าไว้ (ไม่ว่าง) ค่อยลองซ้ำที่ fallback (เช่น Tailscale) หนึ่งครั้ง เพื่อให้ครูล็อกอินดู status
+    /// ได้แม้เครื่องกำลังใช้ fallback อยู่ (เดิมมีแค่ primaryBaseUrl ตัวเดียว ไม่มี fallback เลย - login
+    /// จะพังตลอดเวลาที่เครื่อง fallback อยู่ ทั้งที่ poll/command channel ใช้งานได้ปกติผ่าน fallback)
+    ///
+    /// ไม่ retry ถ้า primary "ตอบกลับมา" แต่ username/password ผิด (reachable=true, success=false) -
+    /// credentials เดียวกันจะผิดที่ fallback ด้วยเสมอ ลองซ้ำไปก็เสียเวลาเปล่าและทำให้ error message ช้าลง
+    /// </summary>
+    public async Task<(bool Success, string Message)> LoginToServerAsync(string primaryBaseUrl, string? fallbackBaseUrl, string username, string password)
+    {
+        var (success, reachable, message) = await TryLoginAsync(primaryBaseUrl, username, password);
+        if (success || reachable || string.IsNullOrWhiteSpace(fallbackBaseUrl))
+        {
+            return (success, message);
+        }
+
+        var (fallbackSuccess, _, fallbackMessage) = await TryLoginAsync(fallbackBaseUrl, username, password);
+        return (fallbackSuccess, fallbackMessage);
+    }
+
+    private static async Task<(bool Success, bool Reachable, string Message)> TryLoginAsync(string serverBaseUrl, string username, string password)
     {
         try
         {
@@ -130,16 +151,17 @@ public class ClientApiClient
 
             if (!response.IsSuccessStatusCode)
             {
-                return (false, "Username หรือ Password ไม่ถูกต้อง");
+                // ต่อ server ได้จริง แค่ credentials ผิด - ไม่ใช่กรณี "ต่อไม่ได้" ที่ควร retry ไป fallback
+                return (false, true, "Username หรือ Password ไม่ถูกต้อง");
             }
 
-            return (true, "Login สำเร็จ");
+            return (true, true, "Login สำเร็จ");
         }
         catch (Exception)
         {
             // ไม่โชว์ ex.Message ตรงๆ เพราะ HttpRequestException ของ .NET มักยาวเกินกว่าจะแสดงใน
             // LoginWindow ที่เป็นหน้าต่างขนาดคงที่ (ResizeMode="NoResize") ทำให้ข้อความล้นออกนอกกรอบ
-            return (false, "ต่อ Server ไม่ได้ - เช็คว่า Server เปิดอยู่และตั้งค่า IP:Port ถูกต้อง");
+            return (false, false, "ต่อ Server ไม่ได้ - เช็คว่า Server เปิดอยู่และตั้งค่า IP:Port ถูกต้อง");
         }
     }
 }
