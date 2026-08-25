@@ -16,10 +16,16 @@
 # เองได้แม้จะต้องใส่เหตุผลก็ตาม (นักเรียนกลุ่มที่มีปัญหาจริงมักลองมากกว่าแค่คลิกเฉยๆ - เห็นได้จาก
 # ประวัติ bypass enforcement/ถอนโปรแกรมที่เจอมาก่อนหน้านี้ในโปรเจกต์เดียวกัน)
 #
+# ย้ายมาจาก installer/ (build-time only) มาที่ installer/CustomActions/ (2026-08-25) เพราะตอนนี้
+# OnionProcOparetor.Agent (LocalSystem) จะเรียกสคริปต์นี้เองผ่าน CommandProcessor's SetTailscaleLockdown
+# command (remote toggle จาก Console) - ต้องถูก harvest เข้า MSI จริง ไม่ใช่แค่ไฟล์ที่ dev รันมือ
+#
 # วิธีปรับแก้/แก้ปัญหาเครื่องเอง (สำหรับ admin เท่านั้น เพราะ key นี้อยู่ใต้ HKLM เขียนได้เฉพาะสิทธิ์ admin):
 #   1. รัน:  .\set-tailscale-lockdown.ps1 -Unlock   (elevated PowerShell)
 #   2. ทำสิ่งที่ต้องการ (เช่น tailscale login เปลี่ยน tailnet, เปิด GUI ปรับ preferences ฯลฯ)
 #   3. รันซ้ำแบบไม่มี -Unlock (หรือใส่ -Lock เฉยๆ) เพื่อล็อกกลับ
+#
+# หรือสั่งจาก Console ระยะไกล (SetTailscaleLockdown command -> Agent รันสคริปต์นี้เองในนาม LocalSystem)
 
 param(
     [switch]$Unlock
@@ -32,8 +38,16 @@ function Write-Status([string]$Message) {
     Write-Host $Message -ForegroundColor Cyan
 }
 
-if (-not ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
-    Write-Host "ต้องรันด้วยสิทธิ์ Administrator (เขียน HKLM\SOFTWARE\Policies\Tailscale ได้เฉพาะ admin เท่านั้น)" -ForegroundColor Red
+# บั๊กจริงที่เจอ (2026-08-25, ตอนย้ายมาให้ Agent เรียกเอง): เดิมเช็คแค่ IsInRole(Administrator) ซึ่ง
+# ใช้ได้ตอน admin รันเองผ่าน elevated PowerShell แต่ Agent เป็น Windows Service ที่รันในนาม LocalSystem
+# (NT AUTHORITY\SYSTEM) - SYSTEM ไม่ได้เป็นสมาชิกกลุ่ม "Administrators" (คนละ SID กันเลย) ถึงจะมีสิทธิ์
+# เขียน HKLM ได้เต็มที่จริงก็ตาม ผลคือ IsInRole(Administrator) คืน false ให้ SYSTEM เสมอ สคริปต์จะ exit 1
+# ทุกครั้งที่ Agent เรียก ทั้งที่ควรทำงานได้ปกติ - เช็คเพิ่ม WindowsIdentity.IsSystem ด้วย
+$identity = [Security.Principal.WindowsIdentity]::GetCurrent()
+$principal = New-Object Security.Principal.WindowsPrincipal($identity)
+$isAdmin = $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+if (-not $isAdmin -and -not $identity.IsSystem) {
+    Write-Host "ต้องรันด้วยสิทธิ์ Administrator หรือ LocalSystem (เขียน HKLM\SOFTWARE\Policies\Tailscale ได้เฉพาะสิทธิ์นี้เท่านั้น)" -ForegroundColor Red
     exit 1
 }
 

@@ -28,4 +28,21 @@
        session ไม่ได้เลย ต้อง start winvnc.exe จาก AgentTray ที่รันใน user session จริงแทน - ดู
        comment เต็มใน Services/VncSessionManager.cs) -->
 
+  <!-- Tailscale's official Windows MSI installer, bundled as-is (2026-08-25) - same
+       CopyToPublishDirectory trick AgentTray's VncBundle uses, so it rides the installer's
+       existing wildcard harvest of this project's publish output with zero new .wxs <Files>
+       glob needed. Downloaded from https://pkgs.tailscale.com/stable/ and SHA-256 verified
+       against the checksum published alongside it (see the .sha256 file in this folder) -
+       pinned to a specific version deliberately (not a "latest" alias) for reproducible builds,
+       same reasoning as pinning WiX itself (see publish-all.ps1's comment). Installed silently
+       by the new InstallTailscale CustomAction in installer/OnionProcOparetor.Agent.wxs -
+       actual tailnet enrollment happens later via the Agent's own "RunTailscaleLogin" remote
+       command (CommandProcessor.cs), not baked in here. -->
+  <ItemGroup>
+    <None Include="TailscaleBundle\**">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+    </None>
+  </ItemGroup>
+
 </Project>

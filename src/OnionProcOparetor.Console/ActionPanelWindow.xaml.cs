@@ -234,6 +234,36 @@ public partial class ActionPanelWindow : Window
     private void RestartButton_Click(object sender, RoutedEventArgs e) => SendPowerAction("Restart");
     private void ShutdownButton_Click(object sender, RoutedEventArgs e) => SendPowerAction("Shutdown");
 
+    // Tailscale lock/unlock - เหมือน Lock/Unlock Workstation ด้านบนทุกประการ (ไม่ต้อง confirm, ทำคืนง่าย)
+    // แค่คนละ commandType/payload - ดู CommandProcessor.HandleSetTailscaleLockdownAsync
+    private void TailscaleLockButton_Click(object sender, RoutedEventArgs e) =>
+        SendToTargets("SetTailscaleLockdown", new { locked = true }, "Tailscale Lock");
+
+    private void TailscaleUnlockButton_Click(object sender, RoutedEventArgs e) =>
+        SendToTargets("SetTailscaleLockdown", new { locked = false }, "Tailscale Unlock");
+
+    /// <summary>
+    /// on-demand เท่านั้น (ไม่มี badge ถาวรบน dashboard - ตัดสินใจร่วมกับ user 2026-08-25) เปิด
+    /// ActionReportWindow แสดงผล 1 บรรทัดต่อเครื่องเหมือน action อื่นๆ ทุกประการ - message ที่ Agent
+    /// ส่งกลับ (ดู CommandProcessor.HandleGetTailscaleStatusAsync) มีทั้งล็อกอยู่ไหม/ติดตั้งหรือยัง/tailnet IP
+    /// </summary>
+    private void TailscaleStatusButton_Click(object sender, RoutedEventArgs e) =>
+        SendToTargets("GetTailscaleStatus", null, "Tailscale Status");
+
+    /// <summary>
+    /// เก็บ authkey จาก TailscaleLoginWindow ครั้งเดียว (โมเดลตาม BroadcastMessageWindow) แล้วส่งไปยัง
+    /// ทุกเครื่องใน target ปัจจุบัน - รองรับกรณี authkey เดียวกันใช้ enroll ได้หลายเครื่องพร้อมกัน (เช่น
+    /// reusable/tagged key จาก Tailscale admin console สำหรับทั้ง lab)
+    /// </summary>
+    private void TailscaleLoginButton_Click(object sender, RoutedEventArgs e)
+    {
+        var loginWindow = new TailscaleLoginWindow { Owner = this };
+        if (loginWindow.ShowDialog() == true)
+        {
+            SendToTargets("RunTailscaleLogin", new { authKey = loginWindow.AuthKey }, "Tailscale Login");
+        }
+    }
+
     /// <summary>
     /// กันพิมพ์อย่างอื่นนอกจากตัวเลขลงช่องหน่วงเวลาตั้งแต่แรก (ชั้นที่ 1 ของ 3 ชั้น:
     /// input filter → TryResolveDelaySeconds ตอนกดปุ่ม → clamp ซ้ำฝั่ง Agent)

@@ -1,5 +1,7 @@
+using System.Diagnostics;
 using System.Text.Json;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Win32;
 using OnionProcOparetor.Agent.Models;
 
 namespace OnionProcOparetor.Agent.Services;
@@ -154,6 +156,15 @@ public class CommandProcessor
 
             case "GetRunningProcesses":
                 return HandleGetRunningProcessesAsync(payloadJson, ct);
+
+            case "SetTailscaleLockdown":
+                return HandleSetTailscaleLockdownAsync(payloadJson, ct);
+
+            case "RunTailscaleLogin":
+                return HandleRunTailscaleLoginAsync(payloadJson, ct);
+
+            case "GetTailscaleStatus":
+                return HandleGetTailscaleStatusAsync(ct);
 
             // TODO Phase 3/4: ใส่ command อื่นๆ ตรงนี้เพิ่ม เช่น "Kill", "RunCommand"
             default:
@@ -579,6 +590,202 @@ public class CommandProcessor
         {
             _logger.LogError("เรียก ExitWindowsEx ไม่สำเร็จ ({Action}) - อาจเปิด SE_SHUTDOWN_NAME privilege ไม่ได้", actionName);
         }
+    }
+
+    /// <summary>
+    /// สลับ lock/unlock ของ Tailscale (AlwaysOn policy) ระยะไกลจาก Console - รันสคริปต์เดิม
+    /// (set-tailscale-lockdown.ps1) แทนที่จะ implement registry logic ซ้ำที่นี่ - single source of
+    /// truth เดียว รันได้ทั้งตอน admin เรียกเองแบบ elevated PowerShell และตอน Agent (LocalSystem)
+    /// เรียกแทน (ดู script's ตัวเช็คสิทธิ์ที่รองรับทั้ง Administrator และ SYSTEM แล้ว)
+    /// </summary>
+    private async Task<CommandExecutionResult> HandleSetTailscaleLockdownAsync(string? payloadJson, CancellationToken ct)
+    {
+        TailscaleLockdownPayload? payload;
+        try
+        {
+            payload = JsonSerializer.Deserialize<TailscaleLockdownPayload>(
+                payloadJson ?? string.Empty, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "แปลง payload ของ SetTailscaleLockdown ไม่สำเร็จ: {Payload}", payloadJson);
+            return CommandExecutionResult.Fail($"payload ของ SetTailscaleLockdown ไม่ถูกต้อง: {ex.Message}");
+        }
+
+        if (payload is null)
+        {
+            return CommandExecutionResult.Fail("payload ของ SetTailscaleLockdown ว่างเปล่า");
+        }
+
+        var scriptPath = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "CustomActions", "set-tailscale-lockdown.ps1"));
+        if (!File.Exists(scriptPath))
+        {
+            return CommandExecutionResult.Fail($"หาสคริปต์ set-tailscale-lockdown.ps1 ไม่เจอที่ {scriptPath} (install อาจไม่สมบูรณ์)");
+        }
+
+        var arguments = $"-NoProfile -NonInteractive -ExecutionPolicy Bypass -File \"{scriptPath}\"" + (payload.Locked ? string.Empty : " -Unlock");
+
+        var (exitCode, stdOut, stdErr) = await RunProcessAsync("powershell.exe", arguments, TimeSpan.FromSeconds(30), ct);
+
+        var action = payload.Locked ? "ล็อก" : "ปลดล็อก";
+        if (exitCode == 0)
+        {
+            _logger.LogInformation("{Action} Tailscale สำเร็จผ่าน SetTailscaleLockdown command", action);
+            return CommandExecutionResult.Ok($"{action} Tailscale สำเร็จ");
+        }
+
+        _logger.LogWarning("{Action} Tailscale ไม่สำเร็จ (exit code {ExitCode}): {StdErr} {StdOut}", action, exitCode, stdErr, stdOut);
+        return CommandExecutionResult.Fail($"{action} Tailscale ไม่สำเร็จ (exit code {exitCode}): {(string.IsNullOrWhiteSpace(stdErr) ? stdOut : stdErr)}");
+    }
+
+    /// <summary>
+    /// สั่ง tailscale.exe เข้าร่วม tailnet ด้วย authkey ที่ครูคัดลอกมาจาก Tailscale admin console เอง
+    /// ผ่าน Console (RunTailscaleLogin command) - ตั้งใจไม่ baked authkey ไว้ใน installer เลย (ความเสี่ยง
+    /// ด้านความปลอดภัยถ้า key เดียวกันหลุดไปทุกเครื่อง) ให้ส่งมาทีละครั้งตอนต้องการ enroll จริงแทน
+    ///
+    /// สำคัญมาก: ห้าม log payloadJson/authKey ที่ไหนทั้งสิ้น (ต่างจาก handler อื่นๆ ในไฟล์นี้ที่ log
+    /// payload ตรงๆ ตอน parse ไม่ผ่าน - ที่นี่ต้อง log แค่ข้อความทั่วไปเท่านั้น)
+    /// </summary>
+    private async Task<CommandExecutionResult> HandleRunTailscaleLoginAsync(string? payloadJson, CancellationToken ct)
+    {
+        TailscaleLoginPayload? payload;
+        try
+        {
+            payload = JsonSerializer.Deserialize<TailscaleLoginPayload>(
+                payloadJson ?? string.Empty, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+        }
+        catch (Exception)
+        {
+            _logger.LogWarning("แปลง payload ของ RunTailscaleLogin ไม่สำเร็จ (รูปแบบไม่ถูกต้อง)");
+            return CommandExecutionResult.Fail("payload ของ RunTailscaleLogin ไม่ถูกต้อง");
+        }
+
+        if (string.IsNullOrWhiteSpace(payload?.AuthKey))
+        {
+            return CommandExecutionResult.Fail("ไม่ได้ระบุ authkey มาด้วย");
+        }
+
+        var tailscaleExePath = GetTailscaleExePath();
+        if (!File.Exists(tailscaleExePath))
+        {
+            return CommandExecutionResult.Fail($"หา tailscale.exe ไม่เจอที่ {tailscaleExePath} (Tailscale ยังไม่ได้ติดตั้งบนเครื่องนี้)");
+        }
+
+        // authkey อยู่ใน command-line argument (ไม่มีทางเลี่ยงได้ - tailscale CLI ไม่รองรับรับ authkey
+        // ผ่าน stdin/env var) ทำให้มีช่วงเวลาสั้นๆ ที่ process listing (Task Manager/Process Explorer/
+        // event log ที่เปิด command-line auditing) เห็น argument นี้ได้ระหว่าง process ยังรันอยู่ -
+        // ยอมรับความเสี่ยงนี้ (เหมือนกับทุก CLI tool ที่รับ secret ผ่าน argument) แต่ตัว Agent เองต้อง
+        // ไม่ทำให้แย่ลงไปกว่านี้ด้วยการ log ค่านี้ซ้ำเองที่ไหนอีก
+        var arguments = $"up --authkey={payload.AuthKey} --unattended";
+        var (exitCode, stdOut, stdErr) = await RunProcessAsync(tailscaleExePath, arguments, TimeSpan.FromSeconds(30), ct);
+
+        if (exitCode == 0)
+        {
+            _logger.LogInformation("tailscale up --unattended สำเร็จผ่าน RunTailscaleLogin command");
+            return CommandExecutionResult.Ok("เข้าร่วม tailnet สำเร็จ");
+        }
+
+        _logger.LogWarning("tailscale up ไม่สำเร็จ (exit code {ExitCode}): {StdErr} {StdOut}", exitCode, stdErr, stdOut);
+        return CommandExecutionResult.Fail($"เข้าร่วม tailnet ไม่สำเร็จ (exit code {exitCode}): {(string.IsNullOrWhiteSpace(stdErr) ? stdOut : stdErr)}");
+    }
+
+    /// <summary>
+    /// อ่านสถานะ Tailscale ปัจจุบัน (ล็อกอยู่ไหม/ติดตั้งหรือยัง/tailnet IP อะไร) ให้ Console แสดงแบบ
+    /// on-demand ตอนครูเปิดหน้าต่างที่เกี่ยวกับ Tailscale ของเครื่องนี้ - ไม่มี state เก็บฝั่ง Server เลย
+    /// (ตั้งใจไม่ทำ persistent badge บน dashboard รอบนี้) อาศัย ack/result pipeline เดิมเป็นช่องทาง
+    /// request/response แทนที่จะเพิ่ม transport ใหม่
+    /// </summary>
+    private async Task<CommandExecutionResult> HandleGetTailscaleStatusAsync(CancellationToken ct)
+    {
+        var tailscaleExePath = GetTailscaleExePath();
+        var installed = File.Exists(tailscaleExePath);
+
+        bool locked;
+        try
+        {
+            using var key = Registry.LocalMachine.OpenSubKey(@"SOFTWARE\Policies\Tailscale");
+            var value = key?.GetValue("AlwaysOn.Enabled");
+            locked = value is int i && i == 1;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "อ่านค่า Tailscale AlwaysOn.Enabled จาก registry ไม่สำเร็จ");
+            locked = false;
+        }
+
+        if (!installed)
+        {
+            return CommandExecutionResult.Ok("ยังไม่ได้ติดตั้ง Tailscale บนเครื่องนี้");
+        }
+
+        var tailnetIp = string.Empty;
+        try
+        {
+            var (exitCode, stdOut, _) = await RunProcessAsync(tailscaleExePath, "ip -4", TimeSpan.FromSeconds(5), ct);
+            if (exitCode == 0)
+            {
+                tailnetIp = stdOut.Trim();
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "เรียก tailscale ip -4 ไม่สำเร็จ (ยังไม่ login/tailnet ไม่พร้อม)");
+        }
+
+        var connectedText = string.IsNullOrWhiteSpace(tailnetIp) ? "ยังไม่ได้ login เข้า tailnet" : $"tailnet IP: {tailnetIp}";
+        return CommandExecutionResult.Ok($"ติดตั้งแล้ว, {(locked ? "ล็อกอยู่ (AlwaysOn)" : "ไม่ได้ล็อก")}, {connectedText}");
+    }
+
+    private static string GetTailscaleExePath() =>
+        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "Tailscale", "tailscale.exe");
+
+    /// <summary>
+    /// รัน external process แบบ async พร้อม timeout - ใช้ร่วมกันทั้ง 3 handler ของ Tailscale ด้านบน
+    /// (set-tailscale-lockdown.ps1 / tailscale.exe up / tailscale.exe ip) กัน process ค้าง (เช่น
+    /// Restart-Service ที่อาจ hang) ด้วยการ kill ทั้ง process tree ถ้าเกิน timeout ที่กำหนด
+    /// </summary>
+    private async Task<(int ExitCode, string StdOut, string StdErr)> RunProcessAsync(
+        string fileName, string arguments, TimeSpan timeout, CancellationToken ct)
+    {
+        var psi = new ProcessStartInfo
+        {
+            FileName = fileName,
+            Arguments = arguments,
+            UseShellExecute = false,
+            CreateNoWindow = true,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true
+        };
+
+        using var process = new Process { StartInfo = psi };
+        using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        timeoutCts.CancelAfter(timeout);
+
+        process.Start();
+        var stdOutTask = process.StandardOutput.ReadToEndAsync(timeoutCts.Token);
+        var stdErrTask = process.StandardError.ReadToEndAsync(timeoutCts.Token);
+
+        try
+        {
+            await process.WaitForExitAsync(timeoutCts.Token);
+        }
+        catch (OperationCanceledException)
+        {
+            try
+            {
+                process.Kill(entireProcessTree: true);
+            }
+            catch
+            {
+                // process อาจปิดตัวเองไปพอดีระหว่างที่กำลังจะ kill - ไม่ถือเป็น error
+            }
+
+            throw new TimeoutException($"'{fileName}' ไม่จบภายใน {timeout.TotalSeconds} วิ - kill process แล้ว");
+        }
+
+        var stdOut = await stdOutTask;
+        var stdErr = await stdErrTask;
+        return (process.ExitCode, stdOut, stdErr);
     }
 
     private bool TryMarkAsProcessed(int commandId)

@@ -68,6 +68,8 @@
                     <RowDefinition Height="Auto"/>
                     <RowDefinition Height="Auto"/>
                     <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
                 </Grid.RowDefinitions>
 
                 <Button Grid.Row="0" Width="350" x:Name="ToggleButton" Content="TOGGLE ENFORCEMENT"
@@ -116,7 +118,24 @@
                 <Button Grid.Row="7" Width="350" x:Name="ViewProcessesButton" Content="VIEW RUNNING PROCESSES..."
                         Style="{StaticResource ButtonSecondary}" HorizontalAlignment="Center" VerticalAlignment="Top" Margin="0,0,0,12" Click="ViewProcessesButton_Click"/>
 
-                <Button Grid.Row="8" Width="350" x:Name="DeleteButton" Content="DELETE"
+                <!-- Tailscale: remote lock/unlock (AlwaysOn policy toggle - กันนักเรียน disconnect เอง)
+                     + status/login (on-demand เท่านั้น ไม่มี persistent badge ที่ dashboard - ดู
+                     CommandProcessor.cs's SetTailscaleLockdown/GetTailscaleStatus/RunTailscaleLogin) -->
+                <Grid Grid.Row="8" Margin="0,0,0,8">
+                    <Button Width="172" x:Name="TailscaleLockButton" Content="TAILSCALE LOCK"
+                            Style="{StaticResource ButtonSecondary}" Padding="10,9" FontSize="12" HorizontalAlignment="Left" VerticalAlignment="Top" Click="TailscaleLockButton_Click"/>
+                    <Button Width="172" x:Name="TailscaleUnlockButton" Content="TAILSCALE UNLOCK"
+                            Style="{StaticResource ButtonSecondary}" Padding="10,9" FontSize="12" HorizontalAlignment="Right" VerticalAlignment="Top" Click="TailscaleUnlockButton_Click"/>
+                </Grid>
+
+                <Grid Grid.Row="9" Margin="0,0,0,12">
+                    <Button Width="172" x:Name="TailscaleStatusButton" Content="TAILSCALE STATUS"
+                            Style="{StaticResource ButtonSecondary}" Padding="10,9" FontSize="12" HorizontalAlignment="Left" VerticalAlignment="Top" Click="TailscaleStatusButton_Click"/>
+                    <Button Width="172" x:Name="TailscaleLoginButton" Content="TAILSCALE LOGIN..."
+                            Style="{StaticResource ButtonSecondary}" Padding="10,9" FontSize="12" HorizontalAlignment="Right" VerticalAlignment="Top" Click="TailscaleLoginButton_Click"/>
+                </Grid>
+
+                <Button Grid.Row="10" Width="350" x:Name="DeleteButton" Content="DELETE"
                         Style="{StaticResource ButtonDanger}" HorizontalAlignment="Center" VerticalAlignment="Top" Click="DeleteButton_Click"/>
             </Grid>
         </Border>

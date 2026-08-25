@@ -236,6 +236,11 @@
       <File Id="SetupClientPs1" Source="CustomActions\setup-client.ps1" KeyPath="yes" />
       <File Id="CheckUninstallPasswordPs1" Source="CustomActions\check-uninstall-password.ps1" />
       <File Id="DeleteRegRunKeyPs1" Source="CustomActions\delete-reg-runkey.ps1" />
+      <!-- ไม่ได้เรียกจาก CustomAction ของ MSI นี้เอง (ไม่มี InstallExecuteSequence entry) - ต้อง
+           ship ไว้บนเครื่องเฉยๆ เพราะ OnionProcOparetor.Agent (LocalSystem) เรียกสคริปต์นี้เองตอน
+           runtime ผ่าน CommandProcessor's "SetTailscaleLockdown" command (remote toggle จาก Console) -
+           ดู CommandProcessor.cs -->
+      <File Id="SetTailscaleLockdownPs1" Source="CustomActions\set-tailscale-lockdown.ps1" />
     </Component>
 
     <!-- ==================== Custom Actions ==================== -->
@@ -253,6 +258,31 @@
          ไฟล์นั้น) -->
     <CustomAction Id="TestConnection" Directory="INSTALLFOLDER" Execute="immediate" Return="ignore"
       ExeCommand="cmd.exe /c &quot;set ONIONPROC_HOSTPORT=[SERVERIP]:[SERVERPORT]&amp;&amp; powershell.exe -NoProfile -NonInteractive -WindowStyle Hidden -EncodedCommand aQBmACAAKABbAHMAdAByAGkAbgBnAF0AOgA6AEkAcwBOAHUAbABsAE8AcgBXAGgAaQB0AGUAUwBwAGEAYwBlACgAJABlAG4AdgA6AE8ATgBJAE8ATgBQAFIATwBDAF8ASABPAFMAVABQAE8AUgBUACkAKQAgAHsAIABlAHgAaQB0ACAAMAAgAH0ACgAkAHAAYQByAHQAcwAgAD0AIAAkAGUAbgB2ADoATwBOAEkATwBOAFAAUgBPAEMAXwBIAE8AUwBUAFAATwBSAFQAIAAtAHMAcABsAGkAdAAgACcAOgAnACwAIAAyAAoAJABoAG8AcwB0AE4AYQBtAGUAIAA9ACAAJABwAGEAcgB0AHMAWwAwAF0ACgBpAGYAIAAoACQAcABhAHIAdABzAC4AQwBvAHUAbgB0ACAALQBnAHQAIAAxACAALQBhAG4AZAAgACQAcABhAHIAdABzAFsAMQBdAC4AVAByAGkAbQAoACkAIAAtAG4AZQAgACIAIgApACAAewAgACQAcABvAHIAdAAgAD0AIAAkAHAAYQByAHQAcwBbADEAXQAgAH0AIABlAGwAcwBlACAAewAgACQAcABvAHIAdAAgAD0AIAAiADgANwA4ADcAIgAgAH0ACgBBAGQAZAAtAFQAeQBwAGUAIAAtAEEAcwBzAGUAbQBiAGwAeQBOAGEAbQBlACAAUwB5AHMAdABlAG0ALgBXAGkAbgBkAG8AdwBzAC4ARgBvAHIAbQBzAAoAJABvAHcAbgBlAHIAIAA9ACAATgBlAHcALQBPAGIAagBlAGMAdAAgAFMAeQBzAHQAZQBtAC4AVwBpAG4AZABvAHcAcwAuAEYAbwByAG0AcwAuAEYAbwByAG0ACgAkAG8AdwBuAGUAcgAuAFMAdABhAHIAdABQAG8AcwBpAHQAaQBvAG4AIAA9ACAAIgBNAGEAbgB1AGEAbAAiAAoAJABvAHcAbgBlAHIALgBMAG8AYwBhAHQAaQBvAG4AIAA9ACAATgBlAHcALQBPAGIAagBlAGMAdAAgAFMAeQBzAHQAZQBtAC4ARAByAGEAdwBpAG4AZwAuAFAAbwBpAG4AdAAoAC0AMgAwADAAMAAsACAALQAyADAAMAAwACkACgAkAG8AdwBuAGUAcgAuAFMAaQB6AGUAIAA9ACAATgBlAHcALQBPAGIAagBlAGMAdAAgAFMAeQBzAHQAZQBtAC4ARAByAGEAdwBpAG4AZwAuAFMAaQB6AGUAKAAxACwAIAAxACkACgAkAG8AdwBuAGUAcgAuAFMAaABvAHcASQBuAFQAYQBzAGsAYgBhAHIAIAA9ACAAJABmAGEAbABzAGUACgAkAG8AdwBuAGUAcgAuAEYAbwByAG0AQgBvAHIAZABlAHIAUwB0AHkAbABlACAAPQAgACIARgBpAHgAZQBkAFQAbwBvAGwAVwBpAG4AZABvAHcAIgAKACQAbwB3AG4AZQByAC4AVABvAHAATQBvAHMAdAAgAD0AIAAkAHQAcgB1AGUACgAkAG8AdwBuAGUAcgAuAFMAaABvAHcAKAApAAoAJABvAHcAbgBlAHIALgBBAGMAdABpAHYAYQB0AGUAKAApAAoAJABvAGsAIAA9ACAAJABmAGEAbABzAGUACgAkAGUAcgByAG8AcgBEAGUAdABhAGkAbAAgAD0AIAAiACIACgAkAGMAbABpAGUAbgB0ACAAPQAgACQAbgB1AGwAbAAKAHQAcgB5ACAAewAKACAAIAAgACAAJABwAG8AcgB0AE4AdQBtACAAPQAgAFsAaQBuAHQAXQAkAHAAbwByAHQACgAgACAAIAAgACQAYwBsAGkAZQBuAHQAIAA9ACAATgBlAHcALQBPAGIAagBlAGMAdAAgAFMAeQBzAHQAZQBtAC4ATgBlAHQALgBTAG8AYwBrAGUAdABzAC4AVABjAHAAQwBsAGkAZQBuAHQACgAgACAAIAAgACQAYwBvAG4AbgBlAGMAdABUAGEAcwBrACAAPQAgACQAYwBsAGkAZQBuAHQALgBDAG8AbgBuAGUAYwB0AEEAcwB5AG4AYwAoACQAaABvAHMAdABOAGEAbQBlACwAIAAkAHAAbwByAHQATgB1AG0AKQAKACAAIAAgACAAaQBmACAAKAAkAGMAbwBuAG4AZQBjAHQAVABhAHMAawAuAFcAYQBpAHQAKAA1ADAAMAAwACkAKQAgAHsACgAgACAAIAAgACAAIAAgACAAJABvAGsAIAA9ACAAJABjAGwAaQBlAG4AdAAuAEMAbwBuAG4AZQBjAHQAZQBkAAoAIAAgACAAIAAgACAAIAAgAGkAZgAgACgALQBuAG8AdAAgACQAbwBrACkAIAB7ACAAJABlAHIAcgBvAHIARABlAHQAYQBpAGwAIAA9ACAAIgBDAG8AbgBuAGUAYwB0AGkAbwBuACAAZABpAGQAIABuAG8AdAAgAGMAbwBtAHAAbABlAHQAZQAuACIAIAB9AAoAIAAgACAAIAB9AAoAIAAgACAAIABlAGwAcwBlACAAewAKACAAIAAgACAAIAAgACAAIAAkAGUAcgByAG8AcgBEAGUAdABhAGkAbAAgAD0AIAAiAE4AbwAgAHIAZQBzAHAAbwBuAHMAZQAgAHcAaQB0AGgAaQBuACAANQAgAHMAZQBjAG8AbgBkAHMALgAiAAoAIAAgACAAIAB9AAoAfQAKAGMAYQB0AGMAaAAgAHsACgAgACAAIAAgACQAbwBrACAAPQAgACQAZgBhAGwAcwBlAAoAIAAgACAAIAAkAGUAcgByAG8AcgBEAGUAdABhAGkAbAAgAD0AIAAkAF8ALgBFAHgAYwBlAHAAdABpAG8AbgAuAE0AZQBzAHMAYQBnAGUACgB9AAoAZgBpAG4AYQBsAGwAeQAgAHsACgAgACAAIAAgAGkAZgAgACgAJABjAGwAaQBlAG4AdAApACAAewAgACQAYwBsAGkAZQBuAHQALgBDAGwAbwBzAGUAKAApACAAfQAKAH0ACgBpAGYAIAAoACQAbwBrACkAIAB7AAoAIAAgACAAIABbAFMAeQBzAHQAZQBtAC4AVwBpAG4AZABvAHcAcwAuAEYAbwByAG0AcwAuAE0AZQBzAHMAYQBnAGUAQgBvAHgAXQA6ADoAUwBoAG8AdwAoACQAbwB3AG4AZQByACwACgAgACAAIAAgACAAIAAgACAAIgBDAG8AbgBuAGUAYwB0AGkAbwBuACAAcwB1AGMAYwBlAHMAcwBmAHUAbAAhACAAVABoAGUAIABTAGUAcgB2AGUAcgAgAGkAcwAgAHIAZQBhAGMAaABhAGIAbABlACAAYQB0ACAAJAB7AGgAbwBzAHQATgBhAG0AZQB9ADoAJAB7AHAAbwByAHQAfQAuACIALAAKACAAIAAgACAAIAAgACAAIAAiAE8AbgBpAG8AbgAgAFAAcgBvAGMATwBwAGEAcgBlAHQAbwByACIALAAKACAAIAAgACAAIAAgACAAIABbAFMAeQBzAHQAZQBtAC4AVwBpAG4AZABvAHcAcwAuAEYAbwByAG0AcwAuAE0AZQBzAHMAYQBnAGUAQgBvAHgAQgB1AHQAdABvAG4AcwBdADoAOgBPAEsALAAKACAAIAAgACAAIAAgACAAIABbAFMAeQBzAHQAZQBtAC4AVwBpAG4AZABvAHcAcwAuAEYAbwByAG0AcwAuAE0AZQBzAHMAYQBnAGUAQgBvAHgASQBjAG8AbgBdADoAOgBJAG4AZgBvAHIAbQBhAHQAaQBvAG4AKQAgAHwAIABPAHUAdAAtAE4AdQBsAGwACgB9AAoAZQBsAHMAZQAgAHsACgAgACAAIAAgACQAcgBlAGEAcwBvAG4ATABpAG4AZQAgAD0AIAAiACIACgAgACAAIAAgAGkAZgAgACgAJABlAHIAcgBvAHIARABlAHQAYQBpAGwAIAAtAG4AZQAgACIAIgApACAAewAgACQAcgBlAGEAcwBvAG4ATABpAG4AZQAgAD0AIAAiAGAAcgBgAG4AYAByAGAAbgBEAGUAdABhAGkAbABzADoAIAAkAGUAcgByAG8AcgBEAGUAdABhAGkAbAAiACAAfQAKACAAIAAgACAAWwBTAHkAcwB0AGUAbQAuAFcAaQBuAGQAbwB3AHMALgBGAG8AcgBtAHMALgBNAGUAcwBzAGEAZwBlAEIAbwB4AF0AOgA6AFMAaABvAHcAKAAkAG8AdwBuAGUAcgAsAAoAIAAgACAAIAAgACAAIAAgACIAQwBvAHUAbABkACAAbgBvAHQAIAByAGUAYQBjAGgAIAB0AGgAZQAgAFMAZQByAHYAZQByACAAYQB0ACAAJAB7AGgAbwBzAHQATgBhAG0AZQB9ADoAJAB7AHAAbwByAHQAfQAgAHcAaQB0AGgAaQBuACAANQAgAHMAZQBjAG8AbgBkAHMALgBgAHIAYABuACIAIAArAAoAIAAgACAAIAAgACAAIAAgACIAVABoAGkAcwAgAG0AYQB5ACAAYgBlACAAbgBvAHIAbQBhAGwAIABpAGYAIAB0AGgAZQAgAFMAZQByAHYAZQByACAAaQBzACAAbgBvAHQAIAByAHUAbgBuAGkAbgBnACAAeQBlAHQALAAgAHQAaABlACAAYQBkAGQAcgBlAHMAcwAvAHAAbwByAHQAIABpAHMAIAB3AHIAbwBuAGcALAAgAG8AcgAgAGEAIABmAGkAcgBlAHcAYQBsAGwAIABpAHMAIABiAGwAbwBjAGsAaQBuAGcAIABpAHQALgAkAHIAZQBhAHMAbwBuAEwAaQBuAGUAIgAsAAoAIAAgACAAIAAgACAAIAAgACIATwBuAGkAbwBuACAAUAByAG8AYwBPAHAAYQByAGUAdABvAHIAIgAsAAoAIAAgACAAIAAgACAAIAAgAFsAUwB5AHMAdABlAG0ALgBXAGkAbgBkAG8AdwBzAC4ARgBvAHIAbQBzAC4ATQBlAHMAcwBhAGcAZQBCAG8AeABCAHUAdAB0AG8AbgBzAF0AOgA6AE8ASwAsAAoAIAAgACAAIAAgACAAIAAgAFsAUwB5AHMAdABlAG0ALgBXAGkAbgBkAG8AdwBzAC4ARgBvAHIAbQBzAC4ATQBlAHMAcwBhAGcAZQBCAG8AeABJAGMAbwBuAF0AOgA6AFcAYQByAG4AaQBuAGcAKQAgAHwAIABPAHUAdAAtAE4AdQBsAGwACgB9AAoAJABvAHcAbgBlAHIALgBDAGwAbwBzAGUAKAApAAoAZQB4AGkAdAAgADAA&quot;" />
+
+    <!-- Silently install Tailscale (bundled MSI, see TailscaleBundle\ under the Agent project +
+         its .csproj CopyToPublishDirectory trick, same as AgentTray's VncBundle) - this only gets
+         Tailscale onto the machine unauthenticated; actual tailnet enrollment happens later via
+         a remote "RunTailscaleLogin" command the Agent runs itself (CommandProcessor.cs), not at
+         install time (deliberately not baking a shared authkey into every install).
+
+         Return="check" (hard-fail, confirmed with the user 2026-08-25) - if the bundled Tailscale
+         MSI fails to install silently, the whole Agent MSI install aborts rather than reporting
+         success on a machine that doesn't actually have the fallback transport ready.
+
+         TS_UNATTENDEDMODE=always / TS_NOLAUNCH=1 are real Tailscale MSI properties (verified
+         against https://tailscale.com/docs/install/windows/msi, not assumed) - sets "Run
+         Unattended" at install time and suppresses the GUI popping up during a silent install.
+         AlwaysOn.Enabled is NOT an MSI property (it's a registry policy) - that's set later by
+         set-tailscale-lockdown.ps1 via the SetTailscaleLockdown command, not here.
+
+         Scheduled After="InstallFiles" (not After="InstallServices" like SetupClient below) -
+         only needs the bundled .msi file to exist on disk, no dependency on OnionAgent's own
+         service being created first. Condition="NOT REMOVE" - install/repair only, same reasoning
+         as SetupClientProps/SetupClient below (must not fire during a plain uninstall). -->
+    <CustomAction Id="InstallTailscaleProps" Property="InstallTailscale"
+      Value="&quot;[System64Folder]msiexec.exe&quot; /i &quot;[INSTALLFOLDER]Client\TailscaleBundle\tailscale-setup-1.102.3-amd64.msi&quot; /quiet /norestart TS_UNATTENDEDMODE=always TS_NOLAUNCH=1" />
+    <CustomAction Id="InstallTailscale" BinaryRef="Wix4UtilCA_$(sys.BUILDARCHSHORT)" DllEntry="WixQuietExec"
+      Execute="deferred" Return="check" Impersonate="no" />
 
     <!-- Client Agent setup: create-service(harmless no-op, ServiceInstall above already did
          it)/patch-config/set-recovery/start, in that exact order. Deferred + Impersonate=no so it
@@ -324,6 +354,9 @@
            setup-client.ps1 fails outright and - because SetupClient's Return="check" - aborts the
            whole uninstall with exit 1603. Confirmed by an actual failed live `msiexec /x` on this
            build before this condition was added, not assumed. -->
+      <Custom Action="InstallTailscaleProps" Before="InstallTailscale" Condition="NOT REMOVE" />
+      <Custom Action="InstallTailscale" After="InstallFiles" Condition="NOT REMOVE" />
+
       <Custom Action="SetupClientProps" Before="SetupClient" Condition="NOT REMOVE" />
       <Custom Action="SetupClient" After="InstallServices" Condition="NOT REMOVE" />
 
@@ -477,6 +510,7 @@
            from the ActionText table's Description column, keyed by CustomAction Id - without an
            entry here each of our deferred/immediate CustomActions falls back to a blank line
            while it's executing. -->
+      <ProgressText Action="InstallTailscale" Message="Installing Tailscale (used as a fallback connection path)..." />
       <ProgressText Action="SetupClient" Message="Configuring the Onion Agent service (server address, uninstall protection)..." />
       <ProgressText Action="CheckUninstallPasswordHeadless" Message="Checking the uninstall password..." />
       <ProgressText Action="DeleteRegRunKey" Message="Removing the Onion Agent Tray startup entry..." />
