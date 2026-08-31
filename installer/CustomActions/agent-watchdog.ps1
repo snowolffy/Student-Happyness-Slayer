@@ -71,11 +71,19 @@ $Config = [ordered]@{
     # ซึ่งวัดจากข้อมูลภายในรอบบูตเดียว ไม่ต้องพึ่งอะไรที่ข้าม reboot ได้เลย
     MinHealthySecondsBeforeArming = 120
 
-    # ให้เวลา Server รับ tamper report ก่อน reboot (วินาที)
+    # timeout ต่อการยิง 1 ครั้งไปยัง Server (วินาที)
     ReportTimeoutSeconds      = 4
 
-    # หน่วงก่อน reboot จริง เพื่อให้ log/report เขียนลงดิสก์เสร็จ
-    RebootDelaySeconds        = 5
+    # หน่วงก่อน reboot จริง - ตั้งไว้ยาวพอให้ใช้ช่วงนับถอยหลังนี้ยิง tamper report ซ้ำได้หลายรอบ
+    # เครื่อง lab ถูก restore ทุกครั้งที่เปิดเครื่อง ทั้ง watchdog.log และ Event Log จึงถูกล้าง
+    # ไปพร้อมกับ reboot ที่บรรทัดนี้สั่ง = รายงานที่ถึง Server คือหลักฐานชิ้นเดียวที่เหลืออยู่จริง
+    # จึงคุ้มที่จะยอมช้าอีกไม่กี่วินาทีเพื่อเพิ่มโอกาสให้มันไปถึง (เครื่องโดน tamper ไปแล้ว
+    # การช้าอีก 15 วิไม่ได้ทำให้อะไรแย่ลง แต่การไม่มีหลักฐานเลยทำให้ครูตามเรื่องต่อไม่ได้)
+    # ผลพลอยได้: ผู้ใช้ที่นั่งอยู่หน้าเครื่องเห็นกล่องเตือนนับถอยหลังของ Windows นานพอจะอ่านทัน
+    RebootDelaySeconds        = 20
+
+    # ยิง report ซ้ำได้ไม่เกินกี่วินาทีรวม (ต้องน้อยกว่า RebootDelaySeconds เสมอ)
+    ReportRetryBudgetSeconds  = 15
 }
 
 # ---------------------------------------------------------------------------
@@ -323,10 +331,11 @@ function Get-TamperFindings {
 # reboot เพราะอะไร แทนที่จะเห็นแค่ "เครื่องหลุดไปเฉยๆ"
 # ---------------------------------------------------------------------------
 function Send-TamperReport {
+    <# คืน $true เมื่อส่งถึง Server สำเร็จ - ผู้เรียกใช้ค่านี้ตัดสินใจว่าจะยิงซ้ำไหม #>
     param([string]$Reason, [string]$Detail)
     try {
         $appSettings = Join-Path (Get-InstallFolder) 'Client\appsettings.json'
-        if (-not (Test-Path $appSettings)) { return }
+        if (-not (Test-Path $appSettings)) { return $false }
         $cfg = Get-Content -Raw -Encoding utf8 -Path $appSettings | ConvertFrom-Json
         $urls = @()
         if ($cfg.ServerSettings.BaseUrl)         { $urls += $cfg.ServerSettings.BaseUrl }
@@ -350,7 +359,7 @@ function Send-TamperReport {
                     -Body $body -ContentType 'application/json' `
                     -TimeoutSec $Config.ReportTimeoutSeconds | Out-Null
                 Write-WdLog "ส่ง tamper report ไปที่ $u สำเร็จ"
-                return
+                return $true
             } catch {
                 Write-WdLog "ส่ง tamper report ไปที่ $u ไม่สำเร็จ: $($_.Exception.Message)" 'WARN'
             }
@@ -358,6 +367,8 @@ function Send-TamperReport {
     } catch {
         Write-WdLog "เตรียม tamper report ไม่สำเร็จ: $($_.Exception.Message)" 'WARN'
     }
+
+    return $false
 }
 
 # ---------------------------------------------------------------------------
@@ -503,19 +514,45 @@ try {
     $msg = ("TAMPER DETECTED - $summary. Agent ทำงานปกติมาแล้ว {0:N0} วินาทีในรอบบูตนี้ก่อนจะผิดปกติ - กำลังจะ restart เครื่องภายใน {1} วินาที" -f $healthySeconds, $Config.RebootDelaySeconds)
     Write-WdLog $msg 'ALERT'
     Write-WdEvent -Message $msg -EventId 9002 -EntryType 'Error'
-    Send-TamperReport -Reason $reasonCode -Detail $summary
 
     $state.softHits = 0
     Write-WdState $state
 
+    # ---- สั่ง reboot "ก่อน" แล้วค่อยใช้ช่วงนับถอยหลังยิงรายงาน ----
+    # ลำดับนี้สำคัญ: เดิมยิงรายงานก่อนแล้วค่อยสั่ง reboot ซึ่งแปลว่าถ้าเครือข่ายมีปัญหา การ
+    # remediation (สิ่งที่สำคัญที่สุด) ต้องรอ timeout ของสิ่งที่สำคัญรองลงมาให้ครบก่อน
+    # สั่ง shutdown ก่อนทำให้ remediation เกิดขึ้นแน่นอนแม้โค้ดรายงานจะพังหรือค้าง แล้วเราได้
+    # หน้าต่างเวลาฟรีๆ ระหว่างนับถอยหลังไปใช้ยิงซ้ำ - ไม่ต้องแลกอะไรเลย
     if ($WhatIfReboot) {
-        Write-WdLog "(-WhatIfReboot) ข้ามการ reboot จริง" 'WARN'
-        return
+        Write-WdLog "(-WhatIfReboot) ข้ามการสั่ง reboot จริง (ยังทดสอบการส่งรายงานต่อ)" 'WARN'
+    }
+    else {
+        # /f = บังคับปิดโปรแกรมที่ค้าง (นักเรียนอาจมีหน้าต่างที่ block shutdown อยู่)
+        # /d p:4:1 = Planned / Application / Maintenance - ให้ขึ้นเหตุผลที่อ่านออกใน Event Log
+        & shutdown.exe /r /f /t $Config.RebootDelaySeconds /c "OnionProcOparetor: found unauthorized system modification - restarting" /d p:4:1
+        Write-WdLog "สั่ง reboot แล้ว (อีก $($Config.RebootDelaySeconds) วินาที) - ระหว่างนี้จะพยายามส่งรายงานให้ถึง Server"
     }
 
-    # /f = บังคับปิดโปรแกรมที่ค้าง (นักเรียนอาจมีหน้าต่างที่ block shutdown อยู่)
-    # /d p:4:1 = Planned / Application / Maintenance - ให้ขึ้นเหตุผลที่อ่านออกใน Event Log
-    & shutdown.exe /r /f /t $Config.RebootDelaySeconds /c "OnionProcOparetor: found unauthorized system modification - restarting" /d p:4:1
+    # ยิงซ้ำจนกว่าจะสำเร็จหรือหมดงบเวลา - เครื่องจะดับตอน RebootDelaySeconds พอดี
+    # ไม่ต้องกลัวว่าจะยิงค้างเกินเวลา เพราะแต่ละรอบมี timeout ของตัวเองอยู่แล้ว
+    $reportDeadline = [DateTime]::UtcNow.AddSeconds($Config.ReportRetryBudgetSeconds)
+    $reported = $false
+    $attempt = 0
+    while (-not $reported -and [DateTime]::UtcNow -lt $reportDeadline) {
+        $attempt++
+        $reported = Send-TamperReport -Reason $reasonCode -Detail $summary
+        if (-not $reported) {
+            Write-WdLog "ส่ง tamper report ไม่สำเร็จ (ครั้งที่ $attempt) - จะลองใหม่จนกว่าจะหมดเวลา" 'WARN'
+            Start-Sleep -Seconds 2
+        }
+    }
+
+    if (-not $reported) {
+        # ไม่มีที่ไหนให้บันทึกที่รอด reboot ได้อีกแล้ว - อย่างน้อยเขียนไว้ให้คนที่มาดูทัน
+        # ภายในไม่กี่วินาทีที่เหลือ (และเผื่อกรณีที่เครื่องนี้ไม่ได้เปิด freeze อยู่จริง)
+        Write-WdLog "ส่ง tamper report ไม่สำเร็จเลยภายใน $($Config.ReportRetryBudgetSeconds) วินาที - เครื่องกำลังจะ reboot และหลักฐานในเครื่องจะถูกล้างทั้งหมด" 'ALERT'
+        Write-WdEvent -Message "tamper report ส่งไม่ถึง Server: $summary" -EventId 9005 -EntryType 'Error'
+    }
 }
 catch {
     # watchdog ห้ามพังเงียบๆ และห้าม reboot เพราะตัวเองพัง
