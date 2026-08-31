@@ -154,6 +154,40 @@ else {
     Write-Log "ไม่พบ $vncBundleDir - ข้ามการตั้ง ACL ของ ultravnc.ini"
 }
 
+# 3.7) ล็อก Tailscale ตั้งแต่ตอนติดตั้ง ถ้าเครื่องนี้ใช้เส้นทางสำรอง (เพิ่ม 2026-08-31)
+#
+# เดิม policy นี้ถูกตั้งจาก runtime เท่านั้น (ครูสั่ง SetTailscaleLockdown จาก Console) ซึ่งเขียนลง
+# HKLM\SOFTWARE\Policies\Tailscale - อยู่บนไดรฟ์ที่ Reboot Restore Rx freeze ไว้ ผลคือ "ล็อกแล้ว"
+# กลับมาเป็น "ไม่ล็อก" เองทุกครั้งที่ reboot โดยไม่มีอะไรบอก และนักเรียนกลับมา disconnect Tailscale
+# ทิ้งได้อีกครั้ง = fallback ตายเงียบๆ
+#
+# ตั้งที่นี่แทน policy จึงติดไปกับ baseline และกลับมาเป็น "ล็อก" ทุกครั้งที่ restore ซึ่งเป็นสถานะที่
+# ต้องการอยู่แล้วบนเครื่องนักเรียน ครูยังสั่งปลดล็อกชั่วคราวจาก Console ได้เหมือนเดิม (แค่จะกลับมา
+# ล็อกอีกครั้งหลัง reboot ซึ่งถูกต้องสำหรับเครื่อง lab)
+#
+# ทำเฉพาะเมื่อกรอก fallback address ไว้จริง - โรงเรียนที่ไม่ได้ใช้ Tailscale ไม่ควรโดนตั้ง policy
+# ให้โดยไม่ได้ขอ
+if ($fallbackConfigured) {
+    $lockdownScript = Join-Path $InstallDir "CustomActions\set-tailscale-lockdown.ps1"
+    if (Test-Path $lockdownScript) {
+        try {
+            & powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $lockdownScript 2>&1 |
+                ForEach-Object { Write-Log "tailscale-lockdown: $_" }
+            Write-Log "set-tailscale-lockdown.ps1 exit code: $LASTEXITCODE"
+        }
+        catch {
+            # ไม่ hard-fail: ล็อกไม่ได้ก็ยังใช้งาน Tailscale ได้ตามปกติ แค่ไม่ได้กันนักเรียนกดปิด
+            Write-Log "ล็อก Tailscale ตอนติดตั้งไม่สำเร็จ: $($_.Exception.Message)"
+        }
+    }
+    else {
+        Write-Log "ไม่พบ $lockdownScript - ข้ามการล็อก Tailscale"
+    }
+}
+else {
+    Write-Log "ไม่ได้ตั้งค่า fallback - ข้ามการล็อก Tailscale (เครื่องนี้ไม่ได้ใช้เส้นทางสำรอง)"
+}
+
 # 4) ติดตั้ง tamper watchdog (Scheduled Task + wd.key + ACL) - ต้องทำ "หลัง" sc start เพราะ
 #    watchdog เริ่มตรวจทันทีที่ลงทะเบียนเสร็จ ถ้าลงก่อน start มันอาจเจอ SERVICE_NOT_RUNNING
 #    ตั้งแต่รอบแรก (ซึ่ง maintenance ticket ที่ MSI ออกไว้กันอยู่แล้ว แต่ไม่มีเหตุผลจะเสี่ยง)

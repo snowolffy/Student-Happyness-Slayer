@@ -92,8 +92,11 @@ function Write-WdLog {
 
 function Write-WdEvent {
     param([string]$Message, [int]$EventId = 9001, [string]$EntryType = 'Warning')
-    # Event Log = หลักฐานที่นักเรียนลบยากกว่าไฟล์ log ธรรมดา และ admin เปิดดูย้อนหลังได้
-    # ผ่าน eventvwr แม้เครื่องจะถูก restore ไปแล้วก็ยังเห็นในช่วงก่อน reboot
+    # Event Log = หลักฐานที่นักเรียนลบยากกว่าไฟล์ log ธรรมดา - แต่ใช้ได้เฉพาะ "ภายในรอบบูตนั้น"
+    # เท่านั้น (แก้ comment เดิมที่เคลมเกินจริงว่าดูย้อนหลังได้หลัง restore, 2026-08-31):
+    # Application.evtx อยู่ที่ C:\Windows\System32\winevt\Logs ซึ่งอยู่บนไดรฟ์ที่ Reboot Restore Rx
+    # freeze ไว้เหมือนกัน จึงถูกล้างไปพร้อมกับ reboot ที่บรรทัดนี้กำลังจะสั่ง
+    # หลักฐานที่คงอยู่จริงคือ Send-TamperReport ที่ยิงไป Server (ไม่ถูก freeze) ก่อน reboot เท่านั้น
     try {
         if (-not [System.Diagnostics.EventLog]::SourceExists($EventSource)) {
             New-EventLog -LogName Application -Source $EventSource

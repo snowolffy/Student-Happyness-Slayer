@@ -13,9 +13,133 @@
 | `87764ff` | Task 2 (ส่วนสอง) — agent authentication |
 | `3e42977` | Task 4 — Program Control |
 | `ca86d71` | Task 5 — config review |
+| `f2406df` | รอบแก้ตาม disk-freeze (ดูหัวข้อ 0) |
 
 > **ยังไม่ได้ทดสอบบนเครื่องจริง** ทั้งหมดนี้ผ่าน build + ทดสอบเท่าที่ทำได้บนเครื่องนี้เท่านั้น
 > (รายละเอียดว่าอะไรทดสอบแล้ว/ยังอยู่ท้ายรายงาน) การติดตั้งจริงต้องทำตามลำดับในหัวข้อ "แผน rollout"
+
+---
+
+## 0. ข้อจำกัดที่คุมทุกอย่าง: เครื่อง lab ทุกเครื่องมี disk freeze
+
+**เครื่องนักเรียนทั้ง 40 เครื่องรัน Reboot Restore Rx** — ทุกอย่างที่เขียนลงดิสก์ *หลัง* จาก commit
+baseline จะหายทุก reboot (ไฟล์, registry, Event Log, scheduled task, service config) ส่วนที่ถูก
+สร้างขึ้น *ตอนติดตั้ง* แล้ว commit baseline ทับ จะอยู่ถาวร เครื่อง Server และเครื่องครูไม่ถูก freeze
+
+นี่คือเหตุผลที่ระบบออกแบบเป็น **pull จาก Server เป็นหลัก** มาตั้งแต่ต้น และ `docs/architecture.md:75`
+ก็ระบุหลักการนี้ไว้ตรงๆ อยู่แล้วว่า *"เก็บ config ไว้บนเครื่อง client จะหายทุกรอบ restore เว้นแต่
+กันเป็น excluded folder **ซึ่งไม่ควรพึ่งพา**"*
+
+งานที่ทำในรอบแรกของวันนี้มี 2 จุดที่ละเมิดหลักการนี้ **แก้แล้วใน `f2406df`** และมีอีก 3 จุดที่เป็น
+ของเดิมอยู่ก่อนแล้ว
+
+### 0.1 แก้แล้ว — ตัวกัน reboot loop ใช้ไม่ได้เลยบนเครื่องที่ freeze
+
+เดิม: *"reboot เพราะ tamper ได้ไม่เกิน 3 ครั้งต่อ 24 ชม."* เก็บตัวนับใน `watchdog-state.json`
+ซึ่งเป็นไฟล์ที่เขียนตอน runtime = อยู่นอก baseline = **ถูกลบทิ้งโดย reboot ตัวที่มันควรจะนับ**
+ตัวนับจึงเป็น 0 เสมอ เพดานไม่มีวันถึง และเคสที่มันถูกสร้างมาเพื่อกัน (baseline เองไม่มี Agent อยู่)
+จะกลายเป็น **วน reboot ไม่รู้จบแบบเงียบๆ ไม่มี alert** ซึ่งแย่กว่าปัญหาเดิมมาก
+
+ใหม่: ตัดสินจากข้อมูลภายในรอบบูตเดียว ไม่พึ่งอะไรที่ต้องข้าม reboot เลย โดยใช้หลักว่า
+**"reboot จะช่วยได้ก็ต่อเมื่อ baseline ที่จะ restore กลับมานั้นดีอยู่ ซึ่งพิสูจน์ได้ทางเดียวคือ
+เราเคยเห็นมันดีมาแล้วในรอบบูตนี้"**
+
+| สภาพในรอบบูตนี้ | ตีความ | ทำอะไร |
+|---|---|---|
+| ไม่เคยเห็น Agent ปกติเลย | baseline เองมีปัญหา | **ไม่ reboot** (จะวนไม่จบ) — แจ้ง Server + ลอง `sc start` |
+| เคยปกติ แต่ < 120 วิ | มีอะไรฆ่ามันทุกครั้งที่บูต | **ไม่ reboot** — แจ้ง Server + ลอง `sc start` |
+| เคยปกติต่อเนื่อง >= 120 วิ | มีคนมายุ่งระหว่างใช้งาน | **reboot** — restore แล้วหายจริง |
+
+ผลข้างเคียงที่ดี: เกณฑ์นี้แยก *"นักเรียนหยุด service กลางคาบ"* ออกจาก *"เครื่องพังตั้งแต่บูต"* ได้
+ตรงตามที่ต้องการอยู่แล้วโดยไม่ต้องเพิ่มเงื่อนไขอะไรอีก state ทุกตัวผูกกับเวลาบูตของ OS
+รอบบูตใหม่ = เริ่มนับใหม่
+
+**ทดสอบแล้วจริงทั้ง 4 เส้นทาง** โดยรัน `agent-watchdog.ps1 -WhatIfReboot` บนเครื่องนี้ (ซึ่งไม่มี
+Agent ติดตั้งอยู่ finding จึงเกิดขึ้นเองตามธรรมชาติ) แล้ว seed state ของแต่ละเคส — ผลตรงตามตาราง
+ทุกเคส และลบไฟล์ทดสอบออกหลังเสร็จแล้ว
+
+### 0.2 แก้แล้ว — `agent.key` ถูกสร้างตอน runtime จึงหายทุก reboot
+
+`agent.key` (agent secret ที่เพิ่มเข้ามาใน `87764ff`) ถูกสร้างแบบ lazy ตอน Agent รันครั้งแรก
+ต่างจาก `wd.key` ที่ `install-watchdog.ps1` สร้างให้ตั้งแต่ตอนติดตั้ง ถ้าไฟล์ไม่ทันได้เข้า baseline
+Agent จะสุ่ม secret ใหม่ทุกครั้งที่บูต -> Server เห็น mismatch ทุกเช้าของทุกเครื่อง ->
+**และเมื่อเปิด `Security:RequireAgentSecret` ทั้งห้องจะหลุดจากระบบ**
+
+แก้: `install-watchdog.ps1` สร้าง `agent.key` ตั้งแต่ตอนติดตั้ง (ข้างๆ `wd.key`, ไม่ทับของเดิม)
+การสร้างตอน runtime ยังเหลือไว้เป็น fallback แต่จะตั้ง `WasGeneratedAtRuntime` และ Agent จะ log
+เตือนพร้อมอธิบายผลกระทบเรื่อง freeze ให้เห็นทันที
+
+> **หมายเหตุเรื่องการล้างเครื่องใหม่:** ตรวจแล้วว่าไม่เป็นปัญหา — `ClientGuid` ถูกสร้างตอนติดตั้ง
+> เหมือนกัน เครื่องที่ลง Windows ใหม่จึงได้ทั้ง GUID ใหม่และ key ใหม่ -> Server มองเป็นเครื่องใหม่
+> แล้ว enroll ให้เองตามปกติ (ไม่ใช่ mismatch) จึง **ไม่ได้เพิ่ม endpoint "reset ทั้งห้อง"**
+> เพราะเคสที่ต้องใช้จริงมีแค่ "GUID เดิมแต่ key หาย" ซึ่ง `reset-agent-secret` รายเครื่องพอแล้ว —
+> ไม่คุ้มที่จะเพิ่มพื้นที่ให้ endpoint ระดับ admin เพื่อเคสที่ส่วนใหญ่หายเอง
+
+### 0.3 เรื่องเดิมที่เพิ่งรู้ว่ากระทบ — Tailscale หลุด tailnet ทุก reboot
+
+**นี่คือจุดที่กระทบฟีเจอร์ที่ใช้งานจริงมากที่สุดในหัวข้อนี้**
+
+Tailscale เก็บ node key ไว้ที่ `C:\ProgramData\Tailscale\tailscaled.state` ซึ่งอยู่บนไดรฟ์ที่ถูก
+freeze เหมือนกันทุกอย่าง และการ enroll เกิดขึ้นจาก **runtime command เท่านั้น**
+(`RunTailscaleLogin` ที่ครูสั่งจาก Console — ตั้งใจไม่ฝัง authkey ไว้ใน installer) โดย
+**ไม่มีโค้ดตรงไหนใน Agent ที่ enroll ซ้ำให้เองตอนบูต**
+
+ลำดับที่เกิดขึ้นจริง:
+
+```
+ครูสั่ง RunTailscaleLogin -> เข้า tailnet ได้ -> ใช้งานได้ทั้งวัน
+  -> reboot -> tailscaled.state หายไปกับ restore
+  -> tailscale.exe ยังอยู่ แต่ไม่ได้ login แล้ว -> ไม่มี tailnet IP
+```
+
+และ `Worker.SwitchToFallback` ไม่ได้ตรวจว่าเส้นทางสำรองใช้ได้จริงก่อนสลับ — เครื่องจะ "สลับไป
+fallback สำเร็จ" ตามปกติทุกอย่าง แต่ IP ปลายทางไปไม่ถึงเพราะ interface ไม่เคยขึ้นมา
+**คือ failover ที่พังแบบเงียบที่สุด: ไปรู้ตอนที่ต้องใช้จริง**
+
+**วิธีแก้ที่ถูกต้องคือฝั่งกระบวนการ ไม่ใช่โค้ด** — ต้อง enroll ขณะที่ freeze ปิดอยู่ แล้ว commit
+baseline ใหม่ เพื่อให้ `tailscaled.state` ติดไปกับ baseline (โค้ดแก้แทนไม่ได้ เพราะการ enroll
+อัตโนมัติต้องมี authkey อยู่บนเครื่อง/บน Server ซึ่งเป็นการตัดสินใจด้านความปลอดภัยคนละเรื่อง —
+เก็บเป็น plan ไว้ ไม่ทำเองโดยพลการ)
+
+**สิ่งที่ทำในรอบนี้แทน:** `TailscaleHealthService` ตรวจทุก 15 นาที (เริ่มหลังบูต 2 นาที) ว่ายังมี
+tailnet IP อยู่ไหม แล้วรายงานเข้า log กลางที่ครูเห็นจาก Console **เฉพาะตอนสถานะเปลี่ยน** — เปลี่ยน
+"พังเงียบ" ให้เป็น "พังแล้วมีคนรู้" ปิดตัวเองทั้งหมดถ้าไม่ได้ตั้ง `FallbackBaseUrl`
+(โรงเรียนที่ไม่ได้ใช้ Tailscale จะไม่โดนเตือนเรื่องที่ไม่เกี่ยวกับตัวเอง)
+
+### 0.4 แก้แล้ว — Tailscale AlwaysOn lockdown ปลดตัวเองทุก reboot
+
+policy `HKLM\SOFTWARE\Policies\Tailscale\AlwaysOn.Enabled` (ตัวกันนักเรียนกด disconnect
+Tailscale ทิ้ง) ถูกตั้งจาก runtime command เท่านั้น -> อยู่บนไดรฟ์ที่ freeze -> **กลับเป็น "ไม่ล็อก"
+เองทุก reboot** โดยไม่มีอะไรบอก
+
+แก้: `setup-client.ps1` เรียก `set-tailscale-lockdown.ps1` ตั้งแต่ตอนติดตั้ง **เฉพาะเมื่อกรอก
+fallback address ไว้จริง** policy จึงติดไปกับ baseline และกลับมาเป็น "ล็อก" ทุกครั้งที่ restore
+
+*เหตุผลที่ตัดสินใจทำเลยไม่รอถาม:* สถานะ "ล็อก" คือสิ่งที่ครูเลือกไปแล้วโดยปริยายตั้งแต่ตอนกรอก
+fallback address (ไม่งั้นจะกรอกไปทำไม) และการปล่อยให้ security control ปลดตัวเองเงียบๆ ทุกเช้าคือ
+พฤติกรรมที่ผิดชัดเจน ครูยังสั่งปลดล็อกชั่วคราวจาก Console ได้เหมือนเดิม เพียงแต่จะกลับมาล็อกหลัง
+reboot ซึ่งเป็นสิ่งที่ถูกต้องสำหรับเครื่อง lab
+
+### 0.5 เรื่องเดิมที่รับทราบไว้ ไม่ได้แก้ในรอบนี้
+
+| เรื่อง | ผลกระทบ | ทำไมไม่แก้ |
+|---|---|---|
+| **Event Log ก็ถูก freeze** — หลักฐาน tamper ที่เขียนไว้หายไปพร้อม reboot ที่มันบันทึก | หลักฐานย้อนหลังในเครื่องไม่มีจริง | หลักฐานที่คงอยู่จริงคือ `POST /api/tamper-report` ที่ยิงไป Server ก่อน reboot ซึ่งทำอยู่แล้ว — Event Log เป็นแค่ของแถมสำหรับดูภายในรอบบูตนั้น |
+| **AgentTray autostart ใช้ HKCU Run key** ที่ตัวมันเขียนเองตอน runtime | ถ้านักเรียน login ด้วย account คนละตัวกับตอน commit baseline tray จะไม่ autostart | มี `AgentTrayRecoveryService` ใน Agent (SYSTEM) คอยสตาร์ท tray ให้ใน user session อยู่แล้วเมื่อมี command ที่ต้องใช้ — บรรเทาไปมากแล้ว การย้ายไป HKLM Run/Startup folder เก็บเป็น plan |
+| **uninstall ไม่ถาวรถ้าไม่ commit baseline ใหม่** | reboot แล้ว Agent + watchdog กลับมาทั้งชุด | เป็นพฤติกรรมที่ถูกต้องของเครื่องที่ freeze ไม่ใช่บั๊ก — แต่ต้องรู้ก่อนถอน (ดูขั้นตอนในหัวข้อ 7) |
+| `watchdog-config.json` แก้ตอน runtime แล้วหาย | ปรับ threshold ไม่ติด | ต้องแก้ตอน freeze ปิด แล้ว commit baseline |
+| watchdog task ถูกลบ -> Agent สร้างคืน (runtime) -> หายอีกตอน reboot | มีช่องว่าง ~1 นาทีหลังบูตที่ยังไม่มี watchdog | ตัว task ตัวจริงอยู่ใน baseline อยู่แล้ว กลับมาเองทุก reboot — ช่องว่างนี้เกิดเฉพาะกรณีที่ตอนติดตั้ง CA ล้มเหลว |
+
+### 0.6 ยืนยันแล้วว่าถูกต้องอยู่แล้ว (ไม่ต้องแก้)
+
+- **ทุก request ที่ Agent ยิงเป็น outbound ทั้งหมด** — port เดียวที่เปิดฟังคือ `127.0.0.1:8788`
+  สำหรับ AgentTray ไม่มี inbound port จากเครือข่ายเลย ตรงกับดีไซน์ pull-based และผ่าน NAT/Tailscale ได้
+- **state ของ Program Control ฝั่ง Agent อยู่ใน memory ล้วน** (`_blockedHashes`, `_knownVerdicts`,
+  `_classifyQueue`) — ดึงใหม่จาก Server ทุก poll จึงปลอดภัยกับ freeze โดยธรรมชาติ ไม่ต้องแก้อะไร
+- **`AgentBypassState`** เป็น memory-only โดยตั้งใจมาแต่เดิม (reboot = กลับมา connected เสมอ)
+- **`heartbeat.json`** ตั้งใจให้เป็นของสด และ `MinUptimeSeconds` รองรับกรณีที่ยังไม่มีไฟล์หลังบูตแล้ว
+- **ผลจำแนกโปรแกรมทั้งหมดอยู่ที่ Server** (ไม่ถูก freeze) — ความรู้ของทั้งห้องจึงสะสมได้จริง
+  ไม่หายทุกเช้า ซึ่งเป็นเหตุผลที่ classifier ถูกวางไว้ที่ Server ตั้งแต่ต้น
 
 ---
 
@@ -279,6 +403,13 @@ Event Log > Application > OnionProcOparetorWatchdog (9001-9004)
 - ❗ **ACL ของ `ultravnc.ini`** — VNC ยังเปิดได้จริงไหมหลังถอน Full Control
 - ❗ **named pipe ACL ใหม่** — broadcast/lock screen ยังทำงานไหม (Agent เป็น SYSTEM ควรผ่าน แต่ต้องยืนยัน)
 - ❗ `wix build` ทั้ง 2 MSI (ไม่ได้ build installer ในรอบนี้)
+- ❗ **พฤติกรรมจริงหลัง reboot บนเครื่องที่ freeze อยู่** — ต้องยืนยันว่า `agent.key`/`wd.key`/
+  watchdog task อยู่ใน baseline จริง (เช็คได้จาก: reboot แล้วดูว่า Activity Log ไม่ขึ้น
+  `AgentSecretMismatch` และ log ของ Agent ไม่ขึ้นคำเตือนเรื่อง `WasGeneratedAtRuntime`)
+- ❗ **Tailscale หลัง reboot** — ยืนยันว่า `tailscale ip -4` ยังคืนค่าหลัง restore (ถ้าไม่ ต้อง
+  enroll ใหม่ตอน thaw แล้ว commit baseline)
+- `TailscaleHealthService` (build ผ่าน ยังไม่เคยรันจริง)
+- lockdown ตอนติดตั้ง (`set-tailscale-lockdown.ps1` เรียกจาก setup-client.ps1)
 - Program Control end-to-end จาก Agent จริง (ทดสอบแค่ฝั่ง Server ด้วย fingerprint ที่ประกอบเอง)
 - หน้า `ProgramReviewWindow` (build ผ่าน แต่ยังไม่เคยเปิดดูจริง)
 
@@ -288,6 +419,11 @@ Event Log > Application > OnionProcOparetorWatchdog (9001-9004)
 
 > ลำดับนี้สำคัญ — ทำสลับแล้วมีโอกาสทำให้ทั้งห้องหลุดจากระบบพร้อมกัน
 
+0. **ปิด freeze (thaw) ก่อนติดตั้งทุกครั้ง แล้ว commit baseline ใหม่หลังติดตั้งเสร็จ** — ถ้าข้าม
+   ขั้นนี้ ทั้ง `agent.key`, `wd.key`, watchdog task และ Tailscale node key จะไม่เข้า baseline
+   และหายทุก reboot (ดูหัวข้อ 0)
+   - ถ้าใช้ Tailscale: สั่ง `RunTailscaleLogin` **ตอนที่ freeze ยังปิดอยู่** แล้วค่อย commit baseline
+     ไม่งั้น fallback จะตายเงียบตั้งแต่ reboot แรก
 1. **ทดสอบบนเครื่องทดลอง 1 เครื่องก่อนเสมอ** ห้าม push ทั้งห้องเลย
    - ติดตั้ง Agent MSI ใหม่ → ยืนยันว่า Scheduled Task `OnionProcOparetor Agent Watchdog` ถูกสร้าง
    - ดู `%ProgramData%\OnionProcOparetor\Agent\watchdog.log` ว่าเดินทุกนาทีและไม่เจอ finding
@@ -312,7 +448,12 @@ Event Log > Application > OnionProcOparetorWatchdog (9001-9004)
 4. marker กันลบ `uninstall-guard.json`
 5. `WTD_REVOKE_WHOLECHAIN` ถ้าเครื่อง lab ต่อเน็ตได้
 6. WDAC (ถ้าอัปเกรดเป็น Windows Education) — ตัวเดียวที่กัน admin ได้จริงโดยไม่ต้องเซ็น driver เอง
-7. ให้ Program Control รายงาน "โปรแกรมที่ Flag" เข้าหน้า Dashboard เป็น badge แทนที่จะต้องกดเข้าไปดู
+7. **auto re-enroll Tailscale หลังบูต** — ให้ Server เก็บ authkey (หรือออก ephemeral key ต่อครั้ง)
+   แล้ว Agent ขอมา enroll เองเมื่อพบว่าไม่มี tailnet IP ตอนที่ยังต่อ primary ได้อยู่ ต้องชั่งกับ
+   ความเสี่ยงของการเก็บ authkey ไว้ที่ Server และส่งผ่าน HTTP — ควรทำหลังมี TLS แล้ว
+8. ย้าย AgentTray autostart จาก HKCU Run ไปเป็น HKLM Run หรือ Startup folder (ให้ติด baseline
+   และใช้ได้กับทุก account ที่ login)
+9. ให้ Program Control รายงาน "โปรแกรมที่ Flag" เข้าหน้า Dashboard เป็น badge แทนที่จะต้องกดเข้าไปดู
 
 ---
 

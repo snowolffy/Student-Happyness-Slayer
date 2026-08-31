@@ -133,6 +133,12 @@ builder.Services.AddHostedService<Worker>();
 // แต่แยกไว้ทำให้ทั้ง 2 เรื่องอ่านแยกกันได้ และปิดตัวใดตัวหนึ่งตอน debug ได้โดยไม่กระทบอีกตัว
 builder.Services.AddHostedService<TamperProtectionService>();
 
+// ---- เฝ้าดูว่าเส้นทางสำรอง (Tailscale) ยังใช้ได้จริง (2026-08-31) ----
+// node key ของ Tailscale อยู่บนไดรฟ์ที่ถูก Reboot Restore Rx freeze เหมือนกัน = หายทุก reboot
+// ถ้าไม่ได้ enroll ตอนที่ freeze ปิดอยู่ - service นี้ทำให้ "พังเงียบ" กลายเป็น "พังแล้วมีคนรู้"
+// ปิดตัวเองทันทีถ้าไม่ได้ตั้ง FallbackBaseUrl ไว้ (ไม่ได้ใช้ Tailscale ก็ไม่ต้องเตือน)
+builder.Services.AddHostedService<TailscaleHealthService>();
+
 var app = builder.Build();
 
 StartupDiagnostics.WriteLine("Host build เสร็จแล้ว กำลัง Run()...");
