@@ -1,4 +1,4 @@
-using System.Windows;
+﻿using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
@@ -211,6 +211,25 @@ public partial class DashboardWindow : Window
         {
             StatusText.Text = $"โหลดข้อมูลไม่สำเร็จ: {ex.Message}";
         }
+    }
+
+    /// <summary>
+    /// เปิดคิวตรวจสอบของ Program Control - เก็บ reference ไว้กันเปิดซ้อนหลายบาน (ครูมักกดปุ่มซ้ำ
+    /// ตอนหน้าต่างยังโหลดไม่เสร็จ) ถ้าเปิดอยู่แล้วให้ดึงบานเดิมขึ้นมาแทน
+    /// </summary>
+    private ProgramReviewWindow? _programReviewWindow;
+
+    private void ProgramControlButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_programReviewWindow is { IsLoaded: true })
+        {
+            _programReviewWindow.Activate();
+            return;
+        }
+
+        _programReviewWindow = new ProgramReviewWindow(_apiClient) { Owner = this };
+        _programReviewWindow.Closed += (_, _) => _programReviewWindow = null;
+        _programReviewWindow.Show();
     }
 
     private async void RefreshButton_Click(object sender, RoutedEventArgs e)

@@ -1,4 +1,4 @@
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using OnionProcOparetor.Server.Models;
 
 namespace OnionProcOparetor.Server.Data;
@@ -22,6 +22,9 @@ public class AppDbContext : DbContext
     public DbSet<AuthToken> AuthTokens => Set<AuthToken>();
     public DbSet<ClientCommand> ClientCommands => Set<ClientCommand>();
     public DbSet<RuleOverride> RuleOverrides => Set<RuleOverride>();
+
+    /// <summary>ผลจำแนกโปรแกรม key ด้วย SHA-256 - ดู Models/ProgramVerdict.cs</summary>
+    public DbSet<ProgramVerdict> ProgramVerdicts => Set<ProgramVerdict>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -68,6 +71,17 @@ public class AppDbContext : DbContext
         // ด้วย ExecutionStatus + CreatedAt ตรงๆ
         modelBuilder.Entity<ClientCommand>()
             .HasIndex(c => new { c.ExecutionStatus, c.CreatedAt });
+
+        // Sha256 คือ key จริงของตารางนี้ (Id เป็นแค่ surrogate) - ทุก lookup จาก /api/classify
+        // ค้นด้วยค่านี้ และการมีสองแถวสำหรับไฟล์เดียวกันจะทำให้ครูตัดสินซ้ำซ้อนโดยไม่รู้ตัว
+        modelBuilder.Entity<ProgramVerdict>()
+            .HasIndex(v => v.Sha256)
+            .IsUnique();
+
+        // คิวตรวจสอบของครูเรียงตาม "เจอบ่อยแค่ไหน" - query หลักคือ Action == Flag เรียงตาม
+        // SightingCount ซึ่งเป็นตารางที่จะโตเรื่อยๆ ตามจำนวนโปรแกรมที่เคยเจอทั้งห้อง
+        modelBuilder.Entity<ProgramVerdict>()
+            .HasIndex(v => new { v.Action, v.SightingCount });
 
         // Seed ค่าเริ่มต้นของ GlobalState ให้มี row เดียวเสมอ (Id = 1, เปิดใช้งานเป็นค่าเริ่มต้น)
         // สำคัญ: ต้องใช้ค่า DateTime แบบ fixed/static เท่านั้น ห้ามใช้ DateTime.UtcNow หรือ

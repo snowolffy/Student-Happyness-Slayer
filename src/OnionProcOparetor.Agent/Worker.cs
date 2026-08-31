@@ -1,4 +1,4 @@
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using System.Management;
 using Microsoft.Extensions.Options;
 using OnionProcOparetor.Agent.Models;
@@ -52,6 +52,7 @@ public class Worker : BackgroundService
     private readonly CommandProcessor _commandProcessor;
     private readonly LabHubConnection _labHubConnection;
     private readonly AgentBypassState _bypassState;
+    private readonly ProgramControlService _programControl;
 
     public Worker(
         ILogger<Worker> logger,
@@ -60,7 +61,8 @@ public class Worker : BackgroundService
         ClientState state,
         CommandProcessor commandProcessor,
         LabHubConnection labHubConnection,
-        AgentBypassState bypassState)
+        AgentBypassState bypassState,
+        ProgramControlService programControl)
     {
         _logger = logger;
         _serverClient = serverClient;
@@ -69,6 +71,7 @@ public class Worker : BackgroundService
         _commandProcessor = commandProcessor;
         _labHubConnection = labHubConnection;
         _bypassState = bypassState;
+        _programControl = programControl;
         _clientGuid = ClientIdentity.GetOrCreateClientGuid();
         _machineName = ClientIdentity.GetMachineName();
         _state.ClientGuid = _clientGuid;
@@ -109,16 +112,21 @@ public class Worker : BackgroundService
                 continue;
             }
 
-            var polled = await _serverClient.PollAsync(_clientGuid, _machineName, stoppingToken);
+            var polled = await _serverClient.PollAsync(_clientGuid, _machineName, stoppingToken, _programControl.BlocklistVersion);
             if (polled is not null)
             {
                 _lastKnownState = polled;
+                _programControl.ApplyBlocklist(polled.BlocklistVersion, polled.BlockedHashes);
                 _state.UpdatePollResult(polled.Enabled, polled.Rules.Count, succeeded: true);
                 _state.SetPollIntervalOverride(polled.PollIntervalOverrideSeconds);
                 _logger.LogInformation("Poll สำเร็จ - Enabled: {Enabled}, Rules: {Count} ข้อ",
                     polled.Enabled, polled.Rules.Count);
 
                 await ProcessPendingCommandsAsync(polled.PendingCommands, stoppingToken);
+
+                // ส่งโปรแกรมที่ยังไม่รู้จักที่สะสมไว้ไปให้ Server จำแนกเป็นชุด - ทำตรงนี้ (หลัง poll
+                // สำเร็จ) ไม่ใช่ตอนที่เจอ process โดยตั้งใจ ดู ProgramControlService.FlushPendingAsync
+                await _programControl.FlushPendingAsync(stoppingToken);
 
                 if (!_serverClient.IsUsingFallback)
                 {
@@ -481,9 +489,13 @@ public class Worker : BackgroundService
     {
         var result = PublisherChecker.Check(executablePath);
 
+        // เดิมตรงนี้ return false ทันทีถ้าไม่มี publisher - ซึ่งแปลว่าโปรแกรมที่ "ไม่ได้เซ็นและไม่มี
+        // CompanyName" (เกม portable/โหลดมาแทบทั้งหมด) มองไม่เห็นเลยแม้แต่ใน log ตอนนี้ยังข้ามการ
+        // เทียบ rule เหมือนเดิม (ไม่มี publisher ก็ไม่มีอะไรให้เทียบจริงๆ) แต่ต้องผ่าน Program
+        // Control ก่อนเสมอ ซึ่งไม่ได้พึ่ง publisher เลย - ดู ProgramControlService
         if (!result.HasPublisher)
         {
-            return false; // หา publisher ไม่เจอเลย ไม่มีอะไรให้เทียบ
+            return await _programControl.InspectAsync(executablePath, processId, result);
         }
 
         // เทียบกับทุก rule ที่เปิดใช้งานอยู่
@@ -528,7 +540,9 @@ public class Worker : BackgroundService
             return true; // match กฎแรกที่เจอแล้วหยุด ไม่ต้องเช็คกฎถัดไป
         }
 
-        return false;
+        // ไม่มีกฎไหน match - ให้ Program Control ตรวจต่อ (กฎของครูมาก่อนเสมอ ตัวนี้เป็นตาข่ายรับ
+        // ของที่ครูยังไม่รู้จัก ไม่ใช่ตัวแทน)
+        return await _programControl.InspectAsync(executablePath, processId, result);
     }
 
     private async Task ExecuteRuleAction(string executablePath, int processId, PublisherCheckResult result, RuleDto rule)

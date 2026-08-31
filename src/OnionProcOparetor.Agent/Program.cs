@@ -1,4 +1,4 @@
-using OnionProcOparetor.Agent;
+﻿using OnionProcOparetor.Agent;
 using OnionProcOparetor.Agent.Services;
 
 // ---- Diagnostic เขียนไฟล์ตรงๆ ตั้งแต่บรรทัดแรกสุด (ก่อน WebApplication.CreateBuilder) ----
@@ -117,6 +117,11 @@ builder.Services.AddSingleton<VncSessionManager>();
 
 // ---- รองรับ Windows Service host ----
 builder.Services.AddWindowsService();
+
+// ---- Program Control (2026-08-31) - ตาข่ายรับโปรแกรมที่ระบบ rule เดิมมองไม่เห็น ----
+// singleton เพราะถือ blocklist + cache ผลจำแนกไว้ในหน่วยความจำข้ามทุกรอบ scan
+builder.Services.AddSingleton<ProgramFingerprinter>();
+builder.Services.AddSingleton<ProgramControlService>();
 
 // ---- ผูก Worker เป็น background service หลัก ----
 builder.Services.AddHostedService<Worker>();

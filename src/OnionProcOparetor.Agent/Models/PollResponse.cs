@@ -1,4 +1,4 @@
-namespace OnionProcOparetor.Agent.Models;
+﻿namespace OnionProcOparetor.Agent.Models;
 
 /// <summary>
 /// ผลลัพธ์จาก GET /api/poll/{clientGuid} ฝั่ง Server
@@ -15,4 +15,17 @@ public class PollResponse
 
     /// <summary>Command ที่ยังไม่ deliver ของเครื่องนี้ (fallback path คู่ขนานกับ SignalR ReceiveCommand)</summary>
     public List<PendingCommandDto> PendingCommands { get; set; } = new();
+
+    /// <summary>
+    /// เวอร์ชันปัจจุบันของ blocklist ฝั่ง Server (Program Control, 2026-08-31)
+    /// Agent เก็บไว้แล้วแนบกลับไปกับ poll รอบถัดไป
+    /// </summary>
+    public string? BlocklistVersion { get; set; }
+
+    /// <summary>
+    /// รายการ SHA-256 ที่ต้องบล็อก - null แปลว่า "เวอร์ชันเดิม ใช้รายการที่ถืออยู่ต่อ"
+    /// ไม่ใช่ "ไม่มีรายการเลย" (ดู ProgramControlService.ApplyBlocklist - ตีความสองอย่างนี้สลับกัน
+    /// จะกลายเป็นล้าง blocklist ทิ้งทุกรอบ poll)
+    /// </summary>
+    public List<string>? BlockedHashes { get; set; }
 }

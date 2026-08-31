@@ -65,14 +65,20 @@ public class ServerClient
     }
 
     /// <summary>ดึง rules + enabled state ล่าสุดจาก server คืน null ถ้าติดต่อไม่ได้</summary>
-    public async Task<PollResponse?> PollAsync(string clientGuid, string machineName, CancellationToken ct)
+    public async Task<PollResponse?> PollAsync(string clientGuid, string machineName, CancellationToken ct, string? blocklistVersion = null)
     {
         var baseUrl = ActiveBaseUrl;
         try
         {
             // ส่ง IsUsingFallback ไปด้วยทุกครั้ง - Server เก็บไว้ (ClientMachine.UsingFallback) ให้ Console
             // แสดงเป็น badge ว่าตอนนี้เครื่องนี้ต่อผ่าน LAN ปกติหรือ fallback (Tailscale) อยู่
-            var url = baseUrl.TrimEnd('/') + $"/api/poll/{clientGuid}?machineName={Uri.EscapeDataString(machineName)}&usingFallback={(IsUsingFallback ? "true" : "false")}";
+            // แนบเวอร์ชัน blocklist ที่ถืออยู่ไปด้วย - Server จะส่งรายการเต็มกลับมาเฉพาะตอนที่
+            // เปลี่ยนจริงเท่านั้น (ดู /api/poll ฝั่ง Server) ไม่งั้น 40 เครื่องจะลากรายการเดิมข้ามเน็ต
+            // ทุก 30 วินาทีโดยไม่มีอะไรต่างจากรอบก่อน
+            var blocklistParam = string.IsNullOrEmpty(blocklistVersion)
+                ? string.Empty
+                : $"&blocklistVersion={Uri.EscapeDataString(blocklistVersion)}";
+            var url = baseUrl.TrimEnd('/') + $"/api/poll/{clientGuid}?machineName={Uri.EscapeDataString(machineName)}&usingFallback={(IsUsingFallback ? "true" : "false")}{blocklistParam}";
             var response = await _httpClient.GetFromJsonAsync<PollResponse>(url, ct);
             return response;
         }
@@ -107,6 +113,32 @@ public class ServerClient
         {
             _logger.LogDebug(ex, "Probe primary ({PrimaryUrl}) ระหว่างใช้ fallback ยังไม่สำเร็จ", primaryBaseUrl);
             return false;
+        }
+    }
+
+    /// <summary>
+    /// ส่ง fingerprint ของโปรแกรมที่ยังไม่รู้จักไปให้ Server จำแนกเป็นชุด (2026-08-31)
+    /// คืน null ถ้าติดต่อไม่ได้ - ผู้เรียก (ProgramControlService) จะเอา hash กลับเข้าคิวเองเพื่อ
+    /// ลองใหม่รอบหน้า ไม่ใช่ทิ้งไปเงียบๆ
+    /// </summary>
+    public async Task<ClassifyResponse?> ClassifyProgramsAsync(List<ProgramFingerprintDto> programs, CancellationToken ct)
+    {
+        try
+        {
+            var url = ActiveBaseUrl.TrimEnd('/') + "/api/classify";
+            var response = await _httpClient.PostAsJsonAsync(url, new { programs }, ct);
+            if (!response.IsSuccessStatusCode)
+            {
+                _logger.LogWarning("ขอผลจำแนกโปรแกรมไม่สำเร็จ - Server ตอบ {StatusCode}", response.StatusCode);
+                return null;
+            }
+
+            return await response.Content.ReadFromJsonAsync<ClassifyResponse>(ct);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "ขอผลจำแนกโปรแกรมจาก Server ไม่สำเร็จ - จะลองใหม่ในรอบถัดไป");
+            return null;
         }
     }
 

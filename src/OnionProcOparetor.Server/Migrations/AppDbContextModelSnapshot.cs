@@ -253,6 +253,76 @@ namespace OnionProcOparetor.Server.Migrations
                     b.ToTable("LogEntries");
                 });
 
+            modelBuilder.Entity("OnionProcOparetor.Server.Models.ProgramVerdict", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("Action")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("Category")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("DecidedBy")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("FileName")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("FirstSeenAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("IsManual")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("IsSignedPublisher")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("LastSeenAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("LastSeenOnMachine")
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("OnlineLookupDone")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("OnlineMatchName")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ProductName")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Publisher")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ReasonsJson")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("Score")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Sha256")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("SightingCount")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Sha256")
+                        .IsUnique();
+
+                    b.HasIndex("Action", "SightingCount");
+
+                    b.ToTable("ProgramVerdicts");
+                });
+
             modelBuilder.Entity("OnionProcOparetor.Server.Models.Rule", b =>
                 {
                     b.Property<int>("Id")

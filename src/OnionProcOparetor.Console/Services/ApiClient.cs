@@ -1,4 +1,4 @@
-using System.Net.Http;
+﻿using System.Net.Http;
 using System.Net.Http.Json;
 using OnionProcOparetor.Console.Models;
 
@@ -117,6 +117,28 @@ public class ApiClient
         {
             return (false, "หมดเวลาเชื่อมต่อ (timeout)");
         }
+    }
+
+    // ---- Program Control (2026-08-31) - ดู ProgramReviewWindow ----
+
+    /// <summary>
+    /// ดึงคิวตรวจสอบ - filter: flagged (ค่าเริ่มต้น) / blocked / allowed / manual / all
+    /// ไม่ throw ถ้า deserialize ได้ null (เช่น server เวอร์ชันเก่าที่ยังไม่มี endpoint นี้ ตอบ 404
+    /// แล้ว GetFromJsonAsync โยน HttpRequestException) - ผู้เรียกจับ exception แสดงใน StatusText เอง
+    /// </summary>
+    public async Task<List<ProgramVerdictDto>> GetProgramVerdictsAsync(string filter = "flagged")
+    {
+        var result = await _httpClient.GetFromJsonAsync<List<ProgramVerdictDto>>(
+            $"/api/program-verdicts?filter={Uri.EscapeDataString(filter)}");
+        return result ?? new List<ProgramVerdictDto>();
+    }
+
+    /// <summary>ครูตัดสินโปรแกรมหนึ่งด้วยมือ - ทับผลของอัลกอริทึมถาวร (0=Allow, 1=Flag, 2=Block)</summary>
+    public async Task<bool> DecideProgramVerdictAsync(int verdictId, int action)
+    {
+        var response = await _httpClient.PostAsJsonAsync(
+            $"/api/program-verdicts/{verdictId}/decide", new { action });
+        return response.IsSuccessStatusCode;
     }
 
     public async Task<List<ClientMachineDto>> GetClientsAsync()

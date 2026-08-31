@@ -98,6 +98,14 @@ builder.Services.AddSingleton<LoginThrottle>();
 // singleton ได้เพราะไม่ถือ state ใดๆ เอง (อ่าน config + รับ ClientMachine เข้ามาเป็น argument)
 builder.Services.AddSingleton<AgentAuthenticator>();
 
+// ---- Program Control (2026-08-31) - จำแนกว่าโปรแกรมที่เจอเป็นเกม/ของไม่เหมาะสมหรือไม่ ----
+// OnlineGameLookup เป็น singleton เพราะถือ index ชื่อเกมจาก Steam ไว้ในหน่วยความจำ (หลักแสนรายการ)
+// ที่ต้องใช้ร่วมกันทุก request - ถ้าเป็น scoped จะโหลดใหม่ทุกครั้งที่มีเครื่องไหน poll เข้ามา
+builder.Services.AddHttpClient();
+builder.Services.AddSingleton<ProgramClassifier>();
+builder.Services.AddSingleton<OnlineGameLookup>();
+builder.Services.AddSingleton<ProgramVerdictService>();
+
 // ---- SignalR: real-time push คู่ขนานกับ HTTP polling เดิม (ไม่แทนที่ poll) ----
 builder.Services.AddSignalR();
 
@@ -625,7 +633,7 @@ app.MapPut("/api/clients/{id:int}/settings", async (int id, ClientSettingsReques
 // บน HTTP ธรรมดาทุกๆ 30 วินาที ใครที่อยู่ใน LAN เดียวกันเก็บ GUID ของทุกเครื่องได้ครบแล้วดึงกฎ
 // ทั้งชุดมาดูเพื่อหาทางเลี่ยง ตั้งแต่ 2026-08-31 ตรวจ agent secret เพิ่ม (ดู AgentAuthenticator -
 // โหมดบังคับใช้เปิด/ปิดด้วย config Security:RequireAgentSecret)
-app.MapGet("/api/poll/{clientGuid}", async (string clientGuid, string machineName, HttpContext httpContext, AppDbContext db, IHubContext<LabHub> hub, AgentConnectionRegistry connectionRegistry, AgentAuthenticator agentAuth, IActivityLogService activityLog, bool usingFallback = false) =>
+app.MapGet("/api/poll/{clientGuid}", async (string clientGuid, string machineName, HttpContext httpContext, AppDbContext db, IHubContext<LabHub> hub, AgentConnectionRegistry connectionRegistry, AgentAuthenticator agentAuth, IActivityLogService activityLog, bool usingFallback = false, string? blocklistVersion = null) =>
 {
     var client = await db.ClientMachines.FirstOrDefaultAsync(c => c.ClientGuid == clientGuid);
     var providedSecret = httpContext.Request.Headers[AgentAuthenticator.SecretHeaderName].ToString();
@@ -701,12 +709,38 @@ app.MapGet("/api/poll/{clientGuid}", async (string clientGuid, string machineNam
     client.HasEverConnectedViaSignalR = connectionRegistry.HasEverConnected(clientGuid);
     await hub.Clients.BroadcastClientStatus(client);
 
+    // ---- Blocklist ของ Program Control (2026-08-31) ----
+    // ส่งรายการ SHA-256 ที่ตัดสินแล้วว่า Block ไปกับ poll เลย แทนที่จะให้ Agent ถามทีละไฟล์:
+    // Agent จึงปิดโปรแกรมที่ "เคยเจอที่ไหนสักเครื่องในห้องแล้ว" ได้ทันทีที่เห็น โดยไม่ต้องรอ
+    // round trip ซึ่งเป็นช่วงเวลาที่เกมได้รันไปแล้วจริงๆ
+    //
+    // ส่งเฉพาะตอนที่เปลี่ยนจริง: Agent แนบ version ที่ตัวเองถืออยู่มาด้วย ถ้าตรงกันก็ส่ง null กลับไป
+    // แปลว่า "ใช้ของเดิมต่อ" - กันไม่ให้ทุก poll ของ 40 เครื่องลากรายการยาวๆ ข้ามเน็ตทุก 30 วิ
+    // โดยไม่มีอะไรเปลี่ยน (ใช้ MaxAsync ของ Id ร่วมกับจำนวนแถวเป็น version: ครอบคลุมทั้งการเพิ่ม
+    // แถวใหม่และการที่ครูเปลี่ยนคำตัดสินของแถวเดิม เพราะ...)
+    var blockedQuery = db.ProgramVerdicts.Where(v => v.Action == ProgramAction.Block);
+    var blockedCount = await blockedQuery.CountAsync();
+    var blockedMaxId = blockedCount == 0 ? 0 : await blockedQuery.MaxAsync(v => v.Id);
+
+    // ...การเปลี่ยนคำตัดสินของแถวเดิมทำให้ "จำนวนแถวที่เป็น Block" เปลี่ยนเสมอ (แถวหนึ่งเข้าหรือ
+    // ออกจากเซ็ต) ยกเว้นกรณีที่ครูสลับ 2 แถวพร้อมกันพอดีในรอบ poll เดียว ซึ่งจะตกไปรู้ในรอบถัดไป
+    // ที่มีอะไรเปลี่ยนอีก - ยอมรับได้ ไม่คุ้มกับการเก็บ column version แยกที่ต้องดูแลให้ตรงตลอด
+    var currentBlocklistVersion = $"{blockedCount}-{blockedMaxId}";
+
+    List<string>? blockedHashes = null;
+    if (!string.Equals(blocklistVersion, currentBlocklistVersion, StringComparison.Ordinal))
+    {
+        blockedHashes = await blockedQuery.Select(v => v.Sha256).ToListAsync();
+    }
+
     return Results.Ok(new
     {
         enabled = globalEnabled && client.IsEnabled,
         rules,
         pollIntervalOverrideSeconds = client.PollIntervalOverrideSeconds,
-        pendingCommands
+        pendingCommands,
+        blocklistVersion = currentBlocklistVersion,
+        blockedHashes
     });
 });
 
@@ -936,6 +970,118 @@ app.MapPost("/api/logs", async (
     db.LogEntries.Add(log);
     await db.SaveChangesAsync();
     return Results.Created($"/api/logs/{log.Id}", log);
+});
+
+// ======================= Program Control (2026-08-31) =======================
+// Agent ส่ง fingerprint ของโปรแกรมที่ยังไม่รู้จักมาให้จำแนก แล้วรับ action กลับไปบังคับใช้
+// ดู Services/ProgramClassifier.cs สำหรับหลักการของอัลกอริทึม และ Models/ProgramVerdict.cs
+// สำหรับเหตุผลที่ key ด้วย SHA-256 แทน path/ชื่อไฟล์
+app.MapPost("/api/classify", async (
+    ClassifyRequest req,
+    HttpRequest httpRequest,
+    AppDbContext db,
+    AgentAuthenticator agentAuth,
+    IActivityLogService activityLog,
+    ProgramVerdictService verdictService,
+    CancellationToken ct) =>
+{
+    var (allowed, client) = await agentAuth.AuthorizeByHeadersAsync(httpRequest, db, activityLog, "POST /api/classify");
+    if (!allowed)
+    {
+        return Results.Unauthorized();
+    }
+
+    if (req.Programs is null || req.Programs.Count == 0)
+    {
+        return Results.Ok(new { verdicts = new Dictionary<string, int>() });
+    }
+
+    // จำกัดจำนวนต่อ request - Agent ส่งมาเป็นชุดอยู่แล้ว (ดู ProgramControlService ฝั่ง Agent)
+    // แต่ endpoint นี้ต้องยืนหยัดเองได้โดยไม่พึ่งว่า client จะประพฤติดี
+    const int MaxProgramsPerRequest = 50;
+    var programs = req.Programs.Take(MaxProgramsPerRequest).ToList();
+
+    foreach (var program in programs)
+    {
+        program.MachineName ??= client?.MachineName;
+    }
+
+    var verdicts = await verdictService.ResolveAsync(db, programs, ct);
+    await db.SaveChangesAsync(ct);
+
+    return Results.Ok(new
+    {
+        // ส่งเป็นตัวเลขของ enum - Agent มี enum ชุดเดียวกันฝั่งตัวเอง
+        verdicts = verdicts.ToDictionary(kv => kv.Key, kv => (int)kv.Value)
+    });
+});
+
+// คิวตรวจสอบของครู - ค่า default คือ "เฉพาะที่ยังไม่มีคนตัดสิน" เรียงตามความถี่ที่เจอ
+app.MapGet("/api/program-verdicts", async (
+    HttpRequest request,
+    AppDbContext db,
+    string? filter = "flagged",
+    int take = 200) =>
+{
+    var admin = await GetAuthorizedAdmin(request, db);
+    if (admin is null)
+        return Results.Unauthorized();
+    if (admin.HasDefaultPassword)
+        return Results.Json(new { error = "Password change required before continuing." }, statusCode: 403);
+
+    var query = db.ProgramVerdicts.AsQueryable();
+
+    query = filter switch
+    {
+        // คิวงานจริงของครู: สิ่งที่อัลกอริทึมไม่มั่นใจพอจะตัดสินเอง และยังไม่มีใครตัดสินให้
+        "flagged" => query.Where(v => v.Action == ProgramAction.Flag && !v.IsManual),
+        "blocked" => query.Where(v => v.Action == ProgramAction.Block),
+        "allowed" => query.Where(v => v.Action == ProgramAction.Allow),
+        "manual" => query.Where(v => v.IsManual),
+        _ => query
+    };
+
+    var items = await query
+        .OrderByDescending(v => v.SightingCount)
+        .ThenByDescending(v => v.LastSeenAt)
+        .Take(Math.Clamp(take, 1, 1000))
+        .ToListAsync();
+
+    return Results.Ok(items);
+});
+
+// ครูตัดสินด้วยมือ - ทับผลของอัลกอริทึมถาวร (IsManual) มีผลกับทุกเครื่องในรอบ poll ถัดไป
+app.MapPost("/api/program-verdicts/{id:int}/decide", async (
+    int id,
+    ProgramDecisionRequest req,
+    HttpRequest request,
+    AppDbContext db,
+    IActivityLogService activityLog) =>
+{
+    var admin = await GetAuthorizedAdmin(request, db);
+    if (admin is null)
+        return Results.Unauthorized();
+    if (admin.HasDefaultPassword)
+        return Results.Json(new { error = "Password change required before continuing." }, statusCode: 403);
+
+    var verdict = await db.ProgramVerdicts.FindAsync(id);
+    if (verdict is null) return Results.NotFound();
+
+    if (!Enum.IsDefined(typeof(ProgramAction), req.Action))
+    {
+        return Results.BadRequest(new { error = "Unknown action." });
+    }
+
+    var previous = verdict.Action;
+    verdict.Action = (ProgramAction)req.Action;
+    verdict.IsManual = true;
+    verdict.DecidedBy = admin.Username;
+    await db.SaveChangesAsync();
+
+    await activityLog.LogAdminActionAsync(admin, "ProgramVerdictDecided",
+        $"{admin.Username} ตั้งค่าโปรแกรม '{verdict.FileName}' จาก {previous} เป็น {verdict.Action} (ทับผลของอัลกอริทึมถาวร)");
+
+    return Results.Ok(verdict);
 });
 
 // ---- Tamper report จาก agent-watchdog.ps1 (installer/CustomActions/) ----
@@ -1335,6 +1481,12 @@ record CommandRequest(string CommandType, string? Payload, string? BatchId = nul
 /// <summary>ผลจริงที่ Agent รายงานกลับมาหลัง process command เสร็จ</summary>
 record CommandResultRequest(bool Success, string? Message);
 record AgentUninstallAuthorizedRequest(string ClientGuid, string MachineName);
+
+/// <summary>Agent ส่ง fingerprint ของโปรแกรมที่ยังไม่รู้จักมาให้จำแนกเป็นชุด</summary>
+record ClassifyRequest(List<ProgramFingerprint>? Programs);
+
+/// <summary>ครูตัดสินโปรแกรมหนึ่งด้วยมือ - Action ตรงกับ enum ProgramAction (0=Allow, 1=Flag, 2=Block)</summary>
+record ProgramDecisionRequest(int Action);
 
 /// <summary>
 /// รายงานจาก agent-watchdog.ps1 ก่อนที่มันจะสั่ง reboot เครื่องตัวเอง
