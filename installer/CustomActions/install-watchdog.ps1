@@ -35,6 +35,7 @@ $ErrorActionPreference = 'Stop'
 
 $DataDir     = Join-Path $env:ProgramData 'OnionProcOparetor\Agent'
 $SecretPath  = Join-Path $DataDir 'wd.key'
+$AgentKeyPath = Join-Path $DataDir 'agent.key'
 $ConfigPath  = Join-Path $DataDir 'watchdog-config.json'
 $LogPath     = Join-Path $DataDir 'watchdog-install.log'
 $TaskName    = 'OnionProcOparetor Agent Watchdog'
@@ -78,6 +79,31 @@ else {
     # ascii + NoNewline เพราะฝั่ง C# กับ PowerShell อ่านกลับด้วย .Trim() ทั้งคู่ ต้องไม่มี BOM ปน
     [System.IO.File]::WriteAllText($SecretPath, [Convert]::ToBase64String($keyBytes), [System.Text.Encoding]::ASCII)
     Write-InstallLog "สร้าง wd.key ใหม่แล้ว"
+}
+
+# ---------------------------------------------------------------------------
+# 2.5) agent.key - ความลับที่ Agent ใช้พิสูจน์ตัวตนกับ Server (ดู AgentCredentials.cs)
+# ---------------------------------------------------------------------------
+# ต้องสร้าง "ตอนติดตั้ง" ที่นี่ ไม่ใช่ปล่อยให้ Agent สร้างเองตอนรันครั้งแรก - เพราะเครื่อง lab
+# ทุกเครื่องมี Reboot Restore Rx (disk freeze): ไฟล์ที่ถูกสร้างตอน runtime อยู่นอก baseline
+# และจะหายทุกครั้งที่ reboot ผลคือ Agent จะสุ่ม secret ใหม่ทุกครั้งที่บูต แล้ว Server จะเห็นเป็น
+# Mismatch ตลอดเวลา (และเมื่อเปิด Security:RequireAgentSecret เครื่องนั้นจะหลุดจากระบบทันที
+# ทุกครั้งที่บูต) - สร้างที่นี่แปลว่าไฟล์อยู่ในสถานะที่ถูก commit เข้า baseline ไปพร้อมกับตัวโปรแกรม
+#
+# เดิม AgentCredentials ก็ยังสร้างเองได้อยู่ถ้าไม่เจอไฟล์ (ยังเก็บไว้เป็น fallback) แต่ทางนั้นจะ
+# ทำงานถูกต้องก็ต่อเมื่อ Agent บังเอิญได้รันก่อน commit baseline พอดี ซึ่งเป็นเรื่องบังเอิญ
+# ไม่ใช่การรับประกัน - ตรงนี้ทำให้เป็นการรับประกัน
+#
+# ไม่สร้างทับของเดิมด้วยเหตุผลเดียวกับ wd.key: ทับแล้ว Server จะเห็นเป็นคนละเครื่องทันที
+if (Test-Path $AgentKeyPath) {
+    Write-InstallLog "agent.key มีอยู่แล้ว - ไม่สร้างทับ (ทับแล้ว Server จะเห็น secret ไม่ตรงกับที่ enroll ไว้)"
+}
+else {
+    $agentKeyBytes = New-Object byte[] 32
+    $rng2 = [System.Security.Cryptography.RandomNumberGenerator]::Create()
+    try { $rng2.GetBytes($agentKeyBytes) } finally { $rng2.Dispose() }
+    [System.IO.File]::WriteAllText($AgentKeyPath, [Convert]::ToBase64String($agentKeyBytes), [System.Text.Encoding]::ASCII)
+    Write-InstallLog "สร้าง agent.key ใหม่แล้ว"
 }
 
 # ---------------------------------------------------------------------------

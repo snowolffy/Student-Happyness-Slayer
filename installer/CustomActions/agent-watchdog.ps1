@@ -62,8 +62,14 @@ $Config = [ordered]@{
     # SOFT condition ต้องเจอติดกันกี่รอบถึงจะ reboot (รอบละ ~1 นาทีตาม trigger ของ task)
     SoftHitsBeforeReboot      = 2
 
-    # เพดานกัน reboot loop: ห้าม reboot เพราะ tamper เกินกี่ครั้งใน 24 ชม.
-    MaxRebootsPer24h          = 3
+    # ---- กัน reboot loop บนเครื่องที่มี disk-freeze (Reboot Restore Rx) ----
+    # เดิมใช้ตัวนับ "reboot ได้ไม่เกิน 3 ครั้งต่อ 24 ชม." ที่เก็บใน watchdog-state.json ซึ่ง
+    # "ใช้ไม่ได้เลย" บนเครื่อง lab: ไฟล์นั้นถูกเขียนตอน runtime = อยู่นอก baseline = หายทุก reboot
+    # ตัวนับจึงกลับเป็น 0 ทุกครั้งที่บูต และไม่มีวันแตะเพดาน (ดู REBOOT-LOOP ในหัวข้อ MAIN)
+    #
+    # แทนด้วยเงื่อนไข "ต้องเคยเห็น Agent ปกติต่อเนื่องอย่างน้อยเท่านี้ในรอบบูตนี้ ถึงจะ reboot ได้"
+    # ซึ่งวัดจากข้อมูลภายในรอบบูตเดียว ไม่ต้องพึ่งอะไรที่ข้าม reboot ได้เลย
+    MinHealthySecondsBeforeArming = 120
 
     # ให้เวลา Server รับ tamper report ก่อน reboot (วินาที)
     ReportTimeoutSeconds      = 4
@@ -178,15 +184,38 @@ function Test-SignedDocument {
 # ---------------------------------------------------------------------------
 # State (นับ soft hit ติดกัน + ประวัติ reboot สำหรับเพดานกัน loop)
 # ---------------------------------------------------------------------------
-function Read-WdState {
-    $default = [PSCustomObject]@{ softHits = 0; reboots = @() }
-    if (-not (Test-Path $StatePath)) { return $default }
+function New-WdSessionState([string]$BootId) {
+    return [PSCustomObject]@{
+        bootId        = $BootId
+        firstHealthy  = $null   # ครั้งแรกในรอบบูตนี้ที่เห็นว่า Agent ปกติ
+        lastHealthy   = $null   # ครั้งล่าสุดที่เห็นว่าปกติ
+        softHits      = 0
+    }
+}
+
+<#
+  state ทั้งหมดเป็น "ต่อรอบบูต" เท่านั้น - ผูกกับ bootId (เวลาบูตล่าสุดของ OS)
+  ถ้า bootId ไม่ตรง แปลว่าเป็นคนละรอบบูต ให้เริ่มนับใหม่หมด
+
+  จงใจไม่มีอะไรที่ต้อง "ข้าม reboot" ให้ได้เลยสักอย่าง เพราะบนเครื่อง lab ที่มี disk-freeze
+  ไม่มีไฟล์ไหนข้าม reboot ได้จริง (ยกเว้นของที่อยู่ใน baseline ตั้งแต่ตอนติดตั้ง) - การออกแบบ
+  ให้ logic ขึ้นกับ state ข้าม reboot จึงเป็นบั๊กที่มองไม่เห็นบนเครื่อง dev แต่พังเงียบๆ ในห้องจริง
+#>
+function Read-WdState([string]$BootId) {
+    if (-not (Test-Path $StatePath)) { return (New-WdSessionState $BootId) }
     try {
         $s = Get-Content -Raw -Encoding utf8 -Path $StatePath | ConvertFrom-Json
-        if ($null -eq $s.softHits) { $s | Add-Member -NotePropertyName softHits -NotePropertyValue 0 -Force }
-        if ($null -eq $s.reboots)  { $s | Add-Member -NotePropertyName reboots  -NotePropertyValue @() -Force }
+        if ($s.bootId -ne $BootId) {
+            Write-WdLog "พบ state ของรอบบูตก่อน (bootId ไม่ตรง) - เริ่มนับใหม่สำหรับรอบบูตนี้"
+            return (New-WdSessionState $BootId)
+        }
+        foreach ($prop in @('firstHealthy','lastHealthy','softHits')) {
+            if ($null -eq $s.PSObject.Properties[$prop]) {
+                $s | Add-Member -NotePropertyName $prop -NotePropertyValue $(if ($prop -eq 'softHits') { 0 } else { $null }) -Force
+            }
+        }
         return $s
-    } catch { return $default }
+    } catch { return (New-WdSessionState $BootId) }
 }
 
 function Write-WdState {
@@ -329,6 +358,37 @@ function Send-TamperReport {
 }
 
 # ---------------------------------------------------------------------------
+# พยายามซ่อมเองแทนการ reboot - ใช้เฉพาะเส้นทางที่ตัดสินแล้วว่า "reboot ไปก็ไม่ช่วย"
+# (baseline พัง / ถูกฆ่าซ้ำทุกบูต) การลอง start service ตรงๆ ราคาถูกและบางครั้งได้ผลจริง
+# เช่นกรณี service ล้มตอนบูตเพราะเครือข่าย/ดิสก์ยังไม่พร้อม แล้ว recovery action ของ SCM
+# ใช้โควตาหมดไปแล้ว
+#
+# จงใจไม่เรียกในเส้นทางปกติที่จะ reboot: โจทย์ที่ตั้งไว้คือ "ถูกลบผิดวิธี = restart เครื่องทันที"
+# ไม่ใช่ "พยายามแอบสตาร์ทกลับมาเงียบๆ" ซึ่งจะทำให้นักเรียนลองใหม่ได้เรื่อยๆ โดยไม่มีผลอะไร
+# ---------------------------------------------------------------------------
+function Try-SelfHeal {
+    try {
+        $svc = Get-Service -Name $ServiceName -ErrorAction SilentlyContinue
+        if ($null -eq $svc) {
+            Write-WdLog "ไม่มี service ให้สตาร์ท - ข้ามการซ่อมเอง (ต้องติดตั้งใหม่/แก้ baseline)"
+            return
+        }
+
+        if ($svc.StartMode -ne 'Auto') {
+            & sc.exe config $ServiceName start= auto | Out-Null
+            Write-WdLog "ตั้ง StartMode กลับเป็น Auto แล้ว"
+        }
+
+        if ($svc.Status -ne 'Running') {
+            Write-WdLog "กำลังลองสตาร์ท service เอง (แทนการ reboot ที่จะวนไม่จบ)"
+            & sc.exe start $ServiceName | Out-Null
+        }
+    } catch {
+        Write-WdLog "ซ่อมเองไม่สำเร็จ: $($_.Exception.Message)" 'WARN'
+    }
+}
+
+# ---------------------------------------------------------------------------
 # MAIN
 # ---------------------------------------------------------------------------
 try {
@@ -341,29 +401,40 @@ try {
         return
     }
 
+    # bootId = เวลาบูตล่าสุดของ OS - ใช้ผูก state ให้อยู่ในรอบบูตเดียวเท่านั้น
+    $lastBoot = (Get-CimInstance Win32_OperatingSystem).LastBootUpTime
+    $bootId = $lastBoot.ToUniversalTime().ToString('o')
+    $uptime = ([DateTime]::Now - $lastBoot).TotalSeconds
+
     # (ข) กำลังอยู่ในช่วง maintenance ที่ได้รับอนุญาต (install/upgrade/uninstall ที่ถูกต้อง)
     if (Test-SignedDocument -Path $TicketPath) {
         Write-WdLog "อยู่ในช่วง maintenance ticket ที่ยังไม่หมดอายุ - ข้ามการตรวจรอบนี้"
-        $st = Read-WdState; $st.softHits = 0; Write-WdState $st
+        $st = Read-WdState $bootId; $st.softHits = 0; Write-WdState $st
         return
     }
 
-    # (ค) เครื่องเพิ่งบูต - ให้เวลา service สตาร์ทก่อน (กัน reboot loop ตอนบูต)
-    $uptime = ([DateTime]::Now - (Get-CimInstance Win32_OperatingSystem).LastBootUpTime).TotalSeconds
+    # (ค) เครื่องเพิ่งบูต - ให้เวลา service สตาร์ทก่อน
     if ($uptime -lt $Config.MinUptimeSeconds) {
         Write-WdLog ("เครื่องเพิ่งบูตมา {0:N0} วินาที (< {1}) - ข้ามการตรวจรอบนี้" -f $uptime, $Config.MinUptimeSeconds)
         return
     }
 
-    $state = Read-WdState
+    $state = Read-WdState $bootId
     $findings = Get-TamperFindings
+    $now = [DateTime]::UtcNow
 
+    # ---- ปกติดี: บันทึกว่า "เคยเห็น Agent ทำงานอยู่จริงในรอบบูตนี้" ----
     if ($findings.Count -eq 0) {
+        if ($null -eq $state.firstHealthy) {
+            $state.firstHealthy = $now.ToString('o')
+            Write-WdLog "เห็น Agent ทำงานปกติครั้งแรกของรอบบูตนี้ - เริ่มนับเวลาเพื่อ arm การ reboot"
+        }
+        $state.lastHealthy = $now.ToString('o')
         if ($state.softHits -ne 0) {
             Write-WdLog "ทุกอย่างกลับมาปกติ - reset ตัวนับ soft hit จาก $($state.softHits) เป็น 0"
             $state.softHits = 0
-            Write-WdState $state
         }
+        Write-WdState $state
         return
     }
 
@@ -379,33 +450,58 @@ try {
         $state.softHits = [int]$state.softHits + 1
         Write-WdLog "พบความผิดปกติระดับ SOFT (ครั้งที่ $($state.softHits)/$($Config.SoftHitsBeforeReboot)) - $summary" 'WARN'
         if ($state.softHits -ge $Config.SoftHitsBeforeReboot) { $shouldReboot = $true }
-        Write-WdState $state
     }
+    Write-WdState $state
 
     if (-not $shouldReboot) { return }
 
-    # --- เพดานกัน reboot loop ---
-    # ถ้า restore ไม่ได้เอา Agent กลับมา (เช่นถูกลบตอน RRRx อยู่ในโหมด update) การ reboot
-    # ซ้ำจะกลายเป็น loop ที่ทำให้เครื่องใช้งานไม่ได้เลย - แย่กว่าปัญหาเดิมมาก จึงต้องมีเพดาน
-    $cutoff = [DateTime]::UtcNow.AddHours(-24)
-    $recent = @(@($state.reboots) | Where-Object { $_ -and $_.utc -and ((ConvertFrom-Iso8601Utc $_.utc) -gt $cutoff) })
+    # =========================================================================
+    # REBOOT-LOOP: กันวนบูตไม่จบ บนเครื่องที่มี disk-freeze
+    # =========================================================================
+    # เครื่อง lab ทุกเครื่องมี Reboot Restore Rx = ทุกอย่างที่เขียนลงดิสก์หลัง baseline หายทุก reboot
+    # ตัวนับ "reboot ได้ไม่เกิน N ครั้งต่อ 24 ชม." แบบเดิมจึงไร้ผลโดยสิ้นเชิง (ไฟล์ที่เก็บตัวนับหาย
+    # ไปพร้อมกับ reboot ที่มันควรจะนับ) - ต้องตัดสินจากข้อมูลภายในรอบบูตเดียวเท่านั้น
+    #
+    # ใช้หลักว่า "การ reboot จะช่วยได้ก็ต่อเมื่อ baseline ที่จะถูก restore กลับมานั้นดีอยู่" ซึ่ง
+    # พิสูจน์ได้ทางเดียวคือ เราเคยเห็นมันดีมาแล้วในรอบบูตนี้:
+    #
+    #   ไม่เคยเห็นปกติเลยตั้งแต่บูต -> baseline เองมีปัญหา (เช่น commit ตอน service พังอยู่)
+    #                                  reboot ก็ได้ของพังกลับมาเหมือนเดิม = วนไม่จบ -> ห้าม reboot
+    #   เคยปกติแต่สั้นเกินไป        -> มีอะไรฆ่า Agent ทุกครั้งที่บูต (เช่น startup script ของนักเรียน)
+    #                                  reboot ก็เจอเหมือนเดิม = วนไม่จบ -> ห้าม reboot
+    #   เคยปกติต่อเนื่องนานพอ       -> เพิ่งมีคนมายุ่งระหว่างใช้งาน = reboot แล้วหายจริง -> reboot
+    #
+    # เกณฑ์นี้แยก "นักเรียนหยุด service กลางคาบ" (ปกติมานาน -> reboot) ออกจาก "เครื่องพังตั้งแต่บูต"
+    # (ไม่เคยปกติ -> ไม่ reboot แต่ส่งเสียงดัง) ได้ตรงตามที่ต้องการ โดยไม่ต้องพึ่ง state ข้าม reboot เลย
+    $healthySeconds = 0
+    if ($null -ne $state.firstHealthy -and $null -ne $state.lastHealthy) {
+        $healthySeconds = ((ConvertFrom-Iso8601Utc $state.lastHealthy) - (ConvertFrom-Iso8601Utc $state.firstHealthy)).TotalSeconds
+    }
 
-    if ($recent.Count -ge $Config.MaxRebootsPer24h) {
-        $msg = "ตรวจพบ tamper ($summary) แต่ reboot ไปแล้ว $($recent.Count) ครั้งใน 24 ชม. (เพดาน $($Config.MaxRebootsPer24h)) - หยุด reboot เพื่อกัน boot loop เครื่องนี้ต้องให้คนไปดูด้วยตัวเอง"
+    if ($null -eq $state.firstHealthy) {
+        $msg = "ตรวจพบความผิดปกติ ($summary) แต่ไม่เคยเห็น Agent ทำงานปกติเลยตั้งแต่เครื่องบูต - แปลว่าปัญหาอยู่ที่ baseline เอง การ reboot จะได้ของเดิมกลับมาและวนไม่จบ จึงไม่ reboot ต้องให้คนไปแก้ baseline ของเครื่องนี้"
         Write-WdLog $msg 'ALERT'
         Write-WdEvent -Message $msg -EventId 9003 -EntryType 'Error'
-        Send-TamperReport -Reason 'TAMPER_REBOOT_SUPPRESSED' -Detail $summary
+        Send-TamperReport -Reason 'BASELINE_UNHEALTHY' -Detail $summary
+        Try-SelfHeal
+        return
+    }
+
+    if ($healthySeconds -lt $Config.MinHealthySecondsBeforeArming) {
+        $msg = ("ตรวจพบความผิดปกติ ($summary) แต่ Agent เพิ่งทำงานปกติได้แค่ {0:N0} วินาทีในรอบบูตนี้ (ต้องได้ {1} วินาที) - มีอะไรฆ่ามันทุกครั้งที่บูต การ reboot จะวนไม่จบ จึงไม่ reboot" -f $healthySeconds, $Config.MinHealthySecondsBeforeArming)
+        Write-WdLog $msg 'ALERT'
+        Write-WdEvent -Message $msg -EventId 9003 -EntryType 'Error'
+        Send-TamperReport -Reason 'REBOOT_NOT_ARMED' -Detail $summary
+        Try-SelfHeal
         return
     }
 
     $reasonCode = if ($hard.Count -gt 0) { $hard[0].Code } else { @($findings)[0].Code }
-    $msg = "TAMPER DETECTED - $summary. กำลังจะ restart เครื่องภายใน $($Config.RebootDelaySeconds) วินาที (reboot ครั้งที่ $($recent.Count + 1) ใน 24 ชม.)"
+    $msg = ("TAMPER DETECTED - $summary. Agent ทำงานปกติมาแล้ว {0:N0} วินาทีในรอบบูตนี้ก่อนจะผิดปกติ - กำลังจะ restart เครื่องภายใน {1} วินาที" -f $healthySeconds, $Config.RebootDelaySeconds)
     Write-WdLog $msg 'ALERT'
     Write-WdEvent -Message $msg -EventId 9002 -EntryType 'Error'
     Send-TamperReport -Reason $reasonCode -Detail $summary
 
-    $recent += ,([PSCustomObject]@{ utc = [DateTime]::UtcNow.ToString('o'); reason = $reasonCode })
-    $state.reboots  = $recent
     $state.softHits = 0
     Write-WdState $state
 

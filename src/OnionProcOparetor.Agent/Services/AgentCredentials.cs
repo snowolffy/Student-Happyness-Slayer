@@ -1,4 +1,4 @@
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using System.Security.Cryptography;
 
 namespace OnionProcOparetor.Agent.Services;
@@ -18,6 +18,11 @@ namespace OnionProcOparetor.Agent.Services;
 /// วิธีแก้: ความลับ 32 ไบต์ที่สุ่มขึ้นบนเครื่องเอง ไม่เคยเดินทางในรูปแบบที่ใช้ซ้ำได้จาก URL และ
 /// เก็บในโฟลเดอร์ที่ ACL ตัดกลุ่ม Users ออกแล้ว (โฟลเดอร์เดียวกับ wd.key ของ tamper watchdog)
 ///
+/// <b>ข้อควรระวังเรื่อง disk freeze:</b> เครื่อง lab ทุกเครื่องมี Reboot Restore Rx ไฟล์ที่เขียน
+/// ตอน runtime จะหายทุก reboot - agent.key จึงต้องถูกสร้างตอน "ติดตั้ง" (install-watchdog.ps1)
+/// เพื่อให้ติดไปกับ baseline ไม่ใช่ปล่อยให้คลาสนี้สร้างเองตอนรันครั้งแรก การสร้างเองยังคงอยู่
+/// เป็น fallback แต่ถ้าเกิดขึ้นจริงบนเครื่อง lab แปลว่ามีอะไรผิด (ดู WasGeneratedAtRuntime)
+///
 /// ข้อจำกัดที่ยอมรับตรงๆ: ระบบยังเป็น HTTP ล้วน ความลับนี้จึงเดินทางเป็น plaintext ใน header
 /// เหมือนกัน คนที่ดักอ่าน traffic ได้ยังขโมยไปใช้ได้อยู่ - สิ่งที่แก้ได้จริงคือ "รู้ GUID ของเครื่อง
 /// อื่นแล้วปลอมเป็นเครื่องนั้นได้ทันที" ซึ่งเป็นระดับที่นักเรียนทำได้ง่ายกว่าการดัก packet มาก
@@ -35,6 +40,16 @@ public static class AgentCredentials
     public const string GuidHeaderName = "X-Agent-Guid";
 
     public static string Secret => LazySecret.Value;
+
+    /// <summary>
+    /// true = ต้องสร้าง secret ขึ้นมาเองตอน runtime เพราะหาไฟล์ไม่เจอ
+    ///
+    /// บนเครื่อง lab ที่มี Reboot Restore Rx ค่านี้เป็น true คือ "สัญญาณเตือน" ไม่ใช่เรื่องปกติ:
+    /// agent.key ควรถูกสร้างตอนติดตั้งโดย install-watchdog.ps1 แล้วติดไปกับ baseline
+    /// ถ้าต้องมาสร้างเองตอน runtime แปลว่าไฟล์นั้นอยู่นอก baseline = จะหายทุก reboot = Server
+    /// จะเห็น secret ไม่ตรงทุกครั้งที่บูต (ดู TamperProtectionService ที่ log เตือนเรื่องนี้)
+    /// </summary>
+    public static bool WasGeneratedAtRuntime { get; private set; }
 
     private static string GetKeyPath() => Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData),
@@ -61,6 +76,9 @@ public static class AgentCredentials
             // secret ไม่ตรงกับที่ enroll ไว้ ซึ่งครูแก้ได้จาก Console (re-enroll เครื่องนั้น)
         }
 
+        // มาถึงตรงนี้ = install-watchdog.ps1 ไม่ได้สร้าง agent.key ไว้ให้ (หรือมันหายไปแล้ว)
+        // ยังสร้างเองได้เพื่อไม่ให้ Agent ใช้งานไม่ได้เลย แต่ต้องมีคนรู้ - ดู WasGeneratedAtRuntime
+        WasGeneratedAtRuntime = true;
         var secret = Convert.ToBase64String(RandomNumberGenerator.GetBytes(32));
 
         try

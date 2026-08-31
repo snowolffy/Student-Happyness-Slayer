@@ -1,4 +1,4 @@
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using System.Text.Json;
 
 namespace OnionProcOparetor.Agent.Services;
@@ -52,6 +52,17 @@ public sealed class TamperProtectionService : BackgroundService
     {
         _logger.LogInformation("TamperProtectionService เริ่มทำงาน - heartbeat ทุก {Hb} วิ, ตรวจ watchdog task ทุก {Task} วิ",
             HeartbeatIntervalSeconds, TaskCheckIntervalSeconds);
+
+        // เตือนดังๆ ถ้า agent.key ไม่ได้มาจากตอนติดตั้ง - บนเครื่องที่มี disk freeze นี่แปลว่าไฟล์
+        // อยู่นอก baseline และจะถูกสร้างใหม่ทุก reboot ทำให้ Server เห็น secret ไม่ตรงตลอดไป
+        // (อาการที่จะเห็นคือ AgentSecretMismatch ใน Activity Log ทุกครั้งที่เครื่องบูต)
+        if (AgentCredentials.WasGeneratedAtRuntime)
+        {
+            _logger.LogWarning(
+                "agent.key ถูกสร้างขึ้นใหม่ตอน runtime (ไม่ได้ถูกสร้างตอนติดตั้ง) - ถ้าเครื่องนี้มี disk freeze " +
+                "ไฟล์นี้จะหายทุก reboot และ Server จะเห็น agent secret ไม่ตรงทุกครั้ง " +
+                "แก้โดยรัน install-watchdog.ps1 ใหม่ตอนที่ freeze ปิดอยู่ แล้ว commit baseline ใหม่");
+        }
 
         // เช็ค task ทันทีตั้งแต่รอบแรก ไม่ต้องรอครบ interval - ครอบคลุมกรณีที่ CustomAction ตอน
         // ติดตั้งล้มเหลวเงียบๆ (Return="ignore") แล้วเครื่องนั้นจะไม่มี watchdog เลยตลอดกาล
