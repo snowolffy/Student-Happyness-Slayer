@@ -1,4 +1,4 @@
-# รันหลัง OnionAgent's files ถูกคัดลอกเสร็จแล้ว (deferred CA, sequence After="InstallServices" -
+﻿# รันหลัง OnionAgent's files ถูกคัดลอกเสร็จแล้ว (deferred CA, sequence After="InstallServices" -
 # WiX's declarative <ServiceInstall> ใน AgentExeComponent สร้าง service ไปแล้วตอนนั้น, ยังไม่ start)
 # ทำหน้าที่เดียวกับ CurStepChanged(ssPostInstall) เดิมใน OnionProcOparetor.iss ที่เหลือ: patch
 # BaseUrl ใน appsettings.json ทั้ง 2 ไฟล์, ตั้ง recovery, แล้วค่อย start เป็นลำดับสุดท้าย - ต้องเรียง
@@ -96,6 +96,26 @@ if ($UninstallPassword.Trim() -ne "") {
     $guardPath = Join-Path $InstallDir "uninstall-guard.json"
     ($guard | ConvertTo-Json -Compress) | Set-Content -Path $guardPath -Encoding utf8 -NoNewline
     Write-Log "Uninstall guard written: $guardPath"
+}
+
+# 4) ติดตั้ง tamper watchdog (Scheduled Task + wd.key + ACL) - ต้องทำ "หลัง" sc start เพราะ
+#    watchdog เริ่มตรวจทันทีที่ลงทะเบียนเสร็จ ถ้าลงก่อน start มันอาจเจอ SERVICE_NOT_RUNNING
+#    ตั้งแต่รอบแรก (ซึ่ง maintenance ticket ที่ MSI ออกไว้กันอยู่แล้ว แต่ไม่มีเหตุผลจะเสี่ยง)
+$watchdogScript = Join-Path $InstallDir "CustomActions\install-watchdog.ps1"
+if (Test-Path $watchdogScript) {
+    try {
+        & powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $watchdogScript -InstallDir $InstallDir 2>&1 |
+            ForEach-Object { Write-Log "watchdog: $_" }
+        Write-Log "install-watchdog.ps1 exit code: $LASTEXITCODE"
+    }
+    catch {
+        # ไม่ hard-fail ทั้ง install เพราะ watchdog ล้มเหลว - Agent เองจะพยายามสร้าง task ซ้ำ
+        # ทุก 1 นาทีอยู่แล้ว (TamperProtectionService) ให้โอกาสมันซ่อมเองดีกว่า block การติดตั้ง
+        Write-Log "เรียก install-watchdog.ps1 ไม่สำเร็จ: $($_.Exception.Message) - Agent จะพยายามสร้าง task เองภายหลัง"
+    }
+}
+else {
+    Write-Log "ไม่พบ $watchdogScript - ข้ามการติดตั้ง watchdog"
 }
 
 Write-Log "==== setup-client.ps1 done ===="

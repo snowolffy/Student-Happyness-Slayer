@@ -1,4 +1,4 @@
-# Headless (no UI/desktop dependency) - runs very early in InstallExecuteSequence, Before=
+﻿# Headless (no UI/desktop dependency) - runs very early in InstallExecuteSequence, Before=
 # AppSearch, on BOTH install and uninstall. MSI uninstalls normally run at UILevel=3 (basic)
 # where InstallExecuteSequence executes entirely inside the elevated engine process with no
 # desktop/window-station access - a WinForms popup here always fails (see git history: the

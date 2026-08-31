@@ -121,6 +121,13 @@ builder.Services.AddWindowsService();
 // ---- ผูก Worker เป็น background service หลัก ----
 builder.Services.AddHostedService<Worker>();
 
+// ---- Tamper protection (2026-08-31) ----
+// เขียน heartbeat ให้ agent-watchdog.ps1 อ่าน + สร้าง Scheduled Task ของ watchdog คืนถ้าถูกลบ
+// เป็น hosted service แยกจาก Worker โดยตั้งใจ: ถ้า Worker ตายเพราะบั๊กใดๆ heartbeat ต้องหยุด
+// ตามไปด้วยเพื่อให้ watchdog เห็นและ reboot - ถ้ารวมไว้ใน Worker เดียวกันก็ยังได้ผลเหมือนกัน
+// แต่แยกไว้ทำให้ทั้ง 2 เรื่องอ่านแยกกันได้ และปิดตัวใดตัวหนึ่งตอน debug ได้โดยไม่กระทบอีกตัว
+builder.Services.AddHostedService<TamperProtectionService>();
+
 var app = builder.Build();
 
 StartupDiagnostics.WriteLine("Host build เสร็จแล้ว กำลัง Run()...");

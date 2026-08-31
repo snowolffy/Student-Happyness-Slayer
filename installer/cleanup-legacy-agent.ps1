@@ -51,6 +51,26 @@ $installFolder = "C:\Program Files\Onion ProcOparetor Agent"
 $guardPath = Join-Path $installFolder "uninstall-guard.json"
 $anyActionTaken = $false
 
+# ---- ขั้น 0 (เพิ่ม 2026-08-31): บอก tamper watchdog ให้หยุดทำงานก่อนแตะอะไรทั้งสิ้น ----
+# ตั้งแต่มี agent-watchdog.ps1 การลบ service/ไฟล์ Agent โดยไม่มี ticket = เครื่อง reboot ทันที
+# ซึ่งจะทำให้สคริปต์นี้ (ที่ตั้งใจให้ push ผ่าน endpoint manager แบบไม่ต้องดูทีละเครื่อง) กลาย
+# เป็นตัวสั่ง reboot ทั้งห้องพร้อมกันกลางคาบ - ต้องออก decommission marker ก่อนเสมอ
+# เงียบๆ ข้ามไปถ้าเครื่องนั้นเป็น build เก่าที่ยังไม่มีสคริปต์นี้ (ซึ่งเป็นเคสหลักของสคริปต์นี้อยู่แล้ว)
+$ticketScript = Join-Path $installFolder "CustomActions\maintenance-ticket.ps1"
+if (Test-Path $ticketScript) {
+    Write-Log "พบ maintenance-ticket.ps1 - ออก decommission marker + ถอน watchdog task ก่อนเริ่มลบ"
+    try {
+        & powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $ticketScript -Action Decommission 2>&1 |
+            ForEach-Object { Write-Log "ticket: $_" }
+    }
+    catch {
+        Write-Log "เรียก maintenance-ticket.ps1 ไม่สำเร็จ: $($_.Exception.Message) - เครื่องนี้อาจ reboot ตัวเองหลังลบ Agent เสร็จ"
+    }
+}
+else {
+    Write-Log "ไม่พบ maintenance-ticket.ps1 (build เก่าที่ยังไม่มี tamper watchdog) - ข้าม"
+}
+
 # ---- ขั้น 1: ลบ guard file กันถูกถามรหัสผ่าน (เหมือนเดิมกับเครื่องที่ไม่เคยตั้งรหัสไว้เลย - ดู
 # CustomActions\check-uninstall-password.ps1: ไม่มี guard = ไม่มี gate) ----
 if (Test-Path $guardPath) {

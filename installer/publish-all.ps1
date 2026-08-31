@@ -1,4 +1,4 @@
-# Publish ทั้ง 5 โปรเจกต์ของ OnionProcOparetor ลง ..\publish\<ProjectName>\ (path ที่ทั้ง 2 .wxs's
+﻿# Publish ทั้ง 5 โปรเจกต์ของ OnionProcOparetor ลง ..\publish\<ProjectName>\ (path ที่ทั้ง 2 .wxs's
 # <Files Include=...> คาดหวังไว้พอดี) แล้ว compile installer 2 ตัวแยกกันผ่าน wix build ต่อให้อัตโนมัติ:
 # OnionProcOparetor-Agent-Setup.msi (Client Agent เท่านั้น - เครื่อง lab นักเรียน) และ
 # OnionProcOparetor-Server-Console-Setup.msi (Server+Console เท่านั้น - เครื่องครู/admin) แทนที่ MSI

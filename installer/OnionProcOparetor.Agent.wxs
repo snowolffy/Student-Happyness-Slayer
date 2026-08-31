@@ -249,6 +249,19 @@
            runs, referenced only via [#InstallTailscaleDeferredPs1] passed as an argument to
            schedule-tailscale-install.ps1 above. -->
       <File Id="InstallTailscaleDeferredPs1" Source="CustomActions\install-tailscale-deferred.ps1" />
+
+      <!-- ==================== Tamper protection (2026-08-31) ====================
+           agent-watchdog.ps1 is what the Scheduled Task actually runs every minute; it is never
+           invoked by a CustomAction here, only shipped so the task has something to point at.
+           install-watchdog.ps1 registers that task - called from setup-client.ps1 at install time
+           AND re-called by the Agent service itself (TamperProtectionService) whenever the task
+           goes missing, which is the whole point: killing the service and deleting the task both
+           have to succeed, at the same time, for the protection to actually come off.
+           maintenance-ticket.ps1 is the only sanctioned way to make the Agent disappear without
+           the watchdog rebooting the machine - see the IssueMaintenanceTicket CA below. -->
+      <File Id="AgentWatchdogPs1" Source="CustomActions\agent-watchdog.ps1" />
+      <File Id="InstallWatchdogPs1" Source="CustomActions\install-watchdog.ps1" />
+      <File Id="MaintenanceTicketPs1" Source="CustomActions\maintenance-ticket.ps1" />
     </Component>
 
     <!-- ==================== Custom Actions ==================== -->
@@ -336,6 +349,40 @@
     <CustomAction Id="DeleteRegRunKey" Directory="INSTALLFOLDER" Execute="immediate" Return="ignore"
       ExeCommand="powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -WindowStyle Hidden -File &quot;[#DeleteRegRunKeyPs1]&quot;" />
 
+    <!-- ==================== Tamper watchdog lifecycle ====================
+         The watchdog reboots the machine within ~1 minute of the OnionAgent service or its .exe
+         disappearing. Every legitimate MSI transaction makes exactly that happen for a while
+         (upgrade replaces the .exe, uninstall deletes it), so all three of them have to be
+         announced to the watchdog first or the install itself would trigger a reboot.
+
+         IssueMaintenanceTicket runs unconditionally (install, repair, upgrade AND uninstall) as
+         the very first thing after InstallInitialize - deliberately not gated on REMOVE, because
+         a major upgrade is exactly the case that would otherwise get caught: the old product is
+         removed with UPGRADINGPRODUCTCODE set, so any REMOVE-gated action would be skipped and
+         the window between RemoveFiles and the new InstallFiles would look identical to sabotage.
+
+         On a first install wd.key doesn't exist yet, so the script logs and no-ops - harmless.
+         Return="ignore" throughout: a machine that fails to get a ticket at worst reboots once
+         (and comes back healthy, since Reboot Restore Rx restores it anyway); a hard-failing CA
+         would abort the whole install, which is strictly worse. -->
+    <CustomAction Id="IssueMaintenanceTicket" Directory="INSTALLFOLDER" Execute="immediate" Return="ignore"
+      ExeCommand="powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -WindowStyle Hidden -File &quot;[#MaintenanceTicketPs1]&quot; -Action Issue -Reason &quot;msi-transaction&quot; -ValidMinutes 20" />
+
+    <!-- Don't leave a 20-minute "watchdog is off" window lying around after a successful install
+         finishes in 2 minutes - clear it as soon as the transaction is done. -->
+    <CustomAction Id="ClearMaintenanceTicket" Directory="INSTALLFOLDER" Execute="immediate" Return="ignore"
+      ExeCommand="powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -WindowStyle Hidden -File &quot;[#MaintenanceTicketPs1]&quot; -Action Clear" />
+
+    <!-- Real uninstall (not an upgrade): write the permanent, signed decommission marker and
+         unregister the task. The marker matters even though the task is unregistered right next
+         to it - if unregistering fails for any reason, the marker is what stops a watchdog task
+         on a machine with no Agent left from rebooting it in a loop forever.
+
+         Sequenced BEFORE RemoveFiles (see InstallExecuteSequence) because it needs to read its
+         own script file, which RemoveFiles is about to delete. -->
+    <CustomAction Id="WriteDecommissionMarker" Directory="INSTALLFOLDER" Execute="immediate" Return="ignore"
+      ExeCommand="powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -WindowStyle Hidden -File &quot;[#MaintenanceTicketPs1]&quot; -Action Decommission" />
+
     <!-- Final uninstall sweep for INSTALLFOLDER - replaces a broken util:RemoveFolderEx (its
          extension-provided deferred CA runs at a fixed sequence 799, before INSTALLFOLDER is
          resolved at CostFinalize/1000, so it always silently no-op'd - confirmed against the
@@ -374,6 +421,14 @@
            setup-client.ps1 fails outright and - because SetupClient's Return="check" - aborts the
            whole uninstall with exit 1603. Confirmed by an actual failed live `msiexec /x` on this
            build before this condition was added, not assumed. -->
+      <!-- Tamper watchdog: tell it to stand down before anything touches the service/files, and
+           only after that let the rest of the transaction proceed. Unconditional on purpose -
+           see the CustomAction's own comment for why REMOVE/UPGRADINGPRODUCTCODE gating would
+           reintroduce the exact failure it exists to prevent. -->
+      <Custom Action="IssueMaintenanceTicket" After="InstallInitialize" />
+      <Custom Action="WriteDecommissionMarker" After="IssueMaintenanceTicket" Condition="REMOVE=&quot;ALL&quot; AND NOT UPGRADINGPRODUCTCODE" />
+      <Custom Action="ClearMaintenanceTicket" After="InstallFinalize" Condition="NOT REMOVE" />
+
       <Custom Action="InstallTailscaleProps" Before="InstallTailscale" Condition="NOT REMOVE" />
       <Custom Action="InstallTailscale" After="InstallFiles" Condition="NOT REMOVE" />
 

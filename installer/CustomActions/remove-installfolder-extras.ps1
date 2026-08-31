@@ -1,4 +1,4 @@
-# source ของ -EncodedCommand blob ที่ฝังใน OnionProcOparetor.wxs (CustomAction
+﻿# source ของ -EncodedCommand blob ที่ฝังใน OnionProcOparetor.wxs (CustomAction
 # "RemoveInstallFolderExtras") เก็บไว้เป็น source of truth สำหรับ regenerate blob - ตัวไฟล์นี้เอง
 # ไม่ได้ถูก install ไปเครื่อง user
 #

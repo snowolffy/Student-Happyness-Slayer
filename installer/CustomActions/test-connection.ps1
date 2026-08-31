@@ -1,4 +1,4 @@
-# source ของ -EncodedCommand blob ที่ฝังใน OnionProcOparetor.wxs (CustomAction "TestConnection")
+﻿# source ของ -EncodedCommand blob ที่ฝังใน OnionProcOparetor.wxs (CustomAction "TestConnection")
 # เก็บไฟล์นี้ไว้เป็น source of truth สำหรับ regenerate blob เวลาต้องแก้ - ตัวไฟล์นี้เองไม่ได้ถูก
 # install ไปเครื่อง user หรือถูกเรียกตรงๆ เพราะปุ่ม "Test Connection" ต้องทำงานได้ตั้งแต่ตอนอยู่ใน
 # wizard (ก่อน InstallFiles รันด้วยซ้ำ) จึงต้องฝัง fixed script เป็น -EncodedCommand แทนการเรียก

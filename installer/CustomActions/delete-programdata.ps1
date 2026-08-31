@@ -1,4 +1,4 @@
-# source ของ -EncodedCommand blob ที่ฝังใน OnionProcOparetor.ServerConsole.wxs (CustomAction
+﻿# source ของ -EncodedCommand blob ที่ฝังใน OnionProcOparetor.ServerConsole.wxs (CustomAction
 # "DeleteProgramData") เก็บไว้เป็น source of truth สำหรับ regenerate blob - ตัวไฟล์นี้เองไม่ได้ถูก
 # install ไปเครื่อง user อีกต่อไป (regenerate ด้วย pattern เดียวกับ remove-installfolder-extras.ps1:
 # strip comment/blank line ก่อน encode เป็น UTF-16 + Base64)
