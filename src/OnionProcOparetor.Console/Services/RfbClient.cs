@@ -1,3 +1,4 @@
+﻿using System.IO;
 using System.Net.Sockets;
 using System.Security.Cryptography;
 using System.Text;
@@ -599,6 +600,17 @@ public sealed class RfbClient : IDisposable
                     $"Server ส่ง rectangle encoding type {encodingType} มา แต่ SetEncodings ระบุแค่ Raw (0) ไปแล้ว - รองรับแค่ Raw เท่านั้นในตอนนี้");
             }
 
+            // ตรวจว่า rectangle อยู่ในกรอบ framebuffer ที่ตกลงกันไว้ตอน ServerInit (2026-08-31, จาก audit)
+            // x/y/width/height มาจาก header ของ rectangle เอง = ผู้ส่งควบคุมได้ทั้งหมด เดิมไม่เคยเทียบกับ
+            // _framebufferWidth/_framebufferHeight เลย - rectangle ที่อ้าง 20000x20000 @ 4 byte/pixel
+            // (~1.6GB) ผ่าน checked() ได้สบายเพราะไม่ล้น int แล้วไปจองจริงก่อนที่จะมีใครตรวจอะไร
+            // เช็คก่อน "จอง" เสมอ ไม่ใช่หลังอ่านเสร็จ - ประเด็นทั้งหมดคือกันการจองหน่วยความจำก้อนโต
+            if (x + width > _framebufferWidth || y + height > _framebufferHeight)
+            {
+                throw new InvalidDataException(
+                    $"Server ส่ง rectangle ที่ล้นกรอบ framebuffer: ({x},{y}) {width}x{height} แต่ framebuffer คือ {_framebufferWidth}x{_framebufferHeight}");
+            }
+
             var pixelByteCount = checked(width * height * wireBytesPerPixel);
             var wirePixelData = pixelByteCount > 0 ? await ReadExactAsync(pixelByteCount, ct) : [];
 
@@ -790,7 +802,19 @@ public sealed class RfbClient : IDisposable
             return string.Empty;
         }
 
-        var stringBytes = await ReadExactAsync(checked((int)length), ct);
+        // ตัดเพดานความยาว (2026-08-31, จาก audit): length เป็น uint32 ที่มาจาก wire ตรงๆ ผู้ส่งควบคุมได้
+        // 100% - เดิม checked((int)length) กันได้แค่ค่าที่เกิน int.MaxValue เท่านั้น ค่าที่ต่ำกว่านั้น
+        // (เช่น 2,000,000,000) ผ่านเข้าไปถึง new byte[count] ใน ReadExactAsync แล้วจอง ~2GB ทันที
+        // field พวกนี้คือชื่อเครื่อง/ข้อความ error ตาม RFB spec ไม่มีทางยาวถึงหลัก MB โดยชอบธรรม
+        // สำคัญเพราะ Console ต่อตรงเข้า winvnc.exe บนเครื่องนักเรียนโดยไม่มีอะไรคั่นกลาง
+        const int MaxStringLength = 64 * 1024;
+        if (length > MaxStringLength)
+        {
+            throw new InvalidDataException(
+                $"Server ระบุความยาว string เป็น {length} ไบต์ ซึ่งเกินเพดาน {MaxStringLength} - ปฏิเสธก่อนจองหน่วยความจำ");
+        }
+
+        var stringBytes = await ReadExactAsync((int)length, ct);
 
         // RFB spec ระบุ Latin-1 (ISO 8859-1) สำหรับ string field พวกนี้ (ชื่อเครื่อง/reason) - ยึดตาม
         // spec แม้บาง implementation ในโลกจริงจะส่ง UTF-8 มาก็ตาม (ชื่อเครื่อง ASCII ล้วนจะได้ผลเหมือนกันทั้งคู่)

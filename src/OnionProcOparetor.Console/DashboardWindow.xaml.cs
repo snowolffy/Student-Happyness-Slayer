@@ -806,8 +806,10 @@ public partial class DashboardWindow : Window
                 return; // session นี้ถูกแทนที่ไปแล้ว - เพิกเฉย
             }
 
-            var area = new Int32Rect(rect.X, rect.Y, rect.Width, rect.Height);
-            bitmap.WritePixels(area, rect.PixelData, rect.Width * 4, 0);
+            // ใช้ helper ตัวเดียวกับ Live View grid (2026-08-31) - เดิม path นี้ (SCREEN VIEW) เขียนตรง
+            // ไม่มี bounds check ทั้งที่ Live View มีอยู่แล้ว เป็นความไม่สอดคล้องที่เหลือไว้ไม่มีประโยชน์:
+            // ทั้งสอง path รับข้อมูลจาก winvnc.exe ตัวเดียวกันบนเครื่องนักเรียนเหมือนกันเป๊ะ
+            WriteLiveViewRectSafely(bitmap, rect);
         });
     }
 

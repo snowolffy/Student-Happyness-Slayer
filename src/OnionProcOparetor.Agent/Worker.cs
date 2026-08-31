@@ -184,13 +184,40 @@ public class Worker : BackgroundService
             // fallback) ก็กลับไปใช้ interval ปกติทันที ไม่เพิ่มโหลดตอนทุกอย่างปกติเลย
             var suspectingTrouble = (!_serverClient.IsUsingFallback && _consecutiveFailures > 0)
                 || (_serverClient.IsUsingFallback && _consecutiveSuccesses > 0);
-            var delaySeconds = suspectingTrouble ? FastRetryIntervalSeconds : _settings.PollIntervalSeconds;
+            var delaySeconds = suspectingTrouble ? FastRetryIntervalSeconds : ResolvePollIntervalSeconds();
 
             await Task.Delay(TimeSpan.FromSeconds(delaySeconds), stoppingToken);
         }
 
         _processWatcher?.Stop();
         _processWatcher?.Dispose();
+    }
+
+    /// <summary>
+    /// interval จริงของ poll รอบถัดไป: ใช้ override จาก Server ถ้ามี ไม่งั้นใช้ค่าใน appsettings.json
+    ///
+    /// บั๊กจริงที่เจอ (2026-08-31, ตอนอ่านโค้ดรอบ hardening): ค่า override ถูกเก็บลง ClientState ทั้งจาก
+    /// poll response (ExecuteAsync) และจาก UpdateSettings command (CommandProcessor) มาตลอด แต่ไม่มีโค้ด
+    /// ตรงไหนอ่านมันกลับมาใช้คำนวณ delay เลยแม้แต่ที่เดียว - loop หลักใช้ _settings.PollIntervalSeconds
+    /// จาก appsettings.json ตายตัวเสมอ เท่ากับฟีเจอร์ "Remote client setting" ทั้งอัน (ทั้งหน้า UI ฝั่ง
+    /// Console, column ใน DB, command type, และ comment ที่ CommandProcessor.cs:315 ที่เขียนว่า
+    /// "มีผลทันที ไม่ต้องรอ poll รอบถัดไป") ไม่เคยมีผลต่อพฤติกรรมจริงของ Agent เลยสักครั้ง
+    ///
+    /// clamp ไว้ด้วยเพราะค่านี้มาจาก Server: ต่ำเกินไปจะกลายเป็น hot loop ยิง request รัวใส่ Server จาก
+    /// 40 เครื่องพร้อมกัน สูงเกินไปจะทำให้เครื่องดูเหมือน offline ตลอดเวลา (OnlineThresholdSeconds = 90)
+    /// </summary>
+    private int ResolvePollIntervalSeconds()
+    {
+        const int MinIntervalSeconds = 5;
+        const int MaxIntervalSeconds = 3600;
+
+        var interval = _state.PollIntervalOverrideSeconds ?? _settings.PollIntervalSeconds;
+        if (interval <= 0)
+        {
+            interval = _settings.PollIntervalSeconds > 0 ? _settings.PollIntervalSeconds : 30;
+        }
+
+        return Math.Clamp(interval, MinIntervalSeconds, MaxIntervalSeconds);
     }
 
     /// <summary>
@@ -513,9 +540,15 @@ public class Worker : BackgroundService
         {
             try
             {
-                var process = Process.GetProcessById(processId);
-                process.Kill();
-                actionParts.Add("Killed process");
+                using var process = Process.GetProcessById(processId);
+
+                // kill ทั้ง tree ไม่ใช่ PID เดียว (2026-08-31, จาก audit) - เกมสมัยใหม่ส่วนใหญ่เปิดผ่าน
+                // launcher ที่ spawn ตัวเกมจริงเป็น process ลูกคนละ PID แล้ว launcher ก็จบไป การ kill
+                // เฉพาะตัวที่ match จึงฆ่าได้แค่ตัวห่อ ปล่อยตัวเกมจริงรันต่อ (และตัวเกมจริงอาจไม่ match
+                // rule เดียวกันด้วยซ้ำ เพราะ publisher/ชื่อไฟล์คนละตัว) - CommandProcessor ก็ใช้
+                // entireProcessTree อยู่แล้วในที่อื่น ตรงนี้ตกหล่นไปที่เดียว
+                process.Kill(entireProcessTree: true);
+                actionParts.Add("Killed process tree");
                 _logger.LogInformation("Rule '{Rule}' matched - kill process สำเร็จ (PID: {Pid})", rule.Name, processId);
             }
             catch (ArgumentException)

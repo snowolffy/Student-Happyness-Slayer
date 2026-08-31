@@ -15,9 +15,10 @@ namespace OnionProcOparetor.AgentTray.Services;
 /// เพื่อขยาย Type ใหม่ๆ ต่อได้ง่าย (ตอนนี้รองรับ "Broadcast", "ShowLockScreen", "HideLockScreen",
 /// "ShowShutdownNotify")
 ///
-/// ต้องเปิด ACL ให้ "Everyone" อ่าน/เขียนได้ เพราะ Agent (client) รันเป็น Windows Service
-/// (มักเป็นบัญชีคนละตัวกับ user session นี้ เช่น LocalSystem) การเชื่อมต่อข้าม session/account
-/// แบบนี้ต้องอาศัย security descriptor ที่อนุญาตไว้ชัดเจน ไม่งั้น default ACL อาจกันการเชื่อมต่อไว้
+/// ต้องตั้ง ACL เองเพราะ Agent (client) รันเป็น Windows Service คนละบัญชีกับ user session นี้
+/// (LocalSystem) การเชื่อมต่อข้าม session/account แบบนี้ต้องอาศัย security descriptor ที่อนุญาตไว้
+/// ชัดเจน ไม่งั้น default ACL จะกันการเชื่อมต่อไว้ - แต่ต้องอนุญาตเฉพาะ LocalSystem เท่านั้น
+/// ไม่ใช่ Everyone (ดูเหตุผลเต็มที่ RunAsync ตรงจุดที่สร้าง PipeSecurity)
 ///
 /// บั๊กจริงที่เจอตอน field test (2026-08-20): เดิม accept-loop เรียก HandleMessageLine "อยู่ใน loop
 /// เดียวกัน" ก่อนวนกลับไป WaitForConnectionAsync รอบถัดไป - ถ้า handler ของ message ใดค้าง (เช่น
@@ -84,11 +85,33 @@ public class BroadcastPipeListener
     /// </summary>
     private async Task RunAsync(CancellationToken ct)
     {
+        // ---- ACL ของ pipe (แก้ช่องโหว่จาก audit 2026-08-31) ----
+        // เดิมเป็น WorldSid (Everyone) ReadWrite - ผู้เขียนที่ถูกต้องมีตัวเดียวคือ Agent service ที่รัน
+        // เป็น LocalSystem แต่ ACL เดิมเปิดให้ "ทุก process ของทุก user" เขียนเข้ามาได้ และ
+        // HandleMessageLine ก็ประมวลผลทุกบรรทัดที่ได้รับโดยไม่ตรวจว่าใครส่ง - นักเรียนสิทธิ์ปกติจึงยิง
+        // {"Type":"HideLockScreen"} เข้ามาปลดล็อกหน้าจอที่ครูสั่งล็อกได้เอง (และ UnblockTargetInput /
+        // StopVncSession ก็เช่นกัน) ซึ่งล้มการรับประกันหลักของทั้งฟีเจอร์ว่า "ปลดได้จาก Console เท่านั้น"
+        //
+        // จำกัดเหลือ 2 หลักฐานตัวตนเท่านั้น:
+        //   LocalSystem  = Agent service (ผู้เขียนที่ถูกต้องเพียงรายเดียว)
+        //   ตัว user เอง = process นี้ที่เป็นคนสร้าง pipe - ต้องมีสิทธิ์กับ object ของตัวเอง ไม่งั้น
+        //                  NamedPipeServerStreamAcl.Create จะสร้างไม่ผ่าน
+        // ไม่ใส่ Administrators โดยตั้งใจ: ไม่ได้ช่วยอะไร (admin take ownership ได้อยู่แล้ว) แต่เพิ่ม
+        // พื้นที่ให้ process ที่ elevate แล้วปลอมเป็น Agent ได้ฟรีๆ
         var pipeSecurity = new PipeSecurity();
         pipeSecurity.AddAccessRule(new PipeAccessRule(
-            new SecurityIdentifier(WellKnownSidType.WorldSid, null),
+            new SecurityIdentifier(WellKnownSidType.LocalSystemSid, null),
             PipeAccessRights.ReadWrite,
             AccessControlType.Allow));
+
+        var currentUser = WindowsIdentity.GetCurrent().User;
+        if (currentUser is not null)
+        {
+            pipeSecurity.AddAccessRule(new PipeAccessRule(
+                currentUser,
+                PipeAccessRights.FullControl,
+                AccessControlType.Allow));
+        }
 
         while (!ct.IsCancellationRequested)
         {

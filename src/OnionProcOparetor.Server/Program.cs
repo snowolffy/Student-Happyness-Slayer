@@ -38,6 +38,12 @@ var serverPort = builder.Configuration.GetValue<int>("Server:Port", 8787);
 builder.WebHost.ConfigureKestrel(options =>
 {
     options.ListenAnyIP(serverPort); // ฟังทุก network interface เพื่อให้ client/console เครื่องอื่นต่อเข้ามาได้
+
+    // จำกัดขนาด request body (2026-08-31, จาก security audit) - default ของ Kestrel คือ ~30MB
+    // ไม่มี endpoint ไหนในระบบนี้รับ payload ใหญ่กว่าหลักร้อย KB เลย (ใหญ่สุดคือ process list ที่
+    // relay ผ่าน /api/commands/{id}/result) แต่ /api/logs กับ /api/tamper-report ไม่ต้อง auth
+    // ทำให้ 30MB ต่อ request กลายเป็นเครื่องมือถมดิสก์/กิน RAM ที่ยิงจากเครื่องไหนใน LAN ก็ได้
+    options.Limits.MaxRequestBodySize = 4 * 1024 * 1024;
 });
 
 // ---- สร้างโฟลเดอร์เก็บ DB ถ้ายังไม่มี (เช่นตอน dev หรือเครื่องใหม่) ----
@@ -49,9 +55,28 @@ if (!string.IsNullOrEmpty(dbDir) && !Directory.Exists(dbDir))
     Directory.CreateDirectory(dbDir);
 }
 
+// ---- ปรับ connection string ของ SQLite ให้ทนการเขียนพร้อมกัน (2026-08-31) ----
+// ภาระจริงตอนใช้งาน: 40 Agent poll เข้ามา + Console อ่านทุกไม่กี่วินาที + BackgroundService อีก 3 ตัว
+// (CommandResultTimeout ทุก 5 วิ, ClientOnlineStatusMonitor ทุก 30 วิ, ActivityLogCleanup ทุกชั่วโมง)
+// ทั้งหมดเขียนลงไฟล์ SQLite ไฟล์เดียวกัน - default ของ Microsoft.Data.Sqlite คือ rollback journal
+// (writer ตัวเดียวล็อกทั้งไฟล์ ผู้อ่านก็โดนบล็อกด้วย) + busy timeout 0 = ชนเมื่อไหร่ throw
+// "database is locked" ทันทีไม่รอเลย ซึ่งจะโผล่ตอนที่แย่ที่สุดพอดี (ครูสั่ง batch command ใส่หลาย
+// เครื่องพร้อมกันขณะที่ poll กำลังลงพอดี) ตั้ง Default Timeout ให้รอแทนที่จะ throw
+// journal_mode=WAL ตั้งด้านล่างหลัง Migrate() (เป็น setting ที่ persist ในไฟล์ DB เอง ตั้งครั้งเดียวพอ)
+static string WithConcurrencySettings(string raw)
+{
+    var csb = new Microsoft.Data.Sqlite.SqliteConnectionStringBuilder(raw)
+    {
+        // วินาที - เผื่อ writer ตัวอื่นถือ lock อยู่ ให้รอจนกว่าจะได้ แทนที่จะล้มทันที
+        DefaultTimeout = 30,
+        Pooling = true
+    };
+    return csb.ToString();
+}
+
 // ---- ผูก EF Core + SQLite เข้ากับ Dependency Injection ----
 builder.Services.AddDbContext<AppDbContext>(options =>
-    options.UseSqlite(connectionString));
+    options.UseSqlite(WithConcurrencySettings(connectionString)));
 
 // ---- Activity Log: DB แยกต่างหาก (คนละไฟล์ SQLite) จาก DB หลัก เพราะคาดว่า volume จะสูงกว่า
 // (audit ทุก action ของครู + ทุก agent connect/disconnect + ทุก warning/error) และมี auto-cleanup
@@ -59,9 +84,15 @@ builder.Services.AddDbContext<AppDbContext>(options =>
 var activityLogConnectionString = builder.Configuration.GetConnectionString("ActivityLogConnection")
     ?? "Data Source=C:\\ProgramData\\OnionProcOparetor\\activitylog.db";
 builder.Services.AddDbContext<ActivityLogDbContext>(options =>
-    options.UseSqlite(activityLogConnectionString));
+    options.UseSqlite(WithConcurrencySettings(activityLogConnectionString)));
 builder.Services.AddScoped<IActivityLogService, ActivityLogService>();
 builder.Services.AddHostedService<ActivityLogCleanupService>();
+
+// ---- Retention ของ DB หลัก (2026-08-31) - LogEntries/AuthTokens ไม่เคยมี cleanup มาก่อนเลย ----
+builder.Services.AddHostedService<MainDbRetentionService>();
+
+// ---- จำกัดการเดารหัสผ่านที่ /api/auth/login (2026-08-31) - singleton เพราะตัวนับต้องอยู่ข้าม request ----
+builder.Services.AddSingleton<LoginThrottle>();
 
 // ---- SignalR: real-time push คู่ขนานกับ HTTP polling เดิม (ไม่แทนที่ poll) ----
 builder.Services.AddSignalR();
@@ -107,6 +138,28 @@ using (var scope = app.Services.CreateScope())
 
     var activityLogDb = scope.ServiceProvider.GetRequiredService<ActivityLogDbContext>();
     activityLogDb.Database.Migrate();
+
+    // ---- เปิด WAL ให้ทั้ง 2 DB (2026-08-31) ----
+    // WAL แยก writer ออกจาก reader: ผู้อ่าน (Console, poll) ไม่ถูกบล็อกโดย writer ที่กำลังเขียนอยู่
+    // อีกต่อไป ซึ่งเป็นรูปแบบโหลดของระบบนี้พอดี (อ่านบ่อยมาก เขียนสั้นๆ ถี่ๆ จากหลายทาง)
+    // journal_mode เป็น persistent setting ที่เก็บใน header ของไฟล์ DB เอง - ตั้งครั้งเดียวติดตลอด
+    // แต่เรียกซ้ำทุก start ก็ไม่เสียหาย (idempotent, คืนค่าปัจจุบันกลับมาเฉยๆ)
+    //
+    // ข้อควรรู้ตอน backup/ย้ายเครื่อง: WAL สร้างไฟล์คู่เพิ่ม (-wal, -shm) ข้างไฟล์ .db
+    // การก๊อปแค่ .db ไฟล์เดียวขณะ service ยังรันอยู่จะได้ข้อมูลไม่ครบ ต้องหยุด service ก่อนก๊อป
+    foreach (var context in new DbContext[] { db, activityLogDb })
+    {
+        try
+        {
+            context.Database.ExecuteSqlRaw("PRAGMA journal_mode=WAL;");
+        }
+        catch (Exception ex)
+        {
+            // ไม่ hard-fail: WAL เป็นการ "ทำให้ดีขึ้น" ไม่ใช่เงื่อนไขจำเป็นในการทำงาน ถ้าตั้งไม่ได้
+            // (เช่น DB อยู่บน network share ที่ไม่รองรับ shared memory) ให้รันต่อด้วย journal เดิม
+            StartupDiagnostics.WriteLine($"ตั้ง journal_mode=WAL ไม่สำเร็จ (รันต่อด้วย mode เดิม): {ex.Message}");
+        }
+    }
 }
 StartupDiagnostics.WriteLine("Migrate เสร็จแล้ว กำลัง Run()...");
 
@@ -120,8 +173,29 @@ app.MapHub<LabHub>("/hubs/lab");
 // ---- Auth Endpoints ----
 
 // สร้าง admin คนแรก - built-in "Administrator" เสมอ, password ว่างเปล่า (ต้องบังคับเปลี่ยนหลัง login ครั้งแรก)
-app.MapPost("/api/auth/setup", async (AppDbContext db) =>
+app.MapPost("/api/auth/setup", async (HttpRequest httpRequest, AppDbContext db, ILoggerFactory loggerFactory) =>
 {
+    // ---- จำกัดให้เรียกได้จากเครื่อง server เองเท่านั้น (2026-08-31, จาก security audit) ----
+    // ช่องโหว่เดิม: endpoint นี้ไม่ต้อง auth, สร้าง Administrator ที่มี password ว่าง, และ
+    // /api/auth/login ก็ยอมรับ password ว่างนั้น ส่วน change-password ก็ไม่ต้องรู้ password เดิม
+    // ต่อกันเป็นลูกโซ่ = ใครก็ตามใน LAN ที่ยิง setup -> login -> change-password ได้ก่อนครู
+    // จะยึด Console ได้ถาวร และ built-in account ก็ reset จากทางอื่นไม่ได้ด้วย (โดยตั้งใจ)
+    // หน้าต่างนี้เปิดใหม่ทุกครั้งที่ติดตั้ง server ใหม่/ล้าง DB (ต้นปีการศึกษา)
+    //
+    // ล็อกเป็น loopback ตรงกับ deployment จริงที่ออกแบบไว้: MSI ตัว Server+Console ลง 2 อย่างนี้
+    // บนเครื่องเดียวกันเสมอ และ Console ก็ default ไปที่ localhost อยู่แล้ว
+    // ผลข้างเคียงที่ยอมรับ: ถ้าจะติดตั้ง Console แยกเครื่องล้วนๆ ต้องเปิด Console บนเครื่อง server
+    // หนึ่งครั้งเพื่อสร้าง account แรกก่อน - ครั้งเดียวตลอดอายุการติดตั้ง
+    var remoteIp = httpRequest.HttpContext.Connection.RemoteIpAddress;
+    if (remoteIp is null || !System.Net.IPAddress.IsLoopback(remoteIp))
+    {
+        loggerFactory.CreateLogger("Auth").LogWarning(
+            "ปฏิเสธ /api/auth/setup จาก {RemoteIp} - อนุญาตเฉพาะ loopback เท่านั้น", remoteIp);
+        return Results.Json(
+            new { error = "First-time setup must be performed from the server machine itself (open the Console on the server once)." },
+            statusCode: StatusCodes.Status403Forbidden);
+    }
+
     var existingAdmin = await db.AdminUsers.AnyAsync();
     if (existingAdmin)
     {
@@ -152,20 +226,40 @@ app.MapPost("/api/auth/setup", async (AppDbContext db) =>
 });
 
 // login - ตรวจ username/password
-app.MapPost("/api/auth/login", async (LoginRequest req, AppDbContext db, IActivityLogService activityLog) =>
+app.MapPost("/api/auth/login", async (
+    LoginRequest req,
+    HttpRequest httpRequest,
+    AppDbContext db,
+    IActivityLogService activityLog,
+    LoginThrottle loginThrottle) =>
 {
+    // ---- ตรวจ lockout ก่อนแตะ DB/PBKDF2 (2026-08-31, จาก security audit) ----
+    // ต้องอยู่บนสุดจริงๆ ไม่ใช่หลังตรวจรหัสผ่าน: ถ้าปล่อยให้คำนวณ PBKDF2 100k iterations ทุก request
+    // ที่ยิงเข้ามา endpoint นี้จะกลายเป็นช่อง CPU-exhaustion DoS ในตัวมันเอง
+    var remoteIp = httpRequest.HttpContext.Connection.RemoteIpAddress?.ToString();
+    if (loginThrottle.GetRemainingLockout(req.Username, remoteIp) is { } remainingLockout)
+    {
+        return Results.Json(
+            new { error = $"ลองผิดหลายครั้งเกินไป กรุณารออีก {Math.Ceiling(remainingLockout.TotalSeconds)} วินาที" },
+            statusCode: StatusCodes.Status429TooManyRequests);
+    }
+
     var admin = await db.AdminUsers.FirstOrDefaultAsync(u => u.Username == req.Username);
     if (admin is null)
     {
+        // นับ username ที่ไม่มีอยู่จริงด้วย - ไม่งั้นการไล่เดา username ไม่ถูกจำกัดเลย
+        loginThrottle.RecordFailure(req.Username, remoteIp);
         return Results.Unauthorized();
     }
 
     var isValid = PasswordHasher.VerifyPassword(req.Password, admin.PasswordSalt, admin.PasswordHash);
     if (!isValid)
     {
+        loginThrottle.RecordFailure(req.Username, remoteIp);
         return Results.Unauthorized();
     }
 
+    loginThrottle.RecordSuccess(req.Username, remoteIp);
     admin.LastLoginAt = DateTime.UtcNow;
 
     // ออก token ใหม่ อายุ 12 ชั่วโมง (พอสำหรับใช้งานหนึ่งวันเรียน)
@@ -998,11 +1092,30 @@ app.MapPost("/api/admin/users/{id:int}/change-password", async (int id, ChangePa
     admin.PasswordHash = hash;
     admin.HasDefaultPassword = false;
 
+    // ---- เพิกถอน token เก่าทั้งหมดของ account นี้ (2026-08-31, จาก security audit) ----
+    // เดิม GetAuthorizedAdmin ตรวจแค่ ExpiresAt อย่างเดียว และไม่มีโค้ดตรงไหนลบ AuthToken เลย
+    // แปลว่า token ที่ถูกดักไว้ (ทั้งระบบยังเป็น HTTP ล้วน) ใช้ได้ต่อจนครบ 12 ชม. แม้เจ้าของจะรู้ตัว
+    // และเปลี่ยนรหัสผ่านไปแล้ว - "เปลี่ยนรหัสผ่าน" จึงไม่ได้แปลว่า "ตัดคนอื่นออก" อย่างที่ควรเป็น
+    //
+    // เว้น token ของ request ปัจจุบันไว้ตัวเดียวโดยตั้งใจ (semantics แบบ "ออกจากระบบอุปกรณ์อื่น"):
+    // flow บังคับเปลี่ยนรหัสผ่านครั้งแรกของ built-in Administrator เดินต่อด้วย ApiClient/token ตัวเดิม
+    // ทันที (MainWindow -> ForceChangePasswordWindow -> DashboardWindow ใช้ instance เดียวกันตลอด)
+    // ถ้าลบ token ปัจจุบันไปด้วย การ setup ครั้งแรกของทุกเครื่องจะพังทันทีด้วย 401 รัวๆ
+    var currentToken = request.Headers.TryGetValue("X-Auth-Token", out var rawToken)
+        ? rawToken.ToString()
+        : null;
+
+    var staleTokens = await db.AuthTokens
+        .Where(t => t.AdminUserId == admin.Id && t.Token != currentToken)
+        .ToListAsync();
+    db.AuthTokens.RemoveRange(staleTokens);
+
     await db.SaveChangesAsync();
 
-    await activityLog.LogAdminActionAsync(admin, "AdminPasswordChanged", $"{admin.Username} เปลี่ยน password ของตัวเอง");
+    await activityLog.LogAdminActionAsync(admin, "AdminPasswordChanged",
+        $"{admin.Username} เปลี่ยน password ของตัวเอง (เพิกถอน session อื่น {staleTokens.Count} รายการ)");
 
-    return Results.Ok(new { message = "Password changed successfully." });
+    return Results.Ok(new { message = "Password changed successfully.", otherSessionsRevoked = staleTokens.Count });
 });
 
 // admin คนหนึ่ง reset password ให้ user คนอื่น (ต่างจาก change-password ที่จำกัดแค่ตัวเอง)
@@ -1041,6 +1154,12 @@ app.MapPost("/api/admin/users/{id:int}/reset-password", async (int id, ChangePas
     // สำคัญ: ตั้ง HasDefaultPassword = true เพื่อบังคับให้เจ้าของ account เปลี่ยน password
     // อีกครั้งตอน login ครั้งถัดไป (คนที่ reset ให้ไม่ควรรู้ password ถาวรของอีกคน)
     //target.HasDefaultPassword = true;
+
+    // เพิกถอน session ที่ค้างอยู่ของ account เป้าหมายทั้งหมด (2026-08-31) - reset password ให้คนอื่น
+    // แต่ปล่อยให้ token เดิมของเขาใช้ได้ต่ออีก 12 ชม. ทำให้การ reset ไม่มีผลอะไรจริงในเชิงตัดสิทธิ์
+    // ต่างจาก change-password ด้านบนที่เว้น token ปัจจุบันไว้ (คนละคนกัน - ที่นี่ลบของเป้าหมายทั้งหมด)
+    var targetTokens = await db.AuthTokens.Where(t => t.AdminUserId == target.Id).ToListAsync();
+    db.AuthTokens.RemoveRange(targetTokens);
 
     await db.SaveChangesAsync();
 

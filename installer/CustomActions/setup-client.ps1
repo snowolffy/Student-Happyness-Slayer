@@ -98,6 +98,41 @@ if ($UninstallPassword.Trim() -ne "") {
     Write-Log "Uninstall guard written: $guardPath"
 }
 
+# 3.5) สิทธิ์ ultravnc.ini (แก้ช่องโหว่จาก audit 2026-08-31)
+#      AgentTray รันเป็น user ธรรมดา ต้องเขียน ultravnc.ini ทับทุกครั้งที่เปิด VNC session
+#      เดิมแก้ด้วยการให้ Users มี Full Control ทั้งโฟลเดอร์ ClientTray (ดู .wxs) ซึ่งเปิดให้
+#      นักเรียนเขียนทับ AgentTray.exe / winvnc.exe ได้ด้วย - ตอนนี้ให้สิทธิ์เจาะจงแทน:
+#        WD/AD = เขียน/ต่อท้ายเนื้อไฟล์ (พอสำหรับ File.WriteAllText และ createpassword.exe)
+#        WA/WEA = เขียน attribute (บาง API ต้องใช้ตอน truncate)
+#        RX = อ่าน/รัน
+#      ไม่มี D (delete) โดยตั้งใจ - ถ้าลบไฟล์นี้ได้ นักเรียนจะสร้างใหม่เองแล้วกลายเป็น owner
+#      ที่มี Full Control ผ่าน CREATOR OWNER ACE ของ Program Files ซึ่งย้อนกลับไปปัญหาเดิม
+$vncBundleDir = Join-Path $InstallDir "ClientTray\VncBundle"
+$vncIniPath = Join-Path $vncBundleDir "ultravnc.ini"
+if (Test-Path $vncBundleDir) {
+    if (-not (Test-Path $vncIniPath)) {
+        # สร้างไฟล์เปล่าไว้ก่อน - AgentTray จะเขียนทับด้วยเนื้อหาจริง (WriteBaseIni) ทุกครั้งที่
+        # เปิด session อยู่แล้ว ที่นี่แค่ต้องการ "ไฟล์ที่มีอยู่จริง" เพื่อให้ ACL ระดับไฟล์ผูกได้
+        New-Item -ItemType File -Path $vncIniPath -Force | Out-Null
+        Write-Log "สร้าง ultravnc.ini เปล่าไว้เพื่อผูก ACL"
+    }
+    # *S-1-5-32-545 = BUILTIN\Users (ใช้ SID ไม่ใช่ชื่อ เพราะชื่อกลุ่มเปลี่ยนตามภาษาของ Windows)
+    & icacls.exe "$vncIniPath" /grant "*S-1-5-32-545:(RX,WD,AD,WA,WEA)" /C /Q 2>&1 |
+        ForEach-Object { Write-Log "icacls ini: $_" }
+
+    # ล้าง Full Control ที่ build เก่าเคยให้ไว้ทั้งโฟลเดอร์ออก - upgrade ทับอย่างเดียวไม่ลบ ACE เดิม
+    # ให้ (MSI ไม่ track ACL ที่ util:PermissionEx เคยเขียนไว้) เครื่องที่เคยติดตั้ง build ก่อนหน้า
+    # จะยังมีช่องโหว่เดิมค้างอยู่ตลอดไปถ้าไม่ล้างตรงนี้
+    & icacls.exe (Join-Path $InstallDir "ClientTray") /remove:g "*S-1-5-32-545" /T /C /Q 2>&1 |
+        ForEach-Object { Write-Log "icacls cleanup: $_" }
+    # ต้อง re-grant หลัง /remove:g เพราะบรรทัดบนลบ ACE ของ Users ทิ้งทั้ง tree รวมถึงตัวที่เพิ่งให้ไป
+    & icacls.exe "$vncIniPath" /grant "*S-1-5-32-545:(RX,WD,AD,WA,WEA)" /C /Q 2>&1 |
+        ForEach-Object { Write-Log "icacls ini re-grant: $_" }
+}
+else {
+    Write-Log "ไม่พบ $vncBundleDir - ข้ามการตั้ง ACL ของ ultravnc.ini"
+}
+
 # 4) ติดตั้ง tamper watchdog (Scheduled Task + wd.key + ACL) - ต้องทำ "หลัง" sc start เพราะ
 #    watchdog เริ่มตรวจทันทีที่ลงทะเบียนเสร็จ ถ้าลงก่อน start มันอาจเจอ SERVICE_NOT_RUNNING
 #    ตั้งแต่รอบแรก (ซึ่ง maintenance ticket ที่ MSI ออกไว้กันอยู่แล้ว แต่ไม่มีเหตุผลจะเสี่ยง)

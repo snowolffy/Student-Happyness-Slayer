@@ -184,13 +184,17 @@
                    WorkingDirectory="ClientTrayDir" Advertise="no" Icon="AppIcon.ico" />
       </File>
       <RemoveFolder Id="RemoveAppProgramMenuFolder_Tray" Directory="AppProgramMenuFolder" On="uninstall" />
-      <!-- AgentTray รันเป็น user ธรรมดาที่ login อยู่หน้าเครื่อง (ไม่ใช่ LocalSystem แบบ Agent) ต้องเขียน
-           ultravnc.ini ใหม่ทุกครั้งที่เปิด VNC session แต่ Program Files ปกติ user ธรรมดาเขียนไม่ได้เลย -
-           เปิดสิทธิ์ Modify ให้กลุ่ม "Users" เฉพาะโฟลเดอร์นี้ (ครอบคลุม VncBundle ที่เป็น subfolder ด้วย
-           ผ่าน NTFS inheritance) -->
-      <CreateFolder>
-        <util:PermissionEx User="Users" GenericAll="yes" />
-      </CreateFolder>
+      <!-- เดิมตรงนี้เป็น <util:PermissionEx User="Users" GenericAll="yes" /> ทั้งโฟลเดอร์ - ถอนออก
+           2026-08-31 หลัง audit: เจตนาเดิมตาม comment คือ "Modify เพื่อให้เขียน ultravnc.ini ได้"
+           แต่ GenericAll ที่ WiX map ไปคือ NTFS Full Control ซึ่งรวม WRITE_DAC/WRITE_OWNER ด้วย
+           และ inherit ลงไปทั้ง VncBundle - เท่ากับนักเรียนสิทธิ์ปกติทุกคนเขียนทับ
+           OnionProcOparetor.AgentTray.exe และ winvnc.exe ได้ตรงๆ โดยไม่ต้อง elevate เลย
+           (= bypass ทั้งระบบฝั่ง client ด้วยการก๊อปไฟล์ทับไฟล์เดียว)
+
+           แทนที่ด้วยการให้สิทธิ์แบบเจาะจงระดับ "ไฟล์เดียว" ใน setup-client.ps1 แทน (icacls ให้
+           Users เขียนเนื้อไฟล์ ultravnc.ini ได้อย่างเดียว ไม่มีสิทธิ์ลบ และไม่แตะไฟล์อื่นในโฟลเดอร์)
+           ต้องทำที่นั่นเพราะต้องสร้างไฟล์ ultravnc.ini ขึ้นมาก่อนถึงจะ ACL ตัวไฟล์ได้ -
+           <util:PermissionEx> ผูกกับ Component/Directory เท่านั้น ทำระดับไฟล์ที่ยังไม่มีไม่ได้ -->
     </Component>
 
     <!-- Add/Remove Programs launches this .exe directly (see UninstallArpEntryComponent below) -
