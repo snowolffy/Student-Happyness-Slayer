@@ -301,4 +301,52 @@
         </Setter>
     </Style>
 
+    <!-- ==================== Shared DataGrid look ====================
+         ย้ายมาจาก DashboardWindow.xaml's Window.Resources (2026-08-25) - บั๊กจริงที่เจอ: 3 style นี้
+         ตั้งใจให้ "shared" ตั้งแต่แรก (ดู comment เดิม "Shared DataGrid look for all 4 tabs") แต่ประกาศไว้
+         ใน Window.Resources ของ DashboardWindow เอง ทำให้ "shared" จริงๆ แค่ภายใน 4 แท็บของหน้าต่างนั้น
+         เท่านั้น - พอ RunningProcessesWindow (คนละ Window instance) อ้างถึง StaticResource เดียวกันนี้ผ่าน
+         DataGrid ของตัวเอง WPF resolve ไม่เจอเลย (StaticResource lookup ไม่ข้าม Window ไปหา Window.Resources
+         ของอีกอันได้) เจอจริงจาก field test เป็น XamlParseException ทันทีที่เปิดหน้าต่าง ("Provide value on
+         'System.Windows.StaticResourceExtension' threw an exception") - ทั้งที่ dotnet build ผ่านมาตลอด
+         เพราะ StaticResource resolve ตอน runtime ไม่ใช่ compile time ย้ายมาไว้ที่นี่ (merged เข้าทุก Window
+         ผ่าน App.xaml อยู่แล้ว) ให้ shared จริงตามที่ตั้งใจไว้แต่แรก ไม่ต้อง duplicate ต่อทุกหน้าต่างใหม่ที่มี
+         DataGrid -->
+    <Style x:Key="ConsoleGridColumnHeaderStyle" TargetType="DataGridColumnHeader">
+        <Setter Property="Background" Value="{StaticResource Brush.Background.Primary}"/>
+        <Setter Property="Foreground" Value="{StaticResource Brush.Text.Secondary}"/>
+        <Setter Property="FontFamily" Value="{StaticResource FontFamily.Primary}"/>
+        <Setter Property="FontWeight" Value="SemiBold"/>
+        <Setter Property="FontSize" Value="11"/>
+        <Setter Property="Padding" Value="10,8"/>
+        <Setter Property="BorderBrush" Value="{StaticResource Brush.Border.Default}"/>
+        <Setter Property="BorderThickness" Value="0,0,1,1"/>
+    </Style>
+    <Style x:Key="ConsoleGridRowStyle" TargetType="DataGridRow">
+        <Setter Property="Background" Value="Transparent"/>
+        <Style.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+                <Setter Property="Background">
+                    <Setter.Value>
+                        <SolidColorBrush Color="{StaticResource Color.Accent.Light}" Opacity="0.15"/>
+                    </Setter.Value>
+                </Setter>
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+    <Style x:Key="ConsoleGridCellStyle" TargetType="DataGridCell">
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="Foreground" Value="{StaticResource Brush.Text.Primary}"/>
+        <Setter Property="BorderThickness" Value="0"/>
+        <Setter Property="Padding" Value="10,4"/>
+        <Setter Property="FontFamily" Value="{StaticResource FontFamily.Primary}"/>
+        <Setter Property="FontSize" Value="12"/>
+        <Style.Triggers>
+            <Trigger Property="IsSelected" Value="True">
+                <Setter Property="Background" Value="{StaticResource Brush.Background.Primary}"/>
+                <Setter Property="Foreground" Value="{StaticResource Brush.Text.Primary}"/>
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+
 </ResourceDictionary>

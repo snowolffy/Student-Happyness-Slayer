@@ -368,6 +368,52 @@ public class ApiClient
         }
     }
 
+    /// <summary>
+    /// ดึงรายการ command ที่ยังค้าง Pending อยู่ของเครื่องหนึ่งๆ ผ่าน GET /api/commands/pending/{clientGuid}
+    /// ใช้โดย PendingCommandsWindow (เปิดจาก ActionPanelWindow's PENDING COMMANDS...) - ต่างจาก
+    /// GetBatchStatusAsync ตรงที่ไม่ผูกกับ BatchId เลย ดึงทุก Pending command ของเครื่องนี้ตรงๆ
+    /// ไม่ว่าจะมาจาก batch ไหนหรือหน้าต่างที่สั่งไปปิดไปแล้วหรือไม่ก็ตาม
+    /// </summary>
+    public async Task<List<CommandResultDto>> GetPendingCommandsAsync(string clientGuid)
+    {
+        try
+        {
+            var result = await _httpClient.GetFromJsonAsync<List<CommandResultDto>>($"/api/commands/pending/{clientGuid}");
+            return result ?? new List<CommandResultDto>();
+        }
+        catch
+        {
+            return new List<CommandResultDto>();
+        }
+    }
+
+    /// <summary>
+    /// ยกเลิก command ที่ยังค้าง Pending อยู่ ผ่าน POST /api/commands/{commandId}/cancel - เพิ่มขึ้น
+    /// หลังบั๊กจริง (2026-08-25): Restart/Shutdown ที่ ack ไปไม่ถึง Server ทันเวลาที่เครื่องดับจริง
+    /// (มีโอกาสสูงขึ้นตอนใช้ Tailscale fallback) จะค้าง Pending แล้วถูกส่งซ้ำทุกรอบ poll หลังเครื่อง
+    /// บูตกลับมา วนไม่จบ ปุ่มนี้ใน ActionReportWindow ให้ครูกดยกเลิกได้ทันทีถ้าเห็นว่ายังค้างอยู่ -
+    /// ประโยชน์คู่: (1) หยุด loop ได้จริงถ้าเจอ (2) ตัวช่วยกู้คืนถ้ากดสั่งปิด/ล็อกเครื่องผิดพลาด
+    /// แล้วยังทัน (เครื่องยังไม่ตอบ Succeeded/Failed)
+    /// </summary>
+    public async Task<(bool Success, string? Message)> CancelCommandAsync(int commandId)
+    {
+        try
+        {
+            var response = await _httpClient.PostAsync($"/api/commands/{commandId}/cancel", null);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                return (false, $"ยกเลิกไม่สำเร็จ: {(int)response.StatusCode} {response.StatusCode}");
+            }
+
+            return (true, null);
+        }
+        catch (Exception ex)
+        {
+            return (false, $"ยกเลิกไม่สำเร็จ: {ex.Message}");
+        }
+    }
+
     public async Task<(bool Success, string Message)> ResetUserPasswordAsync(int userId, string newPassword)
     {
         try

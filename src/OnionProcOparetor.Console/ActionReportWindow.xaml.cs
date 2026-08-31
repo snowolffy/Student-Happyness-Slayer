@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Threading;
 using OnionProcOparetor.Console.Models;
 using OnionProcOparetor.Console.Services;
@@ -281,6 +282,48 @@ public partial class ActionReportWindow : Window
     }
 
     private void CloseButton_Click(object sender, RoutedEventArgs e) => Close();
+
+    /// <summary>
+    /// ยกเลิก command ที่ยังค้าง Pending อยู่ (ปุ่มต่อแถว โชว์เฉพาะตอน IsPending) - เพิ่มขึ้นหลัง
+    /// บั๊กจริง (2026-08-25): Restart/Shutdown ที่ ack ไม่ทันเครื่องดับจริงจะค้าง Pending แล้วถูก
+    /// ส่งซ้ำทุกรอบ poll วนไม่จบหลังเครื่องบูตกลับมา ปุ่มนี้ให้ครูตัดจบได้ทันทีจาก Server โดยไม่ต้อง
+    /// รอ Agent เลย ประโยชน์คู่: กู้คืนได้ด้วยถ้ากดสั่งปิด/ล็อกเครื่องผิดแล้วยังทัน (ก่อนเครื่องตอบ
+    /// สถานะสุดท้าย)
+    /// </summary>
+    private async void CancelButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button { DataContext: ActionReportRow row } button)
+        {
+            return;
+        }
+
+        if (row.CommandId is not int commandId)
+        {
+            return; // ยังไม่มี CommandId (โหมด Sending) - ยกเลิกไม่ได้ ปุ่มไม่ควรโชว์อยู่แล้วในเคสนี้
+        }
+
+        button.IsEnabled = false;
+
+        var (success, message) = await _apiClient.CancelCommandAsync(commandId);
+
+        if (_isClosed)
+        {
+            return;
+        }
+
+        if (success)
+        {
+            row.Status = ActionReportStatus.Failed;
+            row.Message = "ยกเลิกโดยครู";
+            UpdateSummary();
+        }
+        else
+        {
+            // ยกเลิกไม่สำเร็จ (เช่น server ติดต่อไม่ได้) - เปิดปุ่มกลับมาให้ลองใหม่ได้
+            button.IsEnabled = true;
+            row.Message = message ?? "ยกเลิกไม่สำเร็จ";
+        }
+    }
 
     /// <summary>
     /// จุดสำคัญที่สุดของ lifecycle หน้านี้: ครูปิดหน้าต่างได้ตลอดแม้ ack ยังมาไม่ครบ ซึ่งแปลว่า

@@ -653,6 +653,70 @@ app.MapPost("/api/commands/{commandId:int}/ack", async (int commandId, AppDbCont
     return Results.Ok(command);
 });
 
+// Console ดึงรายการ command ที่ยังค้าง Pending อยู่ของเครื่องหนึ่งๆ - คู่กับ /cancel ด้านล่าง
+// (ActionReportWindow ยกเลิกได้แค่ตอนหน้าต่างนั้นยังเปิดอยู่เท่านั้น แต่ command ที่ค้างจริงอาจมา
+// จากรอบก่อน เช่น หน้าต่างปิดไปแล้วหรือ Console เปิดใหม่ทับ - endpoint นี้ให้ ActionPanelWindow's
+// PENDING COMMANDS... ดึงสถานะปัจจุบันจริงจาก Server ได้เสมอ ไม่ต้องพึ่งว่าเคยเห็นหน้า report
+// ตอนสั่งหรือเปล่า)
+app.MapGet("/api/commands/pending/{clientGuid}", async (string clientGuid, HttpRequest request, AppDbContext db) =>
+{
+    var admin = await GetAuthorizedAdmin(request, db);
+    if (admin is null)
+        return Results.Unauthorized();
+
+    var pending = await db.ClientCommands
+        .Where(c => c.ClientGuid == clientGuid && c.Status == ClientCommandStatus.Pending)
+        .OrderBy(c => c.CreatedAt)
+        .ToListAsync();
+
+    return Results.Ok(pending.Select(CommandResultDto.From).ToList());
+});
+
+// Console ยกเลิก command ที่ยังค้าง Pending อยู่ - เพิ่มขึ้นหลัง field test เจอบั๊กจริง (2026-08-25):
+// Restart/Shutdown ตั้งเวลาดับเครื่องแบบ fire-and-forget "ก่อน" แล้วค่อย ack "ทีหลัง" ถ้า ack POST
+// ไปไม่ถึง Server ทันเวลาที่เครื่องดับจริงพอดี (มีโอกาสสูงขึ้นมากตอนใช้ Tailscale fallback ที่ช้า/
+// หลุดง่ายกว่า LAN) command จะค้าง Pending ตลอดกาล - เครื่องบูตกลับมา Agent (state ในหน่วยความจำ
+// ล้างหมด) poll เจอ command เดิมที่ยังเป็น Pending ซ้ำ รันซ้ำ ดับซ้ำ วนไม่จบ endpoint นี้ให้ admin
+// ตัด Pending ทิ้งตรงๆ จาก Server ได้ทันทีโดยไม่ต้องพึ่ง Agent เลย (Agent ที่ยังไม่ boot กลับมา
+// poll จะไม่เจอ command นี้อีกต่อไป) - แก้ที่ต้นตอจริงคือ persist "เคยรันแล้ว" ให้ Restart/Shutdown
+// รอดจาก reboot ด้วย (ดู CommandProcessor.cs) แต่เครื่องที่ยังไม่ได้อัปเดต Agent ตัวใหม่ต้องพึ่ง
+// endpoint นี้เป็นทางออกเดียวที่หยุด loop ได้ทันที
+app.MapPost("/api/commands/{commandId:int}/cancel", async (
+    int commandId, HttpRequest request, AppDbContext db, IHubContext<LabHub> hub, IActivityLogService activityLog) =>
+{
+    var admin = await GetAuthorizedAdmin(request, db);
+    if (admin is null)
+        return Results.Unauthorized();
+
+    var command = await db.ClientCommands.FindAsync(commandId);
+    if (command is null) return Results.NotFound();
+
+    // Status (delivery/poll filter) บังคับเป็น Failed เสมอไม่ว่าจะอยู่สถานะไหนอยู่ก่อน - นี่คือตัวที่
+    // หยุด /api/poll ไม่ให้ส่ง command นี้อีกจริงๆ (ดู pendingCommands query ด้านบนที่ filter
+    // Status == Pending เท่านั้น)
+    command.Status = ClientCommandStatus.Failed;
+
+    // ExecutionStatus แตะเฉพาะตอนยังเป็น Pending เท่านั้น - กันทับผลจริงที่ Agent อาจรายงานมาก่อนแล้ว
+    // (เช่น กด cancel ช้าไปนิดหลัง Agent เพิ่ง report สำเร็จพอดี ไม่อยากให้ข้อความ "ยกเลิก" ไปทับ
+    // ผลจริงที่ถูกต้องกว่า)
+    if (command.ExecutionStatus == CommandExecutionStatus.Pending)
+    {
+        command.ExecutionStatus = CommandExecutionStatus.Failed;
+        command.ExecutionMessage = $"ยกเลิกโดย {admin.Username}";
+        command.ExecutedAt = DateTime.UtcNow;
+    }
+
+    await db.SaveChangesAsync();
+    await hub.Clients.BroadcastCommandResult(command);
+
+    var targetClient = await db.ClientMachines.FirstOrDefaultAsync(c => c.ClientGuid == command.ClientGuid);
+    await activityLog.LogAdminActionAsync(admin, "CommandCancelled",
+        $"{admin.Username} ยกเลิกคำสั่ง '{command.CommandType}' (id={command.Id}) ที่ค้างอยู่บนเครื่อง '{targetClient?.MachineName}'",
+        command.ClientGuid, targetClient?.MachineName);
+
+    return Results.Ok(CommandResultDto.From(command));
+});
+
 // client push log กลับมา - ไม่ต้อง auth (ใช้ในเครือข่ายปิดของโรงเรียนเท่านั้น)
 app.MapPost("/api/logs", async (LogEntry log, AppDbContext db) =>
 {

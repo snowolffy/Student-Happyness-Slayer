@@ -16,51 +16,13 @@
         resizable Dashboard again, switch back to Grid" note that used to live right here). Each tab's own
         content is a Grid too (Auto rows for title/toolbar/search, * for the DataGrid so it fills whatever
         space is left) instead of a Canvas with pixel-fixed positions. Shared DataGrid header/row/cell
-        styles for all 4 grids are still defined once below in Window.Resources instead of repeating them
-        per DataGrid - that part didn't need to change.
+        styles (ConsoleGridColumnHeaderStyle/ConsoleGridRowStyle/ConsoleGridCellStyle) moved to
+        Theme/Controls.xaml (2026-08-25) so other Windows (e.g. RunningProcessesWindow) can actually
+        resolve them too - StaticResource lookups don't cross between separate Window.Resources, which
+        was a real crash (XamlParseException on open) until they became genuinely app-wide.
         MinWidth/MinHeight are set to keep the toolbar buttons and the 6 tab headers from overlapping/
         wrapping at small sizes - re-check these if a tab's content changes materially later.
     -->
-    <Window.Resources>
-        <!-- Shared DataGrid look for all 4 tabs (Clients/Rules/Logs/Users) - kept here instead of
-             repeating the same header/row/cell styling inline in every DataGrid.Resources block. -->
-        <Style x:Key="ConsoleGridColumnHeaderStyle" TargetType="DataGridColumnHeader">
-            <Setter Property="Background" Value="{StaticResource Brush.Background.Primary}"/>
-            <Setter Property="Foreground" Value="{StaticResource Brush.Text.Secondary}"/>
-            <Setter Property="FontFamily" Value="{StaticResource FontFamily.Primary}"/>
-            <Setter Property="FontWeight" Value="SemiBold"/>
-            <Setter Property="FontSize" Value="11"/>
-            <Setter Property="Padding" Value="10,8"/>
-            <Setter Property="BorderBrush" Value="{StaticResource Brush.Border.Default}"/>
-            <Setter Property="BorderThickness" Value="0,0,1,1"/>
-        </Style>
-        <Style x:Key="ConsoleGridRowStyle" TargetType="DataGridRow">
-            <Setter Property="Background" Value="Transparent"/>
-            <Style.Triggers>
-                <Trigger Property="IsMouseOver" Value="True">
-                    <Setter Property="Background">
-                        <Setter.Value>
-                            <SolidColorBrush Color="{StaticResource Color.Accent.Light}" Opacity="0.15"/>
-                        </Setter.Value>
-                    </Setter>
-                </Trigger>
-            </Style.Triggers>
-        </Style>
-        <Style x:Key="ConsoleGridCellStyle" TargetType="DataGridCell">
-            <Setter Property="Background" Value="Transparent"/>
-            <Setter Property="Foreground" Value="{StaticResource Brush.Text.Primary}"/>
-            <Setter Property="BorderThickness" Value="0"/>
-            <Setter Property="Padding" Value="10,4"/>
-            <Setter Property="FontFamily" Value="{StaticResource FontFamily.Primary}"/>
-            <Setter Property="FontSize" Value="12"/>
-            <Style.Triggers>
-                <Trigger Property="IsSelected" Value="True">
-                    <Setter Property="Background" Value="{StaticResource Brush.Background.Primary}"/>
-                    <Setter Property="Foreground" Value="{StaticResource Brush.Text.Primary}"/>
-                </Trigger>
-            </Style.Triggers>
-        </Style>
-    </Window.Resources>
     <Grid Margin="20">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>

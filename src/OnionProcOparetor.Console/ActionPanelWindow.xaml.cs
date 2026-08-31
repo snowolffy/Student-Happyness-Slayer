@@ -47,6 +47,12 @@ public partial class ActionPanelWindow : Window
     public ClientMachineDto? ViewProcessesRequested { get; private set; }
 
     /// <summary>
+    /// ไม่ null ถ้าผู้ใช้กด PENDING COMMANDS... - DashboardWindow เป็นคนเปิด PendingCommandsWindow
+    /// จริง (เหตุผลเดียวกับ ViewProcessesRequested) - single-client mode เท่านั้น
+    /// </summary>
+    public ClientMachineDto? ViewPendingCommandsRequested { get; private set; }
+
+    /// <summary>
     /// ไม่ null = ครูกด action ที่ต้องมีหน้ารายงานผล DashboardWindow จะเปิด ActionReportWindow
     /// ต่อทันทีหลัง panel นี้ปิดลง (ดู DashboardWindow.OpenActionPanelAsync)
     ///
@@ -75,6 +81,7 @@ public partial class ActionPanelWindow : Window
         DeleteButton.Visibility = Visibility.Visible;
         ViewScreenButton.Visibility = Visibility.Visible;
         ViewProcessesButton.Visibility = Visibility.Visible;
+        PendingCommandsButton.Visibility = Visibility.Visible;
         ToggleButton.Content = client.IsEnabled ? "DISABLE ENFORCEMENT" : "ENABLE ENFORCEMENT";
     }
 
@@ -106,6 +113,7 @@ public partial class ActionPanelWindow : Window
         DeleteButton.Visibility = Visibility.Collapsed;
         ViewScreenButton.Visibility = Visibility.Collapsed;
         ViewProcessesButton.Visibility = Visibility.Collapsed;
+        PendingCommandsButton.Visibility = Visibility.Collapsed;
         ToggleButton.Content = "TOGGLE ENFORCEMENT";
     }
 
@@ -220,6 +228,19 @@ public partial class ActionPanelWindow : Window
         }
 
         ViewProcessesRequested = _singleClient;
+        DialogResult = DataChanged;
+        Close();
+    }
+
+    /// <summary>ปิด panel แล้วส่งสัญญาณกลับ DashboardWindow ให้เปิดหน้าต่าง pending commands สำหรับเครื่องนี้ (ดู ViewPendingCommandsRequested)</summary>
+    private void PendingCommandsButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_singleClient is null)
+        {
+            return;
+        }
+
+        ViewPendingCommandsRequested = _singleClient;
         DialogResult = DataChanged;
         Close();
     }

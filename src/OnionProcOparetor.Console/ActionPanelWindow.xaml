@@ -70,6 +70,7 @@
                     <RowDefinition Height="Auto"/>
                     <RowDefinition Height="Auto"/>
                     <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
                 </Grid.RowDefinitions>
 
                 <Button Grid.Row="0" Width="350" x:Name="ToggleButton" Content="TOGGLE ENFORCEMENT"
@@ -135,7 +136,14 @@
                             Style="{StaticResource ButtonSecondary}" Padding="10,9" FontSize="12" HorizontalAlignment="Right" VerticalAlignment="Top" Click="TailscaleLoginButton_Click"/>
                 </Grid>
 
-                <Button Grid.Row="10" Width="350" x:Name="DeleteButton" Content="DELETE"
+                <!-- ดูคำสั่งที่ยังค้าง Pending อยู่ของเครื่องนี้ + ยกเลิกได้ - เพิ่มขึ้นหลังบั๊กจริง
+                     (2026-08-25): ActionReportWindow ยกเลิกได้แค่ตอนหน้าต่างนั้นยังเปิดอยู่ แต่ command
+                     ที่ค้าง Pending จริงอาจมาจากรอบก่อน (หน้าต่างปิดไปแล้ว/Console เปิดใหม่) ปุ่มนี้ดึง
+                     ตรงจาก Server ทุกครั้งที่กด ไม่ต้องพึ่งว่าเคยเห็นหน้า report ตอนสั่งหรือเปล่าเลย -->
+                <Button Grid.Row="10" Width="350" x:Name="PendingCommandsButton" Content="PENDING COMMANDS..."
+                        Style="{StaticResource ButtonSecondary}" HorizontalAlignment="Center" VerticalAlignment="Top" Margin="0,0,0,12" Click="PendingCommandsButton_Click"/>
+
+                <Button Grid.Row="11" Width="350" x:Name="DeleteButton" Content="DELETE"
                         Style="{StaticResource ButtonDanger}" HorizontalAlignment="Center" VerticalAlignment="Top" Click="DeleteButton_Click"/>
             </Grid>
         </Border>

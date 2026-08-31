@@ -35,16 +35,16 @@ public partial class RunningProcessesWindow : Window
     private async void RefreshButton_Click(object sender, RoutedEventArgs e) => await RefreshAsync();
 
     /// <summary>
-    /// บั๊กจริงที่เจอ (2026-08-25, field test): กด "VIEW RUNNING PROCESSES..." แล้วทั้ง Console
-    /// crash ทันที - สาเหตุคือ handler นี้ (และ Loaded ด้านบน) เป็น "async void" ทั้งคู่ ไม่มี try/catch
-    /// เลยสักจุดตลอด chain (RefreshAsync -> RequestRunningProcessesAsync -> JsonSerializer.Deserialize)
-    /// exception ที่โยนออกมาจาก async void event handler ใน WPF จะไม่มีใครจับได้เลย (ไม่ใช่ async Task
-    /// ที่ caller await ได้) กลายเป็น unhandled exception ที่ terminate ทั้ง process ทันที - แอปนี้ไม่มี
-    /// Application.DispatcherUnhandledException global handler ด้วย เลยไม่มีชั้นไหนกันไว้เลยจริงๆ
+    /// try/catch คลุมทั้ง method กัน exception จาก async void handler (Loaded/RefreshButton_Click)
+    /// ที่ไม่มี caller คอย await เลย (JSON malform, LabHubClient ยังไม่พร้อม, ฯลฯ) ให้จบแค่ status
+    /// message สีแดงในหน้าต่างนี้แทนที่จะหลุดไปเป็น unhandled exception - ตรงกับหลักการเดิมของ
+    /// โปรเจกต์นี้ (fail-secure/fail-visible ไม่ fail-crash)
     ///
-    /// แก้ด้วย try/catch คลุมทั้ง method (ไม่ใช่แค่จุดที่คิดว่าจะพังจุดเดียว) - ให้ exception อะไรก็ตาม
-    /// (JSON malform, LabHubClient ยังไม่พร้อม, ฯลฯ) จบแค่ status message สีแดงในหน้าต่างนี้ ไม่ลาม
-    /// ไปทำทั้ง Console ตาย - ตรงกับหลักการเดิมของโปรเจกต์นี้ (fail-secure/fail-visible ไม่ fail-crash)
+    /// หมายเหตุ: นี่ไม่ใช่สาเหตุของบั๊ก "กด VIEW RUNNING PROCESSES แล้ว Console หายทั้งตัว" ที่เจอจริง
+    /// (2026-08-25 field test) - รอบแรกเข้าใจผิดว่าใช่ ตัวการจริงคือ XamlParseException ตอนเปิดหน้าต่าง
+    /// จาก StaticResource ที่อ้างถึง style ซึ่งประกาศไว้ใน DashboardWindow.xaml เท่านั้น (ดู
+    /// Theme/Controls.xaml ที่ย้าย 3 style นั้นมาไว้เป็น global แทน) try/catch นี้ยังมีประโยชน์อยู่
+    /// (ป้องกันความเสี่ยงจริงของ async void ทั่วไป) แค่ไม่ใช่ตัวที่แก้บั๊กที่ report มา
     /// </summary>
     private async Task RefreshAsync()
     {

@@ -292,6 +292,12 @@ public partial class DashboardWindow : Window
             var processesWindow = new RunningProcessesWindow(_apiClient, _labHubClient, panel.ViewProcessesRequested) { Owner = this };
             processesWindow.Show();
         }
+
+        if (panel.ViewPendingCommandsRequested is not null)
+        {
+            var pendingCommandsWindow = new PendingCommandsWindow(_apiClient, panel.ViewPendingCommandsRequested) { Owner = this };
+            pendingCommandsWindow.Show();
+        }
     }
 
     private async void ToggleRuleButton_Click(object sender, RoutedEventArgs e)

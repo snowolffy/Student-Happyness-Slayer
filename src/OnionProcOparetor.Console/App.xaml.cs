@@ -24,5 +24,30 @@ public partial class App : Application
 
         // โหลด console-settings.json (หรือ default ถ้ายังไม่มี) แล้ว apply ค่า VNC limit ให้ทันก่อนหน้าต่างไหนเปิดขึ้นมา
         SettingsService.EnsureLoaded();
+
+        // บั๊กจริงที่เจอซ้ำ 2 ครั้ง (2026-08-25): "VIEW RUNNING PROCESSES..." ทำให้ทั้ง Console หายไปเงียบๆ
+        // ทันทีที่กด - รอบแรกเข้าใจผิดว่าอยู่ใน RunningProcessesWindow เอง (ครอบ try/catch ไปแล้ว) แต่ crash
+        // จริงอยู่ที่ตอน "เปิด" หน้าต่าง (DashboardWindow.RunActionPanelAsync ที่เรียกจาก
+        // ClientActionsButton_Click ซึ่งเป็น async void ไม่มี try/catch เหมือนกัน) - ยืนยันว่า pattern นี้
+        // (async void event handler ไม่มี try/catch + ไม่มี global handler กันไว้เลย) เป็นความเสี่ยงทั่วทั้ง
+        // แอป ไม่ใช่จุดเดียว แก้แบบเจาะจุดต่อไปเรื่อยๆ ไม่จบ - เพิ่ม global handler ตรงนี้แทน กัน exception
+        // ที่หลุดจาก event handler ไหนก็ตามทำให้ทั้ง process ตาย เขียน log เต็มๆ ไว้ที่ console.log (มี path
+        // เดียวกับที่ ConsoleDiagnostics เขียน startup diagnostic อยู่แล้ว) แทนที่จะหายไปเงียบๆ แบบเดิม
+        DispatcherUnhandledException += (_, args) =>
+        {
+            ConsoleDiagnostics.WriteLine(
+                $"UNHANDLED EXCEPTION: {args.Exception.GetType().FullName}: {args.Exception.Message}\n{args.Exception.StackTrace}\n" +
+                (args.Exception.InnerException is not null
+                    ? $"Inner: {args.Exception.InnerException.GetType().FullName}: {args.Exception.InnerException.Message}\n{args.Exception.InnerException.StackTrace}\n"
+                    : string.Empty));
+
+            MessageBox.Show(
+                $"เกิดข้อผิดพลาดที่ไม่คาดคิด:\n\n{args.Exception.Message}\n\nรายละเอียดเต็มถูกบันทึกไว้ที่:\n{ConsoleDiagnostics.LogPath}",
+                "เกิดข้อผิดพลาด", MessageBoxButton.OK, MessageBoxImage.Error);
+
+            // สำคัญ: บอก WPF ว่า "จัดการแล้ว" กัน process ตายทั้งตัว - โปรแกรมยังทำงานต่อได้ปกติ
+            // (หน้าต่างที่กำลังเปิดอยู่ตอนเกิด exception อาจอยู่ในสถานะไม่สมบูรณ์ แต่ดีกว่าทั้งแอปหายไปเงียบๆ)
+            args.Handled = true;
+        };
     }
 }

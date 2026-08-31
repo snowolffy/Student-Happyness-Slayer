@@ -1,0 +1,67 @@
+<Window x:Class="OnionProcOparetor.Console.PendingCommandsWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Pending Commands"
+        Height="420" Width="640"
+        WindowStartupLocation="CenterOwner"
+        Icon="/Theme/icon.ico"
+        Style="{StaticResource AppWindowStyle}">
+    <!-- คำสั่งที่ยังค้าง Pending (ยังไม่ Delivered) ของเครื่องนี้ - ดึงตรงจาก Server ทุกครั้งที่เปิด/
+         REFRESH ไม่พึ่ง ActionReportWindow เลย (หน้านั้นยกเลิกได้แค่ตอนยังเปิดอยู่เท่านั้น) เพิ่มขึ้น
+         หลังบั๊กจริง (2026-08-25): Restart/Shutdown ที่ ack ไม่ทันเครื่องดับจริง (โอกาสสูงขึ้นตอนใช้
+         Tailscale fallback) ค้าง Pending แล้วถูกส่งซ้ำทุกรอบ poll วนไม่จบหลังเครื่องบูตกลับมา - หน้านี้
+         ให้ครูเห็น+ยกเลิกได้แม้พลาดหน้าต่างตอนสั่งไปแล้ว ไม่ modal เหมือน RunningProcessesWindow
+         (เปิดดูหลายเครื่องพร้อมกันได้) -->
+    <Grid Margin="20">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <Grid Grid.Row="0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            <TextBlock Grid.Column="0" x:Name="MachineNameText" Style="{StaticResource Heading2}"/>
+            <Button Grid.Column="1" Content="REFRESH" Style="{StaticResource ButtonSecondary}"
+                    Padding="10,5" FontSize="11" Click="RefreshButton_Click"/>
+        </Grid>
+
+        <TextBlock Grid.Row="1" x:Name="StatusText" Style="{StaticResource Caption}"
+                   TextWrapping="Wrap" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="0,8,0,8"/>
+
+        <Grid Grid.Row="2">
+            <DataGrid x:Name="CommandsGrid" AutoGenerateColumns="False" IsReadOnly="True"
+                      Background="{StaticResource Brush.Background.Card}"
+                      BorderBrush="{StaticResource Brush.Border.Default}" BorderThickness="1"
+                      RowBackground="{StaticResource Brush.Background.Card}"
+                      AlternatingRowBackground="{StaticResource Brush.Background.Card}"
+                      HorizontalGridLinesBrush="{StaticResource Brush.Border.Default}"
+                      VerticalGridLinesBrush="{StaticResource Brush.Border.Default}"
+                      RowHeight="40" CanUserAddRows="False"
+                      ColumnHeaderStyle="{StaticResource ConsoleGridColumnHeaderStyle}"
+                      RowStyle="{StaticResource ConsoleGridRowStyle}"
+                      CellStyle="{StaticResource ConsoleGridCellStyle}">
+                <DataGrid.Columns>
+                    <DataGridTextColumn Header="COMMAND ID" Binding="{Binding CommandId}" Width="90"/>
+                    <DataGridTextColumn Header="TYPE" Binding="{Binding CommandType}" Width="*"/>
+                    <DataGridTextColumn Header="DELIVERY" Binding="{Binding DeliveryStatus}" Width="100"/>
+                    <DataGridTemplateColumn Header="ACTIONS" Width="100">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate>
+                                <Button Content="ยกเลิก" Style="{StaticResource ButtonSecondary}"
+                                        Padding="10,5" FontSize="11"
+                                        Click="CancelButton_Click" Tag="{Binding}"/>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+                </DataGrid.Columns>
+            </DataGrid>
+            <TextBlock x:Name="EmptyText"
+                       Text="ไม่มีคำสั่งที่ค้างอยู่สำหรับเครื่องนี้" Style="{StaticResource Caption}" TextAlignment="Center"
+                       VerticalAlignment="Center" Visibility="Collapsed" IsHitTestVisible="False"/>
+        </Grid>
+    </Grid>
+</Window>

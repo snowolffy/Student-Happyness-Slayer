@@ -50,6 +50,17 @@
             <Setter Property="Tag" Value="{Binding StatusTag}"/>
             <Setter Property="Content" Value="{Binding StatusText}"/>
         </Style>
+
+        <!-- ปุ่มยกเลิกต่อแถว - โชว์เฉพาะแถวที่ยังรอผล (IsPending) และมี CommandId แล้วเท่านั้น
+             (โหมด Sending ยังไม่มี CommandId ให้ยกเลิกด้วยซ้ำ - ดู CancelButton_Click ที่กันไว้อีกชั้น) -->
+        <Style x:Key="RowCancelButtonStyle" TargetType="Button" BasedOn="{StaticResource ButtonSecondary}">
+            <Setter Property="Visibility" Value="Collapsed"/>
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding IsPending}" Value="True">
+                    <Setter Property="Visibility" Value="Visible"/>
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
     </Window.Resources>
 
     <Grid Margin="16">
@@ -113,6 +124,16 @@
                 <DataGridTextColumn Header="MACHINE NAME" Width="180" Binding="{Binding MachineName}"/>
                 <DataGridTextColumn Header="CLIENT GUID" Width="230" Binding="{Binding ClientGuid}"/>
                 <DataGridTextColumn Header="รายละเอียด" Width="*" Binding="{Binding Message}"/>
+
+                <DataGridTemplateColumn Header="" Width="90">
+                    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate>
+                            <Button Content="ยกเลิก" Style="{StaticResource RowCancelButtonStyle}"
+                                    Padding="10,4" FontSize="11"
+                                    Click="CancelButton_Click"/>
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                </DataGridTemplateColumn>
             </DataGrid.Columns>
         </DataGrid>
 
