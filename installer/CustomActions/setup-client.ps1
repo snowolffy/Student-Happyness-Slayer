@@ -81,7 +81,28 @@ else {
 }
 
 # 2) ตั้งค่า recovery แล้วค่อย start เป็นลำดับสุดท้าย
-& sc.exe failure OnionAgent reset= 86400 actions= restart/0/restart/0/restart/0 | ForEach-Object { Write-Log "sc failure: $_" }
+#
+# ปรับ 2026-08-31 (จาก config review) - ค่าเดิมคือ `reset= 86400 actions= restart/0/restart/0/restart/0`
+# ซึ่งมีปัญหาจริง 2 ข้อในสถานการณ์ใช้งานของห้องนี้:
+#
+#   1. reset= 86400 (1 วัน) + 3 action = ถ้า service ล้ม 3 ครั้งภายในวันเดียวกัน ครั้งที่ 4
+#      เป็นต้นไปในวันนั้น Windows จะ "ไม่ทำอะไรเลย" - เครื่องนั้นจะไม่มี Agent ไปตลอดทั้งวัน
+#      จนกว่าจะมีคนไปสั่ง start เอง ซึ่งไม่มีใครรู้ว่าต้องไป และนักเรียนที่ทำให้มันล้มซ้ำๆ ได้
+#      3 ครั้งก็จะได้เครื่องที่ไม่มีการควบคุมไปฟรีๆ ทั้งวัน
+#      -> ลด reset เหลือ 1 ชั่วโมง: ตัวนับล้างตัวเองบ่อยพอที่จะไม่มีวัน "หมดสิทธิ์ restart"
+#
+#   2. restart/0 ทั้ง 3 ครั้ง = ถ้า Agent crash ตั้งแต่ startup (เช่น config พัง, DB lock)
+#      มันจะวน crash-restart รัวๆ ทันทีติดกัน 3 รอบภายในเสี้ยววินาที กิน CPU และทำให้ Event Log
+#      เต็มไปด้วย error ชุดเดียวกัน โดยไม่ได้เพิ่มโอกาสสำเร็จเลย
+#      -> ไล่ระดับ 5 วิ / 15 วิ / 60 วิ: ครั้งแรกเร็วพอสำหรับ crash ชั่วคราว (ซึ่งเป็นเคสส่วนใหญ่)
+#         ครั้งหลังๆ ให้เวลาสิ่งที่ทำให้ crash (ไฟล์ถูก lock, เครือข่ายยังไม่พร้อมตอนบูต) คลี่คลาย
+#
+# `sc failureflag 1` = ให้ recovery action ทำงานกับการหยุดแบบ "ไม่ crash" ด้วย (service exit
+# ด้วย error code เอง) ค่า default คือ 0 ซึ่งครอบคลุมแค่ process ตายผิดปกติจริงๆ เท่านั้น
+# หมายเหตุ: `net stop` / `sc stop` แบบตั้งใจยังคงไม่ถูกนับเป็น failure ไม่ว่าจะตั้ง flag นี้หรือไม่ -
+# กรณีนั้นเป็นหน้าที่ของ tamper watchdog (agent-watchdog.ps1) ที่จะเห็นว่า service ไม่ Running
+& sc.exe failure OnionAgent reset= 3600 actions= restart/5000/restart/15000/restart/60000 | ForEach-Object { Write-Log "sc failure: $_" }
+& sc.exe failureflag OnionAgent 1 | ForEach-Object { Write-Log "sc failureflag: $_" }
 & sc.exe start OnionAgent | ForEach-Object { Write-Log "sc start: $_" }
 
 # 3) ถ้ากรอก uninstall password ไว้ (ไม่ได้ skip) - hash แล้วเก็บลง guard file

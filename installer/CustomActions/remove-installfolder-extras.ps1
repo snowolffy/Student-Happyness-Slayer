@@ -38,11 +38,33 @@
 
 if ([string]::IsNullOrWhiteSpace($env:ONIONPROC_INSTALLDIR)) { exit 0 }
 
+# ---- ตรวจก่อนลบ (เพิ่ม 2026-08-31 จาก audit) ----
+# INSTALLFOLDER เปลี่ยนได้จริงโดยคนติดตั้ง (WixUI_InstallDir มีหน้า browse ให้เลือกโฟลเดอร์) และ
+# ส่งผ่าน INSTALLDIR= ตอน silent install ได้ด้วย - บรรทัดข้างล่างคือ recursive force delete ที่ไม่มี
+# เงื่อนไขอะไรเลย ถ้าใครเผลอชี้ install ไปที่โฟลเดอร์ที่มีของอยู่แล้ว (เช่น D:\ หรือโฟลเดอร์งาน)
+# การ uninstall จะกวาดของในนั้นหายทั้งหมดเงียบๆ
+#
+# กันด้วยการยืนยันว่าโฟลเดอร์ปลายทาง "หน้าตาเหมือนที่เราติดตั้งไว้จริง": ชื่อโฟลเดอร์ต้องขึ้นต้นด้วย
+# ชื่อ product ของเรา ตรวจชื่อ leaf อย่างเดียวพอ ไม่ตรวจ path เต็ม เพราะติดตั้งลงไดรฟ์อื่นได้ตามปกติ
+$target = $env:ONIONPROC_INSTALLDIR.TrimEnd('\')
+$leaf = Split-Path -Leaf $target
+
+if ($leaf -notlike 'Onion ProcOparetor*') {
+    Write-Host "Refusing to delete '$target': folder name does not match this product"
+    exit 0
+}
+
+# กันเคสสุดโต่งอีกชั้น: root ของไดรฟ์ (เช่น "C:\") ไม่มีทางเป็น install folder ที่ถูกต้อง
+if ($target.Length -le 3) {
+    Write-Host "Refusing to delete '$target': drive root"
+    exit 0
+}
+
 # หน่วงเล็กน้อยกันชนกับ handle ของไฟล์ที่ RemoveFiles เพิ่งปิดไป (best-effort, ไม่ critical)
 Start-Sleep -Milliseconds 500
 
 try {
-    Remove-Item -LiteralPath $env:ONIONPROC_INSTALLDIR -Recurse -Force -ErrorAction SilentlyContinue
+    Remove-Item -LiteralPath $target -Recurse -Force -ErrorAction SilentlyContinue
 }
 catch {
     # best-effort cleanup เท่านั้น - ไม่ทำให้ uninstall fail ถ้าลบไม่หมด (เช่นไฟล์ยังถูก lock อยู่)
