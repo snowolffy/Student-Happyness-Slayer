@@ -137,6 +137,15 @@ namespace OnionProcOparetor.Server.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("INTEGER");
 
+                    b.Property<DateTime?>("AgentSecretEnrolledAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("AgentSecretHash")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("AgentSecretSalt")
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("ClientGuid")
                         .IsRequired()
                         .HasColumnType("TEXT");

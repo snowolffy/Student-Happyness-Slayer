@@ -98,4 +98,19 @@ public class AgentConnectionRegistry
             return _connectionIdsByClientGuid.ContainsKey(clientGuid);
         }
     }
+
+    /// <summary>
+    /// connection นี้เป็นของเครื่องไหน - null ถ้า connection นี้ไม่เคยเรียก RegisterAgent สำเร็จ
+    /// (เช่นเป็น connection ของ Console ที่ใช้ hub เดียวกัน หรือเป็นคนที่ต่อเข้ามาเฉยๆ)
+    ///
+    /// เพิ่ม 2026-08-31 สำหรับตรวจ ownership ใน LabHub.ReportCommandResult - แผนที่กลับทิศ
+    /// (connectionId -> clientGuid) มีอยู่แล้วสำหรับ Unregister เลยแค่เปิดให้อ่านได้ ไม่ได้เพิ่ม state ใหม่
+    /// </summary>
+    public string? GetClientGuid(string connectionId)
+    {
+        lock (_lock)
+        {
+            return _clientGuidByConnectionId.TryGetValue(connectionId, out var guid) ? guid : null;
+        }
+    }
 }

@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.SignalR;
+﻿using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using OnionProcOparetor.Server.Data;
 using OnionProcOparetor.Server.Models;
@@ -21,23 +21,73 @@ public class LabHub : Hub
     private readonly AppDbContext _db;
     private readonly AgentConnectionRegistry _connectionRegistry;
     private readonly IActivityLogService _activityLog;
+    private readonly AgentAuthenticator _agentAuth;
 
-    public LabHub(AppDbContext db, AgentConnectionRegistry connectionRegistry, IActivityLogService activityLog)
+    public LabHub(
+        AppDbContext db,
+        AgentConnectionRegistry connectionRegistry,
+        IActivityLogService activityLog,
+        AgentAuthenticator agentAuth)
     {
         _db = db;
         _connectionRegistry = connectionRegistry;
         _activityLog = activityLog;
+        _agentAuth = agentAuth;
+    }
+
+    /// <summary>
+    /// ClientGuid ที่ connection นี้พิสูจน์ได้ว่าเป็นเจ้าของจริง - null ถ้าพิสูจน์ไม่ได้
+    ///
+    /// header ถูกแนบมาตั้งแต่ตอน negotiate/handshake (ดู LabHubConnection ฝั่ง Agent) จึงอ่านได้จาก
+    /// HttpContext ของ connection นี้ตลอดอายุ connection โดยไม่ต้องส่งซ้ำทุก invocation
+    /// </summary>
+    private async Task<ClientMachine?> ResolveAuthenticatedAgentAsync(string claimedGuid, string hubMethodName)
+    {
+        var httpContext = Context.GetHttpContext();
+        var providedSecret = httpContext?.Request.Headers[AgentAuthenticator.SecretHeaderName].ToString();
+        var headerGuid = httpContext?.Request.Headers[AgentAuthenticator.GuidHeaderName].ToString();
+
+        // GUID ใน header (ผูกกับ connection) ต้องตรงกับ GUID ที่ method อ้าง - ถ้าไม่ตรงคือกำลัง
+        // พยายามลงทะเบียนเป็นเครื่องอื่นด้วย connection ของตัวเอง
+        if (!string.IsNullOrWhiteSpace(headerGuid) &&
+            !string.Equals(headerGuid, claimedGuid, StringComparison.OrdinalIgnoreCase))
+        {
+            return null;
+        }
+
+        var client = await _db.ClientMachines.FirstOrDefaultAsync(c => c.ClientGuid == claimedGuid);
+        if (client is null)
+        {
+            // ยังไม่เคย poll = ยังไม่มีแถวใน DB ให้เทียบ secret ด้วย - พฤติกรรมเดิมคือปล่อยผ่าน
+            // (RegisterAgent จัดการเคสนี้อยู่แล้วด้วยการข้ามการอัปเดต DB) คงไว้เหมือนเดิม
+            return null;
+        }
+
+        return await _agentAuth.AuthorizeAsync(client, providedSecret, _activityLog, $"hub:{hubMethodName}")
+            ? client
+            : null;
     }
 
     /// <summary>Agent เรียกทันทีหลัง connect เสร็จ เพื่อ join group เฉพาะเครื่องตัวเอง (ชื่อ group = clientGuid)</summary>
     public async Task RegisterAgent(string clientGuid)
     {
+        // ---- 2026-08-31: ตรวจสิทธิ์ก่อน join group (จาก security audit) ----
+        // เดิมใครก็ตามที่เปิด WebSocket มาที่ /hubs/lab เรียก RegisterAgent ด้วย GUID ของเครื่องอื่น
+        // ได้ทันที แล้วจะเข้า group ของเครื่องนั้นและ "รับ command ที่ครูส่งไปหาเครื่องนั้น" แทนมันเลย
+        // (ดู SendCommandToAgent ที่ push เข้า group ชื่อ = clientGuid)
+        var client = await ResolveAuthenticatedAgentAsync(clientGuid, nameof(RegisterAgent));
+
+        if (client is null && _agentAuth.IsEnforcing)
+        {
+            throw new HubException("Agent authentication failed.");
+        }
+
         await Groups.AddToGroupAsync(Context.ConnectionId, clientGuid);
         _connectionRegistry.Register(Context.ConnectionId, clientGuid);
 
         // อัปเดต LastSeenAt ทันทีที่ต่อ SignalR สำเร็จ (เสริมจาก poll เดิมที่อัปเดตอยู่แล้วทุกรอบ)
         // ถ้ายังไม่เคยมี ClientMachine ใน DB เลย (ยังไม่เคย poll มาก่อน) ข้ามไปก่อน - รอ poll รอบแรกสร้าง record ให้ตามเดิม
-        var client = await _db.ClientMachines.FirstOrDefaultAsync(c => c.ClientGuid == clientGuid);
+        client ??= await _db.ClientMachines.FirstOrDefaultAsync(c => c.ClientGuid == clientGuid);
         if (client is not null)
         {
             client.LastSeenAt = DateTime.UtcNow;
@@ -132,6 +182,28 @@ public class LabHub : Hub
     /// </summary>
     public async Task ReportCommandResult(int commandId, bool success, string? message)
     {
+        // ผูกกับ connection ที่ลงทะเบียนไว้แล้วเท่านั้น (2026-08-31) - ต่างจาก RegisterAgent ตรงที่
+        // ที่นี่ไม่ต้องเชื่อ argument ใดๆ เลย เพราะ AgentConnectionRegistry รู้อยู่แล้วว่า connection
+        // นี้คือเครื่องไหน จึงตรวจ ownership ของ commandId ได้ตรงๆ โดยไม่ต้องอ่าน header ซ้ำ
+        var ownerGuid = _connectionRegistry.GetClientGuid(Context.ConnectionId);
+        if (ownerGuid is not null)
+        {
+            var commandOwner = await _db.ClientCommands
+                .Where(c => c.Id == commandId)
+                .Select(c => c.ClientGuid)
+                .FirstOrDefaultAsync();
+
+            if (commandOwner is not null && commandOwner != ownerGuid)
+            {
+                throw new HubException("Command does not belong to this agent.");
+            }
+        }
+        else if (_agentAuth.IsEnforcing)
+        {
+            // connection ที่ไม่เคยเรียก RegisterAgent สำเร็จ ไม่มีสิทธิ์รายงานผลของ command ใดๆ
+            throw new HubException("Agent is not registered on this connection.");
+        }
+
         var updated = await CommandResultRecorder.RecordAsync(_db, commandId, success, message);
 
         if (updated is not null)

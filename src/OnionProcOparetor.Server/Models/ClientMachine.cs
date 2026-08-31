@@ -32,6 +32,28 @@ public class ClientMachine
     /// <summary>true = เปิดใช้งาน enforcement บนเครื่องนี้, false = ปิด (per-machine toggle)</summary>
     public bool IsEnabled { get; set; } = true;
 
+    /// <summary>
+    /// PBKDF2 hash ของ agent secret ประจำเครื่องนี้ (2026-08-31, จาก security audit)
+    ///
+    /// null = ยังไม่เคย enroll (เครื่องที่ติดตั้งด้วย build ก่อนหน้า หรือเครื่องใหม่ที่ยังไม่ poll)
+    /// ค่าแรกที่ส่งมาถือว่าเป็นของจริง (trust-on-first-use) แล้วล็อกไว้ตลอด - เลือกแบบนี้เพราะ
+    /// ทางเลือกอื่น (pre-shared key ตอนติดตั้ง) แปลว่าต้องเดินไปทีละเครื่องทั้ง 40 เครื่อง และ key
+    /// จะไปนั่งอยู่ใน MSI/สคริปต์ที่นักเรียนอ่านได้อยู่ดี
+    ///
+    /// ช่องที่เหลืออยู่ของ TOFU (บอกตรงๆ ไม่ได้ปิดหมด): ระหว่างที่เครื่องหนึ่งยังไม่เคย enroll
+    /// ใครก็ตามที่รู้ GUID ของเครื่องนั้นชิง enroll ก่อนได้ หน้าต่างนี้กว้างแค่ช่วงหลัง rollout build
+    /// นี้จนถึง poll แรกของแต่ละเครื่อง (ไม่กี่สิบวินาที) และครู re-enroll ทับได้จาก Console
+    /// เก็บเป็น hash ไม่ใช่ค่าดิบ ด้วยเหตุผลเดียวกับรหัสผ่าน admin: DB ที่หลุดไม่ควรแปลว่า
+    /// ปลอมเป็นทุกเครื่องในห้องได้ทันที
+    /// </summary>
+    public string? AgentSecretHash { get; set; }
+
+    /// <summary>salt ของ AgentSecretHash - null คู่กับ AgentSecretHash เสมอ</summary>
+    public string? AgentSecretSalt { get; set; }
+
+    /// <summary>เวลาที่ enroll agent secret ครั้งล่าสุด (ไว้ให้ครูดูว่าเครื่องไหนเพิ่งถูก enroll ใหม่ผิดปกติ)</summary>
+    public DateTime? AgentSecretEnrolledAt { get; set; }
+
     /// <summary>เวลาที่ client เครื่องนี้ poll เข้ามาล่าสุด ใช้เช็คว่ายัง online อยู่ไหม</summary>
     public DateTime LastSeenAt { get; set; } = DateTime.UtcNow;
 

@@ -106,7 +106,17 @@ public class LabHubConnection : IAsyncDisposable
         var hubUrl = baseUrl.TrimEnd('/') + "/hubs/lab";
 
         _connection = new HubConnectionBuilder()
-            .WithUrl(hubUrl)
+            .WithUrl(hubUrl, options =>
+            {
+                // แนบหลักฐานตัวตนตั้งแต่ตอน negotiate/handshake (2026-08-31, จาก security audit)
+                // ใส่ที่ระดับ connection ไม่ใช่เพิ่ม parameter ให้ RegisterAgent โดยตั้งใจ: ทำให้ทุก hub
+                // method ที่มีอยู่และที่จะเพิ่มในอนาคตตรวจสิทธิ์จากที่เดียวกันได้ (Context.GetHttpContext()
+                // ฝั่ง Server) โดยไม่ต้องเปลี่ยน signature ของ method ไหนเลย - เดิม hub ทั้งตัวไม่มี auth
+                // อะไรเลย ใครใน LAN ก็ต่อเข้ามาแล้วเรียก RegisterAgent(guid ของเครื่องอื่น) เพื่อรับ
+                // command ที่ครูส่งไปหาเครื่องนั้นแทนได้
+                options.Headers[AgentCredentials.GuidHeaderName] = _clientGuid;
+                options.Headers[AgentCredentials.SecretHeaderName] = AgentCredentials.Secret;
+            })
             .WithAutomaticReconnect(new ExponentialBackoffRetryPolicy())
             .Build();
 

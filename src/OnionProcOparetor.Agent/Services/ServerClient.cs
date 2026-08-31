@@ -1,4 +1,4 @@
-using System.Net.Http.Json;
+﻿using System.Net.Http.Json;
 using Microsoft.Extensions.Options;
 using OnionProcOparetor.Agent.Models;
 
@@ -44,6 +44,13 @@ public class ServerClient
         // _httpClient.BaseAddress เลยตั้งแต่ต้น (ดู comment บนคลาสเรื่องบั๊กที่เจอ) ทุก method ใช้
         // ActiveBaseUrl สร้าง absolute URI เองทั้งหมด สม่ำเสมอกันหมดไม่มีจุดไหนพึ่ง BaseAddress อีกเลย
         ActiveBaseUrl = settings.Value.BaseUrl;
+
+        // ---- แนบหลักฐานตัวตนของเครื่องนี้กับ "ทุก" request ที่ออกจาก HttpClient ตัวนี้ (2026-08-31) ----
+        // ตั้งที่ DefaultRequestHeaders ครั้งเดียวแทนที่จะไปไล่ใส่ทีละ method โดยตั้งใจ: ทุก method ใน
+        // คลาสนี้คุยกับ endpoint ฝั่ง agent ของ Server ทั้งหมด ไม่มีข้อยกเว้น - การไล่ใส่ทีละจุดคือจุดที่
+        // method ใหม่ในอนาคตจะลืมใส่แล้วกลายเป็นช่องโหว่เงียบๆ อีกรอบ
+        _httpClient.DefaultRequestHeaders.Add(AgentCredentials.GuidHeaderName, ClientIdentity.GetOrCreateClientGuid());
+        _httpClient.DefaultRequestHeaders.Add(AgentCredentials.SecretHeaderName, AgentCredentials.Secret);
     }
 
     /// <summary>

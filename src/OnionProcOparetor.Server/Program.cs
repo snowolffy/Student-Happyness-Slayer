@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.SignalR;
+﻿using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using OnionProcOparetor.Server.Data;
 using OnionProcOparetor.Server.Hubs;
@@ -93,6 +93,10 @@ builder.Services.AddHostedService<MainDbRetentionService>();
 
 // ---- จำกัดการเดารหัสผ่านที่ /api/auth/login (2026-08-31) - singleton เพราะตัวนับต้องอยู่ข้าม request ----
 builder.Services.AddSingleton<LoginThrottle>();
+
+// ---- ตรวจ agent secret ของ endpoint ฝั่ง agent ทั้งหมด (2026-08-31) ----
+// singleton ได้เพราะไม่ถือ state ใดๆ เอง (อ่าน config + รับ ClientMachine เข้ามาเป็น argument)
+builder.Services.AddSingleton<AgentAuthenticator>();
 
 // ---- SignalR: real-time push คู่ขนานกับ HTTP polling เดิม (ไม่แทนที่ poll) ----
 builder.Services.AddSignalR();
@@ -560,6 +564,35 @@ app.MapDelete("/api/clients/{clientGuid}/rule-overrides/{ruleId:int}", async (st
     return Results.Ok(new { message = "Override cleared." });
 });
 
+// ล้าง agent secret ที่ enroll ไว้ของเครื่องหนึ่ง เพื่อให้ enroll ใหม่ในรอบ poll ถัดไป (2026-08-31)
+//
+// จำเป็นเพราะ agent secret ผูกกับไฟล์ agent.key ใน %ProgramData% ของเครื่องนั้น ซึ่งหายไปได้จริง
+// ในสถานการณ์ปกติของห้องนี้: ลง Windows ใหม่, Reboot Restore Rx restore ทับตอนที่ยังไม่ได้ commit
+// baseline, หรือติดตั้ง Agent ใหม่หลังล้างเครื่อง - ถ้าไม่มีทางล้างจากฝั่ง Server เครื่องนั้นจะติด
+// Mismatch ถาวรและ (เมื่อเปิดโหมดบังคับใช้) หลุดจากระบบไปเลยโดยที่ครูแก้เองไม่ได้
+app.MapPost("/api/clients/{id:int}/reset-agent-secret", async (int id, HttpRequest request, AppDbContext db, IActivityLogService activityLog) =>
+{
+    var admin = await GetAuthorizedAdmin(request, db);
+    if (admin is null)
+        return Results.Unauthorized();
+    if (admin.HasDefaultPassword)
+        return Results.Json(new { error = "Password change required before continuing." }, statusCode: 403);
+
+    var client = await db.ClientMachines.FindAsync(id);
+    if (client is null) return Results.NotFound();
+
+    client.AgentSecretHash = null;
+    client.AgentSecretSalt = null;
+    client.AgentSecretEnrolledAt = null;
+    await db.SaveChangesAsync();
+
+    await activityLog.LogAdminActionAsync(admin, "AgentSecretReset",
+        $"{admin.Username} ล้าง agent secret ของเครื่อง '{client.MachineName}' - เครื่องนี้จะ enroll ใหม่ในรอบ poll ถัดไป",
+        client.ClientGuid, client.MachineName);
+
+    return Results.Ok(new { message = "Agent secret cleared. The machine will re-enroll on its next poll." });
+});
+
 // แก้ setting ของเครื่องใดเครื่องหนึ่งจากศูนย์กลาง (ตอนนี้มีแค่ poll interval override)
 app.MapPut("/api/clients/{id:int}/settings", async (int id, ClientSettingsRequest request, HttpRequest httpRequest, AppDbContext db, AgentConnectionRegistry connectionRegistry, IActivityLogService activityLog) =>
 {
@@ -586,10 +619,25 @@ app.MapPut("/api/clients/{id:int}/settings", async (int id, ClientSettingsReques
 });
 
 // client เอาไว้ poll เพื่อดึง rules + สถานะ enabled/disabled ของตัวเอง
-// (endpoint สำคัญที่สุดสำหรับฝั่ง Client Service) - ไม่ต้อง auth เพราะใช้ clientGuid ยืนยันตัวเองแทน
-app.MapGet("/api/poll/{clientGuid}", async (string clientGuid, string machineName, HttpContext httpContext, AppDbContext db, IHubContext<LabHub> hub, AgentConnectionRegistry connectionRegistry, bool usingFallback = false) =>
+// (endpoint สำคัญที่สุดสำหรับฝั่ง Client Service)
+//
+// เดิมไม่มี auth เลย ("ใช้ clientGuid ยืนยันตัวเองแทน") - แต่ clientGuid เดินทางเป็น path segment
+// บน HTTP ธรรมดาทุกๆ 30 วินาที ใครที่อยู่ใน LAN เดียวกันเก็บ GUID ของทุกเครื่องได้ครบแล้วดึงกฎ
+// ทั้งชุดมาดูเพื่อหาทางเลี่ยง ตั้งแต่ 2026-08-31 ตรวจ agent secret เพิ่ม (ดู AgentAuthenticator -
+// โหมดบังคับใช้เปิด/ปิดด้วย config Security:RequireAgentSecret)
+app.MapGet("/api/poll/{clientGuid}", async (string clientGuid, string machineName, HttpContext httpContext, AppDbContext db, IHubContext<LabHub> hub, AgentConnectionRegistry connectionRegistry, AgentAuthenticator agentAuth, IActivityLogService activityLog, bool usingFallback = false) =>
 {
     var client = await db.ClientMachines.FirstOrDefaultAsync(c => c.ClientGuid == clientGuid);
+    var providedSecret = httpContext.Request.Headers[AgentAuthenticator.SecretHeaderName].ToString();
+
+    // เครื่องที่มีอยู่แล้วต้องตรวจก่อนทำอะไรทั้งสิ้น - รวมถึงก่อนอัปเดต MachineName/LastKnownIp ด้วย
+    // (ไม่งั้นคนที่ปลอม GUID จะเขียนทับ LastKnownIp ของเครื่องจริงได้ ซึ่งเป็น IP ที่ Console ใช้ต่อ VNC)
+    // เครื่องใหม่ที่ยังไม่มีใน DB ไม่ต้องตรวจ - จะถูก enroll ตอนสร้าง record ด้านล่าง
+    if (client is not null &&
+        !await agentAuth.AuthorizeAsync(client, providedSecret, activityLog, "GET /api/poll"))
+    {
+        return Results.Unauthorized();
+    }
 
     // เก็บ IP ล่าสุดที่ client นี้ poll เข้ามา - แต่เดิมเป็น field ที่มีอยู่ใน model/DTO แล้วแต่ไม่เคยถูก
     // set จริงที่ไหนเลย (dead field) จำเป็นต้อง populate ให้ใช้งานได้จริงตอนนี้เพราะ Console ต้องใช้ IP
@@ -608,6 +656,11 @@ app.MapGet("/api/poll/{clientGuid}", async (string clientGuid, string machineNam
             LastKnownIp = remoteIp,
             UsingFallback = usingFallback
         };
+
+        // เครื่องใหม่: จด secret ที่ส่งมาเป็นของจริงทันที (trust-on-first-use) ถ้าไม่ส่งมาก็ปล่อยว่างไว้
+        // แล้วจะถูก enroll ในรอบ poll ถัดไปที่ส่งมา - ดู AgentAuthenticator เรื่องช่องที่เหลือของ TOFU
+        agentAuth.Authenticate(client, providedSecret);
+
         db.ClientMachines.Add(client);
     }
     else
@@ -694,12 +747,34 @@ app.MapPost("/api/commands/{clientGuid}", async (string clientGuid, CommandReque
 
 // Agent รายงาน "ผลจริง" ของ command กลับมาหลัง process เสร็จ - fallback ของ SignalR hub method
 // LabHub.ReportCommandResult (ใช้เมื่อ Agent ไม่ได้ connect SignalR อยู่) ทั้ง 2 ทางเรียก
-// CommandResultRecorder ตัวเดียวกัน ไม่ต้อง auth เหมือน /api/poll และ /api/commands/{id}/ack
+// CommandResultRecorder ตัวเดียวกัน
 //
 // ต่างจาก /ack ตรงที่ /ack บอกแค่ "ได้รับแล้ว" (delivery) ส่วนอันนี้บอก "ทำได้จริงไหม" (execution)
+//
+// 2026-08-31: เพิ่ม agent auth + ตรวจว่า command เป็นของเครื่องที่เรียกมาจริง - เดิมไม่มีทั้งคู่ และ
+// commandId เป็นเลขรันนิ่งที่เดาได้ ประกอบกับ CommandResultRecorder เป็นแบบ first-write-wins
+// (ผลจริงที่มาทีหลังถูกทิ้ง) = ยิง {"success":true} ใส่เลขถัดๆ ไปทันทีหลังครูสั่งงาน แล้วผลปลอมจะ
+// ค้างเป็นผลถาวรทับผลจริง ทั้งฝั่ง enforcement และฝั่ง audit trail
 app.MapPost("/api/commands/{commandId:int}/result", async (
-    int commandId, CommandResultRequest req, AppDbContext db, IHubContext<LabHub> hub) =>
+    int commandId,
+    CommandResultRequest req,
+    HttpRequest httpRequest,
+    AppDbContext db,
+    IHubContext<LabHub> hub,
+    AgentAuthenticator agentAuth,
+    IActivityLogService activityLog) =>
 {
+    var (allowed, authenticatedClient) = await agentAuth.AuthorizeByHeadersAsync(httpRequest, db, activityLog, "POST /api/commands/{id}/result");
+    if (!allowed)
+    {
+        return Results.Unauthorized();
+    }
+
+    if (authenticatedClient is not null && !await OwnsCommandAsync(db, commandId, authenticatedClient.ClientGuid))
+    {
+        return Results.Unauthorized();
+    }
+
     var command = await CommandResultRecorder.RecordAsync(db, commandId, req.Success, req.Message);
     if (command is null) return Results.NotFound();
 
@@ -728,11 +803,34 @@ app.MapGet("/api/commands/batch/{batchId}", async (string batchId, HttpRequest r
 });
 
 // Agent เรียก ack กลับมาหลังได้รับ command แล้ว (ไม่ว่าจะรับผ่าน SignalR หรือเจอผ่าน poll fallback ก็ตาม)
-// กัน command เดิมถูกส่งซ้ำไปเรื่อยๆ ทุกรอบ poll - ไม่ต้อง auth เหมือน /api/poll และ /api/logs (ใช้เครือข่ายปิดของโรงเรียนเท่านั้น)
-app.MapPost("/api/commands/{commandId:int}/ack", async (int commandId, AppDbContext db) =>
+// กัน command เดิมถูกส่งซ้ำไปเรื่อยๆ ทุกรอบ poll
+//
+// 2026-08-31: เพิ่ม agent auth + ตรวจ ownership ด้วยเหตุผลเดียวกับ /result ด้านบน แต่ผลกระทบของ
+// ช่องนี้ตรงกว่า: Status เป็นสิ่งเดียวที่ตัดสินว่า /api/poll จะส่ง command นั้นซ้ำอีกไหม
+// (filter Status == Pending) นักเรียนที่วน POST ack ใส่เลข 1..N รัวๆ จึงทำให้คำสั่งของครูที่ส่งมา
+// หาเครื่องตัวเองถูก mark ว่า Delivered แล้วไม่ถูกส่งซ้ำอีกเลย ทั้งที่ไม่เคยถูกรันจริงสักครั้ง
+app.MapPost("/api/commands/{commandId:int}/ack", async (
+    int commandId,
+    HttpRequest httpRequest,
+    AppDbContext db,
+    AgentAuthenticator agentAuth,
+    IActivityLogService activityLog) =>
 {
+    var (allowed, authenticatedClient) = await agentAuth.AuthorizeByHeadersAsync(httpRequest, db, activityLog, "POST /api/commands/{id}/ack");
+    if (!allowed)
+    {
+        return Results.Unauthorized();
+    }
+
     var command = await db.ClientCommands.FindAsync(commandId);
     if (command is null) return Results.NotFound();
+
+    // ตรวจ ownership แยกจาก auth: แม้ agent จะพิสูจน์ตัวตนของ "ตัวเอง" ได้ ก็ยังไม่ควร ack
+    // command ของเครื่องอื่น - เป็นการกัน lateral movement ในกรณีที่ secret ของเครื่องหนึ่งหลุด
+    if (authenticatedClient is not null && command.ClientGuid != authenticatedClient.ClientGuid)
+    {
+        return Results.Unauthorized();
+    }
 
     // idempotent โดยตั้งใจ: ต้องเรียกซ้ำได้ปลอดภัย เพราะ Agent อาจ ack command เดียวกันมาทั้งจาก
     // SignalR path และ poll path พร้อมกัน (race) - ถ้า deliver ไปแล้วไม่ต้อง overwrite DeliveredAt ซ้ำ
@@ -811,9 +909,29 @@ app.MapPost("/api/commands/{commandId:int}/cancel", async (
     return Results.Ok(CommandResultDto.From(command));
 });
 
-// client push log กลับมา - ไม่ต้อง auth (ใช้ในเครือข่ายปิดของโรงเรียนเท่านั้น)
-app.MapPost("/api/logs", async (LogEntry log, AppDbContext db) =>
+// client push log กลับมา - ตรวจ agent secret ตั้งแต่ 2026-08-31 (เดิมไม่ตรวจอะไรเลย ทำให้ใครใน
+// LAN ก็ push log ปลอมใส่เครื่องคนอื่น หรือถมดิสก์ของ server ได้)
+app.MapPost("/api/logs", async (
+    LogEntry log,
+    HttpRequest httpRequest,
+    AppDbContext db,
+    AgentAuthenticator agentAuth,
+    IActivityLogService activityLog) =>
 {
+    var (allowed, authenticatedClient) = await agentAuth.AuthorizeByHeadersAsync(httpRequest, db, activityLog, "POST /api/logs");
+    if (!allowed)
+    {
+        return Results.Unauthorized();
+    }
+
+    // บังคับให้ log ผูกกับเครื่องที่พิสูจน์ตัวตนได้จริง ไม่ใช่ค่าที่อยู่ใน body - ไม่งั้นเครื่องที่
+    // auth ผ่านในนามตัวเองยังยัด ClientGuid/MachineName ของเครื่องอื่นลง body ได้อยู่ดี
+    if (authenticatedClient is not null)
+    {
+        log.ClientGuid = authenticatedClient.ClientGuid;
+        log.MachineName = authenticatedClient.MachineName;
+    }
+
     log.Timestamp = DateTime.UtcNow;
     db.LogEntries.Add(log);
     await db.SaveChangesAsync();
@@ -1189,6 +1307,22 @@ async Task<AdminUser?> GetAuthorizedAdmin(HttpRequest request, AppDbContext db)
 }
 
 app.Run();
+
+/// <summary>
+/// command นี้เป็นของเครื่องนั้นจริงไหม - แยกเป็น helper เพราะทั้ง /ack และ /result ต้องใช้เหมือนกัน
+/// และเป็นเงื่อนไขที่ถ้าลืมใส่จุดใดจุดหนึ่งแล้วช่องโหว่จะกลับมาทันทีโดยไม่มีอาการอะไรให้เห็น
+/// </summary>
+static async Task<bool> OwnsCommandAsync(AppDbContext db, int commandId, string clientGuid)
+{
+    var owner = await db.ClientCommands
+        .Where(c => c.Id == commandId)
+        .Select(c => c.ClientGuid)
+        .FirstOrDefaultAsync();
+
+    // ไม่มี command นี้อยู่ = ปล่อยผ่านให้ endpoint ตอบ 404 ตามเดิม (ไม่ใช่ 401) - แยกให้ชัดว่า
+    // "ไม่มีของ" กับ "มีของแต่ไม่ใช่ของคุณ" คนละเรื่อง
+    return owner is null || owner == clientGuid;
+}
 
 // ---- Request DTOs ----
 record CreateUserRequest(string Username, string Password);
