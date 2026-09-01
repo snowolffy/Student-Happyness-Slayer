@@ -166,7 +166,19 @@ public class ServerClient
         try
         {
             var url = ActiveBaseUrl.TrimEnd('/') + $"/api/commands/{commandId}/ack";
-            await _httpClient.PostAsync(url, null, ct);
+            var response = await _httpClient.PostAsync(url, null, ct);
+
+            // เดิมทิ้ง response ทั้งก้อนโดยไม่ดูเลย ซึ่งแปลว่า ack ที่ถูก Server ปฏิเสธ (401 เพราะ
+            // agent secret/GUID ไม่ตรง, 404 เพราะ command ถูกลบไปแล้ว) เงียบสนิททั้งสองฝั่ง:
+            // Agent คิดว่า ack แล้ว ส่วน Server ยังเห็นเป็น Pending อยู่ - เป็นสาเหตุที่คำสั่งค้างใน
+            // หน้า PENDING COMMANDS ทั้งที่รายงานผลว่าสำเร็จไปแล้ว แล้วหาสาเหตุไม่เจอเพราะไม่มี log
+            // ที่ไหนเลย (PostAsync ไม่ throw เมื่อได้ status code ที่ไม่ใช่ 2xx)
+            if (!response.IsSuccessStatusCode)
+            {
+                _logger.LogWarning(
+                    "Ack command {CommandId} ถูก Server ปฏิเสธด้วย HTTP {StatusCode} - command นี้จะยังค้างเป็น Pending และถูกส่งกลับมาซ้ำทุกรอบ poll",
+                    commandId, (int)response.StatusCode);
+            }
         }
         catch (Exception ex)
         {

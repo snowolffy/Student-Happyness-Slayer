@@ -237,6 +237,24 @@ public static class CommandResultRecorder
             return null;
         }
 
+        // การมีผลจริงกลับมา = พิสูจน์แล้วว่า command ถึงเครื่องปลายทางจริง ต้องปิดสถานะ "ส่งมอบ"
+        // ด้วยเสมอ (2026-09-01)
+        //
+        // บั๊กที่แก้: เดิมมีแต่ ack (POST /api/commands/{id}/ack) เท่านั้นที่ปิด Status ให้ ถ้า ack
+        // ตัวนั้นไม่ถึง Server ด้วยเหตุผลใดก็ตาม - และฝั่ง Agent ไม่เคยเช็ค status code ของ ack เลย
+        // จึงไม่มีใครรู้ว่ามันหลุด - command จะค้างเป็น Pending ตลอดไป ทั้งที่ครูเห็นในหน้ารายงานว่า
+        // "สำเร็จ" เรียบร้อยแล้ว ผลคือหน้า PENDING COMMANDS โชว์คำสั่งที่ทำเสร็จไปแล้วค้างไว้ไม่หาย
+        // และ /api/poll ก็ส่ง command เดิมกลับไปให้ Agent ซ้ำทุก 30 วิไม่จบ
+        //
+        // วางไว้ก่อน early-return ด้านล่างโดยตั้งใจ: แถวที่ค้างอยู่แล้วในสนามจะได้ถูกซ่อมด้วยเมื่อมี
+        // รายงานผลซ้ำเข้ามา ไม่ใช่ซ่อมเฉพาะแถวใหม่
+        if (command.Status == ClientCommandStatus.Pending)
+        {
+            command.Status = ClientCommandStatus.Delivered;
+            command.DeliveredAt ??= DateTime.UtcNow;
+            await db.SaveChangesAsync();
+        }
+
         if (command.ExecutionStatus is CommandExecutionStatus.Succeeded or CommandExecutionStatus.Failed)
         {
             return command; // มีผลจริงแล้ว - ไม่เขียนทับ แต่ยัง broadcast ค่าปัจจุบันกลับไปได้
