@@ -13,6 +13,36 @@ public enum ProgramActionDto
 }
 
 /// <summary>
+/// หมวดที่ classifier เดาได้ - ต้องตรงกับ ProgramCategory ฝั่ง Server ทั้งชื่อและตัวเลข
+/// ใช้เป็นตัวเลือกในกล่อง "หมวด" ของหน้าคิวตรวจสอบ (2026-09-01)
+/// </summary>
+public enum ProgramCategoryDto
+{
+    Unknown = 0,
+    Game = 1,
+    GameLauncher = 2,
+    Emulator = 3,
+    Streaming = 4,
+    Chat = 5,
+    RemoteAccess = 6,
+    SystemOrProductivity = 7,
+    Inappropriate = 8
+}
+
+/// <summary>จำนวนแถวแยกตามหมวด - ผลจาก GET /api/program-verdicts/summary</summary>
+public class ProgramVerdictSummaryDto
+{
+    public int Total { get; set; }
+    public List<CategoryCount> Categories { get; set; } = new();
+
+    public class CategoryCount
+    {
+        public int Category { get; set; }
+        public int Count { get; set; }
+    }
+}
+
+/// <summary>
 /// ผลจำแนกโปรแกรมหนึ่งตัวที่ Server ส่งมาให้ Console แสดงในคิวตรวจสอบ
 /// ตรงกับ ProgramVerdict ฝั่ง Server (ดูเหตุผลของแต่ละ field ที่นั่น)
 /// </summary>
@@ -46,7 +76,12 @@ public class ProgramVerdictDto
         _ => "?"
     };
 
-    public string CategoryText => Category switch
+    /// <summary>
+    /// ชื่อหมวดภาษาไทย - static เพราะกล่องเลือกหมวดใน ProgramReviewWindow ต้องใช้ชื่อชุดเดียวกัน
+    /// กับคอลัมน์ในตาราง ถ้าแยกกันเขียนแล้วชื่อไม่ตรง ครูจะเลือก "อีมูเลเตอร์" แล้วเห็นแถวที่คอลัมน์
+    /// เขียนคนละคำ ซึ่งดูเหมือนตัวกรองพัง
+    /// </summary>
+    public static string CategoryLabel(int category) => category switch
     {
         1 => "เกม",
         2 => "ตัวเปิดเกม",
@@ -58,6 +93,8 @@ public class ProgramVerdictDto
         8 => "ไม่เหมาะสม",
         _ => "ไม่ทราบ"
     };
+
+    public string CategoryText => CategoryLabel(Category);
 
     public string SourceText => IsManual ? $"ครู ({DecidedBy})" : "อัตโนมัติ";
 

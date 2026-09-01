@@ -1017,10 +1017,24 @@ app.MapPost("/api/classify", async (
 });
 
 // คิวตรวจสอบของครู - ค่า default คือ "เฉพาะที่ยังไม่มีคนตัดสิน" เรียงตามความถี่ที่เจอ
+// filter ชุดเดียวกันถูกใช้ทั้งที่ /api/program-verdicts และ /summary - แยกออกมาเป็น local function
+// เพื่อให้ตัวเลขนับในกล่องเลือกหมวดตรงกับรายการที่แสดงจริงเสมอ ถ้าเขียนซ้ำ 2 ที่แล้ววันหลังแก้ที่เดียว
+// ครูจะเห็น "เกม (12)" แต่พอเลือกแล้วขึ้นมา 8 แถว ซึ่งเป็นบั๊กที่หาสาเหตุยากมากเพราะดูเหมือน UI ค้าง
+static IQueryable<ProgramVerdict> ApplyVerdictFilter(IQueryable<ProgramVerdict> query, string? filter) => filter switch
+{
+    // คิวงานจริงของครู: สิ่งที่อัลกอริทึมไม่มั่นใจพอจะตัดสินเอง และยังไม่มีใครตัดสินให้
+    "flagged" => query.Where(v => v.Action == ProgramAction.Flag && !v.IsManual),
+    "blocked" => query.Where(v => v.Action == ProgramAction.Block),
+    "allowed" => query.Where(v => v.Action == ProgramAction.Allow),
+    "manual" => query.Where(v => v.IsManual),
+    _ => query
+};
+
 app.MapGet("/api/program-verdicts", async (
     HttpRequest request,
     AppDbContext db,
     string? filter = "flagged",
+    int? category = null,
     int take = 200) =>
 {
     var admin = await GetAuthorizedAdmin(request, db);
@@ -1029,17 +1043,18 @@ app.MapGet("/api/program-verdicts", async (
     if (admin.HasDefaultPassword)
         return Results.Json(new { error = "Password change required before continuing." }, statusCode: 403);
 
-    var query = db.ProgramVerdicts.AsQueryable();
+    var query = ApplyVerdictFilter(db.ProgramVerdicts.AsQueryable(), filter);
 
-    query = filter switch
+    // กรองตามหมวดที่ classifier เดาไว้ (2026-09-01) - ห้องจริงสะสมได้หลายร้อยแถวภายในไม่กี่วัน
+    // ครูจึงต้องเลือกดูทีละหมวดได้ (เช่น "อีมูเลเตอร์ทั้งหมด") แทนที่จะไล่อ่านทั้งตาราง
+    //
+    // ต้องกรองที่นี่ ไม่ใช่ฝั่ง Console: take ตัดจำนวนแถวตั้งแต่ที่ Server แล้ว ถ้าไปกรองทีหลัง
+    // หมวดที่ครูอยากดูอาจถูกตัดทิ้งไปหมดแล้วตั้งแต่ก่อนถึง Console (เจอเมื่อมี >200 แถว = กรณีจริง)
+    if (category is not null && Enum.IsDefined(typeof(ProgramCategory), category.Value))
     {
-        // คิวงานจริงของครู: สิ่งที่อัลกอริทึมไม่มั่นใจพอจะตัดสินเอง และยังไม่มีใครตัดสินให้
-        "flagged" => query.Where(v => v.Action == ProgramAction.Flag && !v.IsManual),
-        "blocked" => query.Where(v => v.Action == ProgramAction.Block),
-        "allowed" => query.Where(v => v.Action == ProgramAction.Allow),
-        "manual" => query.Where(v => v.IsManual),
-        _ => query
-    };
+        var wanted = (ProgramCategory)category.Value;
+        query = query.Where(v => v.Category == wanted);
+    }
 
     var items = await query
         .OrderByDescending(v => v.SightingCount)
@@ -1048,6 +1063,33 @@ app.MapGet("/api/program-verdicts", async (
         .ToListAsync();
 
     return Results.Ok(items);
+});
+
+// จำนวนแถวแยกตามหมวด สำหรับ filter ที่เลือกอยู่ (2026-09-01)
+//
+// มีไว้เพื่อ 2 อย่างที่หน้าคิวตรวจสอบต้องการจริงๆ: เติมตัวเลขในกล่องเลือกหมวด (ครูจะได้รู้ว่าควร
+// เริ่มดูหมวดไหนก่อนโดยไม่ต้องกดไล่ทีละหมวด) และบอกยอดรวมจริงเพื่อเตือนเมื่อรายการถูก take ตัด
+app.MapGet("/api/program-verdicts/summary", async (
+    HttpRequest request,
+    AppDbContext db,
+    string? filter = "flagged") =>
+{
+    var admin = await GetAuthorizedAdmin(request, db);
+    if (admin is null)
+        return Results.Unauthorized();
+    if (admin.HasDefaultPassword)
+        return Results.Json(new { error = "Password change required before continuing." }, statusCode: 403);
+
+    var counts = await ApplyVerdictFilter(db.ProgramVerdicts.AsQueryable(), filter)
+        .GroupBy(v => v.Category)
+        .Select(g => new { category = (int)g.Key, count = g.Count() })
+        .ToListAsync();
+
+    return Results.Ok(new
+    {
+        total = counts.Sum(c => c.count),
+        categories = counts.OrderByDescending(c => c.count).ToList()
+    });
 });
 
 // ครูเพิ่มโปรแกรมเข้าระบบเองจากรายการ "โปรแกรมที่กำลังรันอยู่" (2026-08-31)

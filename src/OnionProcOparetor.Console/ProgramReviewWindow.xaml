@@ -27,9 +27,10 @@
                 <ColumnDefinition Width="*"/>
                 <ColumnDefinition Width="Auto"/>
                 <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="Auto"/>
             </Grid.ColumnDefinitions>
             <TextBlock Grid.Column="0" Text="PROGRAM CONTROL" Style="{StaticResource Heading2}"/>
-            <ComboBox Grid.Column="1" x:Name="FilterCombo" Width="180" Margin="0,0,10,0"
+            <ComboBox Grid.Column="1" x:Name="FilterCombo" Width="160" Margin="0,0,10,0"
                       SelectionChanged="FilterCombo_SelectionChanged">
                 <ComboBoxItem Content="รอตรวจสอบ" Tag="flagged" IsSelected="True"/>
                 <ComboBoxItem Content="ที่บล็อกอยู่" Tag="blocked"/>
@@ -37,7 +38,11 @@
                 <ComboBoxItem Content="ที่ครูตัดสินเอง" Tag="manual"/>
                 <ComboBoxItem Content="ทั้งหมด" Tag="all"/>
             </ComboBox>
-            <Button Grid.Column="2" Content="REFRESH" Style="{StaticResource ButtonSecondary}"
+            <!-- หมวด: รายการในกล่องนี้สร้างจากข้อมูลจริงตอน refresh (ดู RebuildCategoryCombo) ไม่ได้
+                 ประกาศไว้ตายตัวใน XAML เพราะต้องมีจำนวนแถวต่อหมวดกำกับ และต้องซ่อนหมวดที่ไม่มีของ -->
+            <ComboBox Grid.Column="2" x:Name="CategoryCombo" Width="200" Margin="0,0,10,0"
+                      SelectionChanged="CategoryCombo_SelectionChanged"/>
+            <Button Grid.Column="3" Content="REFRESH" Style="{StaticResource ButtonSecondary}"
                     Padding="10,5" FontSize="11" Click="RefreshButton_Click"/>
         </Grid>
 

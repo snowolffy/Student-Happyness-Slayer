@@ -126,11 +126,27 @@ public class ApiClient
     /// ไม่ throw ถ้า deserialize ได้ null (เช่น server เวอร์ชันเก่าที่ยังไม่มี endpoint นี้ ตอบ 404
     /// แล้ว GetFromJsonAsync โยน HttpRequestException) - ผู้เรียกจับ exception แสดงใน StatusText เอง
     /// </summary>
-    public async Task<List<ProgramVerdictDto>> GetProgramVerdictsAsync(string filter = "flagged")
+    public async Task<List<ProgramVerdictDto>> GetProgramVerdictsAsync(string filter = "flagged", int? category = null)
     {
-        var result = await _httpClient.GetFromJsonAsync<List<ProgramVerdictDto>>(
-            $"/api/program-verdicts?filter={Uri.EscapeDataString(filter)}");
+        var url = $"/api/program-verdicts?filter={Uri.EscapeDataString(filter)}";
+        if (category is not null)
+        {
+            url += $"&category={category.Value}";
+        }
+
+        var result = await _httpClient.GetFromJsonAsync<List<ProgramVerdictDto>>(url);
         return result ?? new List<ProgramVerdictDto>();
+    }
+
+    /// <summary>
+    /// จำนวนแถวแยกตามหมวดของ filter ที่เลือกอยู่ - ใช้เติมตัวเลขในกล่องเลือกหมวดและเตือนเมื่อยอดรวม
+    /// เกินจำนวนที่ Server ส่งมาให้ (2026-09-01)
+    /// </summary>
+    public async Task<ProgramVerdictSummaryDto> GetProgramVerdictSummaryAsync(string filter = "flagged")
+    {
+        var result = await _httpClient.GetFromJsonAsync<ProgramVerdictSummaryDto>(
+            $"/api/program-verdicts/summary?filter={Uri.EscapeDataString(filter)}");
+        return result ?? new ProgramVerdictSummaryDto();
     }
 
     /// <summary>ครูตัดสินโปรแกรมหนึ่งด้วยมือ - ทับผลของอัลกอริทึมถาวร (0=Allow, 1=Flag, 2=Block)</summary>

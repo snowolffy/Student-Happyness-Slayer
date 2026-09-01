@@ -18,6 +18,7 @@ public partial class ProgramReviewWindow : Window
 {
     private readonly ApiClient _apiClient;
     private List<ProgramVerdictDto> _items = new();
+    private bool _suppressCategoryEvent;
 
     public ProgramReviewWindow(ApiClient apiClient)
     {
@@ -29,6 +30,10 @@ public partial class ProgramReviewWindow : Window
     private string SelectedFilter =>
         (FilterCombo.SelectedItem as ComboBoxItem)?.Tag as string ?? "flagged";
 
+    /// <summary>null = ทุกหมวด (Tag ของตัวเลือก "ทุกหมวด" เป็น null)</summary>
+    private int? SelectedCategory =>
+        (CategoryCombo.SelectedItem as ComboBoxItem)?.Tag as int?;
+
     private async void RefreshButton_Click(object sender, RoutedEventArgs e) => await RefreshAsync();
 
     private async void FilterCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -36,6 +41,14 @@ public partial class ProgramReviewWindow : Window
         // ยิงตอน InitializeComponent ตั้ง IsSelected ครั้งแรกด้วย ซึ่งตอนนั้น _apiClient ยังเป็น null
         // (constructor ยังไม่ทันได้ assign) - Loaded handler จะ refresh ให้อยู่แล้ว ข้ามรอบนั้นไป
         if (!IsLoaded) return;
+        await RefreshAsync();
+    }
+
+    private async void CategoryCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        // _suppressCategoryEvent กัน RebuildCategoryCombo (ซึ่งถูกเรียกจากใน RefreshAsync เอง) ทำให้
+        // เกิด refresh ซ้อนอีกรอบ - ไม่ใช่แค่เปลืองรอบ แต่ทำให้ selection ที่เพิ่งกู้คืนถูกทับด้วย
+        if (!IsLoaded || _suppressCategoryEvent) return;
         await RefreshAsync();
     }
 
@@ -47,16 +60,82 @@ public partial class ProgramReviewWindow : Window
             VerdictsGrid.ItemsSource = null;
             SetButtonsEnabled(false);
 
-            _items = await _apiClient.GetProgramVerdictsAsync(SelectedFilter);
+            // โหลด summary ก่อนเสมอ เพื่อให้กล่องหมวดสะท้อนของที่มีอยู่จริงในตอนนี้ (หมวดที่เพิ่งหมด
+            // ต้องหายไปจากกล่อง ไม่ใช่ค้างให้กดแล้วเจอตารางว่าง)
+            var summary = await _apiClient.GetProgramVerdictSummaryAsync(SelectedFilter);
+            RebuildCategoryCombo(summary);
+
+            var category = SelectedCategory;
+            _items = await _apiClient.GetProgramVerdictsAsync(SelectedFilter, category);
             VerdictsGrid.ItemsSource = _items;
 
-            StatusText.Text = _items.Count == 0
-                ? "ไม่มีรายการในหมวดนี้"
-                : $"พบ {_items.Count} รายการ - เรียงตามจำนวนครั้งที่พบมากที่สุดก่อน";
+            if (_items.Count == 0)
+            {
+                StatusText.Text = "ไม่มีรายการในหมวดนี้";
+                return;
+            }
+
+            var scope = category is null
+                ? $"พบ {summary.Total} รายการ"
+                : $"พบ {_items.Count} รายการในหมวด '{ProgramVerdictDto.CategoryLabel(category.Value)}' (ทั้งหมด {summary.Total})";
+
+            // Server ตัดที่ 200 แถว - ต้องบอกครูตรงๆ ว่ากำลังดูไม่ครบ ไม่งั้นจะเข้าใจว่าเห็นหมดแล้ว
+            // แล้วสรุปผิดว่าเครื่องในห้องมีของแค่นี้ (เจอจริงตอนที่รายการสะสมเป็นหลักร้อย)
+            var truncated = _items.Count >= 200
+                ? $" - แสดง {_items.Count} แถวแรกเท่านั้น เลือกหมวดเพื่อดูให้ครบ"
+                : string.Empty;
+
+            StatusText.Text = $"{scope} - เรียงตามจำนวนครั้งที่พบมากที่สุดก่อน{truncated}";
         }
         catch (System.Exception ex)
         {
             StatusText.Text = $"โหลดไม่สำเร็จ: {ex.Message}";
+        }
+    }
+
+    /// <summary>
+    /// สร้างรายการในกล่อง "หมวด" ใหม่จากจำนวนจริงที่ Server นับมา พร้อมรักษาหมวดที่ครูเลือกค้างไว้
+    ///
+    /// เหตุผลที่ไม่ประกาศ 9 หมวดตายตัวไว้ใน XAML: ห้องหนึ่งมักมีของแค่ 3-4 หมวด การโชว์หมวดเปล่าๆ
+    /// ที่กดแล้วไม่มีอะไรเลยทำให้ครูเสียเวลาไล่กดหาว่าหมวดไหนมีของ ซึ่งเป็นปัญหาเดิมที่ตัวกรองนี้
+    /// ตั้งใจแก้ตั้งแต่แรก - ตัวเลขในวงเล็บทำให้เลือกได้ถูกตั้งแต่ครั้งแรก
+    /// </summary>
+    private void RebuildCategoryCombo(ProgramVerdictSummaryDto summary)
+    {
+        var previous = SelectedCategory;
+
+        _suppressCategoryEvent = true;
+        try
+        {
+            CategoryCombo.Items.Clear();
+
+            var allItem = new ComboBoxItem { Content = $"ทุกหมวด ({summary.Total})", Tag = null };
+            CategoryCombo.Items.Add(allItem);
+
+            ComboBoxItem? toSelect = null;
+            foreach (var entry in summary.Categories)
+            {
+                var item = new ComboBoxItem
+                {
+                    Content = $"{ProgramVerdictDto.CategoryLabel(entry.Category)} ({entry.Count})",
+                    Tag = entry.Category
+                };
+                CategoryCombo.Items.Add(item);
+
+                if (previous is not null && entry.Category == previous.Value)
+                {
+                    toSelect = item;
+                }
+            }
+
+            // หมวดที่เคยเลือกไว้อาจไม่มีของแล้ว (ครูเพิ่งตัดสินตัวสุดท้ายไป) - ตกกลับไปที่ "ทุกหมวด"
+            // แทนที่จะปล่อยให้ไม่มีอะไรถูกเลือกซึ่งทำให้ SelectedCategory เป็น null โดยบังเอิญเหมือนกัน
+            // แต่กล่องดูเหมือนว่างเปล่าจนครูไม่รู้ว่าตอนนี้กำลังดูอะไรอยู่
+            CategoryCombo.SelectedItem = toSelect ?? allItem;
+        }
+        finally
+        {
+            _suppressCategoryEvent = false;
         }
     }
 
