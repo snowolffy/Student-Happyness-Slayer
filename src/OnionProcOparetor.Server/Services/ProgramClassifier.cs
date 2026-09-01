@@ -1,4 +1,4 @@
-using OnionProcOparetor.Server.Models;
+﻿using OnionProcOparetor.Server.Models;
 
 namespace OnionProcOparetor.Server.Services;
 
@@ -35,6 +35,13 @@ public sealed class ClassificationResult
 ///   4. publisher ที่รู้จัก (Valve, Riot, miHoYo, Roblox, Garena ฯลฯ)
 ///   5. คำในชื่อไฟล์/ProductName ทั้งไทยและอังกฤษ
 ///   6. ข้อมูลออนไลน์ (ดู OnlineGameLookup) - ชื่อโปรแกรมตรงกับชื่อเกมในฐานข้อมูล Steam ไหม
+///   7. ร่องรอยของ crack (CrackMarkers) - ตัวจำลอง Steamworks ที่เกมโหลดต้องมีเสมอ
+///
+/// <b>"แล้วถ้าเกมไม่ได้อยู่บน Steam ล่ะ"</b> - ข้อ 6 เป็นสัญญาณเดียวที่ผูกกับ Steam และให้
+/// แค่ 45 คะแนนจากทั้งหมด ข้ออื่นไม่เกี่ยวกับ Steam เลย: ข้อ 1 ครอบคลุม Epic/Riot/Battle.net/
+/// GOG/EA/Ubisoft/Roblox/Garena/itch.io/Xbox/Rockstar, ข้อ 2-3 จับที่ตัวเอนจินและ DLL ที่โหลดจริง
+/// (Unity/Unreal/Godot/GameMaker/RPG Maker/Ren'Py/LOVE2D) ซึ่งไม่สนใจว่าซื้อมาจากไหน
+/// และข้อ 7 จับเกมโหลดโดยเฉพาะ - เกมที่ไม่ผ่านร้านไหนเลยจึงยังถูกจับได้จากหลายทาง
 ///
 /// ===================== สิ่งที่จงใจ "ไม่" ทำ =====================
 /// ไม่บล็อกอัตโนมัติทุกอย่างที่คะแนนถึงเกณฑ์แบบไม่มีคนดู - เกณฑ์แบ่ง 3 ระดับ (Allow/Flag/Block)
@@ -87,6 +94,75 @@ public sealed class ProgramClassifier
         (@"\.minecraft",        45, ProgramCategory.Game, "อยู่ในโฟลเดอร์ .minecraft"),
         (@"\mihoyo\",           45, ProgramCategory.Game, "อยู่ในโฟลเดอร์ miHoYo"),
         (@"\hoyoplay\",         45, ProgramCategory.GameLauncher, "อยู่ในโฟลเดอร์ HoYoPlay"),
+
+        // ---- เพิ่ม 2026-08-31: ร้าน/launcher ที่ไม่ใช่ Steam ----
+        // เดิมครอบคลุมแค่ร้านใหญ่ไม่กี่เจ้า เกมที่ซื้อ/โหลดจากที่อื่นจึงไม่ได้คะแนนจากกลุ่มนี้เลย
+        (@"\itch\apps\",        42, ProgramCategory.Game, "อยู่ในโฟลเดอร์เกมของ itch.io"),
+        (@"\xboxgames\",        45, ProgramCategory.Game, "อยู่ในโฟลเดอร์เกมของ Xbox บน PC"),
+        (@"\amazon games\",     40, ProgramCategory.Game, "อยู่ในโฟลเดอร์ Amazon Games"),
+        (@"\rockstar games\",   42, ProgramCategory.Game, "อยู่ในโฟลเดอร์ Rockstar Games"),
+        (@"\bethesda.net launcher\", 40, ProgramCategory.GameLauncher, "อยู่ในโฟลเดอร์ Bethesda Launcher"),
+        (@"\ea desktop\",       38, ProgramCategory.GameLauncher, "อยู่ในโฟลเดอร์ EA Desktop"),
+        (@"\blizzard\",         38, ProgramCategory.GameLauncher, "อยู่ในโฟลเดอร์ Blizzard"),
+        (@"\vrchat\",           40, ProgramCategory.Game, "อยู่ในโฟลเดอร์ VRChat"),
+    };
+
+    /// <summary>
+    /// ร่องรอยของ "เกมที่ถูก crack ให้รันโดยไม่ต้องมี Steam" (2026-08-31)
+    ///
+    /// กลุ่มนี้ตอบโจทย์ "แล้วถ้าไม่ได้อยู่บน Steam ล่ะ" ตรงที่สุด เพราะเกมโหลดส่วนใหญ่คือเกม Steam
+    /// ที่ถูกถอดตัวตรวจลิขสิทธิ์ออกแล้วแทนด้วย emulator ของ Steamworks - ไฟล์พวกนี้ไม่มีทาง
+    /// ปรากฏในโปรแกรมที่ถูกลิขสิทธิ์เลยแม้แต่ตัวเดียว จึงเป็นสัญญาณที่ทั้งแรงและแทบไม่มี false positive
+    ///
+    /// ให้คะแนนสูงและ <b>ไม่โดนหักตามลำดับ</b> เหมือนกลุ่ม BinaryMarkers เพราะแต่ละตัวเป็นหลักฐาน
+    /// อิสระจากกันจริงๆ (คนละ crack คนละสำนัก) ไม่ใช่หลักฐานชิ้นเดียวที่นับซ้ำหลายรอบ
+    /// </summary>
+    private static readonly (string Name, int Weight, string Description)[] CrackMarkers =
+    {
+        ("steam_emu.ini",          55, "มี steam_emu.ini (ตัวจำลอง Steam ของเกมที่ถูก crack)"),
+        ("smartsteamemu.ini",      55, "มี SmartSteamEmu (ตัวจำลอง Steam)"),
+        ("coldclientloader.ini",   55, "มี ColdClientLoader (Goldberg Steam emulator)"),
+        ("steamclient_loader.exe", 55, "มี steamclient_loader.exe (Goldberg Steam emulator)"),
+        ("onlinefix64.dll",        55, "มี OnlineFix (ตัวแพตช์ให้เล่นออนไลน์โดยไม่ต้องมี Steam)"),
+        ("onlinefix.ini",          55, "มี OnlineFix"),
+        ("steam_settings",         50, "มีโฟลเดอร์ steam_settings (Goldberg Steam emulator)"),
+        ("valve.ini",              40, "มี valve.ini (พบในเกมที่ถูก crack)"),
+        ("codex.ini",              50, "มี codex.ini (กลุ่มที่ปล่อยเกม crack)"),
+        ("hoodlum.ini",            50, "มี hoodlum.ini (กลุ่มที่ปล่อยเกม crack)"),
+    };
+
+    /// <summary>
+    /// ชื่อโฟลเดอร์ข้างเคียงที่บอกประเภทได้ชัดกว่าไฟล์ .exe เอง - เพิ่ม 2026-08-31 พร้อมกับที่ Agent
+    /// เริ่มเก็บชื่อโฟลเดอร์มาให้ (เดิมเก็บแต่ไฟล์ สัญญาณกลุ่มนี้จึงหลุดไปทั้งหมด)
+    /// </summary>
+    private static readonly (string Name, int Weight, ProgramCategory Category, string Description)[] DirectoryMarkers =
+    {
+        ("roms",    45, ProgramCategory.Emulator, "มีโฟลเดอร์ roms อยู่ข้างๆ"),
+        ("bios",    35, ProgramCategory.Emulator, "มีโฟลเดอร์ bios อยู่ข้างๆ"),
+        ("nand",    40, ProgramCategory.Emulator, "มีโฟลเดอร์ nand (อีมูเลเตอร์เครื่องเกม)"),
+        ("sdmc",    40, ProgramCategory.Emulator, "มีโฟลเดอร์ sdmc (อีมูเลเตอร์เครื่องเกม)"),
+        ("renpy",   40, ProgramCategory.Game, "สร้างด้วย Ren'Py (เอนจินวิชวลโนเวล)"),
+        ("www",     25, ProgramCategory.Game, "มีโฟลเดอร์ www (โครงสร้างของ RPG Maker MV/MZ)"),
+        ("gamedata", 25, ProgramCategory.Game, "มีโฟลเดอร์ gamedata"),
+        ("savedata", 22, ProgramCategory.Game, "มีโฟลเดอร์ savedata"),
+        ("mods",    20, ProgramCategory.Game, "มีโฟลเดอร์ mods"),
+    };
+
+    /// <summary>
+    /// นามสกุลของไฟล์ข้างเคียง - บางเอนจินไม่ทิ้ง DLL ชื่อตายตัวไว้ให้จับ แต่ทิ้งไฟล์ข้อมูล
+    /// รูปแบบเฉพาะของตัวเองไว้เสมอ (Godot = .pck, GameMaker = data.win, Unreal = .pak)
+    /// </summary>
+    private static readonly (string Extension, int Weight, ProgramCategory Category, string Description)[] ExtensionMarkers =
+    {
+        (".pck",  35, ProgramCategory.Game, "มีไฟล์ .pck อยู่ข้างๆ (เอนจิน Godot)"),
+        (".pak",  20, ProgramCategory.Game, "มีไฟล์ .pak อยู่ข้างๆ (แพ็กข้อมูลเกม)"),
+        (".nsp",  50, ProgramCategory.Emulator, "มีไฟล์ .nsp อยู่ข้างๆ (ตลับเกม Nintendo Switch)"),
+        (".xci",  50, ProgramCategory.Emulator, "มีไฟล์ .xci อยู่ข้างๆ (ตลับเกม Nintendo Switch)"),
+        (".rvz",  45, ProgramCategory.Emulator, "มีไฟล์ .rvz อยู่ข้างๆ (แผ่นเกม GameCube/Wii)"),
+        (".wbfs", 45, ProgramCategory.Emulator, "มีไฟล์ .wbfs อยู่ข้างๆ (แผ่นเกม Wii)"),
+        (".cso",  40, ProgramCategory.Emulator, "มีไฟล์ .cso อยู่ข้างๆ (แผ่นเกม PSP)"),
+        (".gba",  40, ProgramCategory.Emulator, "มีไฟล์ .gba อยู่ข้างๆ (ตลับเกม Game Boy Advance)"),
+        (".nds",  40, ProgramCategory.Emulator, "มีไฟล์ .nds อยู่ข้างๆ (ตลับเกม Nintendo DS)"),
     };
 
     /// <summary>
@@ -113,6 +189,20 @@ public sealed class ProgramClassifier
         ("d3d11.dll",         8, ProgramCategory.Game, "ใช้ Direct3D 11"),
         ("openvr_api.dll",   25, ProgramCategory.Game, "ใช้ OpenVR"),
         ("discord_game_sdk.dll", 25, ProgramCategory.Game, "ใช้ Discord Game SDK"),
+
+        // ---- เพิ่ม 2026-08-31: เอนจิน/รันไทม์อื่นที่ไม่ใช่ Unity/Unreal ----
+        // เกม indie และเกมที่ทำด้วยเครื่องมือฟรีส่วนใหญ่ไม่ได้ใช้ 2 เอนจินนั้น จึงไม่เคยได้คะแนน
+        // จากกลุ่มนี้เลยทั้งที่เป็นเกมชัดๆ
+        ("data.win",             35, ProgramCategory.Game, "สร้างด้วย GameMaker (data.win)"),
+        ("assembly-csharp.dll",  25, ProgramCategory.Game, "สคริปต์เกมของ Unity (Assembly-CSharp.dll)"),
+        ("nw.dll",               22, ProgramCategory.Game, "รันบน NW.js (RPG Maker MV/MZ และเกม HTML)"),
+        ("love.dll",             30, ProgramCategory.Game, "สร้างด้วย LOVE2D"),
+        ("sdl2.dll",             12, ProgramCategory.Game, "ใช้ SDL2 (ไลบรารีที่เกมใช้เป็นหลัก)"),
+        ("openal32.dll",         12, ProgramCategory.Game, "ใช้ OpenAL"),
+        ("bink2w64.dll",         28, ProgramCategory.Game, "ใช้ Bink Video (มิดเดิลแวร์วิดีโอของเกม)"),
+        ("prod.keys",            55, ProgramCategory.Emulator, "มี prod.keys (กุญแจถอดรหัสเกม Nintendo Switch)"),
+        ("title.keys",           55, ProgramCategory.Emulator, "มี title.keys (กุญแจถอดรหัสเกม Nintendo Switch)"),
+        ("dxgi.dll",             15, ProgramCategory.Game, "มี dxgi.dll วางทับในโฟลเดอร์โปรแกรม (มักเป็นตัว hook กราฟิก)"),
     };
 
     /// <summary>publisher ที่รู้จักว่าเป็นค่ายเกม/แพลตฟอร์มเกม</summary>
@@ -250,6 +340,32 @@ public sealed class ProgramClassifier
         var binaryNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var m in fingerprint.LoadedModules) binaryNames.Add(Path.GetFileName(m));
         foreach (var f in fingerprint.SiblingFiles) binaryNames.Add(Path.GetFileName(f));
+
+        var directoryNames = new HashSet<string>(fingerprint.SiblingDirectories, StringComparer.OrdinalIgnoreCase);
+
+        // ---- 2ก) ร่องรอย crack - ตรวจก่อนกลุ่มอื่นและไม่หักคะแนนตามลำดับ ----
+        // เป็นคำตอบตรงๆ ของ "เกมที่ไม่ได้อยู่บน Steam": ส่วนใหญ่คือเกม Steam ที่ถูกถอดตัวตรวจ
+        // ลิขสิทธิ์ออก ไฟล์กลุ่มนี้จึงชี้ชัดกว่าอะไรทั้งหมด และไม่มีทางอยู่ในโปรแกรมถูกลิขสิทธิ์
+        foreach (var marker in CrackMarkers)
+        {
+            if (!binaryNames.Contains(marker.Name) && !directoryNames.Contains(marker.Name)) continue;
+            Add($"CRACK_{marker.Name}", marker.Weight, marker.Description, ProgramCategory.Game);
+        }
+
+        // ---- 2ข) โฟลเดอร์ข้างเคียง ----
+        foreach (var marker in DirectoryMarkers)
+        {
+            if (!directoryNames.Contains(marker.Name)) continue;
+            Add($"DIR_{marker.Name}", marker.Weight, marker.Description, marker.Category);
+        }
+
+        // ---- 2ค) นามสกุลไฟล์ข้างเคียง - นับ marker ละครั้งเดียวแม้จะมีไฟล์นามสกุลนั้นหลายไฟล์ ----
+        foreach (var marker in ExtensionMarkers)
+        {
+            var hit = fingerprint.SiblingFiles.Any(f => f.EndsWith(marker.Extension, StringComparison.OrdinalIgnoreCase));
+            if (!hit) continue;
+            Add($"EXT_{marker.Extension}", marker.Weight, marker.Description, marker.Category);
+        }
 
         var binaryHits = 0;
         foreach (var marker in BinaryMarkers)

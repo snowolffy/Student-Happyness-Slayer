@@ -1,4 +1,4 @@
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using System.Security.Cryptography;
 using OnionProcOparetor.Agent.Models;
 
@@ -25,6 +25,9 @@ public sealed class ProgramFingerprinter
     private const int MaxSiblingFiles = 60;
 
     private const int MaxLoadedModules = 120;
+
+    /// <summary>โฟลเดอร์ข้างเคียงเก็บแค่นี้ - ต้องการแค่พอเจอ marker ไม่ได้ต้องการสารบัญทั้งไดรฟ์</summary>
+    private const int MaxSiblingDirectories = 40;
 
     private readonly ILogger<ProgramFingerprinter> _logger;
 
@@ -67,6 +70,7 @@ public sealed class ProgramFingerprinter
             }
 
             fingerprint.SiblingFiles = ReadSiblingFiles(fileInfo.DirectoryName);
+            fingerprint.SiblingDirectories = ReadSiblingDirectories(fileInfo.DirectoryName);
             fingerprint.LoadedModules = ReadLoadedModules(process);
 
             return fingerprint;
@@ -115,6 +119,33 @@ public sealed class ProgramFingerprinter
                 .Where(name => !string.IsNullOrEmpty(name))
                 .Select(name => name!)
                 .Take(MaxSiblingFiles)
+                .ToList();
+        }
+        catch
+        {
+            return new List<string>();
+        }
+    }
+
+    /// <summary>
+    /// ชื่อโฟลเดอร์ข้างเคียง - แยกจาก ReadSiblingFiles เพราะ Directory.EnumerateFiles ไม่คืนโฟลเดอร์
+    /// ซึ่งเป็นเหตุผลที่สัญญาณกลุ่มที่แรงที่สุดหลายตัว (steam_settings, roms, www, renpy) หลุดไปหมด
+    /// ตอนที่เขียนรอบแรก
+    /// </summary>
+    private static List<string> ReadSiblingDirectories(string? directory)
+    {
+        if (string.IsNullOrWhiteSpace(directory))
+        {
+            return new List<string>();
+        }
+
+        try
+        {
+            return Directory.EnumerateDirectories(directory)
+                .Select(Path.GetFileName)
+                .Where(name => !string.IsNullOrEmpty(name))
+                .Select(name => name!)
+                .Take(MaxSiblingDirectories)
                 .ToList();
         }
         catch

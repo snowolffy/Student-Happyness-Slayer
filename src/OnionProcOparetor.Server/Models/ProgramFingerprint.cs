@@ -1,4 +1,4 @@
-namespace OnionProcOparetor.Server.Models;
+﻿namespace OnionProcOparetor.Server.Models;
 
 /// <summary>
 /// สิ่งที่ Agent เก็บได้จากโปรแกรมหนึ่งตัวบนเครื่องนักเรียน แล้วส่งมาให้ Server จำแนก
@@ -45,6 +45,12 @@ public class ProgramFingerprint
 
     /// <summary>ชื่อไฟล์อื่นๆ ในโฟลเดอร์เดียวกัน (จำกัดจำนวน) - จับ steam_appid.txt, EOSSDK, .pak ฯลฯ</summary>
     public List<string> SiblingFiles { get; set; } = new();
+
+    /// <summary>
+    /// ชื่อโฟลเดอร์ข้างเคียง - Agent เวอร์ชันเก่าไม่ส่งมา (ได้ list ว่าง) ซึ่งไม่เป็นไร
+    /// แค่จะขาดสัญญาณกลุ่มนี้ไป ไม่ทำให้จำแนกผิด
+    /// </summary>
+    public List<string> SiblingDirectories { get; set; } = new();
 
     /// <summary>ชื่อเครื่องที่เจอ - ไว้บอกครูว่าต้องไปดูเครื่องไหน</summary>
     public string? MachineName { get; set; }

@@ -1,4 +1,4 @@
-namespace OnionProcOparetor.Agent.Models;
+﻿namespace OnionProcOparetor.Agent.Models;
 
 /// <summary>ต้องตรงกับ ProgramAction ฝั่ง Server (Models/ProgramVerdict.cs) - ส่งกันเป็นตัวเลข</summary>
 public enum ProgramAction
@@ -26,6 +26,13 @@ public class ProgramFingerprintDto
     public long FileSizeBytes { get; set; }
     public List<string> LoadedModules { get; set; } = new();
     public List<string> SiblingFiles { get; set; } = new();
+
+    /// <summary>
+    /// ชื่อโฟลเดอร์ที่อยู่ข้างๆ (2026-08-31) - เดิมเก็บแต่ไฟล์ ทำให้พลาดสัญญาณที่แรงที่สุดหลายตัว
+    /// ที่เป็น "โฟลเดอร์" ไม่ใช่ไฟล์: steam_settings (Goldberg emu), roms/bios (อีมูเลเตอร์),
+    /// www (RPG Maker), renpy (Ren'Py) - ตัวพวกนี้ชี้ชัดกว่าชื่อไฟล์ .exe มาก
+    /// </summary>
+    public List<string> SiblingDirectories { get; set; } = new();
     public string? MachineName { get; set; }
 }
 
