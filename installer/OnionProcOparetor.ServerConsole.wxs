@@ -23,7 +23,8 @@
             Version="1.2.5.0"
             UpgradeCode="8C2D41E6-5A6D-4D1A-95E2-FB74C37A6E5A"
             Scope="perMachine"
-            InstallerVersion="500">
+            InstallerVersion="500"
+            Codepage="874">
 
     <SummaryInformation Keywords="Installer" Description="Onion ProcOparetor Server + Console Setup" />
     <!-- ดู installer\OnionProcOparetor.Agent.wxs's comment เดียวกันนี้สำหรับเหตุผลเต็ม - บั๊กเดียวกัน
@@ -44,6 +45,14 @@
     <Property Id="WIXUI_EXITDIALOGOPTIONALCHECKBOX" Value="1" />
     <Property Id="WIXUI_EXITDIALOGOPTIONALTEXT" Value="The Onion Core Service is now running as a Windows Service; use the Console shortcut to sign in." />
 
+    <!-- ปุ่ม "Launch ... Console" ที่หน้าสุดท้าย เดิมเป็น checkbox ที่ติ๊กแล้วไม่เกิดอะไรขึ้นเลย
+         (WixUI ต้องมี DoAction ผูกที่ปุ่ม Finish เอง ซึ่งไม่เคยมี) - ผูกให้จริงตอนนี้ พร้อมกับที่
+         ต้องซ่อนมันอยู่แล้วเมื่อครูเลือกไม่ลง Console (ดู ControlEvent ที่ ComponentsDlg)
+         Impersonate="yes" เพื่อให้ Console เปิดขึ้นในสิทธิ์ของผู้ใช้ ไม่ใช่สิทธิ์ยกระดับของ msiexec -->
+    <Property Id="WixShellExecTarget" Value="[#ConsoleExeFile]" />
+    <CustomAction Id="LaunchConsole" BinaryRef="Wix4UtilCA_$(sys.BUILDARCHSHORT)" DllEntry="WixShellExec"
+                  Impersonate="yes" Return="ignore" />
+
     <!-- ซ่อน ARP entry อัตโนมัติของ MSI เอง ใช้ synthetic ARP entry ของเราเอง
          (UninstallArpEntryComponent ข้างล่าง) แทน ที่ชี้ไปที่ OnionProcOparetor.UninstallHelper.exe
          ก่อน (โชว์ popup ได้จริงเพราะถูก Explorer เรียกตรงๆ) แล้วค่อยยิง msiexec /x {ProductCode}
@@ -57,6 +66,39 @@
          Agent-only (lab machines share one admin account); this is the teacher/admin machine, and
          once UninstallPwdDlg doesn't exist here, nothing would ever set a password anyway. -->
     <Property Id="DELETEDATA" Secure="yes" />
+
+    <!-- ==================== เลือกว่าจะลงอะไร (2026-08-31) ====================
+         ค่าเริ่มต้นติ๊กทั้งคู่ = พฤติกรรมเดิมทุกประการสำหรับคนที่กด Next รวด
+         Secure="yes" เพื่อให้ส่งผ่าน command line ได้ตอน silent install:
+             msiexec /i ... /qn INSTALLSERVER=0 INSTALLCONSOLE=1
+         (หรือจะใช้ ADDLOCAL=SharedFeature,ConsoleFeature ตรงๆ แบบ MSI มาตรฐานก็ได้เหมือนกัน) -->
+    <Property Id="INSTALLSERVER" Value="1" Secure="yes" />
+    <Property Id="INSTALLCONSOLE" Value="1" Secure="yes" />
+
+    <!-- อ่านว่าคราวก่อนลงอะไรไว้ เพื่อ pre-ติ๊กให้ตรงตอน upgrade
+         สำคัญ: MajorUpgrade ของ product นี้เป็นแบบถอนเก่า-ลงใหม่ ถ้าไม่มีตรงนี้ การอัปเกรดเครื่องที่
+         ลงแค่ Console ไว้จะกลับไปติ๊กทั้งคู่ตาม default แล้วแอบยัด Server กลับมาให้เงียบๆ ซึ่งเป็น
+         ปัญหาเดิมที่ฟีเจอร์นี้ตั้งใจแก้พอดี - AppSearch รันก่อนที่ของเก่าจะถูกถอน จึงยังอ่านเจอ -->
+    <Property Id="PREV_SERVER">
+      <RegistrySearch Id="PrevServerSearch" Root="HKLM" Key="Software\OnionProcOparetor\Install"
+                      Name="ServerInstalled" Type="raw" />
+    </Property>
+    <Property Id="PREV_CONSOLE">
+      <RegistrySearch Id="PrevConsoleSearch" Root="HKLM" Key="Software\OnionProcOparetor\Install"
+                      Name="ConsoleInstalled" Type="raw" />
+    </Property>
+    <!-- ตัวชี้ว่า "เคยติดตั้ง product นี้มาก่อน" - ต้องแยกจาก 2 ตัวบน เพราะการที่ PREV_SERVER ว่าง
+         มีได้ 2 ความหมาย: ไม่เคยลงเลย (ควรติ๊กตาม default) กับ เคยลงแต่ไม่ได้เลือก Server (ควรไม่ติ๊ก) -->
+    <Property Id="PREV_ANY">
+      <RegistrySearch Id="PrevAnySearch" Root="HKLM"
+                      Key="Software\Microsoft\Windows\CurrentVersion\Uninstall\OnionProcOparetor"
+                      Name="DisplayName" Type="raw" />
+    </Property>
+
+    <SetProperty Id="INSTALLSERVER" Value="0" After="AppSearch" Sequence="ui"
+                 Condition="PREV_ANY AND NOT PREV_SERVER" />
+    <SetProperty Id="INSTALLCONSOLE" Value="0" After="AppSearch" Sequence="ui"
+                 Condition="PREV_ANY AND NOT PREV_CONSOLE" />
 
     <!-- ==================== Directory layout ====================
          Unchanged from before the split ("Onion ProcOparetor", not renamed) so this keeps
@@ -73,19 +115,41 @@
       <Directory Id="AppProgramMenuFolder" Name="Onion ProcOparetor" />
     </StandardDirectory>
 
-    <!-- ==================== Feature ====================
-         Single unconditional feature - no MODE property, no Level/Condition dance. This product
-         only ever installs the Server + Console payload. -->
-    <!-- AllowAbsent="no" ถูกลบออก - simplification เฉยๆ ไม่ใช่ bug fix เหตุผลเดียวกับ Agent product's
-         comment (ดู OnionProcOparetor.Agent.wxs) -->
-    <Feature Id="MainFeature" Level="1" Display="hidden">
-      <ComponentRef Id="RunSetupComponent" />
+    <!-- ==================== Features (แยก 3 ตัว 2026-08-31) ====================
+         เดิมเป็น feature เดียวรวมทุกอย่าง ทำให้ "ลงแค่ Console" ไม่ได้เลย - เครื่องครูที่ต้องการแค่
+         หน้าจอควบคุมก็ได้ OnionCoreService ติดมาด้วยทุกครั้ง (พร้อม firewall rule เปิด port 8787
+         และ service ที่รันตลอดเวลาโดยไม่มีใครใช้) ซึ่งเป็นทั้งความสับสนและพื้นที่โจมตีที่ไม่จำเป็น
+
+         ===== ทำไมรอบนี้ปลอดภัยกว่าตอนที่เคยเลิกใช้ feature selection =====
+         ตอน 2026-08-10 เคยถอย MODE property + ModeDlg ออกเพราะเจอบั๊ก 2 ตัว (ดู docs/architecture.md)
+         ทั้งคู่มาจากการ "อนุมาน" feature state จาก property ผ่าน <Level> Condition:
+           1. ADDLOCAL snapshot ผิดจังหวะตอน wizard
+           2. REMOVE="ALL" หายไปจาก Level Condition ตอน uninstall จน uninstall ไม่ลบอะไรเลย
+         รอบนี้จึง **ไม่ใช้ <Level> Condition แม้แต่ที่เดียว** - ทุก feature Level="1" คงที่ตลอดชีวิต
+         การเลือกทำผ่าน ControlEvent AddLocal/Remove ที่ปุ่ม Next ของหน้าเลือก ซึ่งเป็นวิธีมาตรฐาน
+         ของ MSI เอง มีผลเฉพาะ InstallUISequence และไม่แตะ ExecuteSequence ตอน uninstall เลย
+
+         SharedFeature ต้องมีเสมอ (AllowAbsent="no") เพราะเป็น ARP entry + UninstallHelper -
+         ถ้าถอดออกได้จะเกิดสภาพ "ติดตั้งแล้วแต่ถอนไม่ได้" -->
+    <Feature Id="SharedFeature" Level="1" Display="hidden" AllowAbsent="no"
+             Title="Shared" Description="ตัวถอนโปรแกรมและรายการใน Add/Remove Programs (จำเป็นเสมอ)">
       <ComponentGroupRef Id="UninstallHelperFiles" />
       <ComponentRef Id="UninstallHelperExeComponent" />
       <ComponentRef Id="UninstallArpEntryComponent" />
+    </Feature>
+
+    <Feature Id="ServerFeature" Level="1"
+             Title="Onion Core Service (Server)"
+             Description="ตัวเซิร์ฟเวอร์ที่เก็บกฎ สถานะ และ log ของทั้งห้อง รันเป็น Windows Service และเปิด port 8787 - ลงเครื่องเดียวในระบบก็พอ">
       <ComponentGroupRef Id="ServerFiles" />
-      <ComponentGroupRef Id="ConsoleFiles" />
       <ComponentRef Id="ServerExeComponent" />
+      <ComponentRef Id="RunSetupComponent" />
+    </Feature>
+
+    <Feature Id="ConsoleFeature" Level="1"
+             Title="Console (หน้าจอควบคุมของครู)"
+             Description="โปรแกรมที่ครูใช้ดูสถานะและสั่งงานเครื่องนักเรียน ต่อไปยัง Server เครื่องไหนก็ได้ - ลงได้หลายเครื่อง">
+      <ComponentGroupRef Id="ConsoleFiles" />
       <ComponentRef Id="ConsoleExeComponent" />
     </Feature>
 
@@ -117,6 +181,12 @@
                        Type="ownProcess" Start="auto" ErrorControl="normal" />
       <ServiceControl Id="OnionCoreServiceControl" Name="OnionCoreService" Start="install" Stop="both" Remove="uninstall" Wait="yes" />
       <fire:FirewallException Id="ServerFirewallRule" Name="OnionProcOparetor Server" Port="8787" Protocol="tcp" Scope="any" />
+
+      <!-- ร่องรอยว่า "เครื่องนี้เลือกลง Server ไว้" - อยู่ใน component ของ Server เอง จึงมีอยู่ก็ต่อเมื่อ
+           feature นี้ถูกติดตั้งจริง และหายไปเองเมื่อถูกถอด ไม่ต้องมีโค้ดคอยดูแลให้ตรง
+           ใช้ตอน upgrade เพื่อ pre-ติ๊ก checkbox ให้ตรงกับของเดิม (ดู PREV_SERVER ด้านบน) -->
+      <RegistryValue Root="HKLM" Key="Software\OnionProcOparetor\Install" Name="ServerInstalled"
+                     Type="integer" Value="1" />
     </Component>
 
     <!-- Console: shortcut only, no service. -->
@@ -126,6 +196,8 @@
                    WorkingDirectory="ConsoleDir" Advertise="no" Icon="AppIcon.ico" />
       </File>
       <RemoveFolder Id="RemoveAppProgramMenuFolder_Console" Directory="AppProgramMenuFolder" On="uninstall" />
+      <RegistryValue Root="HKLM" Key="Software\OnionProcOparetor\Install" Name="ConsoleInstalled"
+                     Type="integer" Value="1" />
     </Component>
 
     <!-- Add/Remove Programs launches this .exe directly (see UninstallArpEntryComponent below) -
@@ -236,8 +308,12 @@
            (Return="check") was - confirmed live, that one's missing condition did abort the
            uninstall with exit 1603 - but it's still wrong to run setup on a product being
            removed, so the same guard is applied here for correctness. -->
-      <Custom Action="SetupServerProps" Before="SetupServer" Condition="NOT REMOVE" />
-      <Custom Action="SetupServer" After="StartServices" Condition="NOT REMOVE" />
+      <!-- &amp;ServerFeature=3 = "feature นี้กำลังจะถูกติดตั้งแบบ local ในทรานแซกชันนี้"
+           จำเป็นตั้งแต่ 2026-08-31 ที่แยก feature: run-setup.ps1 ยิง POST /api/auth/setup ไปที่
+           OnionCoreService ซึ่งจะไม่มีอยู่เลยถ้าครูเลือกลงแค่ Console - ปล่อยให้รันจะรอ timeout
+           เปล่าๆ ทุกครั้งที่ติดตั้ง แล้วจบด้วยความล้มเหลวเงียบๆ (Return="ignore") -->
+      <Custom Action="SetupServerProps" Before="SetupServer" Condition="NOT REMOVE AND &amp;ServerFeature=3" />
+      <Custom Action="SetupServer" After="StartServices" Condition="NOT REMOVE AND &amp;ServerFeature=3" />
 
       <Custom Action="DeleteProgramDataProps" Before="DeleteProgramData" Condition="REMOVE=&quot;ALL&quot; AND DELETEDATA=&quot;1&quot; AND NOT UPGRADINGPRODUCTCODE" />
       <Custom Action="DeleteProgramData" After="RemoveFiles" Condition="REMOVE=&quot;ALL&quot; AND DELETEDATA=&quot;1&quot; AND NOT UPGRADINGPRODUCTCODE" />
@@ -246,13 +322,99 @@
       <Custom Action="RemoveInstallFolderExtras" After="DeleteProgramData" Condition="REMOVE=&quot;ALL&quot; AND NOT UPGRADINGPRODUCTCODE" />
     </InstallExecuteSequence>
 
-    <!-- No custom wizard pages, no <Launch> condition - nothing for this product to ask
-         interactively (no server address to configure, no uninstall password gate). Stock
-         WixUI_InstallDir sequence only (Welcome -> InstallDir -> VerifyReady -> Progress -> Exit). -->
+    <!-- ==================== หน้าเลือกว่าจะลงอะไร (2026-08-31) ====================
+         แทรกเข้าไประหว่าง InstallDirDlg กับ VerifyReadyDlg ของ WixUI_InstallDir เดิม
+         (Welcome -> InstallDir -> **ComponentsDlg** -> VerifyReady -> Progress -> Exit)
+         ใช้ pattern เดียวกับที่ Agent product แทรก ServerConnDlg/UninstallPwdDlg ไว้แล้ว
+
+         ทำไมเขียนหน้าเองแทนที่จะใช้ WixUI_FeatureTree ของสำเร็จรูป:
+           - FeatureTree ใช้ CustomizeDlg ที่เป็น tree + dropdown "Will be installed on local hard
+             drive" ซึ่งอ่านยากกว่ามากสำหรับคนที่แค่อยากติ๊ก 2 ช่อง
+           - และมันจะแทน InstallDirDlg ทิ้ง ทำให้เลือกโฟลเดอร์ติดตั้งไม่ได้อีก (เป็นการถอย ไม่ใช่การเพิ่ม)
+         หน้านี้ทำเรื่องเดียวคือ AddLocal/Remove ซึ่งเป็น ControlEvent มาตรฐานของ MSI เอง
+
+         **ห้ามเปลี่ยนไปใช้ <Level> Condition เด็ดขาด** - นั่นคือสิ่งที่พังตอน 2026-08-10
+         (ดู comment ยาวที่บล็อก Feature ด้านบน) -->
     <UI>
       <ProgressText Action="SetupServer" Message="Finishing Onion Core Service setup (creating the administrator account)..." />
       <ProgressText Action="DeleteProgramData" Message="Removing Onion ProcOparetor data (database, logs, rules)..." />
       <ProgressText Action="RemoveInstallFolderExtras" Message="Cleaning up remaining Onion ProcOparetor files..." />
+
+      <Dialog Id="ComponentsDlg" Width="370" Height="270" Title="!(loc.InstallDirDlg_Title)">
+        <Control Id="Banner" Type="Bitmap" X="0" Y="0" Width="370" Height="44" TabSkip="no" Text="!(loc.InstallDirDlgBannerBitmap)" />
+        <Control Id="BannerLine" Type="Line" X="0" Y="44" Width="370" Height="0" />
+        <Control Id="BottomLine" Type="Line" X="0" Y="234" Width="370" Height="0" />
+
+        <Control Id="Title" Type="Text" X="15" Y="6" Width="280" Height="15" Transparent="yes" NoPrefix="yes" Text="Choose what to install" />
+        <Control Id="Description" Type="Text" X="25" Y="23" Width="330" Height="15" Transparent="yes" NoPrefix="yes" Text="เลือกเฉพาะส่วนที่เครื่องนี้ต้องใช้จริง" />
+
+        <Control Id="ServerCheck" Type="CheckBox" X="24" Y="60" Width="330" Height="16"
+                 Property="INSTALLSERVER" CheckBoxValue="1" Text="Onion Core Service (Server)" />
+        <Control Id="ServerHelp" Type="Text" X="38" Y="78" Width="316" Height="34"
+                 Text="เก็บกฎ สถานะ และ log ของทั้งห้อง รันเป็น Windows Service ตลอดเวลา และเปิด port 8787 - ทั้งระบบต้องการเครื่องเดียวเท่านั้น" />
+
+        <Control Id="ConsoleCheck" Type="CheckBox" X="24" Y="122" Width="330" Height="16"
+                 Property="INSTALLCONSOLE" CheckBoxValue="1" Text="Console (หน้าจอควบคุมของครู)" />
+        <Control Id="ConsoleHelp" Type="Text" X="38" Y="140" Width="316" Height="34"
+                 Text="หน้าจอที่ครูใช้ดูสถานะและสั่งงานเครื่องนักเรียน ต่อไปยัง Server เครื่องไหนก็ได้ - ลงกี่เครื่องก็ได้" />
+
+        <Control Id="Hint" Type="Text" X="24" Y="188" Width="330" Height="34"
+                 Text="ถ้าเครื่องนี้เป็นเครื่องครูที่ใช้คุมอย่างเดียว ให้ติ๊กแค่ Console - จะได้ไม่มี service และ firewall rule ที่ไม่ได้ใช้ค้างอยู่บนเครื่อง" />
+
+        <Control Id="Back" Type="PushButton" X="180" Y="243" Width="56" Height="17" Text="!(loc.WixUIBack)">
+          <Publish Event="NewDialog" Value="InstallDirDlg" />
+        </Control>
+
+        <Control Id="Next" Type="PushButton" X="236" Y="243" Width="56" Height="17" Default="yes" Text="!(loc.WixUINext)">
+          <!-- ลำดับสำคัญ: AddLocal/Remove ต้องมาก่อน NewDialog เสมอ เพราะ ControlEvent ทำงานตาม
+               ลำดับที่ประกาศ - ถ้า NewDialog มาก่อน หน้า VerifyReady จะสรุปจาก state เก่า -->
+          <Publish Event="AddLocal" Value="ServerFeature" Condition="INSTALLSERVER = &quot;1&quot;" />
+          <Publish Event="Remove" Value="ServerFeature" Condition="INSTALLSERVER &lt;&gt; &quot;1&quot;" />
+          <Publish Event="AddLocal" Value="ConsoleFeature" Condition="INSTALLCONSOLE = &quot;1&quot;" />
+          <Publish Event="Remove" Value="ConsoleFeature" Condition="INSTALLCONSOLE &lt;&gt; &quot;1&quot;" />
+
+          <!-- ไม่ติ๊กเลยสักอัน = ไม่มีอะไรให้ติดตั้ง ต้องกันไว้ ไม่งั้นจะได้ ARP entry เปล่าๆ
+               ที่ชี้ไปยัง product ที่ไม่มีไฟล์อะไรเลย -->
+          <!-- หน้าสุดท้ายต้องพูดตรงกับสิ่งที่ติดตั้งจริง - เครื่องที่ลงแค่ Console ไม่ควรถูกบอกว่า
+               "Core Service กำลังรันอยู่" และไม่ควรมี checkbox เปิดโปรแกรมที่ไม่ได้ลง -->
+          <Publish Property="WIXUI_EXITDIALOGOPTIONALCHECKBOX" Value="1" Condition="INSTALLCONSOLE = &quot;1&quot;" />
+          <Publish Property="WIXUI_EXITDIALOGOPTIONALCHECKBOX" Value="{}" Condition="INSTALLCONSOLE &lt;&gt; &quot;1&quot;" />
+          <Publish Property="WIXUI_EXITDIALOGOPTIONALTEXT"
+                   Value="The Onion Core Service is now running as a Windows Service; use the Console shortcut to sign in."
+                   Condition="INSTALLSERVER = &quot;1&quot; AND INSTALLCONSOLE = &quot;1&quot;" />
+          <Publish Property="WIXUI_EXITDIALOGOPTIONALTEXT"
+                   Value="The Onion Core Service is now running as a Windows Service on this machine. No Console was installed here."
+                   Condition="INSTALLSERVER = &quot;1&quot; AND INSTALLCONSOLE &lt;&gt; &quot;1&quot;" />
+          <Publish Property="WIXUI_EXITDIALOGOPTIONALTEXT"
+                   Value="Console only - no service was installed on this machine. Point it at the machine running the Onion Core Service when you sign in."
+                   Condition="INSTALLSERVER &lt;&gt; &quot;1&quot; AND INSTALLCONSOLE = &quot;1&quot;" />
+
+          <Publish Event="SpawnDialog" Value="ErrorMsgDlg" Condition="INSTALLSERVER &lt;&gt; &quot;1&quot; AND INSTALLCONSOLE &lt;&gt; &quot;1&quot;" />
+          <Publish Event="NewDialog" Value="VerifyReadyDlg" Condition="INSTALLSERVER = &quot;1&quot; OR INSTALLCONSOLE = &quot;1&quot;" />
+        </Control>
+
+        <Control Id="Cancel" Type="PushButton" X="304" Y="243" Width="56" Height="17" Cancel="yes" Text="!(loc.WixUICancel)">
+          <Publish Event="SpawnDialog" Value="CancelDlg" />
+        </Control>
+      </Dialog>
+
+      <!-- popup เล็กๆ ตัวเดียวสำหรับ error ของหน้านี้ - pattern เดียวกับ ErrorMsgDlg ของ Agent product -->
+      <Dialog Id="ErrorMsgDlg" Width="270" Height="105" Title="!(loc.InstallDirDlg_Title)" NoMinimize="yes">
+        <Control Id="ErrorText" Type="Text" X="20" Y="20" Width="230" Height="45"
+                 Text="ต้องเลือกอย่างน้อยหนึ่งอย่าง - จะไม่ติดตั้งทั้ง Server และ Console เลยก็เท่ากับไม่ได้ติดตั้งอะไร" />
+        <Control Id="ErrorOk" Type="PushButton" X="100" Y="70" Width="70" Height="17" Default="yes" Cancel="yes" Text="!(loc.WixUIOK)">
+          <Publish Event="EndDialog" Value="Return" />
+        </Control>
+      </Dialog>
+
+      <!-- แทรกหน้าใหม่เข้าไปในลำดับเดิม: InstallDir -> ComponentsDlg -> VerifyReady
+           ต้อง publish ทับ ControlEvent เดิมของ 2 หน้านั้น (WiX รวม event จากทั้ง dialog set
+           และของเราเข้าด้วยกัน ตัวที่ condition เป็นจริงและประกาศทีหลังจะชนะ) -->
+      <Publish Dialog="ExitDialog" Control="Finish" Event="DoAction" Value="LaunchConsole"
+               Condition="WIXUI_EXITDIALOGOPTIONALCHECKBOX = 1 AND NOT Installed" Order="10" />
+
+      <Publish Dialog="InstallDirDlg" Control="Next" Event="NewDialog" Value="ComponentsDlg" Order="10" />
+      <Publish Dialog="VerifyReadyDlg" Control="Back" Event="NewDialog" Value="ComponentsDlg" Order="10" />
     </UI>
 
     <ui:WixUI Id="WixUI_InstallDir" InstallDirectory="INSTALLFOLDER" />
