@@ -123,7 +123,7 @@ feature-selection สองรอบจากดีไซน์นี้ (ADDLOC
 
 ---
 
-# Current Implementation Status (อัพเดตล่าสุด: 2026-08-11)
+# Current Implementation Status (อัพเดตล่าสุด: 2026-09-01)
 
 > เขียนใหม่ทั้งหมด (ไม่ใช่ copy จาก dated log เก่า) ตอน stabilization cleanup pass — สรุปสถานะจริง
 > ของโค้ด ณ commit `d10ab06` ("VNC full-screen mouse/keyboard control (Step 4h)") ซึ่งเป็น baseline
@@ -138,6 +138,13 @@ feature-selection สองรอบจากดีไซน์นี้ (ADDLOC
 > **อัพเดต 2026-08-11 ("Stable 1" epic)**: เพิ่ม Agent Bypass Toggle, Rule Per-Agent Override (ดูหัวข้อ
 > ที่เกี่ยวข้องด้านล่าง), แยก installer เดิม (1 .msi 3 โหมด) เป็น 2 .msi แยกตาม role, และแก้บั๊กจริงของ
 > uninstall flow ทั้งชุด (ดูหัวข้อ Auth & install) — live-tested บนเครื่องนี้จริงทั้ง 2 installer แล้ว
+>
+> **อัพเดต 2026-09-01 (audit + hardening pass)**: รอบใหญ่ที่สุดตั้งแต่ Stable 1 — audit ทั้งระบบ
+> แล้วเพิ่ม 4 ระบบใหม่ (Tamper Watchdog, Agent Authentication, Program Control, Tailscale health)
+> พร้อมแก้ช่องโหว่ 17 รายการและปรับ config ชุดใหญ่ **ยังไม่ผ่าน field test เลยแม้แต่เครื่องเดียว**
+> รายละเอียดเต็มทุกข้ออยู่ที่ [`HARDENING-REPORT-2026-08-31.md`](../HARDENING-REPORT-2026-08-31.md)
+> ที่ root ของโปรเจค — อ่านที่นั่นก่อนจะแตะอะไรในระบบเหล่านี้ โดยเฉพาะหัวข้อ 0 (disk freeze)
+> ที่อธิบายข้อจำกัดซึ่งคุมการตัดสินใจเกือบทุกข้อในรอบนั้น
 
 ## ภาพรวมสถาปัตยกรรม
 
@@ -225,6 +232,70 @@ lock ได้ในบางกรณี — แก้แล้ว) รอง�
   ไฟล์ (กัน self-lock โฟลเดอร์ตัวเอง), ลบ service/ไฟล์/ARP entry ได้จริงครบ (ก่อนหน้านี้เงียบๆ ไม่ได้ลบ
   อะไรเลยเพราะ `UNINSTPWD=` ว่างไปชนกับ `REMOVE=ALL` ที่ msiexec ใส่เองภายใน — แก้แล้ว)
 
+## Tamper Watchdog (2026-08-31)
+
+ถ้า Agent ถูกลบ/ปิด/ทำให้ตายด้วยวิธีที่ไม่ได้ตั้งใจให้ใช้ เครื่องจะ **reboot ตัวเอง** — ซึ่งได้ผล
+100% เพราะ Reboot Restore Rx restore ทุกครั้งที่เปิดเครื่องอยู่แล้ว
+
+- ตัวตรวจเป็น **Scheduled Task รันเป็น SYSTEM ทุก 1 นาที + ตอนบูต** (`agent-watchdog.ps1`) ไม่ใช่
+  โค้ดใน Agent เอง เพราะ Agent ตรวจ "ตัวเองถูกลบ" ไม่ได้
+- **ค้ำกันสองทาง**: ลบ task → Agent สร้างคืนใน 1 นาที (`TamperProtectionService`) / ฆ่า Agent →
+  task เห็น heartbeat ค้างแล้ว reboot ต้องทำทั้งคู่พร้อมกันในหน้าต่างแคบๆ ถึงจะรอด
+- เงื่อนไขแบ่ง HARD (service/ไฟล์หาย → reboot รอบเดียว) กับ SOFT (หยุด/heartbeat ค้าง → ต้องเจอ 2 รอบ)
+- **กัน reboot loop โดยไม่พึ่ง state ข้าม reboot** (ซึ่งบนเครื่อง freeze ทำไม่ได้เลย): จะ reboot
+  ก็ต่อเมื่อเคยเห็น Agent ทำงานปกติต่อเนื่อง ≥ 120 วิ ในรอบบูตนั้น — ไม่เคยเห็นเลย = baseline พัง
+  reboot ไปก็วนไม่จบ จึงแจ้ง Server แล้วลอง `sc start` แทน
+- ทางออกที่ถูกกฎคือ **maintenance ticket ที่เซ็นด้วย HMAC-SHA256** จาก `wd.key` — MSI ออกให้ทุก
+  transaction แบบไม่มีเงื่อนไข (major upgrade คือเคสที่จะโดนพอดีถ้า gate ด้วย `REMOVE`)
+- สั่ง `shutdown` ก่อนแล้วใช้ช่วงนับถอยหลัง 20 วิยิงรายงานซ้ำ เพราะ log ในเครื่องและ Event Log
+  ถูกล้างไปพร้อม reboot — `POST /api/tamper-report` คือหลักฐานชิ้นเดียวที่รอด
+- **ไม่ได้ตั้งเป้ากัน admin** (ต้องใช้ kernel driver) ตั้งเป้ากันนักเรียนสิทธิ์ปกติ 100% และทำให้
+  admin ที่ทำครึ่งๆ กลางๆ โดน reboot ทันที
+
+## Agent Authentication (2026-08-31)
+
+เดิม endpoint ฝั่ง agent ทั้งหมดไม่มี auth เลย ใช้แค่ "รู้ ClientGuid" ซึ่งเดินทางใน URL ของทุก poll
+บน HTTP ธรรมดา — ดักดูรอบเดียวได้ครบทุกเครื่อง แล้วเอาไปดึงกฎ/ปลอม ack/ปลอมผลลัพธ์ได้
+
+- แต่ละเครื่องมี **agent secret 32 ไบต์** สร้างตอนติดตั้ง (`install-watchdog.ps1`) เก็บใน
+  โฟลเดอร์ที่ ACL ตัดกลุ่ม Users ออก — ต้องสร้างตอนติดตั้งเท่านั้น ไม่งั้นหายทุก reboot
+- แนบ header `X-Agent-Guid` / `X-Agent-Secret` ทุก request และตอน negotiate ของ SignalR
+- Server จำ secret แรกที่เห็นของแต่ละเครื่อง (trust-on-first-use) เก็บเป็น PBKDF2 hash แล้วล็อกไว้
+- `/ack` และ `/result` ตรวจซ้ำว่า command เป็นของเครื่องที่เรียกมาจริง (กัน lateral movement)
+- **`Security:RequireAgentSecret` default = `false`** โดยตั้งใจ — เปิดพร้อม deploy = เครื่องทั้ง 40
+  ที่ยังรัน Agent เก่าหลุดพร้อมกันทันที ต้องเฝ้า Activity Log จนไม่มี `AgentSecretMismatch` ก่อน
+- `POST /api/clients/{id}/reset-agent-secret` สำหรับเครื่องที่ key หายแต่ GUID เดิม
+
+## Program Control (2026-08-31)
+
+ตาข่ายรับโปรแกรมที่ระบบ rule เดิม **มองไม่เห็นเชิงโครงสร้าง** — เดิม `CheckAndActOnProcess`
+return ทันทีถ้าไฟล์ไม่มี publisher ซึ่งครอบคลุมเกม portable/โหลดแทบทั้งหมด (ไม่มีแม้แต่ใน log)
+
+- จำแนกที่ **Server ที่เดียว** key ด้วย **SHA-256** — ตัวระบุเดียวที่ rename/ย้ายที่แล้วไม่เปลี่ยน
+- ให้คะแนนตามหลัก "สัญญาณที่ลบแล้วโปรแกรมพัง ได้น้ำหนักสูงกว่าสัญญาณที่แก้ด้วย text editor ได้":
+  ไฟล์ SDK/engine → โครงสร้างโฟลเดอร์ของ launcher → DLL ที่โหลดจริง → publisher → ชื่อไฟล์
+  พร้อมกลุ่ม **ร่องรอย crack** (Goldberg/OnlineFix/SmartSteamEmu) ที่ไม่มีทางอยู่ในของถูกลิขสิทธิ์
+- Steam name lookup เป็นแค่ **1 ใน 7 กลุ่มสัญญาณ** (45 คะแนน) ไม่ใช่กระดูกสันหลัง — เกมนอก Steam
+  จับได้จาก path/engine/DLL/crack marker ตามปกติ
+- **3 ระดับ**: ≥70 Block · ≥40 Flag (เข้าคิวให้ครูตัดสิน) · ต่ำกว่านั้น Allow —
+  คะแนนกลางๆ ตกไปที่คิวเพราะปิดโปรแกรมที่นักเรียนใช้ทำงานส่งแพงกว่าปล่อยเกมหลุดหนึ่งรอบ poll
+- **คำตัดสินของครู (`IsManual`) ชนะอัลกอริทึมเสมอ** ไม่มีเงื่อนไข
+- 2 ชั้นฝั่ง Agent: blocklist ในหน่วยความจำ (มากับ poll ส่งเฉพาะตอนเปลี่ยน) ปิดทันทีไม่มี round trip /
+  ที่ยังไม่รู้จัก เข้าคิวส่งเป็นชุด — ชั้นหลัง **fail-open โดยตั้งใจ** (ห้ามทุกอย่างที่ไม่รู้จัก =
+  Windows ปิดตัวเองตายตั้งแต่บูต)
+- หน้า `PROGRAMS` ที่ header ของ Console = คิวตรวจสอบ แสดงเหตุผลทีละสัญญาณพร้อมน้ำหนัก
+- ปุ่ม `BLOCK` ในหน้า Running Processes เพิ่มโปรแกรมเข้าระบบด้วย hash ได้เลย ใช้ได้แม้ไม่มี publisher
+  และ upsert ทับของที่ classifier เคยตัดสินไว้
+- กฎเหล็ก: อะไรก็ตามใน `%SystemRoot%` คืน Allow ทันทีโดยไม่ผ่านการให้คะแนน
+- ข้อจำกัดที่รู้ตัว: **เกมผ่าน browser มองไม่เห็นเลย** และไฟล์ที่ไม่มี marker อะไรเลยได้ 0 คะแนน
+
+## Tailscale fallback health (2026-08-31)
+
+`tailscaled.state` (node key) อยู่บนไดรฟ์ที่ freeze เหมือนกัน → **หลุด tailnet ทุก reboot** ถ้าไม่ได้
+enroll ตอน freeze ปิดแล้ว commit baseline และ `SwitchToFallback` ก็ไม่ได้ตรวจว่าเส้นทางสำรองใช้ได้จริง
+ก่อนสลับ — เป็น failover ที่พังเงียบที่สุด `TailscaleHealthService` ตรวจทุก 15 นาทีแล้วรายงานเข้า
+log กลางเฉพาะตอนสถานะเปลี่ยน ส่วน AlwaysOn policy ย้ายไปตั้งตอนติดตั้งเพื่อให้ติด baseline
+
 ## Known limitations / ยังไม่ได้ทำ
 
 - Windows Firewall/hosts-based website blocking, "ปิดเน็ตทั้งหมด" — ออกแบบ+implement ไปรอบหนึ่งแล้ว
@@ -233,6 +304,14 @@ lock ได้ในบางกรณี — แก้แล้ว) รอง�
   แต่ไม่รองรับ DPI/text-scaling ที่สูงกว่าปกติหรือเนื้อหาที่ยาวเกินพื้นที่ที่จัดไว้ (รู้ข้อจำกัดแล้ว ยังไม่
   ทำ เพราะเป็น rework ใหญ่)
 - Console GUI ยังไม่มีการแยกสิทธิ์ระหว่าง admin account ต่างๆ (ทุกคนที่ login ได้ทำได้ทุกอย่างเหมือนกัน)
+- **`POST 127.0.0.1:8788/bypass/set` ยังไม่มี auth** — login gate ของ AgentTray อยู่แค่ในหน้าต่าง WPF
+  ไม่ได้อยู่ในเส้นทางของ endpoint เลย นักเรียนสิทธิ์ปกติยิงบรรทัดเดียวปิด enforcement เครื่องตัวเองได้
+  (ช่องที่คุ้มแก้ที่สุดที่เหลืออยู่ — ทางแก้คือให้ tray ส่ง token ที่ได้จาก Server มาด้วยแล้วให้ Agent verify)
+- `/vnc/session-result` และ `/processes/list-result` บน loopback ก็ยังไม่มี auth เช่นกัน — ยิง PID ปลอม
+  เข้ามาให้ Agent (SYSTEM) เปิด firewall rule ให้ port ที่เลือกเองได้
+- **ทั้งระบบยังเป็น HTTP ล้วน** — agent secret ที่เพิ่มมาก็ยังเดินทางเป็น plaintext
+- Tailscale ไม่ enroll ซ้ำเองหลังบูต (ต้องทำตอน freeze ปิดแล้ว commit baseline)
+- ลบ `uninstall-guard.json` ไฟล์เดียว = ปิด uninstall password gate ถาวรและเงียบ
 
 ---
 

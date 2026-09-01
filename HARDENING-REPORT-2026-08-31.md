@@ -15,6 +15,11 @@
 | `ca86d71` | Task 5 — config review |
 | `f2406df` | รอบแก้ตาม disk-freeze (ดูหัวข้อ 0) |
 | `a4b9484` | Tailscale: ตรวจจับการหลุด tailnet + ล็อกตั้งแต่ติดตั้ง |
+| `9911cb7` | watchdog: สั่ง reboot ก่อน แล้วใช้ช่วงนับถอยหลังยิงรายงานซ้ำ |
+| `328e506` | Program Control: ครอบคลุมเกมนอก Steam (ดูหัวข้อ 4.1) |
+| `4c92194` | Program Control: อีมูเลเตอร์ + ปุ่มบล็อกจากรายการโปรแกรมที่รันอยู่ (4.2) |
+| `0dadcd7` | installer: เลือกลง Server / Console แยกกันได้ (หัวข้อ 8) |
+| `1e53ec4` | installer: แก้บั๊กอัปเกรดครั้งแรกติ๊กออกทั้งสองช่อง |
 
 > **ยังไม่ได้ทดสอบบนเครื่องจริง** ทั้งหมดนี้ผ่าน build + ทดสอบเท่าที่ทำได้บนเครื่องนี้เท่านั้น
 > (รายละเอียดว่าอะไรทดสอบแล้ว/ยังอยู่ท้ายรายงาน) การติดตั้งจริงต้องทำตามลำดับในหัวข้อ "แผน rollout"
@@ -306,7 +311,8 @@ application control ของ Microsoft เอง แล้วเทียบก
 installer/CustomActions/agent-watchdog.ps1     ตัวตรวจ (Scheduled Task รันทุก 1 นาที + ตอนบูต)
 installer/CustomActions/install-watchdog.ps1   ลงทะเบียน task + สร้าง wd.key + ตั้ง ACL
 installer/CustomActions/maintenance-ticket.ps1 ออก/ยกเลิกใบอนุญาตยุ่งกับ Agent
-src/OnionProcOparetor.Agent/Services/TamperProtectionService.cs   heartbeat + self-heal
+src/OnionProcOparetor.Agent/Services/TamperProtectionService.cs
+src/OnionProcOparetor.Agent/Services/TailscaleHealthService.cs   heartbeat + self-heal
 %ProgramData%\OnionProcOparetor\Agent\watchdog-config.json        ปรับ threshold ได้ที่นี่
 %ProgramData%\OnionProcOparetor\Agent\watchdog.log                log ของ watchdog
 Event Log > Application > OnionProcOparetorWatchdog (9001-9004)
@@ -402,6 +408,55 @@ Event Log > Application > OnionProcOparetorWatchdog (9001-9004)
 
 ---
 
+### 4.1 ครอบคลุมเกมนอก Steam (`328e506`)
+
+Steam lookup เป็นแค่ **1 ใน 7 กลุ่มสัญญาณ (45 คะแนน)** ไม่ใช่กระดูกสันหลัง แต่ตอนไล่ตรวจเจอช่องว่างจริง
+
+**ช่องว่างที่ใหญ่ที่สุดเป็นเรื่องโครงสร้าง ไม่ใช่ข้อมูล** — fingerprint เก็บแต่ *ไฟล์* ข้างเคียงด้วย
+`Directory.EnumerateFiles` ซึ่งไม่คืนโฟลเดอร์เลย ทำให้สัญญาณที่แรงที่สุดหลายตัวหลุดหมดเพราะมันเป็น
+โฟลเดอร์: `steam_settings`, `roms`, `bios`, `nand`, `www`, `renpy` — ตอนนี้ Agent ส่งชื่อโฟลเดอร์มาด้วย
+(Agent เก่าไม่ส่ง ก็แค่ขาดสัญญาณกลุ่มนี้ ไม่ทำให้จำแนกผิด)
+
+กลุ่มสัญญาณใหม่ที่ไม่พึ่ง Steam เลย:
+
+| กลุ่ม | ตัวอย่าง | ทำไมเชื่อได้ |
+|---|---|---|
+| **ร่องรอย crack** | `steam_emu.ini`, `steam_settings`, `steamclient_loader.exe`, `OnlineFix64.dll` | ตอบโจทย์ "เกมนอก Steam" ตรงที่สุด เพราะเกมโหลดส่วนใหญ่คือเกม Steam ที่ถูกถอดตัวตรวจลิขสิทธิ์ — ไม่มีทางอยู่ในของถูกลิขสิทธิ์ จึงไม่โดนหักตามลำดับเหมือนกลุ่มอื่น |
+| เอนจินอื่น | Godot (`.pck`), GameMaker (`data.win`), NW.js/RPG Maker, Ren'Py, LOVE2D, Bink | เดิมมีแค่ Unity/Unreal |
+| ร้านอื่น | itch.io, Xbox บน PC, Amazon, Rockstar, Bethesda, EA Desktop, Blizzard, VRChat | เดิมมีแค่ 5 เจ้าใหญ่ |
+
+**ผลทดสอบ (ปิด Steam lookup ทั้งหมด):** Epic / Godot-จาก-itch.io / เกม crack ทั้ง 2 แบบ → Block ·
+GameMaker / RPG Maker / Ren'Py → Flag (ถูกต้อง — เป็นเอนจินที่นักเรียนใช้ทำเกมส่งครู) ·
+VS Code / Blender / Unity Editor / explorer.exe → Allow
+
+### 4.2 อีมูเลเตอร์ และการเพิ่มโปรแกรมเข้าระบบด้วยมือ (`4c92194`)
+
+**อีมูเลเตอร์เดิมจับด้วยชื่ออย่างเดียว** rename ทีเดียวสัญญาณหายหมด เพิ่มชื่ออีก ~25 ตัว และที่สำคัญ
+กว่าคือสัญญาณที่ rename หนีไม่ได้ — ไฟล์ BIOS/key (`prod.keys`, `scph5501.bin`, `boot9.bin`),
+โฟลเดอร์ทำงาน (`keys`, `firmware`, `savestates`, `cores`), และนามสกุล ROM อีก 15 แบบ
+
+> **ความเสี่ยงที่ตามมาและจัดการแล้ว:** Android SDK มี `emulator.exe` จริงๆ ถ้าไปบล็อกคือนักเรียน
+> สายแอปทำงานส่งไม่ได้ ซึ่งเป็นความผิดพลาดที่แพงที่สุดแบบหนึ่งของระบบนี้ — ชื่อแยกไม่ออก จึงหักคะแนน
+> ที่ **เส้นทาง** แทน (Android SDK/AVD, Android Studio, Visual Studio, JetBrains, Node, .NET SDK,
+> Unity Hub/Editor, Godot Editor)
+
+**ผลทดสอบ:** RPCS3 / Cemu / Project64 / DuckStation / RetroArch → Block · **อีมูที่เปลี่ยนชื่อเป็น
+`work.exe` แต่มี `.chd` + โฟลเดอร์ `roms` → Block** · เครื่องมือ dev ทั้ง 4 ตัว → Allow
+
+**ปุ่ม BLOCK ในหน้า Running Processes** — ปุ่ม `CREATE RULE` เดิมสร้างกฎที่ผูกกับชื่อ publisher
+ซึ่งใช้ไม่ได้เลยกับโปรแกรมที่ไม่มี publisher (กลุ่มที่อยากบล็อกมากที่สุดพอดี)
+
+| | CREATE RULE (เดิม) | BLOCK (ใหม่) |
+|---|---|---|
+| ผูกกับ | ชื่อ publisher | SHA-256 ของไฟล์ |
+| ไม่มี publisher | **ใช้ไม่ได้** | ใช้ได้ |
+| มีใน Program Control แล้ว | ไม่เกี่ยวกัน | **upsert ทับ** + `IsManual` |
+| ครอบคลุม | ทุกโปรแกรมของค่ายนั้น | ไฟล์นี้ไฟล์เดียว |
+
+running-process scan ส่ง SHA-256 มาด้วยแล้ว ปุ่มแต่ละอัน disable เองเมื่อเงื่อนไขไม่ครบ
+ทดสอบครบ: สร้างใหม่ / upsert ทับ Allow เดิม / เข้า blocklist ทั้งคู่ / classify ซ้ำไม่ลบคำตัดสินครู /
+400 เมื่อไม่มี hash / 401 เมื่อไม่มี token
+
 ## 5. Config ที่ปรับ
 
 | เดิม | ใหม่ | เหตุผล |
@@ -434,6 +489,11 @@ Event Log > Application > OnionProcOparetorWatchdog (9001-9004)
 - `.ps1` ทุกไฟล์ใน installer parse ผ่าน + มี BOM ครบ
 - EncodedCommand blob ทั้ง 2 .wxs — decode กลับ, parse ผ่าน, มี guard ใหม่จริง
 - `.wxs` ทั้ง 2 ไฟล์ยังเป็น XML ที่ถูกต้อง
+- classifier เคสเกมนอก Steam + อีมูเลเตอร์ + เครื่องมือ dev (ปิด Steam lookup เพื่อพิสูจน์ว่าไม่ได้พึ่งมัน)
+- `POST /api/program-verdicts/manual` ครบทุกเส้นทาง (สร้างใหม่ / upsert / auth / validation)
+- `POST /api/tamper-report` รับได้ถูกต้อง รวมถึงยิงซ้ำหลายครั้ง (retry ปลอดภัย)
+- watchdog ทั้ง 4 เส้นทางการตัดสินใจ + retry loop ของรายงาน (16.9 วิ พอดีใน countdown 20 วิ)
+- **compile MSI ทั้ง 2 ตัวผ่าน** และ decompile กลับมาตรวจโครงสร้างของ Server+Console MSI
 - **production server บน port 8787 ไม่ถูกแตะตลอดการทดสอบ**
 
 ### ยังไม่ได้ทดสอบ (ต้องทำก่อน rollout จริง)
@@ -451,6 +511,9 @@ Event Log > Application > OnionProcOparetorWatchdog (9001-9004)
   enroll ใหม่ตอน thaw แล้ว commit baseline)
 - `TailscaleHealthService` (build ผ่าน ยังไม่เคยรันจริง)
 - lockdown ตอนติดตั้ง (`set-tailscale-lockdown.ps1` เรียกจาก setup-client.ps1)
+- ❗ **หน้าติ๊กเลือก Server/Console ตอนรันจริง** (ติด UAC ทดสอบไม่ได้บนเครื่องนี้) — ต้องยืนยันว่า
+  เคส "ติ๊กแค่ Console" ไม่สร้าง service `OnionCoreService` และไม่มี firewall rule 8787 จริง
+- ปุ่ม BLOCK ในหน้า Running Processes จาก Console จริง (ทดสอบแค่ฝั่ง endpoint)
 - Program Control end-to-end จาก Agent จริง (ทดสอบแค่ฝั่ง Server ด้วย fingerprint ที่ประกอบเอง)
 - หน้า `ProgramReviewWindow` (build ผ่าน แต่ยังไม่เคยเปิดดูจริง)
 
@@ -499,7 +562,40 @@ Event Log > Application > OnionProcOparetorWatchdog (9001-9004)
 
 ---
 
-## 8. ไฟล์ที่เพิ่มใหม่ทั้งหมด
+## 8. Installer: เลือกลง Server / Console แยกกันได้ (`0dadcd7`, `1e53ec4`)
+
+เดิมลง Console บนเครื่องครูก็ได้ `OnionCoreService` + firewall rule 8787 + service ที่รันตลอดเวลา
+โดยไม่มีใครใช้ติดมาด้วยทุกครั้ง
+
+- แยก `MainFeature` เป็น 3: `SharedFeature` (ARP entry + UninstallHelper, `AllowAbsent="no"`),
+  `ServerFeature`, `ConsoleFeature` — เพิ่มหน้า `ComponentsDlg` ติ๊ก 2 ช่องแทรกระหว่าง InstallDir
+  กับ VerifyReady **ค่าเริ่มต้นติ๊กทั้งคู่ = คนที่กด Next รวดได้เหมือนเดิมเป๊ะ**
+
+> **ระวังเป็นพิเศษ:** ดีไซน์นี้เคยถูกถอยออกไปแล้วเมื่อ 2026-08-10 บั๊กทั้งสองตัวตอนนั้นมาจากการ
+> อนุมาน feature state ผ่าน `<Level>` Condition รอบนี้จึง **ไม่ใช้ `<Level>` เลยแม้แต่ที่เดียว** —
+> ทุก feature `Level="1"` คงที่ ใช้ ControlEvent `AddLocal`/`Remove` ที่ปุ่ม Next ซึ่งแตะแค่
+> UI sequence ไม่ยุ่งกับ execute sequence ตอน uninstall (เขียนเตือนไว้ในไฟล์แล้ว)
+
+2 ผลพลอยได้ที่จัดการล่วงหน้า:
+- `SetupServer` gate ด้วย `&ServerFeature=3` — ไม่งั้นลง Console อย่างเดียวจะรอ timeout ยิงหา
+  service ที่ไม่เคยถูกติดตั้ง
+- **upgrade จะไม่แอบยัด Server กลับมา** — แต่ละฝั่งเขียน marker ลง registry จากใน component ตัวเอง
+  (มีอยู่ตราบที่ feature นั้นมี) แล้ว AppSearch อ่านกลับมา pre-ติ๊ก
+
+**บั๊กที่เจอตอนตอบคำถามเรื่อง rollout (`1e53ec4`):** ตัวตัดสิน "เคยติดตั้งมาก่อน" ใช้ ARP DisplayName
+ซึ่งทุกเครื่องที่ลงอยู่ตอนนี้มี แต่ marker รายฝั่งเป็นของใหม่ยังไม่มี → **การอัปเกรดครั้งแรกจะติ๊กออก
+ทั้งสองช่องแล้วกลายเป็นไม่ติดตั้งอะไรเลย** เปลี่ยนไปใช้ marker `FeatureSelectionSupported` ที่เขียนจาก
+`SharedFeature` แทน — อัปเกรดจาก build เก่าจะตกไปใช้ default (ติ๊กทั้งคู่) ซึ่งตรงกับสิ่งที่เครื่องนั้น
+มีอยู่จริงพอดี
+
+เจอบั๊กเดิมด้วย: checkbox **"Launch Console"** ที่หน้าสุดท้ายไม่เคยผูกกับ action อะไร ติ๊กแล้วไม่เกิดอะไรขึ้น
+
+**ยืนยันด้วยการ compile MSI จริงแล้ว decompile กลับมาอ่าน** ไม่ได้เดา: 3 feature ครบ,
+`Absent="disallow"` ถูก, ข้อความไทย round-trip ได้ (ต้องตั้ง `Codepage="874"` — 1252 เก็บไทยไม่ได้
+compile fail จริง), ลำดับ AddLocal ก่อน NewDialog ถูก, `&ServerFeature=3` ติดมา,
+RegistrySearch/marker ครบ 3 ตัว และ Agent MSI ยัง build ผ่านเหมือนเดิม
+
+## 9. ไฟล์ที่เพิ่มใหม่ทั้งหมด
 
 ```
 installer/CustomActions/agent-watchdog.ps1
@@ -534,6 +630,7 @@ src/OnionProcOparetor.Console/ProgramReviewWindow.xaml(.cs)
 | `POST /api/classify` | agent secret | Agent ส่ง fingerprint มาให้จำแนกเป็นชุด |
 | `GET /api/program-verdicts?filter=` | admin | คิวตรวจสอบ (`flagged`/`blocked`/`allowed`/`manual`/`all`) |
 | `POST /api/program-verdicts/{id}/decide` | admin | ครูตัดสินด้วยมือ (ทับอัลกอริทึมถาวร) |
+| `POST /api/program-verdicts/manual` | admin | เพิ่ม/แก้คำตัดสินด้วย SHA-256 จากรายการโปรแกรมที่รันอยู่ (upsert - ใช้ได้แม้ไม่มี publisher) |
 | `POST /api/tamper-report` | ไม่ต้อง (เขียนอย่างเดียว) | watchdog แจ้งก่อน reboot |
 | `POST /api/clients/{id}/reset-agent-secret` | admin | ล้าง enrollment เพื่อให้เครื่อง enroll ใหม่ |
 | `GET /api/poll/{guid}` | agent secret (เพิ่ม) | เพิ่ม `blocklistVersion` + `blockedHashes` |
