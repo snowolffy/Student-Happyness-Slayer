@@ -1,4 +1,4 @@
-<Window x:Class="OnionProcOparetor.Console.RunningProcessesWindow"
+﻿<Window x:Class="OnionProcOparetor.Console.RunningProcessesWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Running Processes"
@@ -48,12 +48,25 @@
                     <DataGridTextColumn Header="WINDOW TITLE" Binding="{Binding WindowTitle}" Width="*"/>
                     <DataGridTextColumn Header="PUBLISHER" Binding="{Binding PublisherName}" Width="170"/>
                     <DataGridTextColumn Header="SIGNED" Binding="{Binding IsSignedMatch}" Width="60"/>
-                    <DataGridTemplateColumn Header="ACTIONS" Width="140">
+                    <!-- ปุ่ม 2 ตัวทำคนละเรื่องกันโดยตั้งใจ (2026-08-31):
+                         CREATE RULE  = กฎแบบ publisher (ครอบคลุมทุกโปรแกรมของค่ายนั้น) - ต้องมี publisher
+                         BLOCK ทุกเครื่อง = ผูกกับ SHA-256 ของไฟล์นี้ไฟล์เดียว - ใช้ได้แม้ไม่มี publisher
+                         ตัวหลังคือทางเดียวที่ใช้ได้กับเกม portable/โหลด ซึ่งเป็นกลุ่มที่อยากบล็อกที่สุด -->
+                    <DataGridTemplateColumn Header="ACTIONS" Width="250">
                         <DataGridTemplateColumn.CellTemplate>
                             <DataTemplate>
-                                <Button Content="CREATE RULE" Style="{StaticResource ButtonSecondary}"
-                                        Padding="10,5" FontSize="11"
-                                        Click="CreateRuleButton_Click" Tag="{Binding}"/>
+                                <StackPanel Orientation="Horizontal">
+                                    <Button Content="CREATE RULE" Style="{StaticResource ButtonSecondary}"
+                                            Padding="10,5" FontSize="11" Margin="0,0,6,0"
+                                            IsEnabled="{Binding HasPublisher}"
+                                            ToolTip="สร้างกฎจาก publisher - ครอบคลุมทุกโปรแกรมของค่ายนี้ (ต้องมี publisher)"
+                                            Click="CreateRuleButton_Click" Tag="{Binding}"/>
+                                    <Button Content="BLOCK" Style="{StaticResource ButtonPrimary}"
+                                            Padding="12,5" FontSize="11"
+                                            IsEnabled="{Binding CanBlockByHash}"
+                                            ToolTip="บล็อกไฟล์นี้ถาวรทุกเครื่อง ผูกกับลายนิ้วมือของไฟล์ (ใช้ได้แม้ไม่มี publisher)"
+                                            Click="BlockByHashButton_Click" Tag="{Binding}"/>
+                                </StackPanel>
                             </DataTemplate>
                         </DataGridTemplateColumn.CellTemplate>
                     </DataGridTemplateColumn>

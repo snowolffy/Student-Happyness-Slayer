@@ -141,6 +141,14 @@ public sealed class ProgramClassifier
         ("bios",    35, ProgramCategory.Emulator, "มีโฟลเดอร์ bios อยู่ข้างๆ"),
         ("nand",    40, ProgramCategory.Emulator, "มีโฟลเดอร์ nand (อีมูเลเตอร์เครื่องเกม)"),
         ("sdmc",    40, ProgramCategory.Emulator, "มีโฟลเดอร์ sdmc (อีมูเลเตอร์เครื่องเกม)"),
+        ("keys",    30, ProgramCategory.Emulator, "มีโฟลเดอร์ keys (กุญแจของอีมูเลเตอร์)"),
+        ("firmware", 32, ProgramCategory.Emulator, "มีโฟลเดอร์ firmware"),
+        ("states",  30, ProgramCategory.Emulator, "มีโฟลเดอร์ states (เซฟสถานะแบบอีมูเลเตอร์)"),
+        ("savestates", 35, ProgramCategory.Emulator, "มีโฟลเดอร์ savestates"),
+        ("dumps",   25, ProgramCategory.Emulator, "มีโฟลเดอร์ dumps"),
+        ("cheats",  22, ProgramCategory.Emulator, "มีโฟลเดอร์ cheats"),
+        ("shaders", 18, ProgramCategory.Emulator, "มีโฟลเดอร์ shaders"),
+        ("cores",   30, ProgramCategory.Emulator, "มีโฟลเดอร์ cores (คอร์ของ RetroArch)"),
         ("renpy",   40, ProgramCategory.Game, "สร้างด้วย Ren'Py (เอนจินวิชวลโนเวล)"),
         ("www",     25, ProgramCategory.Game, "มีโฟลเดอร์ www (โครงสร้างของ RPG Maker MV/MZ)"),
         ("gamedata", 25, ProgramCategory.Game, "มีโฟลเดอร์ gamedata"),
@@ -163,6 +171,20 @@ public sealed class ProgramClassifier
         (".cso",  40, ProgramCategory.Emulator, "มีไฟล์ .cso อยู่ข้างๆ (แผ่นเกม PSP)"),
         (".gba",  40, ProgramCategory.Emulator, "มีไฟล์ .gba อยู่ข้างๆ (ตลับเกม Game Boy Advance)"),
         (".nds",  40, ProgramCategory.Emulator, "มีไฟล์ .nds อยู่ข้างๆ (ตลับเกม Nintendo DS)"),
+        (".3ds",  45, ProgramCategory.Emulator, "มีไฟล์ .3ds อยู่ข้างๆ (ตลับเกม Nintendo 3DS)"),
+        (".cia",  45, ProgramCategory.Emulator, "มีไฟล์ .cia อยู่ข้างๆ (เกม Nintendo 3DS)"),
+        (".z64",  45, ProgramCategory.Emulator, "มีไฟล์ .z64 อยู่ข้างๆ (ตลับเกม Nintendo 64)"),
+        (".n64",  45, ProgramCategory.Emulator, "มีไฟล์ .n64 อยู่ข้างๆ (ตลับเกม Nintendo 64)"),
+        (".smc",  42, ProgramCategory.Emulator, "มีไฟล์ .smc อยู่ข้างๆ (ตลับเกม Super Nintendo)"),
+        (".sfc",  42, ProgramCategory.Emulator, "มีไฟล์ .sfc อยู่ข้างๆ (ตลับเกม Super Nintendo)"),
+        (".nes",  42, ProgramCategory.Emulator, "มีไฟล์ .nes อยู่ข้างๆ (ตลับเกม Famicom/NES)"),
+        (".gbc",  40, ProgramCategory.Emulator, "มีไฟล์ .gbc อยู่ข้างๆ (ตลับเกม Game Boy Color)"),
+        (".gcm",  42, ProgramCategory.Emulator, "มีไฟล์ .gcm อยู่ข้างๆ (แผ่นเกม GameCube)"),
+        (".wud",  42, ProgramCategory.Emulator, "มีไฟล์ .wud อยู่ข้างๆ (แผ่นเกม Wii U)"),
+        (".wux",  42, ProgramCategory.Emulator, "มีไฟล์ .wux อยู่ข้างๆ (แผ่นเกม Wii U)"),
+        (".chd",  38, ProgramCategory.Emulator, "มีไฟล์ .chd อยู่ข้างๆ (แผ่นเกมแบบบีบอัดของ MAME)"),
+        (".pbp",  40, ProgramCategory.Emulator, "มีไฟล์ .pbp อยู่ข้างๆ (เกม PSP)"),
+        (".gdi",  38, ProgramCategory.Emulator, "มีไฟล์ .gdi อยู่ข้างๆ (แผ่นเกม Dreamcast)"),
     };
 
     /// <summary>
@@ -202,6 +224,17 @@ public sealed class ProgramClassifier
         ("bink2w64.dll",         28, ProgramCategory.Game, "ใช้ Bink Video (มิดเดิลแวร์วิดีโอของเกม)"),
         ("prod.keys",            55, ProgramCategory.Emulator, "มี prod.keys (กุญแจถอดรหัสเกม Nintendo Switch)"),
         ("title.keys",           55, ProgramCategory.Emulator, "มี title.keys (กุญแจถอดรหัสเกม Nintendo Switch)"),
+        ("aes_keys.txt",         50, ProgramCategory.Emulator, "มี aes_keys.txt (กุญแจของอีมูเลเตอร์ 3DS)"),
+        ("boot9.bin",            50, ProgramCategory.Emulator, "มี boot9.bin (เฟิร์มแวร์ Nintendo 3DS)"),
+        ("bios7.bin",            50, ProgramCategory.Emulator, "มี bios7.bin (เฟิร์มแวร์ Nintendo DS)"),
+        ("bios9.bin",            50, ProgramCategory.Emulator, "มี bios9.bin (เฟิร์มแวร์ Nintendo DS)"),
+        ("firmware.bin",         35, ProgramCategory.Emulator, "มี firmware.bin (เฟิร์มแวร์เครื่องเกม)"),
+        ("gba_bios.bin",         50, ProgramCategory.Emulator, "มี gba_bios.bin (เฟิร์มแวร์ Game Boy Advance)"),
+        ("scph5501.bin",         50, ProgramCategory.Emulator, "มี BIOS ของ PlayStation 1"),
+        ("scph1001.bin",         50, ProgramCategory.Emulator, "มี BIOS ของ PlayStation 1"),
+        ("ps3updat.pup",         50, ProgramCategory.Emulator, "มีเฟิร์มแวร์ PlayStation 3"),
+        ("dsp_rom.bin",          45, ProgramCategory.Emulator, "มี dsp_rom.bin (เฟิร์มแวร์ GameCube/Wii)"),
+        ("keys.bin",             30, ProgramCategory.Emulator, "มี keys.bin"),
         ("dxgi.dll",             15, ProgramCategory.Game, "มี dxgi.dll วางทับในโฟลเดอร์โปรแกรม (มักเป็นตัว hook กราฟิก)"),
     };
 
@@ -240,19 +273,57 @@ public sealed class ProgramClassifier
         ("-win32-shipping", 35, ProgramCategory.Game),
         ("launcher", 10, ProgramCategory.GameLauncher),
         ("emulator", 30, ProgramCategory.Emulator),
+
+        // ---- อีมูเลเตอร์เครื่องเกม (ขยายชุด 2026-08-31) ----
+        // ชื่อเป็นสัญญาณที่อ่อนที่สุด (rename ทีเดียวหาย) แต่ยังคุ้มที่จะมีให้ครบ เพราะส่วนใหญ่
+        // นักเรียนไม่ได้ rename และการมีชื่ออยู่ในตารางทำให้คะแนนถึงเกณฑ์เร็วขึ้นเมื่อรวมกับ
+        // สัญญาณกลุ่มไฟล์/โฟลเดอร์ที่ rename หนีไม่ได้
         ("ppsspp", 40, ProgramCategory.Emulator),
         ("dolphin", 30, ProgramCategory.Emulator),
         ("citra", 35, ProgramCategory.Emulator),
         ("yuzu", 40, ProgramCategory.Emulator),
         ("ryujinx", 40, ProgramCategory.Emulator),
+        ("sudachi", 40, ProgramCategory.Emulator),
+        ("suyu", 42, ProgramCategory.Emulator),
+        ("eden", 20, ProgramCategory.Emulator),
         ("pcsx2", 40, ProgramCategory.Emulator),
-        ("retroarch", 40, ProgramCategory.Emulator),
+        ("rpcs3", 45, ProgramCategory.Emulator),
+        ("vita3k", 45, ProgramCategory.Emulator),
+        ("duckstation", 45, ProgramCategory.Emulator),
         ("epsxe", 40, ProgramCategory.Emulator),
+        ("retroarch", 40, ProgramCategory.Emulator),
+        ("cemu", 42, ProgramCategory.Emulator),
+        ("xenia", 42, ProgramCategory.Emulator),
+        ("xemu", 42, ProgramCategory.Emulator),
+        ("cxbx", 40, ProgramCategory.Emulator),
+        ("project64", 45, ProgramCategory.Emulator),
+        ("mupen64", 45, ProgramCategory.Emulator),
+        ("melonds", 42, ProgramCategory.Emulator),
+        ("desmume", 42, ProgramCategory.Emulator),
+        ("snes9x", 42, ProgramCategory.Emulator),
+        ("zsnes", 42, ProgramCategory.Emulator),
+        ("visualboyadvance", 42, ProgramCategory.Emulator),
+        ("mgba", 40, ProgramCategory.Emulator),
+        ("fceux", 40, ProgramCategory.Emulator),
+        ("nestopia", 40, ProgramCategory.Emulator),
+        ("flycast", 40, ProgramCategory.Emulator),
+        ("redream", 40, ProgramCategory.Emulator),
+        ("demul", 42, ProgramCategory.Emulator),
+        ("primehack", 40, ProgramCategory.Emulator),
+        ("mame", 30, ProgramCategory.Emulator),
+        ("dosbox", 25, ProgramCategory.Emulator),
+        ("scummvm", 30, ProgramCategory.Emulator),
+
+        // ---- อีมูเลเตอร์ Android (เอาไว้เล่นเกมมือถือบน PC) ----
         ("nox", 25, ProgramCategory.Emulator),
         ("bluestacks", 40, ProgramCategory.Emulator),
         ("ldplayer", 40, ProgramCategory.Emulator),
         ("memu", 30, ProgramCategory.Emulator),
         ("gameloop", 45, ProgramCategory.Emulator),
+        ("mumu", 42, ProgramCategory.Emulator),
+        ("koplayer", 42, ProgramCategory.Emulator),
+        ("smartgaga", 40, ProgramCategory.Emulator),
+        ("aow_exe", 40, ProgramCategory.Emulator),
         ("obs", 15, ProgramCategory.Streaming),
         ("discord", 20, ProgramCategory.Chat),
         ("teamviewer", 35, ProgramCategory.RemoteAccess),
@@ -282,6 +353,28 @@ public sealed class ProgramClassifier
         ("nvidia corporation", -25, "เซ็นโดย NVIDIA"),
         ("advanced micro devices", -25, "เซ็นโดย AMD"),
         ("onionprocoparetor", -100, "เป็นส่วนหนึ่งของระบบนี้เอง"),
+    };
+
+    /// <summary>
+    /// เส้นทางที่ต้อง "หักคะแนน" เพราะเป็นเครื่องมือสำหรับเรียน/พัฒนา ที่บังเอิญมีลักษณะเหมือนเกม
+    ///
+    /// เพิ่มพร้อมกับที่ขยายรายชื่ออีมูเลเตอร์ (2026-08-31): Android SDK มี emulator.exe อยู่จริงๆ
+    /// และเป็นของที่นักเรียนสายพัฒนาแอปต้องใช้ - การไปบล็อกมันคือความผิดพลาดที่แพงที่สุดแบบหนึ่ง
+    /// ของระบบนี้ (นักเรียนทำงานส่งไม่ได้) หักคะแนนตามเส้นทางไม่ใช่ตามชื่อ เพราะชื่อ emulator.exe
+    /// เหมือนกันเป๊ะกับของที่อยากบล็อกจริงๆ - เส้นทางต่างหากที่แยกสองอย่างนี้ออกจากกันได้
+    /// </summary>
+    private static readonly (string Fragment, int Weight, string Description)[] DeveloperToolPathMarkers =
+    {
+        (@"\android\sdk\",       -60, "อยู่ใน Android SDK (เครื่องมือพัฒนาแอป)"),
+        (@"\android\avd",         -60, "เป็นส่วนหนึ่งของ Android Virtual Device"),
+        (@"\androidstudio",       -50, "อยู่ในโฟลเดอร์ Android Studio"),
+        (@"\microsoft visual studio\", -50, "อยู่ในโฟลเดอร์ Visual Studio"),
+        (@"\jetbrains\",          -50, "อยู่ในโฟลเดอร์ JetBrains"),
+        (@"\dotnet\",             -40, "อยู่ในโฟลเดอร์ .NET SDK"),
+        (@"\nodejs\",             -40, "อยู่ในโฟลเดอร์ Node.js"),
+        (@"\unity\hub\",         -40, "เป็นส่วนหนึ่งของ Unity Hub (เครื่องมือทำเกมสำหรับเรียน)"),
+        (@"\unity\editor\",      -40, "เป็นตัว Unity Editor เอง ไม่ใช่เกมที่สร้างจากมัน"),
+        (@"\godot",               -25, "เป็นตัว Godot Editor เอง"),
     };
 
     public ClassificationResult Classify(ProgramFingerprint fingerprint, OnlineLookupOutcome? onlineOutcome = null)
@@ -334,6 +427,15 @@ public sealed class ProgramClassifier
         if (bestPathMarker.Marker is not null)
         {
             Add("PATH_MARKER", bestPathMarker.Weight, bestPathMarker.Description, bestPathMarker.Category);
+        }
+
+        // ---- 1ข) หักคะแนนถ้าเป็นเครื่องมือ dev ที่หน้าตาเหมือนเกม ----
+        // ทำก่อนกลุ่มอื่นเพื่อให้เห็นในรายการเหตุผลว่า "ถูกหักเพราะอะไร" ตั้งแต่ต้น เวลาครูเปิดดู
+        foreach (var marker in DeveloperToolPathMarkers)
+        {
+            if (!path.Contains(marker.Fragment, StringComparison.Ordinal)) continue;
+            Add("DEV_TOOL_PATH", marker.Weight, marker.Description);
+            break;
         }
 
         // ---- 2) ไฟล์คู่ + DLL ที่โหลดจริง ----

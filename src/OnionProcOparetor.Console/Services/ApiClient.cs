@@ -141,6 +141,46 @@ public class ApiClient
         return response.IsSuccessStatusCode;
     }
 
+    /// <summary>
+    /// ครูเพิ่ม/แก้คำตัดสินของโปรแกรมด้วยตัวเอง ผูกกับ SHA-256 (2026-08-31)
+    ///
+    /// ใช้จากรายการ "โปรแกรมที่กำลังรันอยู่" ซึ่งครอบคลุมกรณีที่ปุ่ม CREATE RULE เดิมทำไม่ได้:
+    /// โปรแกรมที่ไม่มี publisher เลย และโปรแกรมที่ Program Control เคยเห็นแล้วแต่ตัดสินไว้ไม่ตรงใจ
+    /// </summary>
+    public async Task<(bool Success, string Message)> SetManualProgramVerdictAsync(
+        RunningProcessDto process, string machineName, int action)
+    {
+        try
+        {
+            var response = await _httpClient.PostAsJsonAsync("/api/program-verdicts/manual", new
+            {
+                sha256 = process.Sha256,
+                fileName = process.ProcessName,
+                productName = process.WindowTitle,
+                publisher = process.PublisherName,
+                isSignedPublisher = process.IsSignedMatch,
+                machineName,
+                action
+            });
+
+            if (response.IsSuccessStatusCode)
+            {
+                return (true, "สำเร็จ");
+            }
+
+            var error = await response.Content.ReadFromJsonAsync<ErrorResponse>();
+            return (false, string.IsNullOrEmpty(error?.Error) ? $"server ตอบ {(int)response.StatusCode}" : error.Error);
+        }
+        catch (HttpRequestException ex)
+        {
+            return (false, $"ต่อ server ไม่ได้: {ex.Message}");
+        }
+        catch (TaskCanceledException)
+        {
+            return (false, "หมดเวลาเชื่อมต่อ (timeout)");
+        }
+    }
+
     public async Task<List<ClientMachineDto>> GetClientsAsync()
     {
         var result = await _httpClient.GetFromJsonAsync<List<ClientMachineDto>>("/api/clients");

@@ -145,6 +145,59 @@ public partial class RunningProcessesWindow : Window
         }
     }
 
+    /// <summary>
+    /// บล็อกไฟล์นี้ถาวรทุกเครื่องโดยผูกกับ SHA-256 (2026-08-31)
+    ///
+    /// ทางนี้มีอยู่เพราะ CREATE RULE ข้างล่างสร้างกฎที่ผูกกับชื่อ publisher ซึ่งใช้ไม่ได้เลยกับ
+    /// โปรแกรมที่ไม่มี publisher - และนั่นคือกลุ่มที่ครูอยากบล็อกมากที่สุดพอดี (เกม portable/โหลด
+    /// ที่ไม่ได้เซ็นและไม่มี metadata) ผูกกับ hash แทนจึงใช้ได้ทุกกรณี รวมถึงโปรแกรมที่
+    /// Program Control เคยเห็นแล้วแต่ตัดสินไว้ไม่ตรงใจครู (endpoint เป็น upsert ทับให้เลย)
+    ///
+    /// ถามยืนยันก่อนเสมอ - ผลของปุ่มนี้กระทบทุกเครื่องในห้องถาวร ไม่ใช่แค่เครื่องที่กำลังดูอยู่
+    /// </summary>
+    private async void BlockByHashButton_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            if (sender is not Button { Tag: RunningProcessDto process })
+            {
+                return;
+            }
+
+            if (string.IsNullOrWhiteSpace(process.Sha256))
+            {
+                StatusText.Text = $"อ่านไฟล์ของ '{process.ProcessName}' ไม่ได้ จึงผูกคำตัดสินกับไฟล์นี้ไม่ได้";
+                return;
+            }
+
+            var confirmed = ConfirmWindow.Show(
+                $"'{process.ProcessName}' จะถูกปิดทันทีที่เปิดบนเครื่องใดก็ตามในห้อง\n\n" +
+                "ผูกกับลายนิ้วมือของไฟล์ ไม่ใช่ชื่อ เปลี่ยนชื่อไฟล์หรือย้ายที่แล้วยังโดนอยู่\n" +
+                "ยกเลิกได้ทีหลังที่หน้า PROGRAMS",
+                "บล็อกโปรแกรมนี้ทุกเครื่อง",
+                this);
+
+            if (!confirmed)
+            {
+                return;
+            }
+
+            StatusText.Text = $"กำลังบล็อก '{process.ProcessName}' ...";
+
+            // 2 = ProgramAction.Block (ตรงกับ enum ฝั่ง Server)
+            var (success, message) = await _apiClient.SetManualProgramVerdictAsync(process, _client.MachineName, 2);
+
+            StatusText.Text = success
+                ? $"บล็อก '{process.ProcessName}' แล้ว - ทุกเครื่องจะเริ่มบล็อกภายในรอบ poll ถัดไป (ดู/ยกเลิกได้ที่หน้า PROGRAMS)"
+                : $"บล็อกไม่สำเร็จ: {message}";
+        }
+        catch (Exception ex)
+        {
+            // เหตุผลเดียวกับ try/catch ตัวอื่นในไฟล์นี้ - async void handler ไม่มีใคร await
+            StatusText.Text = $"บล็อกไม่สำเร็จ: {ex.Message}";
+        }
+    }
+
     private void CreateRuleButton_Click(object sender, RoutedEventArgs e)
     {
         try

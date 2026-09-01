@@ -1,4 +1,4 @@
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using System.IO;
 using OnionProcOparetor.AgentTray.Models;
 
@@ -55,7 +55,8 @@ public static class RunningProcessScanner
                         ExecutablePath = path,
                         PublisherName = check.PublisherName,
                         IsSignedMatch = check.IsSignedMatch,
-                        HasPublisher = check.HasPublisher
+                        HasPublisher = check.HasPublisher,
+                        Sha256 = ComputeSha256(path)
                     });
                 }
                 catch
@@ -73,5 +74,38 @@ public static class RunningProcessScanner
         }
 
         return results;
+    }
+
+    /// <summary>
+    /// SHA-256 ของไฟล์ .exe - ใช้ผูกคำตัดสินของครูกับ "ไฟล์" ไม่ใช่ "ชื่อ" (2026-08-31)
+    ///
+    /// เป็น best-effort ล้วนๆ: คืนค่าว่างเมื่ออ่านไม่ได้ (สิทธิ์ไม่พอ, ไฟล์ถูก lock, เป็น process
+    /// ของระบบ) ซึ่งไม่ใช่เรื่องผิดปกติและไม่ควรทำให้การสแกนทั้งรอบล้ม - ฝั่ง Console แค่ปิดปุ่ม
+    /// "บล็อกทุกเครื่อง" ของแถวนั้นไป
+    ///
+    /// จำกัดขนาดไว้เพราะสแกนนี้ทำงานตอนครูกดดู ไม่ควรให้ครูรอเพราะเกม AAA ไฟล์ใหญ่หลายร้อย MB
+    /// (ค่าเดียวกับที่ ProgramFingerprinter ฝั่ง Agent ใช้ เพื่อให้ hash ที่ได้จากสองทางตรงกันเสมอ)
+    /// </summary>
+    private static string? ComputeSha256(string? path)
+    {
+        const long MaxBytes = 250L * 1024 * 1024;
+
+        if (string.IsNullOrWhiteSpace(path)) return null;
+
+        try
+        {
+            var info = new FileInfo(path);
+            if (!info.Exists || info.Length > MaxBytes) return null;
+
+            // FileShare.ReadWrite|Delete จำเป็น - ไฟล์ของ process ที่กำลังรันอยู่ถูก map ไว้โดยระบบ
+            using var stream = new FileStream(path, FileMode.Open, FileAccess.Read,
+                FileShare.ReadWrite | FileShare.Delete);
+            using var sha = System.Security.Cryptography.SHA256.Create();
+            return Convert.ToHexString(sha.ComputeHash(stream)).ToLowerInvariant();
+        }
+        catch
+        {
+            return null;
+        }
     }
 }

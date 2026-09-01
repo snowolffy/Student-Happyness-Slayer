@@ -1050,6 +1050,87 @@ app.MapGet("/api/program-verdicts", async (
     return Results.Ok(items);
 });
 
+// ครูเพิ่มโปรแกรมเข้าระบบเองจากรายการ "โปรแกรมที่กำลังรันอยู่" (2026-08-31)
+//
+// ต่างจาก /decide ที่ต้องมีแถวอยู่ก่อนแล้ว - อันนี้ upsert: ถ้า Program Control ยังไม่เคยเห็น
+// โปรแกรมนี้ก็สร้างแถวใหม่ให้เลย ถ้าเคยเห็นแล้ว (ไม่ว่าอัลกอริทึมจะตัดสินว่าอะไรไว้) ก็เขียนทับ
+//
+// เหตุผลที่ต้องมี: ปุ่ม "CREATE RULE" เดิมสร้างกฎที่ผูกกับชื่อ publisher ซึ่งใช้ไม่ได้เลยกับ
+// โปรแกรมที่ไม่มี publisher - ซึ่งดันเป็นกลุ่มที่ครูอยากบล็อกมากที่สุดพอดี (เกม portable/โหลด)
+// ผูกกับ SHA-256 แทนจึงครอบคลุมทุกกรณี และเปลี่ยนชื่อไฟล์หนีไม่ได้ด้วย
+app.MapPost("/api/program-verdicts/manual", async (
+    ManualVerdictRequest req,
+    HttpRequest request,
+    AppDbContext db,
+    IActivityLogService activityLog) =>
+{
+    var admin = await GetAuthorizedAdmin(request, db);
+    if (admin is null)
+        return Results.Unauthorized();
+    if (admin.HasDefaultPassword)
+        return Results.Json(new { error = "Password change required before continuing." }, statusCode: 403);
+
+    if (string.IsNullOrWhiteSpace(req.Sha256) || req.Sha256.Length != 64)
+    {
+        // ไม่มี hash = ผูกกับอะไรไม่ได้เลย - ฝั่ง Console ปิดปุ่มไว้อยู่แล้วเมื่ออ่านไฟล์ไม่ได้
+        // แต่ endpoint ต้องยืนหยัดเองได้โดยไม่พึ่งว่า client จะประพฤติดี
+        return Results.BadRequest(new { error = "ต้องมี SHA-256 ของไฟล์ (64 ตัวอักษร) ถึงจะผูกคำตัดสินได้" });
+    }
+
+    if (!Enum.IsDefined(typeof(ProgramAction), req.Action))
+    {
+        return Results.BadRequest(new { error = "Unknown action." });
+    }
+
+    var sha = req.Sha256.ToLowerInvariant();
+    var action = (ProgramAction)req.Action;
+    var verdict = await db.ProgramVerdicts.FirstOrDefaultAsync(v => v.Sha256 == sha);
+    var isNew = verdict is null;
+
+    if (verdict is null)
+    {
+        verdict = new ProgramVerdict
+        {
+            Sha256 = sha,
+            FirstSeenAt = DateTime.UtcNow,
+            SightingCount = 1
+        };
+        db.ProgramVerdicts.Add(verdict);
+    }
+
+    // อัปเดตข้อมูลอ่านง่ายให้ทุกครั้ง - แถวที่อัลกอริทึมสร้างไว้ก่อนอาจมีข้อมูลไม่ครบเท่าที่
+    // Console เห็นอยู่ตรงหน้า (เช่นชื่อหน้าต่างที่ทำให้ครูจำได้ว่าเป็นโปรแกรมอะไร)
+    verdict.FileName = string.IsNullOrWhiteSpace(req.FileName) ? verdict.FileName : req.FileName;
+    verdict.ProductName = req.ProductName ?? verdict.ProductName;
+    verdict.Publisher = req.Publisher ?? verdict.Publisher;
+    verdict.IsSignedPublisher = req.IsSignedPublisher;
+    verdict.LastSeenAt = DateTime.UtcNow;
+    verdict.LastSeenOnMachine = req.MachineName ?? verdict.LastSeenOnMachine;
+
+    var previous = isNew ? "(ยังไม่เคยเห็น)" : verdict.Action.ToString();
+    verdict.Action = action;
+    verdict.IsManual = true;
+    verdict.DecidedBy = admin.Username;
+
+    if (isNew)
+    {
+        verdict.Category = ProgramCategory.Unknown;
+        verdict.Score = action == ProgramAction.Block ? 100 : 0;
+        verdict.ReasonsJson = System.Text.Json.JsonSerializer.Serialize(new[]
+        {
+            new { code = "MANUAL", weight = 0, description = $"{admin.Username} เพิ่มเองจากรายการโปรแกรมที่กำลังรันอยู่บนเครื่อง {req.MachineName}" }
+        });
+    }
+
+    await db.SaveChangesAsync();
+
+    await activityLog.LogAdminActionAsync(admin, "ProgramVerdictManual",
+        $"{admin.Username} ตั้งค่าโปรแกรม '{verdict.FileName}' เป็น {action} ด้วยตนเอง (เดิม: {previous}) - ผูกกับ SHA-256 มีผลทุกเครื่อง",
+        null, req.MachineName);
+
+    return Results.Ok(new { verdict.Id, verdict.Sha256, action = (int)verdict.Action, created = isNew });
+});
+
 // ครูตัดสินด้วยมือ - ทับผลของอัลกอริทึมถาวร (IsManual) มีผลกับทุกเครื่องในรอบ poll ถัดไป
 app.MapPost("/api/program-verdicts/{id:int}/decide", async (
     int id,
@@ -1487,6 +1568,19 @@ record ClassifyRequest(List<ProgramFingerprint>? Programs);
 
 /// <summary>ครูตัดสินโปรแกรมหนึ่งด้วยมือ - Action ตรงกับ enum ProgramAction (0=Allow, 1=Flag, 2=Block)</summary>
 record ProgramDecisionRequest(int Action);
+
+/// <summary>
+/// ครูเพิ่ม/แก้คำตัดสินของโปรแกรมหนึ่งด้วยตัวเอง โดยอ้างอิงจาก SHA-256 ที่ Console เห็นจากรายการ
+/// โปรแกรมที่กำลังรันอยู่ - ไม่ต้องมี publisher และไม่ต้องเคยผ่าน classifier มาก่อน
+/// </summary>
+record ManualVerdictRequest(
+    string? Sha256,
+    string? FileName,
+    string? ProductName,
+    string? Publisher,
+    bool IsSignedPublisher,
+    string? MachineName,
+    int Action);
 
 /// <summary>
 /// รายงานจาก agent-watchdog.ps1 ก่อนที่มันจะสั่ง reboot เครื่องตัวเอง
