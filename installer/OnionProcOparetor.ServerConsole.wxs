@@ -87,18 +87,21 @@
       <RegistrySearch Id="PrevConsoleSearch" Root="HKLM" Key="Software\OnionProcOparetor\Install"
                       Name="ConsoleInstalled" Type="raw" />
     </Property>
-    <!-- ตัวชี้ว่า "เคยติดตั้ง product นี้มาก่อน" - ต้องแยกจาก 2 ตัวบน เพราะการที่ PREV_SERVER ว่าง
-         มีได้ 2 ความหมาย: ไม่เคยลงเลย (ควรติ๊กตาม default) กับ เคยลงแต่ไม่ได้เลือก Server (ควรไม่ติ๊ก) -->
-    <Property Id="PREV_ANY">
-      <RegistrySearch Id="PrevAnySearch" Root="HKLM"
-                      Key="Software\Microsoft\Windows\CurrentVersion\Uninstall\OnionProcOparetor"
-                      Name="DisplayName" Type="raw" />
+    <!-- ตัวชี้ว่า "เวอร์ชันที่ติดตั้งอยู่รู้จักการเลือก feature แล้ว" (ดู UninstallArpEntryComponent)
+         ต้องใช้ตัวนี้ ไม่ใช่ ARP DisplayName ที่ build เก่าก็มี - ไม่งั้นการอัปเกรดครั้งแรกจากทุก
+         เครื่องที่ลงอยู่ตอนนี้จะติ๊กออกทั้งสองช่องแล้วกลายเป็นไม่ติดตั้งอะไรเลย -->
+    <Property Id="PREV_LAYOUT">
+      <RegistrySearch Id="PrevLayoutSearch" Root="HKLM" Key="Software\OnionProcOparetor\Install"
+                      Name="FeatureSelectionSupported" Type="raw" />
     </Property>
 
+    <!-- ติ๊กออกเฉพาะเมื่อ "เคยลงด้วย build ที่เลือก feature ได้ และตอนนั้นไม่ได้เลือกฝั่งนี้"
+         อัปเกรดจาก build เก่า (ไม่มี PREV_LAYOUT) จะตกไปใช้ default = ติ๊กทั้งคู่ ซึ่งตรงกับ
+         สิ่งที่เครื่องนั้นมีอยู่จริงพอดี เพราะ build เก่าลงทั้ง Server และ Console เสมอ -->
     <SetProperty Id="INSTALLSERVER" Value="0" After="AppSearch" Sequence="ui"
-                 Condition="PREV_ANY AND NOT PREV_SERVER" />
+                 Condition="PREV_LAYOUT AND NOT PREV_SERVER" />
     <SetProperty Id="INSTALLCONSOLE" Value="0" After="AppSearch" Sequence="ui"
-                 Condition="PREV_ANY AND NOT PREV_CONSOLE" />
+                 Condition="PREV_LAYOUT AND NOT PREV_CONSOLE" />
 
     <!-- ==================== Directory layout ====================
          Unchanged from before the split ("Onion ProcOparetor", not renamed) so this keeps
@@ -215,6 +218,16 @@
          "...\Uninstall\OnionProcOparetorAgent" key so both products' entries show up side by side
          in Add/Remove Programs without one overwriting the other. -->
     <Component Id="UninstallArpEntryComponent" Directory="INSTALLFOLDER" Guid="8C2D41E6-5A6D-4D1A-95E2-FB74C37A6E71">
+      <!-- ธงบอกว่า "เวอร์ชันที่ติดตั้งอยู่รู้จักการเลือก feature" - อยู่ใน SharedFeature ซึ่งติดตั้ง
+           เสมอ จึงมีค่าก็ต่อเมื่อเครื่องนี้เคยลงด้วย build ตั้งแต่ 2026-08-31 เป็นต้นไป
+
+           จำเป็นเพราะ PREV_SERVER/PREV_CONSOLE ที่ว่างเปล่ามีได้ 2 ความหมายที่ต่างกันสุดขั้ว:
+             (ก) เคยลงด้วย build เก่าที่ยังไม่มี marker เลย  -> ต้องติ๊กทั้งคู่ตาม default
+             (ข) เคยลงด้วย build ใหม่แต่ไม่ได้เลือกฝั่งนั้น -> ต้องไม่ติ๊ก
+           ถ้าใช้ ARP DisplayName เป็นตัวตัดสิน (ซึ่ง build เก่าก็มี) จะแยก 2 กรณีนี้ไม่ออก แล้ว
+           การอัปเกรดครั้งแรกจากทุกเครื่องที่ลงอยู่ตอนนี้จะติ๊กออกทั้งสองช่อง = ไม่ได้ติดตั้งอะไรเลย -->
+      <RegistryValue Root="HKLM" Key="Software\OnionProcOparetor\Install"
+                     Name="FeatureSelectionSupported" Type="integer" Value="1" />
       <RegistryKey Root="HKLM" Key="Software\Microsoft\Windows\CurrentVersion\Uninstall\OnionProcOparetor">
         <RegistryValue Type="string" Name="DisplayName" Value="Onion ProcOparetor" KeyPath="yes" />
         <RegistryValue Type="string" Name="DisplayVersion" Value="[ProductVersion]" />
