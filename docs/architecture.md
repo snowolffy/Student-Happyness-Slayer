@@ -123,7 +123,7 @@ feature-selection สองรอบจากดีไซน์นี้ (ADDLOC
 
 ---
 
-# Current Implementation Status (อัพเดตล่าสุด: 2026-09-01)
+# Current Implementation Status (อัพเดตล่าสุด: 2026-09-02)
 
 > เขียนใหม่ทั้งหมด (ไม่ใช่ copy จาก dated log เก่า) ตอน stabilization cleanup pass — สรุปสถานะจริง
 > ของโค้ด ณ commit `d10ab06` ("VNC full-screen mouse/keyboard control (Step 4h)") ซึ่งเป็น baseline
@@ -145,6 +145,12 @@ feature-selection สองรอบจากดีไซน์นี้ (ADDLOC
 > รายละเอียดเต็มทุกข้ออยู่ที่ [`HARDENING-REPORT-2026-08-31.md`](../HARDENING-REPORT-2026-08-31.md)
 > ที่ root ของโปรเจค — อ่านที่นั่นก่อนจะแตะอะไรในระบบเหล่านี้ โดยเฉพาะหัวข้อ 0 (disk freeze)
 > ที่อธิบายข้อจำกัดซึ่งคุมการตัดสินใจเกือบทุกข้อในรอบนั้น
+>
+> **อัพเดต 2026-09-02**: กรองคิว Program Control ตามหมวดได้ (`e311ca0`) และแก้บั๊กที่คำสั่งซึ่ง
+> ทำเสร็จแล้วค้างอยู่ในรายการ Pending ตลอดไป (`cf0e0b5` — ดูหัวข้อ Remote commands) สร้าง MSI ใหม่
+> ทั้ง 2 ตัวที่ FileVersion `1.2.5.12310` **ต้องลงใหม่เฉพาะฝั่ง Server+Console เท่านั้น** เพราะ
+> ทั้ง 2 อย่างแก้ที่ Server เป็นหลัก (ที่แก้ในฝั่ง Agent เป็นแค่ log เตือน ไม่ได้แก้อาการอะไร) —
+> ไม่ต้องแตะเครื่อง lab ทั้ง 40 เครื่อง และไม่มี DB migration
 
 ## ภาพรวมสถาปัตยกรรม
 
@@ -189,6 +195,13 @@ client-status push, remote command delivery (dual-path กับ poll fallback),
 ไม่ใช่ Win+L ธรรมดา), `Shutdown`/`Restart` (เตือน user ล่วงหน้า 10 วิ), `UpdateSettings`,
 `StartVncSession` — ทุกคำสั่งส่งผ่าน dual-path (SignalR ทันที + poll fallback ถ้า client ไม่ connect
 SignalR อยู่) ประมวลผลที่ `CommandProcessor` เดียวกันไม่ว่าจะมาทางไหน (dedup ด้วย commandId)
+
+**สถานะ 2 ชุดที่ห้ามสับสน** (2026-09-02 — เคยทำให้เกิดบั๊กจริง): `Status` = "ส่งมอบถึงเครื่องแล้ว
+หรือยัง" เป็นตัวเดียวที่ `/api/poll` ใช้กรองว่าจะส่ง command ซ้ำไหม และเป็นตัวเดียวที่หน้า
+`PENDING COMMANDS` อ่าน ส่วน `ExecutionStatus` = "ทำได้จริงไหม" ใช้รายงานผลให้ครูเท่านั้น
+เดิมมีแค่ ack ที่ปิด `Status` ให้ พอ ack หลุด (Agent ก็ไม่เคยเช็ค status code ของมันด้วย) คำสั่งจะ
+ค้าง Pending ตลอดไปทั้งที่ครูเห็นว่า "สำเร็จ" แล้ว และถูกส่งซ้ำทุกรอบ poll ไม่จบ — ตอนนี้การรายงาน
+ผลจริงกลับมาปิด `Status` ให้ด้วย (ผลกลับมา = พิสูจน์แล้วว่าถึงเครื่อง) ดู `CommandResultRecorder`
 
 ## Agent Bypass Toggle
 
@@ -284,6 +297,15 @@ return ทันทีถ้าไฟล์ไม่มี publisher ซึ่�
   ที่ยังไม่รู้จัก เข้าคิวส่งเป็นชุด — ชั้นหลัง **fail-open โดยตั้งใจ** (ห้ามทุกอย่างที่ไม่รู้จัก =
   Windows ปิดตัวเองตายตั้งแต่บูต)
 - หน้า `PROGRAMS` ที่ header ของ Console = คิวตรวจสอบ แสดงเหตุผลทีละสัญญาณพร้อมน้ำหนัก
+  **กรองตามหมวดได้** (2026-09-02) — ห้องจริงสะสมหลายร้อยแถวภายในไม่กี่วัน กล่องเลือกหมวดสร้างจาก
+  จำนวนจริงตอน refresh (โชว์เฉพาะหมวดที่มีของ พร้อมตัวเลขกำกับ) กรองที่ Server เพราะ `take` ตัดแถว
+  ตั้งแต่ก่อนถึง Console และตอนนี้บอกด้วยเมื่อรายการถูกตัด — เดิมเงียบสนิทจนเข้าใจผิดว่าเห็นครบแล้ว
+- **⚠️ BYPASS และสวิตช์ปิด enforcement ปิด Program Control ไปด้วยทั้งชุด รวมถึง blocklist ที่ผูก hash**
+  ทางเข้าเดียวคือ `CheckAndActOnProcess` ซึ่งถูกเรียกจาก `ScanRunningProcessesAsync` กับ
+  `OnProcessCreated` เท่านั้น ทั้งคู่ return ทันทีเมื่อ `_bypassState.IsBypassed || !_lastKnownState.Enabled`
+  (`Enabled` = `globalEnabled && client.IsEnabled` จาก poll) สำหรับปุ่ม BYPASS ถูกต้องตามเจตนา
+  แต่สวิตช์ปิด enforcement เป็นกับดัก — ครูน่าจะคิดว่ากำลังปิดแค่กฎ publisher
+  (คนละเรื่องกับ `Security:RequireAgentSecret` ซึ่ง**ไม่กระทบ Program Control เลย**)
 - ปุ่ม `BLOCK` ในหน้า Running Processes เพิ่มโปรแกรมเข้าระบบด้วย hash ได้เลย ใช้ได้แม้ไม่มี publisher
   และ upsert ทับของที่ classifier เคยตัดสินไว้
 - กฎเหล็ก: อะไรก็ตามใน `%SystemRoot%` คืน Allow ทันทีโดยไม่ผ่านการให้คะแนน
@@ -296,6 +318,29 @@ enroll ตอน freeze ปิดแล้ว commit baseline และ `SwitchT
 ก่อนสลับ — เป็น failover ที่พังเงียบที่สุด `TailscaleHealthService` ตรวจทุก 15 นาทีแล้วรายงานเข้า
 log กลางเฉพาะตอนสถานะเปลี่ยน ส่วน AlwaysOn policy ย้ายไปตั้งตอนติดตั้งเพื่อให้ติด baseline
 
+## AgentTray กับ user account ใหม่ (สำคัญต่อแผนเปลี่ยนนักเรียนเป็น standard user)
+
+AgentTray ตั้ง autostart ให้ตัวเองด้วย **HKCU Run key** ที่มันเขียนตอนรัน (`RegistryStartup`) —
+เป็น per-user ทั้งหมด ไม่มี HKLM Run และไม่มี shortcut ใน Startup folder มีแต่ shortcut ใน Start Menu
+ที่ MSI ลงไว้ **user account ที่สร้างใหม่จึงมี HKCU ว่างเปล่า → tray ไม่สตาร์ท → lock screen /
+broadcast / VNC ตายเงียบทั้งหมด** โดย Console ยังเห็นเครื่องเป็นปกติ (Agent service ไม่เกี่ยวกัน)
+
+เป็นไก่กับไข่: tray เขียน key ได้ก็ต่อเมื่อมันรัน แต่รันเองได้ก็ต่อเมื่อมี key
+`AgentTrayRecoveryService` กู้ให้ได้ (Agent เป็น SYSTEM สตาร์ท tray เข้า user session) แต่เป็น
+**reactive เท่านั้น** — ถูกเรียกตอนส่ง pipe ไม่สำเร็จ ไม่ใช่ health check เป็นระยะ ครูจึงต้องสั่ง
+อะไรสักอย่างก่อน tray ถึงกลับมา
+
+**ลำดับที่ต้องทำตอนสร้าง account ใหม่** (account อยู่ใน SAM = ไฟล์บนไดรฟ์ที่ freeze คุมอยู่
+สร้างตอน freeze ทำงาน = หายทุก reboot):
+thaw → สร้าง user → **login เป็น user นั้น** → **เปิด tray 1 ครั้งจาก Start Menu** → ตรวจว่าขึ้นถาดจริง
+→ logout → commit baseline → freeze
+
+ส่วนที่รองรับ standard user อยู่แล้ว: named pipe ให้สิทธิ์ LocalSystem + เจ้าของ process เอง
+(ไม่ได้ผูกกับ Administrators — ดู `BroadcastPipeListener`) และ `ultravnc.ini` มี ACL ระดับไฟล์ให้
+`BUILTIN\Users` เขียนเนื้อไฟล์ได้แต่ลบไม่ได้ (ตั้งใน `setup-client.ps1` ตอนติดตั้ง)
+**ยังไม่เคยรัน tray ภายใต้ standard user จริง** — จุดที่ยังไม่ยืนยัน: `PhysicalInputBlocker`
+(low-level keyboard hook) และ `createpassword.exe` ของ UltraVNC
+
 ## Known limitations / ยังไม่ได้ทำ
 
 - Windows Firewall/hosts-based website blocking, "ปิดเน็ตทั้งหมด" — ออกแบบ+implement ไปรอบหนึ่งแล้ว
@@ -307,6 +352,9 @@ log กลางเฉพาะตอนสถานะเปลี่ยน ส
 - **`POST 127.0.0.1:8788/bypass/set` ยังไม่มี auth** — login gate ของ AgentTray อยู่แค่ในหน้าต่าง WPF
   ไม่ได้อยู่ในเส้นทางของ endpoint เลย นักเรียนสิทธิ์ปกติยิงบรรทัดเดียวปิด enforcement เครื่องตัวเองได้
   (ช่องที่คุ้มแก้ที่สุดที่เหลืออยู่ — ทางแก้คือให้ tray ส่ง token ที่ได้จาก Server มาด้วยแล้วให้ Agent verify)
+  **และเนื่องจาก bypass ปิด Program Control ไปด้วย (ดูหัวข้อ Program Control) request เดียวนี้จึงปิดทั้ง
+  กฎ publisher และ blocklist เกมทั้งหมดพร้อมกัน** — เป็น loopback HTTP ล้วนๆ ไม่เกี่ยวกับสิทธิ์ผู้ใช้
+  การเปลี่ยนนักเรียนเป็น standard user จึง**ไม่ได้ปิดช่องนี้เลย**
 - `/vnc/session-result` และ `/processes/list-result` บน loopback ก็ยังไม่มี auth เช่นกัน — ยิง PID ปลอม
   เข้ามาให้ Agent (SYSTEM) เปิด firewall rule ให้ port ที่เลือกเองได้
 - **ทั้งระบบยังเป็น HTTP ล้วน** — agent secret ที่เพิ่มมาก็ยังเดินทางเป็น plaintext
