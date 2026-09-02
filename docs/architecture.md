@@ -278,6 +278,15 @@ lock ได้ในบางกรณี — แก้แล้ว) รอง�
 - **`Security:RequireAgentSecret` default = `false`** โดยตั้งใจ — เปิดพร้อม deploy = เครื่องทั้ง 40
   ที่ยังรัน Agent เก่าหลุดพร้อมกันทันที ต้องเฝ้า Activity Log จนไม่มี `AgentSecretMismatch` ก่อน
 - `POST /api/clients/{id}/reset-agent-secret` สำหรับเครื่องที่ key หายแต่ GUID เดิม
+  — **ยังไม่ได้ต่อเข้า Console** (ไม่มีทั้ง ApiClient method และปุ่ม) ตอนนี้เรียกได้ทาง curl เท่านั้น
+- **`AgentSecretMismatch` ยุบเหลือเครื่องละ 1 แถว/ชั่วโมง** (2026-09-02) — เจอจริงบน COM-31:
+  เครื่องที่ `agent.key` ไม่ได้อยู่ใน baseline จะ mismatch ทุก poll = 120 แถว/ชั่วโมง จนกลบ
+  Activity Log ทั้งหน้า แถวแรกยังขึ้นทันทีเสมอ และแถวถัดไปบอกจำนวนที่ยุบไว้ ข้อมูลจึงไม่หาย
+- อาการ `Mismatch` ต่อเนื่องบนเครื่อง lab แปลว่า `agent.key` ถูกสร้างตอน runtime (อยู่นอก baseline)
+  ลำดับแก้: thaw → รัน `install-watchdog.ps1` ใหม่ → **commit baseline ก่อน** → ค่อย reset secret
+  ที่ Server (สลับลำดับแล้วจะ enroll กุญแจที่กำลังจะหายอยู่ดี) ระหว่างที่ยังไม่แก้
+  **ไม่กระทบการทำงานใดๆ ตราบใดที่ `RequireAgentSecret` ยังเป็น `false`** — Agent ถูกปล่อยผ่านทุก
+  endpoint ตามปกติ เสียแค่ log เท่านั้น
 
 ## Program Control (2026-08-31)
 

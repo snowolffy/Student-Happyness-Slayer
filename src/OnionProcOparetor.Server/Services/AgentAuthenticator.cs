@@ -1,4 +1,5 @@
-﻿using Microsoft.EntityFrameworkCore;
+﻿using System.Collections.Concurrent;
+using Microsoft.EntityFrameworkCore;
 using OnionProcOparetor.Server.Data;
 using OnionProcOparetor.Server.Models;
 
@@ -44,8 +45,30 @@ public sealed class AgentAuthenticator
     /// <summary>ต้องตรงกับ AgentCredentials.GuidHeaderName ฝั่ง Agent เป๊ะๆ</summary>
     public const string GuidHeaderName = "X-Agent-Guid";
 
+    /// <summary>
+    /// เว้นระยะขั้นต่ำระหว่างการเขียน Activity Log เรื่อง Mismatch ของ "เครื่องเดียวกัน" (2026-09-02)
+    ///
+    /// เหตุผล: เครื่องที่ agent.key ไม่ได้อยู่ใน baseline จะ mismatch "ทุก poll" คือทุก 30 วิ
+    /// = 120 แถว/ชั่วโมง/เครื่อง ทั้งที่เป็นเรื่องเดียวกันแถวเดียวก็พอ เจอจริงบน COM-31 (2026-09-02):
+    /// log เต็มไปด้วยเรื่องเดียวจนหาเรื่องอื่นไม่เจอ ซึ่งทำลายประโยชน์ของ Activity Log ทั้งหน้า
+    /// (retention 7 วัน = ~20,000 แถวจากเครื่องเดียว)
+    ///
+    /// ไม่ได้แก้ด้วยการเลิก log: แถวแรกยังเขียนทันทีเสมอ และแถวถัดๆ ไปบอกจำนวนครั้งที่ยุบไว้ด้วย
+    /// ข้อมูลจึงไม่หาย แค่ไม่ท่วม
+    /// </summary>
+    private static readonly TimeSpan MismatchLogInterval = TimeSpan.FromHours(1);
+
     private readonly IConfiguration _configuration;
     private readonly ILogger<AgentAuthenticator> _logger;
+
+    /// <summary>
+    /// ClientGuid -> (เวลาที่เขียน log ครั้งล่าสุด, จำนวนครั้งที่ยุบไว้ตั้งแต่นั้น)
+    ///
+    /// เก็บใน memory เฉยๆ โดยตั้งใจ - service restart แล้วเริ่มนับใหม่ก็ถูกต้องอยู่ดี (แถวแรก
+    /// หลัง restart ควรถูกเขียนทันที) และไม่ต้องมี schema/cleanup เพิ่ม
+    /// AgentAuthenticator เป็น singleton (ดู Program.cs) state จึงอยู่ข้าม request ได้จริง
+    /// </summary>
+    private readonly ConcurrentDictionary<string, (DateTime LastLoggedUtc, int Suppressed)> _mismatchLogState = new();
 
     public AgentAuthenticator(IConfiguration configuration, ILogger<AgentAuthenticator> logger)
     {
@@ -90,6 +113,41 @@ public sealed class AgentAuthenticator
     }
 
     /// <summary>
+    /// ถึงเวลาเขียน Activity Log เรื่อง Mismatch ของเครื่องนี้อีกครั้งหรือยัง
+    /// คืน true พร้อม <paramref name="suppressed"/> = จำนวนครั้งที่ยุบไว้ตั้งแต่แถวก่อนหน้า
+    ///
+    /// ครั้งแรกของแต่ละเครื่องคืน true เสมอ - ปัญหาที่เพิ่งเกิดต้องเห็นทันที ไม่ใช่รอครบชั่วโมง
+    /// </summary>
+    private bool ShouldLogMismatch(string clientGuid, out int suppressed)
+    {
+        var now = DateTime.UtcNow;
+        var shouldLog = false;
+        var suppressedCount = 0;
+
+        _mismatchLogState.AddOrUpdate(
+            clientGuid,
+            _ =>
+            {
+                shouldLog = true;
+                return (now, 0);
+            },
+            (_, current) =>
+            {
+                if (now - current.LastLoggedUtc >= MismatchLogInterval)
+                {
+                    shouldLog = true;
+                    suppressedCount = current.Suppressed;
+                    return (now, 0);
+                }
+
+                return (current.LastLoggedUtc, current.Suppressed + 1);
+            });
+
+        suppressed = suppressedCount;
+        return shouldLog;
+    }
+
+    /// <summary>
     /// ตรวจแล้วตัดสินว่าควรปฏิเสธ request นี้ไหม พร้อมเขียน Activity Log เมื่อเจอสิ่งผิดปกติ
     /// คืน true = ปล่อยผ่าน, false = ต้องตอบ 401
     /// </summary>
@@ -115,18 +173,27 @@ public sealed class AgentAuthenticator
 
             case AgentAuthResult.Mismatch:
             default:
-                // เขียน Activity Log ทุกครั้งแม้ยังไม่บังคับใช้ - นี่คือสัญญาณเดียวที่ครูจะเห็นว่ามีคน
-                // พยายามปลอมตัวเป็นเครื่องอื่น ถ้าไม่บันทึกไว้ก็เท่ากับตรวจเจอแล้วทิ้งข้อมูลทิ้งเปล่าๆ
-                await activityLog.LogAgentConnectivityAsync(
-                    "AgentSecretMismatch",
-                    $"มี request มาที่ {endpointName} โดยอ้างเป็นเครื่อง '{client.MachineName}' แต่ agent secret ไม่ตรงกับที่ลงทะเบียนไว้"
-                        + (IsEnforcing ? " - ถูกปฏิเสธ" : " - ยังไม่ปฏิเสธเพราะ Security:RequireAgentSecret ยังเป็น false"),
-                    client.ClientGuid,
-                    client.MachineName);
+                // เขียน Activity Log แม้ยังไม่บังคับใช้ - นี่คือสัญญาณเดียวที่ครูจะเห็นว่ามีคนพยายาม
+                // ปลอมตัวเป็นเครื่องอื่น ถ้าไม่บันทึกไว้ก็เท่ากับตรวจเจอแล้วทิ้งข้อมูลทิ้งเปล่าๆ
+                // แต่ยุบให้เหลือเครื่องละ 1 แถวต่อชั่วโมง (ดู MismatchLogInterval)
+                if (ShouldLogMismatch(client.ClientGuid, out var suppressed))
+                {
+                    var repeatNote = suppressed > 0
+                        ? $" (ยุบอีก {suppressed} ครั้งที่เหมือนกันในชั่วโมงที่ผ่านมาไว้ในแถวนี้)"
+                        : string.Empty;
 
-                _logger.LogWarning(
-                    "{Endpoint}: agent secret ของเครื่อง '{MachineName}' ({ClientGuid}) ไม่ตรง - โหมดบังคับใช้: {Enforcing}",
-                    endpointName, client.MachineName, client.ClientGuid, IsEnforcing);
+                    await activityLog.LogAgentConnectivityAsync(
+                        "AgentSecretMismatch",
+                        $"มี request มาที่ {endpointName} โดยอ้างเป็นเครื่อง '{client.MachineName}' แต่ agent secret ไม่ตรงกับที่ลงทะเบียนไว้"
+                            + (IsEnforcing ? " - ถูกปฏิเสธ" : " - ยังไม่ปฏิเสธเพราะ Security:RequireAgentSecret ยังเป็น false")
+                            + repeatNote,
+                        client.ClientGuid,
+                        client.MachineName);
+
+                    _logger.LogWarning(
+                        "{Endpoint}: agent secret ของเครื่อง '{MachineName}' ({ClientGuid}) ไม่ตรง - โหมดบังคับใช้: {Enforcing}",
+                        endpointName, client.MachineName, client.ClientGuid, IsEnforcing);
+                }
 
                 return !IsEnforcing;
         }
