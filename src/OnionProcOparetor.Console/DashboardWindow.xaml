@@ -85,12 +85,53 @@
                 Background="{StaticResource Brush.Background.Card}"
                 BorderBrush="{StaticResource Brush.Border.Default}"
                 BorderThickness="1" Padding="0">
+            <!-- Explicit TabControl.Template 2026-09-03: found via raw pixel sampling (not just
+                 eyeballing a screenshot) that ONLY the selected pill's bottom-right corner clipped
+                 short of its full curve - the unselected pills rendered a fully symmetric curve.
+                 PillTabItem's own ControlTemplate only changes Background/BorderBrush/Foreground on
+                 IsSelected, never size or clip - so the asymmetry had to be coming from outside it,
+                 i.e. Fluent's own default TabControl chrome (unstyled here before this change - only
+                 ItemContainerStyle was set, TabControl itself had no Style) applying its own
+                 selected-tab overlap/clip geometry meant for its own tab shape, clashing with this
+                 app's fully custom pill design. (Tried FrameworkElement.ThemeMode="None" first to opt
+                 just this control out of Fluent - doesn't exist as a settable XAML property outside
+                 Window/Application, confirmed by build error.) A minimal explicit Template - just a
+                 TabPanel for headers over a Border+ContentPresenter for the selected tab's content -
+                 sidesteps Fluent's chrome entirely, the same reliable fix already used for
+                 Button/TextBox/PasswordBox in Theme/Controls.xaml. -->
             <TabControl x:Name="MainTabControl" Background="Transparent" BorderThickness="0" Margin="16"
-                        ItemContainerStyle="{StaticResource PillTabItem}"
+                        ItemContainerStyle="{StaticResource UnderlineTabItem}"
                         SelectionChanged="MainTabControl_SelectionChanged">
+                <TabControl.Template>
+                    <ControlTemplate TargetType="TabControl">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="*"/>
+                            </Grid.RowDefinitions>
+                            <!-- StackPanel, not TabPanel, as the header host 2026-09-03: every tab
+                                 label rendered truncated ("CLIENTS" as "CLIEN", "RULES" as "RU", etc.)
+                                 no matter what the TabItem's own ControlTemplate looked like (tried both
+                                 a Grid- and a StackPanel-based one, identical truncation either way,
+                                 even after a much longer render-settle wait ruled out a screenshot-
+                                 timing fluke) - proof the header HOST panel was squeezing each item's
+                                 width, not the item's own template. WPF's TabPanel class has its own
+                                 built-in width-squeezing layout independent of any ControlTemplate;
+                                 StackPanel has none - it lays out children left-to-right at their
+                                 natural desired width with no squeeze. -->
+                            <StackPanel Grid.Row="0" Orientation="Horizontal" IsItemsHost="True" Background="Transparent"/>
+                            <Border Grid.Row="1" Margin="0,12,0,0"
+                                    Background="{TemplateBinding Background}"
+                                    BorderBrush="{TemplateBinding BorderBrush}"
+                                    BorderThickness="{TemplateBinding BorderThickness}">
+                                <ContentPresenter ContentSource="SelectedContent"/>
+                            </Border>
+                        </Grid>
+                    </ControlTemplate>
+                </TabControl.Template>
 
                 <!-- ========== Clients tab ========== -->
-                <TabItem Header="CLIENTS" Margin="0,0,-1,0">
+                <TabItem Header="CLIENTS">
                     <Grid Margin="0,12,0,0">
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto"/>
@@ -122,11 +163,17 @@
                                 Tag="ค้นหา machine name..." TextChanged="ClientsSearchBox_TextChanged"/>
 
                         <Grid Grid.Row="2" Margin="0,10,0,0">
+                            <!-- Border+ClipToBounds rounds the DataGrid's corners - DataGrid itself has no
+                                 CornerRadius property (it's not a Border subclass), so the grid's own
+                                 Background/Border are moved out to this wrapper and the grid goes transparent. -->
+                            <Border CornerRadius="12" ClipToBounds="True"
+                                    Background="{StaticResource Brush.Background.Card}"
+                                    BorderBrush="{StaticResource Brush.Border.Default}" BorderThickness="1">
                             <DataGrid x:Name="ClientsGrid" AutoGenerateColumns="False" IsReadOnly="True"
                                     SelectionMode="Extended" SelectionUnit="FullRow"
                                     SelectionChanged="ClientsGrid_SelectionChanged"
-                                    Background="{StaticResource Brush.Background.Card}"
-                                    BorderBrush="{StaticResource Brush.Border.Default}" BorderThickness="1"
+                                    Background="Transparent"
+                                    BorderThickness="0"
                                     RowBackground="{StaticResource Brush.Background.Card}"
                                     AlternatingRowBackground="{StaticResource Brush.Background.Card}"
                                     HorizontalGridLinesBrush="{StaticResource Brush.Border.Default}"
@@ -238,6 +285,7 @@
                                     </DataGridTemplateColumn>
                                 </DataGrid.Columns>
                             </DataGrid>
+                            </Border>
                             <TextBlock x:Name="ClientsEmptyText"
                                     Text="ยังไม่มีเครื่องในระบบ" Style="{StaticResource Caption}" TextAlignment="Center"
                                     VerticalAlignment="Center" Visibility="Collapsed" IsHitTestVisible="False"/>
@@ -246,7 +294,7 @@
                 </TabItem>
 
                 <!-- ========== Rules tab ========== -->
-                <TabItem Header="RULES" Margin="8,0,-8,0">
+                <TabItem Header="RULES">
                     <Grid Margin="0,12,0,0">
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto"/>
@@ -270,9 +318,12 @@
                                 Tag="ค้นหาชื่อกฎ/publisher..." TextChanged="RulesSearchBox_TextChanged"/>
 
                         <Grid Grid.Row="3" Margin="0,10,0,0">
-                            <DataGrid x:Name="RulesGrid" AutoGenerateColumns="False" IsReadOnly="True"
+                            <Border CornerRadius="12" ClipToBounds="True"
                                     Background="{StaticResource Brush.Background.Card}"
-                                    BorderBrush="{StaticResource Brush.Border.Default}" BorderThickness="1"
+                                    BorderBrush="{StaticResource Brush.Border.Default}" BorderThickness="1">
+                            <DataGrid x:Name="RulesGrid" AutoGenerateColumns="False" IsReadOnly="True"
+                                    Background="Transparent"
+                                    BorderThickness="0"
                                     RowBackground="{StaticResource Brush.Background.Card}"
                                     AlternatingRowBackground="{StaticResource Brush.Background.Card}"
                                     HorizontalGridLinesBrush="{StaticResource Brush.Border.Default}"
@@ -326,6 +377,7 @@
                                     </DataGridTemplateColumn>
                                 </DataGrid.Columns>
                             </DataGrid>
+                            </Border>
                             <TextBlock x:Name="RulesEmptyText"
                                     Text="ยังไม่มีกฎ" Style="{StaticResource Caption}" TextAlignment="Center"
                                     VerticalAlignment="Center" Visibility="Collapsed" IsHitTestVisible="False"/>
@@ -334,7 +386,7 @@
                 </TabItem>
 
                 <!-- ========== Logs tab ========== -->
-                <TabItem Header="LOGS" Margin="16,0,-23,0">
+                <TabItem Header="LOGS">
                     <Grid Margin="0,12,0,0">
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto"/>
@@ -349,9 +401,12 @@
                                 Tag="ค้นหา machine/process/publisher..." TextChanged="LogsSearchBox_TextChanged"/>
 
                         <Grid Grid.Row="2" Margin="0,10,0,0">
-                            <DataGrid x:Name="LogsGrid" AutoGenerateColumns="False" IsReadOnly="True"
+                            <Border CornerRadius="12" ClipToBounds="True"
                                     Background="{StaticResource Brush.Background.Card}"
-                                    BorderBrush="{StaticResource Brush.Border.Default}" BorderThickness="1"
+                                    BorderBrush="{StaticResource Brush.Border.Default}" BorderThickness="1">
+                            <DataGrid x:Name="LogsGrid" AutoGenerateColumns="False" IsReadOnly="True"
+                                    Background="Transparent"
+                                    BorderThickness="0"
                                     RowBackground="{StaticResource Brush.Background.Card}"
                                     AlternatingRowBackground="{StaticResource Brush.Background.Card}"
                                     HorizontalGridLinesBrush="{StaticResource Brush.Border.Default}"
@@ -388,6 +443,7 @@
                                     <DataGridTextColumn Header="ACTION TAKEN" Binding="{Binding ActionTaken}" Width="150"/>
                                 </DataGrid.Columns>
                             </DataGrid>
+                            </Border>
                             <TextBlock x:Name="LogsEmptyText"
                                     Text="ยังไม่มี log" Style="{StaticResource Caption}" TextAlignment="Center"
                                     VerticalAlignment="Center" Visibility="Collapsed" IsHitTestVisible="False"/>
@@ -402,7 +458,7 @@
                      ไม่ผูกกับ auto-refresh ทุก tick แบบแท็บอื่น (ดู DashboardWindow.xaml.cs
                      LoadActivityLogPageAsync) - โหลดเฉพาะตอนแท็บนี้ active เท่านั้น กัน volume สูงไม่ให้
                      โหลดทั้งหมดฝั่ง client ทุก 10 วิ -->
-                <TabItem x:Name="AuditLogTabItem" Header="AUDIT LOG" Margin="31,0,-23,0">
+                <TabItem x:Name="AuditLogTabItem" Header="AUDIT LOG">
                     <Grid Margin="0,12,0,0">
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto"/>
@@ -457,9 +513,12 @@
                         </Grid>
 
                         <Grid Grid.Row="3" Margin="0,10,0,0">
-                            <DataGrid x:Name="AuditLogGrid" AutoGenerateColumns="False" IsReadOnly="True"
+                            <Border CornerRadius="12" ClipToBounds="True"
                                     Background="{StaticResource Brush.Background.Card}"
-                                    BorderBrush="{StaticResource Brush.Border.Default}" BorderThickness="1"
+                                    BorderBrush="{StaticResource Brush.Border.Default}" BorderThickness="1">
+                            <DataGrid x:Name="AuditLogGrid" AutoGenerateColumns="False" IsReadOnly="True"
+                                    Background="Transparent"
+                                    BorderThickness="0"
                                     RowBackground="{StaticResource Brush.Background.Card}"
                                     AlternatingRowBackground="{StaticResource Brush.Background.Card}"
                                     HorizontalGridLinesBrush="{StaticResource Brush.Border.Default}"
@@ -501,6 +560,7 @@
                                     <DataGridTextColumn Header="ADMIN" Binding="{Binding ActorUsername}" Width="110"/>
                                 </DataGrid.Columns>
                             </DataGrid>
+                            </Border>
                             <TextBlock x:Name="AuditLogEmptyText"
                                     Text="ยังไม่มี activity log" Style="{StaticResource Caption}" TextAlignment="Center"
                                     VerticalAlignment="Center" Visibility="Collapsed" IsHitTestVisible="False"/>
@@ -509,7 +569,7 @@
                 </TabItem>
 
                 <!-- ========== Users tab ========== -->
-                <TabItem Header="USERS" Margin="29,0,-30,0">
+                <TabItem Header="USERS">
                     <Grid Margin="0,12,0,0">
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto"/>
@@ -543,9 +603,12 @@
                         </Border>
 
                         <Grid Grid.Row="2" Margin="0,10,0,0">
-                            <DataGrid x:Name="UsersGrid" AutoGenerateColumns="False" IsReadOnly="True"
+                            <Border CornerRadius="12" ClipToBounds="True"
                                     Background="{StaticResource Brush.Background.Card}"
-                                    BorderBrush="{StaticResource Brush.Border.Default}" BorderThickness="1"
+                                    BorderBrush="{StaticResource Brush.Border.Default}" BorderThickness="1">
+                            <DataGrid x:Name="UsersGrid" AutoGenerateColumns="False" IsReadOnly="True"
+                                    Background="Transparent"
+                                    BorderThickness="0"
                                     RowBackground="{StaticResource Brush.Background.Card}"
                                     AlternatingRowBackground="{StaticResource Brush.Background.Card}"
                                     HorizontalGridLinesBrush="{StaticResource Brush.Border.Default}"
@@ -598,6 +661,7 @@
                                     </DataGridTemplateColumn>
                                 </DataGrid.Columns>
                             </DataGrid>
+                            </Border>
                             <TextBlock x:Name="UsersEmptyText"
                                     Text="ยังไม่มีผู้ใช้เพิ่มเติม" Style="{StaticResource Caption}" TextAlignment="Center"
                                     VerticalAlignment="Center" Visibility="Collapsed" IsHitTestVisible="False"/>
@@ -606,7 +670,7 @@
                 </TabItem>
 
                 <!-- ========== Screen View tab (Step 4d) ========== -->
-                <TabItem x:Name="ScreenViewTabItem" Header="SCREEN VIEW" Margin="36,0,-44,0">
+                <TabItem x:Name="ScreenViewTabItem" Header="SCREEN VIEW">
                     <Grid Margin="0,12,0,0">
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto"/>
@@ -636,7 +700,7 @@
                 </TabItem>
 
                 <!-- ========== Live View tab (Step 4f) - CCTV-wall grid ========== -->
-                <TabItem x:Name="LiveViewTabItem" Header="LIVE VIEW" Margin="50,0,-54,0">
+                <TabItem x:Name="LiveViewTabItem" Header="LIVE VIEW">
                     <Grid Margin="0,12,0,0">
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto"/>
@@ -676,12 +740,18 @@
                                         </ListBox.ItemTemplate>
                                     </ListBox>
 
+                                    <!-- Rebuilt 2026-09-03 - AddSelectedToGridButton/LiveViewStatusText used to both sit in
+                                         Grid.Row="1" (the same row as the ListBox above) with Grid.RowSpan="2" and a
+                                         Margin="0,306,0,10" magic offset trying to push the status text below the button
+                                         by guessing a fixed pixel position - broke as soon as the panel's actual height
+                                         differed from what that guess assumed (confirmed: it grows and covers the
+                                         ListBox). Each now has its own dedicated Auto row below the list instead. -->
                                     <Button Grid.Row="2" x:Name="AddSelectedToGridButton" Content="ADD SELECTED TO GRID"
-                                            Style="{StaticResource ButtonPrimary}" Margin="0,25,0,4"
-                                            Click="AddSelectedToGridButton_Click" Grid.RowSpan="2"/>
+                                            Style="{StaticResource ButtonPrimary}" Margin="0,10,0,4"
+                                            Click="AddSelectedToGridButton_Click"/>
 
-                                    <TextBlock Grid.Row="1" x:Name="LiveViewStatusText" Style="{StaticResource Caption}"
-                                               TextWrapping="Wrap" Margin="0,306,0,10" Grid.RowSpan="2"/>
+                                    <TextBlock Grid.Row="3" x:Name="LiveViewStatusText" Style="{StaticResource Caption}"
+                                               TextWrapping="Wrap"/>
                                 </Grid>
                             </Border>
 

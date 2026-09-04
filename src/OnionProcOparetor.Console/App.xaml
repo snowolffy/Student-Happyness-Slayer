@@ -1,7 +1,21 @@
 <Application x:Class="OnionProcOparetor.Console.App"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             ThemeMode="Light"
              StartupUri="MainWindow.xaml">
+    <!-- ThemeMode="Light" (not "System"): 2026-09-03 UI redesign. Originally set so Fluent's own
+         Button/TextBox/PasswordBox templates would render instead of this app's custom ones - dropped
+         that plan after verifying empirically (cropped screenshot inspection) that neither Fluent's
+         default template nor the documented Border.CornerRadius attached-property override actually
+         rendered rounded corners for those controls in this build, so Theme/Controls.xaml went back to
+         explicit ControlTemplates for Button/TextBox/PasswordBox (reliable - CornerRadius there is a
+         real Border property, not a hint a template may or may not read).
+         ThemeMode is kept regardless: it still affects every control this app does NOT re-template
+         (ComboBox, CheckBox, RadioButton, ScrollBar, DataGrid chrome, Window chrome), so it's not dead
+         weight. Still "Light" and not "System", because Colors.xaml's tokens (Background.Card,
+         Text.Primary, etc.) are static light-mode hex values that don't invert for Dark - "System"
+         would half-render Dark mode (Fluent chrome dark, card content still light) until those tokens
+         are made theme-aware, which is a separate follow-up project. -->
     <Application.Resources>
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>

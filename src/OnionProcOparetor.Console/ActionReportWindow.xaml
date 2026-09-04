@@ -94,12 +94,15 @@
             (ค่า default ของ DataGrid เปิด virtualization อยู่แล้ว แต่เขียนไว้ชัดเจนกันคนแก้
             ทีหลังเผลอเปลี่ยนเป็น StackPanel/ItemsControl ธรรมดาแล้วประสิทธิภาพตกโดยไม่รู้ตัว)
         -->
-        <DataGrid Grid.Row="2" Margin="0,12,0,0" x:Name="ResultsGrid"
+        <Border Grid.Row="2" Margin="0,12,0,0" CornerRadius="12" ClipToBounds="True"
+                Background="{StaticResource Brush.Background.Card}"
+                BorderBrush="{StaticResource Brush.Border.Default}" BorderThickness="1">
+        <DataGrid x:Name="ResultsGrid"
                   AutoGenerateColumns="False" IsReadOnly="True"
                   SelectionMode="Single" SelectionUnit="FullRow"
                   SelectionChanged="ResultsGrid_SelectionChanged"
-                  Background="{StaticResource Brush.Background.Card}"
-                  BorderBrush="{StaticResource Brush.Border.Default}" BorderThickness="1"
+                  Background="Transparent"
+                  BorderThickness="0"
                   RowBackground="{StaticResource Brush.Background.Card}"
                   AlternatingRowBackground="{StaticResource Brush.Background.Card}"
                   HorizontalGridLinesBrush="{StaticResource Brush.Border.Default}"
@@ -136,6 +139,7 @@
                 </DataGridTemplateColumn>
             </DataGrid.Columns>
         </DataGrid>
+        </Border>
 
         <!-- รายละเอียดของแถวที่เลือก - เผื่อข้อความยาวเกินกว่าจะอ่านจบใน tooltip/คอลัมน์ -->
         <Border Grid.Row="3" Margin="0,12,0,0" CornerRadius="8" Padding="12"

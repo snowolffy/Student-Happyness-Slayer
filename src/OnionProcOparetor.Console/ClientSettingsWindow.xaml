@@ -8,66 +8,33 @@
         ResizeMode="NoResize"
         Icon="/Theme/icon.ico"
         Style="{StaticResource AppWindowStyle}">
-    <!--
-        WindowStartupLocation="Manual" + WindowCenteringHelper (ดู code-behind): CenterOwner คำนวณ
-        ตำแหน่งผิดเมื่อใช้ร่วมกับ SizeToContent (หน้าต่างเลื่อนไปทางขวา/ล่างจากจุดกึ่งกลางจริง) เลย
-        คำนวณเองใน Loaded event แทนที่ตอนขนาดจริง resolve เสร็จแล้ว
+    <!-- Rebuilt 2026-09-03 - StackPanel replaces the old fixed-pixel RowDefinitions. -->
+    <StackPanel Margin="20">
+        <TextBlock x:Name="MachineNameText" Style="{StaticResource Heading2}" Margin="0,0,0,16"/>
 
-        Grid layout with fixed-pixel RowDefinitions matching the old Canvas.Top deltas - see
-        SettingsWindow.xaml for the same pattern. NOTE: the original Canvas had the card Border
-        just 2px below MachineNameText's top (Canvas.Top="2") - too tight a gap to give the
-        heading its own row without risking it being clipped, so Row 0 is widened to 29 (matching
-        the heading-to-card gap used in every sibling window here) and Row 1 shortened to match,
-        keeping StatusText/buttons at their original absolute positions below.
-
-        Row 2 (StatusText) is "Auto" rather than the original fixed 27px: it holds a real validation
-        message at runtime ("กรุณากรอกตัวเลขจำนวนเต็มบวก หรือเว้นว่างไว้เพื่อใช้ค่า default") long
-        enough to wrap - a fixed height would let it bleed into the SAVE/CANCEL row below since Grid
-        doesn't clip children to their row bounds.
-
-        Row 3 (buttons) is "Auto" and the Window uses SizeToContent="Height" instead of a
-        hand-computed fixed Height - same reasoning as ActionPanelWindow.xaml/ResetPasswordWindow.xaml:
-        a fixed Height can't account for the OS title bar's actual height, so a trailing "*" row
-        holding the only interactive buttons is one Windows-theme/DPI difference away from being
-        squeezed offscreen.
-    -->
-    <Grid Margin="20">
-        <Grid.RowDefinitions>
-            <RowDefinition Height="29"/>
-            <RowDefinition Height="123"/>
-            <RowDefinition Height="Auto"/>
-            <RowDefinition Height="Auto"/>
-        </Grid.RowDefinitions>
-
-        <TextBlock Grid.Row="0" x:Name="MachineNameText" Style="{StaticResource Heading2}" HorizontalAlignment="Left" VerticalAlignment="Top"/>
-
-        <Border Grid.Row="1" CornerRadius="10" Padding="14"
-                Background="{StaticResource Brush.Background.Primary}"
-                BorderBrush="{StaticResource Brush.Border.Default}" BorderThickness="1" Margin="0,0,0,13">
-            <Grid>
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="18"/>
-                    <RowDefinition Height="22"/>
-                    <RowDefinition Height="*"/>
-                </Grid.RowDefinitions>
-                <TextBlock Grid.Row="0" Text="POLL INTERVAL OVERRIDE (seconds)" Style="{StaticResource Label}" HorizontalAlignment="Left" VerticalAlignment="Top"/>
-                <TextBlock Grid.Row="1" Width="352"
-                           Text="Leave empty to use the Agent's own default (usually 30s)."
-                           Style="{StaticResource Caption}" TextWrapping="Wrap" HorizontalAlignment="Left" VerticalAlignment="Top"/>
-                <TextBox Grid.Row="2" Width="120" x:Name="PollIntervalOverrideBox"
-                         Style="{StaticResource RoundedTextBox}" HorizontalAlignment="Left" VerticalAlignment="Top" Height="40"/>
-            </Grid>
+        <Border Style="{StaticResource Card}" Margin="0,0,0,16">
+            <StackPanel>
+                <TextBlock Text="POLL INTERVAL OVERRIDE (seconds)" Style="{StaticResource Label}" Margin="0,0,0,6"/>
+                <TextBlock Text="Leave empty to use the Agent's own default (usually 30s)."
+                           Style="{StaticResource Caption}" TextWrapping="Wrap" Margin="0,0,0,10"/>
+                <TextBox x:Name="PollIntervalOverrideBox" Width="120" HorizontalAlignment="Left"
+                         Style="{StaticResource RoundedTextBox}"/>
+            </StackPanel>
         </Border>
 
-        <TextBlock Grid.Row="2" Width="380" x:Name="StatusText" Style="{StaticResource Caption}" TextWrapping="Wrap" HorizontalAlignment="Left" VerticalAlignment="Top"/>
+        <TextBlock x:Name="StatusText" Style="{StaticResource Caption}" TextWrapping="Wrap" Margin="0,0,0,16"/>
 
-        <Grid Grid.Row="3" Margin="0,8,0,0">
-            <Button Content="CLEAR OVERRIDE" Style="{StaticResource ButtonSecondary}"
-                    Padding="10,5" FontSize="11" Click="ClearOverrideButton_Click" Margin="10,0,250,0"/>
-            <Button Content="CANCEL" Style="{StaticResource ButtonSecondary}"
-                    Padding="10,5" FontSize="11" Click="CancelButton_Click" Margin="204,0,96,0"/>
-            <Button Content="SAVE" Style="{StaticResource ButtonPrimary}"
-                    Click="SaveButton_Click" Margin="300,0,0,0"/>
+        <Grid>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            <Button Grid.Column="0" Content="CLEAR OVERRIDE" Style="{StaticResource ButtonSecondary}"
+                    Padding="10,5" FontSize="11" HorizontalAlignment="Left" Click="ClearOverrideButton_Click"/>
+            <Button Grid.Column="1" Content="CANCEL" Style="{StaticResource ButtonSecondary}"
+                    Padding="10,5" FontSize="11" Margin="0,0,10,0" Click="CancelButton_Click"/>
+            <Button Grid.Column="2" Content="SAVE" Style="{StaticResource ButtonPrimary}" Click="SaveButton_Click"/>
         </Grid>
-    </Grid>
+    </StackPanel>
 </Window>

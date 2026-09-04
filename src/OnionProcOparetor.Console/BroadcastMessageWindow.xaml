@@ -8,51 +8,31 @@
         ResizeMode="NoResize"
         Icon="/Theme/icon.ico"
         Style="{StaticResource AppWindowStyle}">
-    <!-- WindowStartupLocation="Manual" + WindowCenteringHelper (ดู code-behind): CenterOwner คำนวณตำแหน่ง
-         ผิดเมื่อใช้ร่วมกับ SizeToContent (หน้าต่างเลื่อนไปทางขวา/ล่างจากจุดกึ่งกลางจริง) เลยคำนวณเองใน
-         Loaded event แทนที่ตอนขนาดจริง resolve เสร็จแล้ว -->
-    <!-- Grid layout with fixed-pixel RowDefinitions matching the old Canvas.Top deltas - see SettingsWindow.xaml for the same pattern.
-         Row 7 (StatusText) is "Auto" rather than the original fixed 20px - same reasoning as ClientSettingsWindow.xaml/ResetPasswordWindow.xaml.
-         Row 8 (SEND/CANCEL) is "Auto" and the Window uses SizeToContent="Height" instead of a hand-computed
-         fixed Height - same reasoning as ActionPanelWindow.xaml/ResetPasswordWindow.xaml: a fixed Height can't
-         account for the OS title bar's actual height, so a trailing "*" row holding the only interactive
-         buttons is one Windows-theme/DPI difference away from being squeezed offscreen. -->
-    <Grid Margin="20">
-        <Grid.RowDefinitions>
-            <RowDefinition Height="36"/>
-            <RowDefinition Height="18"/>
-            <RowDefinition Height="57"/>
-            <RowDefinition Height="21"/>
-            <RowDefinition Height="136"/>
-            <RowDefinition Height="26"/>
-            <RowDefinition Height="21"/>
-            <RowDefinition Height="Auto"/>
-            <RowDefinition Height="Auto"/>
-        </Grid.RowDefinitions>
+    <!-- Rebuilt 2026-09-03 - StackPanel replaces the old fixed-pixel RowDefinitions. WindowStartupLocation
+         stays Manual + WindowCenteringHelper (code-behind), same SizeToContent+CenterOwner reasoning
+         as the other dialogs in this app. -->
+    <StackPanel Margin="20">
+        <TextBlock Text="Broadcast Message" Style="{StaticResource Heading2}" Margin="0,0,0,16"/>
 
-        <TextBlock Grid.Row="0" Text="Broadcast Message" Style="{StaticResource Heading2}" HorizontalAlignment="Left" VerticalAlignment="Top"/>
+        <TextBlock Text="หัวข้อ (ไม่บังคับ)" Style="{StaticResource Label}" Margin="0,0,0,6"/>
+        <TextBox x:Name="TitleInputBox" Style="{StaticResource RoundedTextBox}" Margin="0,0,0,16"/>
 
-        <TextBlock Grid.Row="1" Text="หัวข้อ (ไม่บังคับ)" Style="{StaticResource Label}" HorizontalAlignment="Left" VerticalAlignment="Top"/>
-        <TextBox Grid.Row="2" x:Name="TitleInputBox"
-                 Style="{StaticResource RoundedTextBox}" VerticalAlignment="Top"/>
+        <TextBlock Text="ข้อความ" Style="{StaticResource Label}" Margin="0,0,0,6"/>
+        <TextBox x:Name="MessageInputBox" Height="120" Style="{StaticResource RoundedTextBox}"
+                 TextWrapping="Wrap" AcceptsReturn="True" VerticalScrollBarVisibility="Auto" Margin="0,0,0,16"/>
 
-        <TextBlock Grid.Row="3" Text="ข้อความ" Style="{StaticResource Label}" HorizontalAlignment="Left" VerticalAlignment="Top"/>
-        <TextBox Grid.Row="4" Height="120" x:Name="MessageInputBox"
-                 Style="{StaticResource RoundedTextBox}" TextWrapping="Wrap" AcceptsReturn="True"
-                 VerticalScrollBarVisibility="Auto" VerticalAlignment="Top"/>
+        <RadioButton x:Name="SendToSelectedRadio" GroupName="BroadcastTarget"
+                     Content="ส่งไปเครื่องที่เลือกไว้" Margin="0,0,0,8"/>
+        <RadioButton x:Name="SendToAllRadio" GroupName="BroadcastTarget"
+                     Content="ส่งไปทุกเครื่อง" Margin="0,0,0,16"/>
 
-        <RadioButton Grid.Row="5" x:Name="SendToSelectedRadio" GroupName="BroadcastTarget"
-                     Content="ส่งไปเครื่องที่เลือกไว้" HorizontalAlignment="Left" VerticalAlignment="Top"/>
-        <RadioButton Grid.Row="6" x:Name="SendToAllRadio" GroupName="BroadcastTarget"
-                     Content="ส่งไปทุกเครื่อง" HorizontalAlignment="Left" VerticalAlignment="Top"/>
+        <TextBlock x:Name="StatusText" Style="{StaticResource Caption}" TextWrapping="Wrap" Margin="0,0,0,16"/>
 
-        <TextBlock Grid.Row="7" Width="380" x:Name="StatusText" Style="{StaticResource Caption}" TextWrapping="Wrap" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="10,0,0,0"/>
-
-        <Grid Grid.Row="8" Margin="0,8,0,0">
-            <Button Content="CANCEL" Style="{StaticResource ButtonSecondary}" Width="80"
-                    Padding="10,5" FontSize="11" HorizontalAlignment="Left" Height="35" VerticalAlignment="Top" Margin="227,0,0,0" Click="CancelButton_Click"/>
-            <Button Content="SEND" Style="{StaticResource ButtonPrimary}" Width="70"
-                    HorizontalAlignment="Right" VerticalAlignment="Top" Click="SendButton_Click"/>
+        <Grid>
+            <Button Content="CANCEL" Style="{StaticResource ButtonSecondary}"
+                    Padding="10,5" FontSize="11" HorizontalAlignment="Right" Margin="0,0,96,0" Click="CancelButton_Click"/>
+            <Button Content="SEND" Style="{StaticResource ButtonPrimary}"
+                    HorizontalAlignment="Right" Click="SendButton_Click"/>
         </Grid>
-    </Grid>
+    </StackPanel>
 </Window>

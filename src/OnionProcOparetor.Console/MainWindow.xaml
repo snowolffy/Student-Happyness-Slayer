@@ -2,69 +2,89 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Onion ProcOparetor Console"
-        Height="400" Width="574"
+        Width="560" Height="530"
         WindowStartupLocation="CenterScreen"
         ResizeMode="NoResize"
         Icon="/Theme/icon.ico"
-        Style="{StaticResource AppWindowStyle}"
-        Background="{StaticResource Brush.Background.Primary}">
-    <!--
-        Grid layout with every element positioned via Margin="Left,Top,0,0" + HorizontalAlignment
-        ="Left" VerticalAlignment="Top" - a direct stand-in for the old Canvas.Left/Canvas.Top
-        values, since nothing here needs to reflow (ResizeMode stays NoResize). The card Border's
-        Padding is 9 instead of the original 24 - the old inner Canvas used to counteract that 24
-        with a Margin="-15,-15,-15,-15" hack (24-15=9), so reducing Padding up front gets the same
-        absolute positions without any negative margin anywhere.
-    -->
-    <Grid Margin="0,0,0,1">
-        <!-- ==================== Logo + title ==================== -->
-        <Rectangle Height="67" Width="558" Fill="{StaticResource Brush.Accent.Default}" HorizontalAlignment="Left" VerticalAlignment="Top"/>
-        <Border Width="48" Height="48" CornerRadius="12"
-                Background="{StaticResource Brush.Accent.Default}" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="12,12,0,0">
-            <Border.Clip>
-                <RectangleGeometry RadiusX="12" RadiusY="12" Rect="0,0,48,48"/>
-            </Border.Clip>
-            <Image Source="/Theme/logo-source.png" Stretch="UniformToFill"/>
+        Style="{StaticResource AppWindowStyle}">
+    <!-- Rebuilt 2026-09-03 (Fluent-adoption redesign) - Button/TextBox/PasswordBox now render through
+         Fluent's own templates (see Theme/Controls.xaml). Replaced the old absolute
+         Margin="Left,Top,0,0" positioning (a Canvas-in-disguise left over from the original
+         Canvas->Grid port) with real Grid rows/columns and StackPanel-driven vertical stacking, so
+         nothing here is pinned to a magic pixel offset. x:Name/event wiring is unchanged from before -
+         MainWindow.xaml.cs was not touched. -->
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <!-- ==================== Header ==================== -->
+        <Border Grid.Row="0" Background="{StaticResource Brush.Accent.Default}" Padding="20,18">
+            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                <Border Width="48" Height="48" CornerRadius="12" Background="{StaticResource Brush.Accent.Dark}">
+                    <Border.Clip>
+                        <RectangleGeometry RadiusX="12" RadiusY="12" Rect="0,0,48,48"/>
+                    </Border.Clip>
+                    <Image Source="/Theme/logo-source.png" Stretch="UniformToFill"/>
+                </Border>
+                <StackPanel Margin="16,0,0,0" VerticalAlignment="Center">
+                    <TextBlock Text="Onion ProcOparetor" Style="{StaticResource Heading1}" Foreground="White"/>
+                    <TextBlock Text="Server Console" Style="{StaticResource Caption}" Foreground="White" Opacity="0.85"/>
+                </StackPanel>
+            </StackPanel>
         </Border>
-        <TextBlock Width="250" Text="Onion ProcOparetor" Style="{StaticResource Heading1}" HorizontalAlignment="Left" VerticalAlignment="Top" Foreground="White" Margin="65,13,0,0"/>
-        <TextBlock Width="150" Text="Server Console" Style="{StaticResource Caption}" HorizontalAlignment="Left" VerticalAlignment="Top" Foreground="White" Margin="65,39,0,0"/>
 
         <!-- ==================== Connect form ==================== -->
-        <Border Width="536" Height="273" CornerRadius="12"
-                Background="{StaticResource Brush.Background.Card}"
-                BorderBrush="{StaticResource Brush.Border.Default}"
-                BorderThickness="1" Padding="9" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="12,75,0,0">
+        <Border Grid.Row="1" Style="{StaticResource Card}" Margin="24" VerticalAlignment="Top">
             <Grid>
-                <TextBlock Width="516"
-                           Text="Please enter your Server IP, Username and Password to connect"
-                           Style="{StaticResource Body}" TextWrapping="Wrap" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="10,0,0,0"/>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="20"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="16"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="16"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="20"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="12"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
 
-                <!-- Height="34" is an instance-level override, not a Padding change - RoundedTextBox's
-                     Padding="10,5" (Theme/Controls.xaml) stays untouched everywhere else. 28px was
-                     tried first and clipped text badly (confirmed live); 34px matches the box height
-                     already proven to work with this same Padding elsewhere (Settings/Dashboard). -->
-                <TextBlock Text="SERVER IP" Style="{StaticResource Label}" HorizontalAlignment="Left" Height="15" VerticalAlignment="Top" Margin="10,22,0,0"/>
-                <TextBox Width="367" x:Name="ServerIpBox" Style="{StaticResource RoundedTextBox}" HorizontalAlignment="Left" Height="36" VerticalAlignment="Top" Margin="10,39,0,0" TextChanged="ServerIpBox_TextChanged"/>
+                <TextBlock Grid.Row="0" Text="Please enter your Server IP, Username and Password to connect"
+                           Style="{StaticResource Body}" TextWrapping="Wrap"/>
 
-                <TextBlock Text="PORT" Style="{StaticResource Label}" HorizontalAlignment="Left" Height="15" VerticalAlignment="Top" Margin="389,22,0,0"/>
-                <TextBox Width="116" x:Name="PortBox" Style="{StaticResource RoundedTextBox}" HorizontalAlignment="Left" Height="36" VerticalAlignment="Top" Margin="388,39,0,0"/>
+                <Grid Grid.Row="2">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="16"/>
+                        <ColumnDefinition Width="120"/>
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Grid.Column="0">
+                        <TextBlock Text="SERVER IP" Style="{StaticResource Label}" Margin="0,0,0,6"/>
+                        <TextBox x:Name="ServerIpBox" Style="{StaticResource RoundedTextBox}" TextChanged="ServerIpBox_TextChanged"/>
+                    </StackPanel>
+                    <StackPanel Grid.Column="2">
+                        <TextBlock Text="PORT" Style="{StaticResource Label}" Margin="0,0,0,6"/>
+                        <TextBox x:Name="PortBox" Style="{StaticResource RoundedTextBox}"/>
+                    </StackPanel>
+                </Grid>
 
-                <TextBlock Text="USERNAME" Style="{StaticResource Label}" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="10,78,0,0"/>
-                <TextBox Width="494" x:Name="UsernameBox" Style="{StaticResource RoundedTextBox}" HorizontalAlignment="Center" VerticalAlignment="Top" Height="36" Margin="0,94,0,0"/>
+                <StackPanel Grid.Row="4">
+                    <TextBlock Text="USERNAME" Style="{StaticResource Label}" Margin="0,0,0,6"/>
+                    <TextBox x:Name="UsernameBox" Style="{StaticResource RoundedTextBox}"/>
+                </StackPanel>
 
-                <TextBlock Text="PASSWORD" Style="{StaticResource Label}" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="10,132,0,0"/>
-                <PasswordBox Width="494" x:Name="PasswordBox" Style="{StaticResource RoundedPasswordBox}" HorizontalAlignment="Center" Height="37" VerticalAlignment="Top" Margin="0,148,0,0"/>
+                <StackPanel Grid.Row="6">
+                    <TextBlock Text="PASSWORD" Style="{StaticResource Label}" Margin="0,0,0,6"/>
+                    <PasswordBox x:Name="PasswordBox" Style="{StaticResource RoundedPasswordBox}"/>
+                </StackPanel>
 
-                <Button Width="344" x:Name="ConnectButton" Content="CONNECT"
-                        Style="{StaticResource ButtonPrimary}"
-                        Click="ConnectButton_Click" HorizontalAlignment="Center" VerticalAlignment="Top" Margin="0,189,0,0"/>
+                <Button Grid.Row="8" x:Name="ConnectButton" Content="CONNECT"
+                        Style="{StaticResource ButtonPrimary}" Click="ConnectButton_Click"/>
 
-                <!-- ไม่ตั้ง Height ตายตัวเหมือนเดิม (16px) - StatusText โชว์ข้อความ runtime จริงที่ยาวได้
-                     กว่า 1 บรรทัด (เช่น "เชื่อมต่อสำเร็จ กรุณาเปลี่ยน password ก่อนใช้งาน...") ปล่อยให้
-                     TextBlock วัดความสูงจริงของตัวเองแทน ไม่งั้นข้อความจะ render ล้นออกไปทับขอบล่างของ
-                     card border (Height=273) โดยไม่มีการ clip ใดๆ กันไว้เลย -->
-                <TextBlock Width="344" x:Name="StatusText"
-                           TextWrapping="Wrap" TextAlignment="Center" FontSize="12" HorizontalAlignment="Center" VerticalAlignment="Top" Margin="0,227,0,0"/>
+                <TextBlock Grid.Row="10" x:Name="StatusText" TextWrapping="Wrap" TextAlignment="Center" FontSize="12"/>
             </Grid>
         </Border>
     </Grid>

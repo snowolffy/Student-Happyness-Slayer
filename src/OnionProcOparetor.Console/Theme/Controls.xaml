@@ -23,7 +23,14 @@
         <Setter Property="Padding" Value="16"/>
     </Style>
 
-    <!-- ==================== RoundedTextBox ==================== -->
+    <!-- ==================== RoundedTextBox ====================
+         2026-09-03: tried dropping the custom Template so Fluent's own TextBox template would render
+         (ThemeMode="Light" on App.xaml), then tried the documented Border.CornerRadius attached-property
+         knob (https://github.com/dotnet/wpf/discussions/9450) to round it. Verified empirically (cropped
+         screenshot inspection, not just assumed) that neither actually rounds the corners in this
+         build - the box rendered perfectly square either way. Reverted to an explicit ControlTemplate,
+         which reliably rounds because CornerRadius is a real property on the Border element below,
+         not an attached-property hint a template may or may not read. -->
     <Style x:Key="RoundedTextBox" TargetType="TextBox">
         <Setter Property="Background" Value="{StaticResource Brush.Background.Card}"/>
         <Setter Property="Foreground" Value="{StaticResource Brush.Text.Primary}"/>
@@ -55,7 +62,8 @@
         </Setter>
     </Style>
 
-    <!-- ==================== RoundedPasswordBox ==================== -->
+    <!-- ==================== RoundedPasswordBox ====================
+         Explicit Template restored - same reasoning as RoundedTextBox above. -->
     <Style x:Key="RoundedPasswordBox" TargetType="PasswordBox">
         <Setter Property="Background" Value="{StaticResource Brush.Background.Card}"/>
         <Setter Property="Foreground" Value="{StaticResource Brush.Text.Primary}"/>
@@ -87,7 +95,11 @@
         </Setter>
     </Style>
 
-    <!-- ==================== ButtonPrimary ==================== -->
+    <!-- ==================== ButtonPrimary ====================
+         Explicit Template restored - same empirical finding as RoundedTextBox above (Fluent's default
+         template and the Border.CornerRadius attached property both rendered dead square in this
+         build - verified via cropped screenshot, not assumed). An explicit Border-based template
+         reliably rounds because CornerRadius here is a real property, not a hint. -->
     <Style x:Key="ButtonPrimary" TargetType="Button">
         <Setter Property="Background" Value="{StaticResource Brush.Accent.Default}"/>
         <Setter Property="Foreground" Value="White"/>
@@ -121,7 +133,8 @@
         </Setter>
     </Style>
 
-    <!-- ==================== ButtonSecondary ==================== -->
+    <!-- ==================== ButtonSecondary ====================
+         Explicit Template restored - same reasoning as ButtonPrimary above. -->
     <Style x:Key="ButtonSecondary" TargetType="Button">
         <Setter Property="Background" Value="{StaticResource Brush.Background.Card}"/>
         <Setter Property="Foreground" Value="{StaticResource Brush.Text.Primary}"/>
@@ -156,7 +169,8 @@
         </Setter>
     </Style>
 
-    <!-- ==================== ButtonDanger ==================== -->
+    <!-- ==================== ButtonDanger ====================
+         Explicit Template restored - same reasoning as ButtonPrimary above. -->
     <Style x:Key="ButtonDanger" TargetType="Button">
         <Setter Property="Background" Value="{StaticResource Brush.Danger.Default}"/>
         <Setter Property="Foreground" Value="White"/>
@@ -227,32 +241,47 @@
         </Setter>
     </Style>
 
-    <!-- ==================== PillTabItem (TabControl nav - same look as PillTabButton, but for
-         TabItem instead of ToggleButton since TabControl's native tabs are TabItem elements and
-         WPF Style.TargetType must match exactly - can't reuse PillTabButton directly) ==================== -->
-    <Style x:Key="PillTabItem" TargetType="TabItem">
+    <!-- ==================== UnderlineTabItem (TabControl nav) ====================
+         Rebuilt 2026-09-03: replaced the old rounded-pill design entirely, after two rounds of
+         patching a corner-clipping bug (asymmetric top/bottom curve on the selected pill, root-caused
+         via raw pixel sampling to Fluent's default TabControl chrome, then fixed with an explicit
+         TabControl.Template in DashboardWindow.xaml) still wasn't good enough on the user's machine.
+         Rather than keep patching the same fragile shape, this is a flat underline-indicator style
+         instead: no rounded corners anywhere, so there is no corner-clipping class of bug left to hit.
+         Selected tab = accent-colored bold text + a 3px accent bar underneath; unselected = plain
+         secondary-colored text. Renamed from "PillTabItem" since it's no longer pill-shaped - it isn't
+         referenced anywhere except DashboardWindow.xaml (grepped before renaming). -->
+    <Style x:Key="UnderlineTabItem" TargetType="TabItem">
         <Setter Property="Foreground" Value="{StaticResource Brush.Text.Secondary}"/>
         <Setter Property="FontFamily" Value="{StaticResource FontFamily.Primary}"/>
         <Setter Property="FontWeight" Value="SemiBold"/>
-        <Setter Property="FontSize" Value="12"/>
-        <Setter Property="Padding" Value="18,8"/>
-        <Setter Property="Margin" Value="0,0,8,0"/>
+        <Setter Property="FontSize" Value="13"/>
+        <Setter Property="Padding" Value="4,0"/>
+        <Setter Property="Margin" Value="0,0,24,0"/>
+        <Setter Property="Cursor" Value="Hand"/>
+        <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="TabItem">
-                    <Border x:Name="Bd" CornerRadius="16"
-                            Background="Transparent"
-                            BorderBrush="{StaticResource Brush.Border.Default}"
-                            BorderThickness="1"
-                            Padding="{TemplateBinding Padding}">
-                        <ContentPresenter ContentSource="Header" HorizontalAlignment="Center" VerticalAlignment="Center"
+                    <!-- StackPanel, not Grid: a Grid with no explicit ColumnDefinitions gets one
+                         implicit column at Width="*" (fill-available), not Auto (size-to-content) -
+                         that measured every tab far too narrow before TabPanel had settled on a width
+                         to give it, clipping every label (confirmed: "CLIENTS" rendered as "CLIEN",
+                         "RULES" as "RU", etc.). StackPanel sizes to its content's natural
+                         width/height in both dimensions with no such footgun. -->
+                    <StackPanel Background="Transparent">
+                        <ContentPresenter ContentSource="Header" HorizontalAlignment="Center"
+                                          Margin="{TemplateBinding Padding}"
                                           TextElement.Foreground="{TemplateBinding Foreground}"/>
-                    </Border>
+                        <Border x:Name="Indicator" Height="3" Margin="0,8,0,0" Background="Transparent"/>
+                    </StackPanel>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsSelected" Value="True">
-                            <Setter TargetName="Bd" Property="Background" Value="{StaticResource Brush.Accent.Default}"/>
-                            <Setter TargetName="Bd" Property="BorderBrush" Value="{StaticResource Brush.Accent.Default}"/>
-                            <Setter Property="Foreground" Value="White"/>
+                            <Setter Property="Foreground" Value="{StaticResource Brush.Accent.Default}"/>
+                            <Setter TargetName="Indicator" Property="Background" Value="{StaticResource Brush.Accent.Default}"/>
+                        </Trigger>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter Property="Foreground" Value="{StaticResource Brush.Text.Primary}"/>
                         </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>
@@ -268,7 +297,7 @@
         <Setter Property="FontFamily" Value="{StaticResource FontFamily.Primary}"/>
         <Setter Property="FontSize" Value="11"/>
         <Setter Property="FontWeight" Value="SemiBold"/>
-        <Setter Property="HorizontalAlignment" Value="Left"/>
+        <Setter Property="HorizontalAlignment" Value="Center"/>
         <Setter Property="VerticalAlignment" Value="Center"/>
         <Setter Property="Template">
             <Setter.Value>
