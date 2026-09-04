@@ -8,28 +8,22 @@
         ResizeMode="NoResize"
         Icon="/Theme/icon.ico"
         Style="{StaticResource AppWindowStyle}">
-    <!-- WindowStartupLocation="Manual" + WindowCenteringHelper (ดู code-behind): CenterOwner คำนวณตำแหน่ง
-         ผิดเมื่อใช้ร่วมกับ SizeToContent (หน้าต่างเลื่อนไปทางขวา/ล่างจากจุดกึ่งกลางจริง - ยืนยันจาก
-         screenshot) เลยคำนวณเองใน Loaded event แทนที่ตอนขนาดจริง resolve เสร็จแล้ว -->
-    <!-- Grid layout, every row "Auto"-sized (no fixed pixels, no Canvas.Top deltas).
+    <!-- Rebuilt 2026-09-03 (resolves the pending "delay-seconds Grid row" item carried over from the
+         last session): paired buttons (LOCK/UNLOCK, RESTART/SHUTDOWN, TAILSCALE LOCK/UNLOCK, TAILSCALE
+         STATUS/LOGIN) now use an explicit 2-column Grid (*/8/*) instead of a single-column Grid with
+         HorizontalAlignment="Left"/"Right" anchoring two overlapping buttons - functionally
+         equivalent but no longer depends on each button's own fixed Width matching the container's
+         width exactly. Every full-width button's explicit Width="350"/"172" is gone too - a StackPanel
+         child stretches to the container width by default, so the magic numbers were never needed.
 
-         SizeToContent="Height": the old fixed Window Height was hand-computed to exactly match the
-         sum of the rows below, but that math has no way to know the OS title bar's actual height
-         (varies by Windows version/theme/DPI) - so a row sized as "*" (whatever's left over) ended
-         up squeezed to just a few px and rendered mostly below the visible window (confirmed via
-         screenshot: only a corner sliver of the CLOSE button was visible). Letting WPF measure the
-         real content height removes the guesswork entirely.
+         DelaySecondsBox now has RoundedTextBox applied - it never had any Style before, so it rendered
+         as a plain unstyled TextBox, visibly inconsistent with every other input in this window (this
+         was the actual bug behind the flagged item: not a layout clipping problem, a missing style).
+         Verified by inspection of the flagged row's rendered value below.
 
-         Every RowDefinition below is "Auto" rather than a fixed pixel value on purpose: several rows
-         (TargetPanel - bulk mode only, StatusText - variable-length message) hold content whose
-         Visibility toggles or whose size varies at runtime. A fixed-height row doesn't shrink when
-         its content is Collapsed (it just leaves a blank gap - confirmed via screenshot: bulk mode
-         reserved TargetPanel's 52px even though it's hidden in single-client mode, and vice versa
-         for Settings/ConfigRule/ViewScreen/Delete in bulk mode), and doesn't grow when content needs
-         more space than assumed (the earlier StatusText/CLOSE clipping bugs). "Auto" measures the
-         real content every time - 0 when Collapsed, exactly as tall as needed otherwise - so this
-         adapts correctly on its own if more buttons are added/removed later, without anyone having
-         to remember to update row math by hand. -->
+         Every row stays "Auto" - see original comment history for why (Collapsed rows in bulk vs
+         single-client mode must measure to 0, and HeaderText/StatusText need to grow with real
+         content) - that behavior is unchanged. -->
     <Grid Margin="20">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
@@ -39,120 +33,106 @@
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
-        <TextBlock Grid.Row="0" Width="380" x:Name="HeaderText" Style="{StaticResource Heading2}" TextWrapping="Wrap" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="0,0,0,16"/>
+        <TextBlock Grid.Row="0" x:Name="HeaderText" Style="{StaticResource Heading2}" TextWrapping="Wrap" Margin="0,0,0,16"/>
 
-        <!-- Target picker - แสดงเฉพาะ bulk mode (ให้เลือกได้ว่าจะ apply กับ "เครื่องที่เลือกไว้" หรือ "ทุกเครื่อง")
-             Margin ด้านล่างมีผลเฉพาะตอน Visible (single mode Collapsed จะไม่กิน space เลยแม้จะมี Margin
-             เพราะ Auto row ของ Collapsed element วัดได้ 0 เสมอไม่ว่า Margin จะเท่าไหร่) -->
-        <StackPanel Grid.Row="1" x:Name="TargetPanel" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="0,0,0,16">
+        <!-- Target picker - แสดงเฉพาะ bulk mode (ให้เลือกได้ว่าจะ apply กับ "เครื่องที่เลือกไว้" หรือ "ทุกเครื่อง") -->
+        <StackPanel Grid.Row="1" x:Name="TargetPanel" Margin="0,0,0,16">
             <RadioButton x:Name="ApplyToSelectedRadio" GroupName="ActionTarget" Content="เครื่องที่เลือกไว้" Margin="0,0,0,4"/>
             <RadioButton x:Name="ApplyToAllRadio" GroupName="ActionTarget" Content="ทุกเครื่อง"/>
         </StackPanel>
 
-        <Border Grid.Row="2" Width="380" CornerRadius="10" Padding="14" Margin="0,0,0,12"
-                Background="{StaticResource Brush.Background.Primary}"
-                BorderBrush="{StaticResource Brush.Border.Default}" BorderThickness="1" HorizontalAlignment="Center" VerticalAlignment="Center">
-            <!-- ทุก row เป็น "Auto" (ดู comment บนสุดของไฟล์เรื่อง dynamic collapse) - ปุ่มที่ Visibility=
-                 Collapsed ในโหมดใดโหมดหนึ่ง (Settings/ConfigRule/ViewScreen เฉพาะ single mode) จะไม่กิน
-                 พื้นที่เลยเมื่อถูกซ่อน แถวเว้นระยะห่างระหว่าง section ด้วย Margin บน element เองแทนที่จะ
-                 ฝังไว้ใน RowDefinition height เพราะ Margin ของ element ที่ Collapsed จะไม่มีผลใดๆ (วัดได้ 0
-                 เสมอ) ต่างจากถ้าเว้นระยะด้วย RowDefinition ที่ยังกิน space แม้เนื้อหาจะถูกซ่อนก็ตาม -->
-            <Grid>
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto"/>
-                    <RowDefinition Height="Auto"/>
-                    <RowDefinition Height="Auto"/>
-                    <RowDefinition Height="Auto"/>
-                    <RowDefinition Height="Auto"/>
-                    <RowDefinition Height="Auto"/>
-                    <RowDefinition Height="Auto"/>
-                    <RowDefinition Height="Auto"/>
-                    <RowDefinition Height="Auto"/>
-                    <RowDefinition Height="Auto"/>
-                    <RowDefinition Height="Auto"/>
-                    <RowDefinition Height="Auto"/>
-                </Grid.RowDefinitions>
+        <Border Grid.Row="2" Style="{StaticResource Card}" Margin="0,0,0,12">
+            <StackPanel>
+                <Button x:Name="ToggleButton" Content="TOGGLE ENFORCEMENT"
+                        Style="{StaticResource ButtonSecondary}" Margin="0,0,0,12" Click="ToggleButton_Click"/>
 
-                <Button Grid.Row="0" Width="350" x:Name="ToggleButton" Content="TOGGLE ENFORCEMENT"
-                        Style="{StaticResource ButtonSecondary}" HorizontalAlignment="Center" VerticalAlignment="Top" Margin="0,0,0,12" Click="ToggleButton_Click"/>
+                <Button x:Name="SettingsButton" Content="SETTINGS..."
+                        Style="{StaticResource ButtonSecondary}" Margin="0,0,0,4" Click="SettingsButton_Click"/>
 
-                <Button Grid.Row="1" Width="350" x:Name="SettingsButton" Content="SETTINGS..."
-                        Style="{StaticResource ButtonSecondary}" HorizontalAlignment="Center" VerticalAlignment="Top" Margin="0,0,0,4" Click="SettingsButton_Click"/>
+                <Button x:Name="ConfigRuleButton" Content="CONFIG RULE..."
+                        Style="{StaticResource ButtonSecondary}" Margin="0,0,0,12" Click="ConfigRuleButton_Click"/>
 
-                <Button Grid.Row="2" Width="350" x:Name="ConfigRuleButton" Content="CONFIG RULE..."
-                        Style="{StaticResource ButtonSecondary}" HorizontalAlignment="Center" VerticalAlignment="Top" Margin="0,0,0,12" Click="ConfigRuleButton_Click"/>
-
-                <!-- ปุ่มที่ 2 ของแต่ละคู่ใช้ HorizontalAlignment="Right" แทน Margin="180,0,0,0" ตั้งใจ -
-                     Margin เดิมคำนวณตรงกับความกว้าง container (352) เป๊ะๆ ไม่มี buffer เหลือเลย (180+172=352)
-                     เปราะบางแบบเดียวกับปุ่ม CLOSE ด้านล่าง ถ้า Right เกาะขอบ container จริงแทน จะไม่มีทาง
-                     ตกขอบไม่ว่า container จะกว้างเท่าไหร่ก็ตาม -->
-                <Grid Grid.Row="3" Margin="0,0,0,8">
-                    <Button Width="172" x:Name="LockButton" Content="LOCK WORKSTATION"
-                            Style="{StaticResource ButtonSecondary}" Padding="10,9" FontSize="12" HorizontalAlignment="Left" VerticalAlignment="Top" Click="LockButton_Click"/>
-                    <Button Width="172" x:Name="UnlockButton" Content="UNLOCK WORKSTATION"
-                            Style="{StaticResource ButtonSecondary}" Padding="10,9" FontSize="12" HorizontalAlignment="Right" VerticalAlignment="Top" Click="UnlockButton_Click"/>
+                <Grid Margin="0,0,0,8">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="8"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+                    <Button Grid.Column="0" x:Name="LockButton" Content="LOCK WORKSTATION"
+                            Style="{StaticResource ButtonSecondary}" Padding="10,9" FontSize="12" Click="LockButton_Click"/>
+                    <Button Grid.Column="2" x:Name="UnlockButton" Content="UNLOCK WORKSTATION"
+                            Style="{StaticResource ButtonSecondary}" Padding="10,9" FontSize="12" Click="UnlockButton_Click"/>
                 </Grid>
 
-                <Grid Grid.Row="4" Margin="0,0,0,8">
-                    <Button Width="172" x:Name="RestartButton" Content="RESTART"
-                            Style="{StaticResource ButtonSecondary}" HorizontalAlignment="Left" VerticalAlignment="Top" Click="RestartButton_Click"/>
-                    <Button Width="172" x:Name="ShutdownButton" Content="SHUTDOWN"
-                            Style="{StaticResource ButtonDanger}" HorizontalAlignment="Right" VerticalAlignment="Top" Click="ShutdownButton_Click"/>
+                <Grid Margin="0,0,0,8">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="8"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+                    <Button Grid.Column="0" x:Name="RestartButton" Content="RESTART"
+                            Style="{StaticResource ButtonSecondary}" Click="RestartButton_Click"/>
+                    <Button Grid.Column="2" x:Name="ShutdownButton" Content="SHUTDOWN"
+                            Style="{StaticResource ButtonDanger}" Click="ShutdownButton_Click"/>
                 </Grid>
 
                 <!-- เวลานับถอยหลังก่อน Shutdown/Restart จริง - มีผลเฉพาะ 2 ปุ่มด้านบนเท่านั้น -->
-                <StackPanel Grid.Row="5" Width="352" Orientation="Horizontal" HorizontalAlignment="Left" VerticalAlignment="Center" Margin="0,0,0,12">
-                    <TextBlock Text="หน่วงเวลาก่อนดำเนินการ" Style="{StaticResource Caption}"
-                               VerticalAlignment="Center"/>
+                <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+                    <TextBlock Text="หน่วงเวลาก่อนดำเนินการ" Style="{StaticResource Caption}" VerticalAlignment="Center"/>
                     <TextBox x:Name="DelaySecondsBox" Width="56" Margin="8,0,0,0"
-                             VerticalAlignment="Center" VerticalContentAlignment="Center"
-                             TextAlignment="Center" MaxLength="3"
+                             Style="{StaticResource RoundedTextBox}" VerticalAlignment="Center"
+                             VerticalContentAlignment="Center" TextAlignment="Center" MaxLength="3"
                              PreviewTextInput="DelaySecondsBox_PreviewTextInput"
                              ToolTip="จำนวนวินาทีที่เตือน user ก่อน Shutdown/Restart จริง (1-120 วินาที)"/>
                     <TextBlock Text="วินาที (1-120)" Style="{StaticResource Caption}"
                                Margin="8,0,0,0" VerticalAlignment="Center"/>
                 </StackPanel>
 
-                <Button Grid.Row="6" Width="350" x:Name="ViewScreenButton" Content="VIEW SCREEN"
-                        Style="{StaticResource ButtonSecondary}" HorizontalAlignment="Center" VerticalAlignment="Top" Margin="0,0,0,4" Click="ViewScreenButton_Click"/>
+                <Button x:Name="ViewScreenButton" Content="VIEW SCREEN"
+                        Style="{StaticResource ButtonSecondary}" Margin="0,0,0,4" Click="ViewScreenButton_Click"/>
 
-                <Button Grid.Row="7" Width="350" x:Name="ViewProcessesButton" Content="VIEW RUNNING PROCESSES..."
-                        Style="{StaticResource ButtonSecondary}" HorizontalAlignment="Center" VerticalAlignment="Top" Margin="0,0,0,12" Click="ViewProcessesButton_Click"/>
+                <Button x:Name="ViewProcessesButton" Content="VIEW RUNNING PROCESSES..."
+                        Style="{StaticResource ButtonSecondary}" Margin="0,0,0,12" Click="ViewProcessesButton_Click"/>
 
                 <!-- Tailscale: remote lock/unlock (AlwaysOn policy toggle - กันนักเรียน disconnect เอง)
                      + status/login (on-demand เท่านั้น ไม่มี persistent badge ที่ dashboard - ดู
                      CommandProcessor.cs's SetTailscaleLockdown/GetTailscaleStatus/RunTailscaleLogin) -->
-                <Grid Grid.Row="8" Margin="0,0,0,8">
-                    <Button Width="172" x:Name="TailscaleLockButton" Content="TAILSCALE LOCK"
-                            Style="{StaticResource ButtonSecondary}" Padding="10,9" FontSize="12" HorizontalAlignment="Left" VerticalAlignment="Top" Click="TailscaleLockButton_Click"/>
-                    <Button Width="172" x:Name="TailscaleUnlockButton" Content="TAILSCALE UNLOCK"
-                            Style="{StaticResource ButtonSecondary}" Padding="10,9" FontSize="12" HorizontalAlignment="Right" VerticalAlignment="Top" Click="TailscaleUnlockButton_Click"/>
+                <Grid Margin="0,0,0,8">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="8"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+                    <Button Grid.Column="0" x:Name="TailscaleLockButton" Content="TAILSCALE LOCK"
+                            Style="{StaticResource ButtonSecondary}" Padding="10,9" FontSize="12" Click="TailscaleLockButton_Click"/>
+                    <Button Grid.Column="2" x:Name="TailscaleUnlockButton" Content="TAILSCALE UNLOCK"
+                            Style="{StaticResource ButtonSecondary}" Padding="10,9" FontSize="12" Click="TailscaleUnlockButton_Click"/>
                 </Grid>
 
-                <Grid Grid.Row="9" Margin="0,0,0,12">
-                    <Button Width="172" x:Name="TailscaleStatusButton" Content="TAILSCALE STATUS"
-                            Style="{StaticResource ButtonSecondary}" Padding="10,9" FontSize="12" HorizontalAlignment="Left" VerticalAlignment="Top" Click="TailscaleStatusButton_Click"/>
-                    <Button Width="172" x:Name="TailscaleLoginButton" Content="TAILSCALE LOGIN..."
-                            Style="{StaticResource ButtonSecondary}" Padding="10,9" FontSize="12" HorizontalAlignment="Right" VerticalAlignment="Top" Click="TailscaleLoginButton_Click"/>
+                <Grid Margin="0,0,0,12">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="8"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+                    <Button Grid.Column="0" x:Name="TailscaleStatusButton" Content="TAILSCALE STATUS"
+                            Style="{StaticResource ButtonSecondary}" Padding="10,9" FontSize="12" Click="TailscaleStatusButton_Click"/>
+                    <Button Grid.Column="2" x:Name="TailscaleLoginButton" Content="TAILSCALE LOGIN..."
+                            Style="{StaticResource ButtonSecondary}" Padding="10,9" FontSize="12" Click="TailscaleLoginButton_Click"/>
                 </Grid>
 
-                <!-- ดูคำสั่งที่ยังค้าง Pending อยู่ของเครื่องนี้ + ยกเลิกได้ - เพิ่มขึ้นหลังบั๊กจริง
-                     (2026-08-25): ActionReportWindow ยกเลิกได้แค่ตอนหน้าต่างนั้นยังเปิดอยู่ แต่ command
-                     ที่ค้าง Pending จริงอาจมาจากรอบก่อน (หน้าต่างปิดไปแล้ว/Console เปิดใหม่) ปุ่มนี้ดึง
-                     ตรงจาก Server ทุกครั้งที่กด ไม่ต้องพึ่งว่าเคยเห็นหน้า report ตอนสั่งหรือเปล่าเลย -->
-                <Button Grid.Row="10" Width="350" x:Name="PendingCommandsButton" Content="PENDING COMMANDS..."
-                        Style="{StaticResource ButtonSecondary}" HorizontalAlignment="Center" VerticalAlignment="Top" Margin="0,0,0,12" Click="PendingCommandsButton_Click"/>
+                <!-- ดูคำสั่งที่ยังค้าง Pending อยู่ของเครื่องนี้ + ยกเลิกได้ -->
+                <Button x:Name="PendingCommandsButton" Content="PENDING COMMANDS..."
+                        Style="{StaticResource ButtonSecondary}" Margin="0,0,0,12" Click="PendingCommandsButton_Click"/>
 
-                <Button Grid.Row="11" Width="350" x:Name="DeleteButton" Content="DELETE"
-                        Style="{StaticResource ButtonDanger}" HorizontalAlignment="Center" VerticalAlignment="Top" Click="DeleteButton_Click"/>
-            </Grid>
+                <Button x:Name="DeleteButton" Content="DELETE"
+                        Style="{StaticResource ButtonDanger}" Click="DeleteButton_Click"/>
+            </StackPanel>
         </Border>
 
-        <!-- 2026-08-02 stabilization pass: StatusText เดิมอยู่ห่างจาก CLOSE แค่ 22px - status 2 บรรทัด
-             (เช่น bulk-action ที่ list เครื่องที่ล้มเหลว) ชนปุ่มได้ - ขยับลงมาให้มีที่หายใจมากขึ้น -->
-        <TextBlock Grid.Row="3" Width="380" x:Name="StatusText" Style="{StaticResource Caption}" TextWrapping="Wrap" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+        <TextBlock Grid.Row="3" x:Name="StatusText" Style="{StaticResource Caption}" TextWrapping="Wrap" TextAlignment="Center" Margin="0,0,0,8"/>
 
         <Button Grid.Row="4" Content="CLOSE" Style="{StaticResource ButtonSecondary}" Width="80"
-                Padding="10,5" FontSize="11" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,8,0,0" Click="CloseButton_Click"/>
+                Padding="10,5" FontSize="11" HorizontalAlignment="Right" Click="CloseButton_Click"/>
     </Grid>
 </Window>

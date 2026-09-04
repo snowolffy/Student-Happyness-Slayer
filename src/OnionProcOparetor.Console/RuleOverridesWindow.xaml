@@ -7,40 +7,34 @@
         ResizeMode="NoResize"
         Icon="/Theme/icon.ico"
         Style="{StaticResource AppWindowStyle}">
-    <!-- Grid layout (no Canvas) - modeled on ClientSettingsWindow.xaml's fixed-pixel RowDefinitions
-         pattern, sized taller to fit a scrollable per-rule list since the rule count is variable.
-         Row 0 (title), Row 1 (intro caption), and Row 4 (StatusText) are "Auto" rather than fixed
-         pixels: MachineNameText interpolates the machine name, the intro text is a long static
-         string that wraps to 2 lines at this width, and StatusText interpolates a variable-length
-         rule name at runtime - all three would silently bleed into the row below them under a fixed
-         height, since Grid doesn't clip children to their row bounds. -->
+    <!-- Rebuilt 2026-09-03 - same Auto/*/Auto row shape as before (a legitimate use of Grid here:
+         the rule list is variable-length and needs a flexible scrollable middle region), just
+         re-spaced with margins instead of a fixed-pixel Auto/8/*/Auto/40 row set. -->
     <Grid Margin="20">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
-            <RowDefinition Height="8"/>
             <RowDefinition Height="*"/>
             <RowDefinition Height="Auto"/>
-            <RowDefinition Height="40"/>
         </Grid.RowDefinitions>
 
-        <TextBlock Grid.Row="0" x:Name="MachineNameText" Style="{StaticResource Heading2}" HorizontalAlignment="Left" VerticalAlignment="Top"/>
+        <TextBlock Grid.Row="0" x:Name="MachineNameText" Style="{StaticResource Heading2}" Margin="0,0,0,4"/>
 
-        <TextBlock Grid.Row="1" Width="420"
+        <TextBlock Grid.Row="1"
                    Text="Override เฉพาะเครื่องนี้เท่านั้น - ไม่กระทบ global rule หรือเครื่องอื่น ถ้ามี override ค่านี้ชนะ global เสมอ"
-                   Style="{StaticResource Caption}" TextWrapping="Wrap" HorizontalAlignment="Left" VerticalAlignment="Top"/>
+                   Style="{StaticResource Caption}" TextWrapping="Wrap" Margin="0,0,0,12"/>
 
-        <Border Grid.Row="3" CornerRadius="10" Padding="4"
-                Background="{StaticResource Brush.Background.Primary}"
-                BorderBrush="{StaticResource Brush.Border.Default}" BorderThickness="1">
+        <Border Grid.Row="2" Style="{StaticResource Card}" Padding="4" Margin="0,0,0,12">
             <ScrollViewer VerticalScrollBarVisibility="Auto">
                 <StackPanel x:Name="RulesListPanel" Margin="6"/>
             </ScrollViewer>
         </Border>
 
-        <TextBlock Grid.Row="4" Width="420" x:Name="StatusText" Style="{StaticResource Caption}" TextWrapping="Wrap" HorizontalAlignment="Left" VerticalAlignment="Top"/>
-
-        <Button Grid.Row="5" Content="CLOSE" Style="{StaticResource ButtonSecondary}" Width="80"
-                Padding="10,5" FontSize="11" HorizontalAlignment="Right" VerticalAlignment="Top" Click="CloseButton_Click"/>
+        <Grid Grid.Row="3">
+            <TextBlock x:Name="StatusText" Style="{StaticResource Caption}" TextWrapping="Wrap"
+                       VerticalAlignment="Center" Margin="0,0,90,0"/>
+            <Button Content="CLOSE" Style="{StaticResource ButtonSecondary}"
+                    Padding="10,5" FontSize="11" HorizontalAlignment="Right" Click="CloseButton_Click"/>
+        </Grid>
     </Grid>
 </Window>

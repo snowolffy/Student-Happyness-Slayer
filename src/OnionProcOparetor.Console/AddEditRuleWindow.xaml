@@ -8,38 +8,24 @@
         ResizeMode="NoResize"
         Icon="/Theme/icon.ico"
         Style="{StaticResource AppWindowStyle}">
-    <!-- WindowStartupLocation="Manual" + WindowCenteringHelper (ดู code-behind) - pattern เดียวกับ
-         ClientSettingsWindow/ActionPanelWindow: SizeToContent + CenterOwner คำนวณตำแหน่งผิด ต้อง
-         คำนวณเองใน Loaded event แทน
+    <!-- Rebuilt 2026-09-03 - outer layout is now a single StackPanel (was a Grid of Auto rows
+         wrapping the same StackPanel-based form) for consistency with the rest of the app's rebuilt
+         dialogs. Still one form shared by Add / Edit / create-from-process (see code-behind). -->
+    <StackPanel Margin="20">
+        <TextBlock x:Name="TitleText" Style="{StaticResource Heading2}" Margin="0,0,0,16"/>
 
-         ฟอร์มเดียวใช้ร่วมกัน 3 ทาง (Add / Edit / สร้างจาก running process ที่เลือกไว้) - ดู
-         constructor overload ใน code-behind ทุก row เป็น "Auto" เพราะ StatusText มีข้อความยาว
-         สั้นต่างกันตามสถานการณ์ (validation error vs ว่าง) -->
-    <Grid Margin="20">
-        <Grid.RowDefinitions>
-            <RowDefinition Height="Auto"/>
-            <RowDefinition Height="Auto"/>
-            <RowDefinition Height="Auto"/>
-            <RowDefinition Height="Auto"/>
-        </Grid.RowDefinitions>
-
-        <TextBlock Grid.Row="0" x:Name="TitleText" Style="{StaticResource Heading2}"
-                   HorizontalAlignment="Left" VerticalAlignment="Top" Margin="0,0,0,10"/>
-
-        <Border Grid.Row="1" CornerRadius="10" Padding="14"
-                Background="{StaticResource Brush.Background.Primary}"
-                BorderBrush="{StaticResource Brush.Border.Default}" BorderThickness="1">
+        <Border Style="{StaticResource Card}" Margin="0,0,0,16">
             <StackPanel>
-                <TextBlock Text="NAME" Style="{StaticResource Label}"/>
-                <TextBox x:Name="NameBox" Style="{StaticResource RoundedTextBox}" Height="36" Margin="0,4,0,12"
+                <TextBlock Text="NAME" Style="{StaticResource Label}" Margin="0,0,0,4"/>
+                <TextBox x:Name="NameBox" Style="{StaticResource RoundedTextBox}" Margin="0,0,0,12"
                          ToolTip="ชื่อกฎ (ไว้แสดงผลใน GUI)"/>
 
-                <TextBlock Text="PUBLISHER" Style="{StaticResource Label}"/>
-                <TextBox x:Name="PublisherBox" Style="{StaticResource RoundedTextBox}" Height="36" Margin="0,4,0,12"
+                <TextBlock Text="PUBLISHER" Style="{StaticResource Label}" Margin="0,0,0,4"/>
+                <TextBox x:Name="PublisherBox" Style="{StaticResource RoundedTextBox}" Margin="0,0,0,12"
                          ToolTip="ชื่อ Publisher ที่ต้องการจับคู่ เช่น 'Valve Corporation' - เงื่อนไขบังคับเสมอ"/>
 
-                <TextBlock Text="PROCESS NAME CONTAINS (OPTIONAL)" Style="{StaticResource Label}"/>
-                <TextBox x:Name="ProcessNameContainsBox" Style="{StaticResource RoundedTextBox}" Height="36" Margin="0,4,0,12"
+                <TextBlock Text="PROCESS NAME CONTAINS (OPTIONAL)" Style="{StaticResource Label}" Margin="0,0,0,4"/>
+                <TextBox x:Name="ProcessNameContainsBox" Style="{StaticResource RoundedTextBox}" Margin="0,0,0,12"
                          ToolTip="[OPTIONAL] narrow เพิ่มจากชื่อไฟล์ เช่น 'notepad' - เว้นว่างได้ถ้าไม่รู้ชื่อไฟล์ล่วงหน้า"/>
 
                 <CheckBox x:Name="RequireSignedMatchCheckBox" Content="Require signed match (Authenticode)"
@@ -49,24 +35,23 @@
                 <CheckBox x:Name="IsEnabledCheckBox" Content="เปิดใช้งานกฎนี้"
                           Foreground="{StaticResource Brush.Text.Primary}" Margin="0,0,0,12"/>
 
-                <TextBlock Text="ACTION COMMAND (OPTIONAL)" Style="{StaticResource Label}"/>
-                <TextBox x:Name="ActionCommandBox" Style="{StaticResource RoundedTextBox}" Height="36" Margin="0,4,0,12"
+                <TextBlock Text="ACTION COMMAND (OPTIONAL)" Style="{StaticResource Label}" Margin="0,0,0,4"/>
+                <TextBox x:Name="ActionCommandBox" Style="{StaticResource RoundedTextBox}" Margin="0,0,0,12"
                          ToolTip="path ของ .exe/.bat/.ps1 ที่จะรันเมื่อ match (ไม่บังคับ)"/>
 
-                <TextBlock Text="ACTION ARGUMENTS (OPTIONAL)" Style="{StaticResource Label}"/>
-                <TextBox x:Name="ActionArgumentsBox" Style="{StaticResource RoundedTextBox}" Height="36" Margin="0,4,0,0"
+                <TextBlock Text="ACTION ARGUMENTS (OPTIONAL)" Style="{StaticResource Label}" Margin="0,0,0,4"/>
+                <TextBox x:Name="ActionArgumentsBox" Style="{StaticResource RoundedTextBox}"
                          ToolTip="arguments ที่จะส่งให้ ACTION COMMAND (ไม่บังคับ)"/>
             </StackPanel>
         </Border>
 
-        <TextBlock Grid.Row="2" Width="400" x:Name="StatusText" Style="{StaticResource Caption}"
-                   TextWrapping="Wrap" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="0,8,0,0"/>
+        <TextBlock x:Name="StatusText" Style="{StaticResource Caption}" TextWrapping="Wrap" Margin="0,0,0,16"/>
 
-        <Grid Grid.Row="3" Margin="0,8,0,0">
+        <Grid>
             <Button Content="CANCEL" Style="{StaticResource ButtonSecondary}"
                     Padding="10,5" FontSize="11" HorizontalAlignment="Right" Margin="0,0,96,0" Click="CancelButton_Click"/>
             <Button Content="SAVE" Style="{StaticResource ButtonPrimary}"
                     HorizontalAlignment="Right" Click="SaveButton_Click"/>
         </Grid>
-    </Grid>
+    </StackPanel>
 </Window>

@@ -8,143 +8,72 @@
         ResizeMode="NoResize"
         Icon="/Theme/icon.ico"
         Style="{StaticResource AppWindowStyle}">
-    <!-- WindowStartupLocation="Manual" + WindowCenteringHelper (ดู code-behind): CenterOwner คำนวณตำแหน่ง
-         ผิดเมื่อใช้ร่วมกับ SizeToContent (หน้าต่างเลื่อนไปทางขวา/ล่างจากจุดกึ่งกลางจริง) เลยคำนวณเองใน
-         Loaded event แทนที่ตอนขนาดจริง resolve เสร็จแล้ว -->
-    <!--
-        Grid layout with fixed-pixel RowDefinitions - each row's Height is the exact gap to the
-        next section (matching the old Canvas.Top deltas), so every element still renders at the
-        same absolute position it had under Canvas. ResizeMode stays NoResize so this doesn't need
-        to be responsive; the fixed heights just replace Canvas.Left/Top bookkeeping with named rows.
+    <!-- Rebuilt 2026-09-03 - a StackPanel of Cards replaces the old fixed-pixel Grid rows (each
+         Border used to carry an explicit Height tuned to its own content). -->
+    <StackPanel Margin="20">
+        <TextBlock Text="Settings" Style="{StaticResource Heading2}" Margin="0,0,0,16"/>
 
-        Row 6 (StatusText) is "Auto" rather than the original fixed 53px - same reasoning as
-        ClientSettingsWindow.xaml/ResetPasswordWindow.xaml: it holds a runtime validation/save
-        message and Grid doesn't clip children to their row bounds.
-
-        Row 7 (SAVE/CANCEL) is "Auto" and the Window uses SizeToContent="Height" instead of a
-        hand-computed fixed Height - same reasoning as ActionPanelWindow.xaml/ResetPasswordWindow.xaml:
-        a fixed Height can't account for the OS title bar's actual height, so a trailing "*" row
-        holding the only interactive buttons is one Windows-theme/DPI difference away from being
-        squeezed offscreen. This window wasn't observed broken yet, but it's the same fragile pattern.
-    -->
-    <Grid Margin="20">
-        <Grid.RowDefinitions>
-            <RowDefinition Height="29"/>
-            <RowDefinition Height="5"/>
-            <RowDefinition Height="106"/>
-            <RowDefinition Height="106"/>
-            <RowDefinition Height="120"/>
-            <RowDefinition Height="120"/>
-            <RowDefinition Height="Auto"/>
-            <RowDefinition Height="Auto"/>
-            <RowDefinition Height="Auto"/>
-        </Grid.RowDefinitions>
-
-        <TextBlock Grid.Row="0" Text="Settings" Style="{StaticResource Heading2}" HorizontalAlignment="Left" VerticalAlignment="Top"/>
-        <TextBlock Grid.Row="1" Style="{StaticResource Caption}" HorizontalAlignment="Left" VerticalAlignment="Top"/>
-
-        <!-- ==================== VNC concurrent session limit ==================== -->
-        <Border Grid.Row="2" Width="400" Height="101" CornerRadius="10" Padding="14"
-                Background="{StaticResource Brush.Background.Card}"
-                BorderBrush="{StaticResource Brush.Border.Default}" BorderThickness="1" HorizontalAlignment="Left" VerticalAlignment="Top">
-            <Grid>
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="20"/>
-                    <RowDefinition Height="36"/>
-                    <RowDefinition Height="*"/>
-                </Grid.RowDefinitions>
-                <TextBlock Grid.Row="0" Text="VNC MAX CONCURRENT SESSIONS" Style="{StaticResource Label}" HorizontalAlignment="Left" VerticalAlignment="Top"/>
-                <TextBox Grid.Row="1" Width="100" x:Name="VncLimitBox" Style="{StaticResource RoundedTextBox}" HorizontalAlignment="Left" Height="34" VerticalAlignment="Top"/>
-                <TextBlock Grid.Row="2" Width="340"
-                           Text="จำนวนเครื่องสูงสุดที่เปิดดูหน้าจอ (Screen View) พร้อมกันได้"
-                           Style="{StaticResource Caption}" TextWrapping="Wrap" HorizontalAlignment="Left" VerticalAlignment="Top"/>
-            </Grid>
+        <Border Style="{StaticResource Card}" Margin="0,0,0,12">
+            <StackPanel>
+                <TextBlock Text="VNC MAX CONCURRENT SESSIONS" Style="{StaticResource Label}" Margin="0,0,0,6"/>
+                <TextBox x:Name="VncLimitBox" Width="100" HorizontalAlignment="Left" Style="{StaticResource RoundedTextBox}" Margin="0,0,0,8"/>
+                <TextBlock Text="จำนวนเครื่องสูงสุดที่เปิดดูหน้าจอ (Screen View) พร้อมกันได้"
+                           Style="{StaticResource Caption}" TextWrapping="Wrap"/>
+            </StackPanel>
         </Border>
 
-        <!-- ==================== Dashboard auto-refresh (poll) interval ==================== -->
-        <Border Grid.Row="3" Width="400" Height="101" CornerRadius="10" Padding="14"
-                Background="{StaticResource Brush.Background.Card}"
-                BorderBrush="{StaticResource Brush.Border.Default}" BorderThickness="1" HorizontalAlignment="Left" VerticalAlignment="Top">
-            <Grid>
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="20"/>
-                    <RowDefinition Height="36"/>
-                    <RowDefinition Height="*"/>
-                </Grid.RowDefinitions>
-                <TextBlock Grid.Row="0" Text="DASHBOARD AUTO-REFRESH INTERVAL (SECONDS)" Style="{StaticResource Label}" HorizontalAlignment="Left" VerticalAlignment="Top"/>
-                <TextBox Grid.Row="1" Width="100" x:Name="PollIntervalBox" Style="{StaticResource RoundedTextBox}" HorizontalAlignment="Left" Height="34" VerticalAlignment="Top"/>
-                <TextBlock Grid.Row="2" Width="340"
-                           Text="ความถี่โหลดข้อมูล Clients/Rules/Logs/Users ใหม่อัตโนมัติของ Dashboard"
-                           Style="{StaticResource Caption}" TextWrapping="Wrap" HorizontalAlignment="Left" VerticalAlignment="Top"/>
-            </Grid>
+        <Border Style="{StaticResource Card}" Margin="0,0,0,12">
+            <StackPanel>
+                <TextBlock Text="DASHBOARD AUTO-REFRESH INTERVAL (SECONDS)" Style="{StaticResource Label}" Margin="0,0,0,6"/>
+                <TextBox x:Name="PollIntervalBox" Width="100" HorizontalAlignment="Left" Style="{StaticResource RoundedTextBox}" Margin="0,0,0,8"/>
+                <TextBlock Text="ความถี่โหลดข้อมูล Clients/Rules/Logs/Users ใหม่อัตโนมัติของ Dashboard"
+                           Style="{StaticResource Caption}" TextWrapping="Wrap"/>
+            </StackPanel>
         </Border>
 
-        <!-- ==================== Default server connection ==================== -->
-        <Border Grid.Row="4" Width="400" Height="115" CornerRadius="10" Padding="14"
-                Background="{StaticResource Brush.Background.Card}"
-                BorderBrush="{StaticResource Brush.Border.Default}" BorderThickness="1" HorizontalAlignment="Left" VerticalAlignment="Top">
-            <Grid>
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="20"/>
-                    <RowDefinition Height="50"/>
-                    <RowDefinition Height="*"/>
-                </Grid.RowDefinitions>
-                <TextBlock Grid.Row="0" Text="DEFAULT SERVER HOST / PORT" Style="{StaticResource Label}" HorizontalAlignment="Left" VerticalAlignment="Top"/>
-                <Grid Grid.Row="1">
-                    <TextBox Width="240" x:Name="ServerHostBox" Style="{StaticResource RoundedTextBox}" HorizontalAlignment="Left" Height="34" VerticalAlignment="Top"/>
-                    <TextBox Width="90" x:Name="ServerPortBox" Style="{StaticResource RoundedTextBox}" HorizontalAlignment="Left" Margin="250,0,0,0" Height="34" VerticalAlignment="Top"/>
+        <Border Style="{StaticResource Card}" Margin="0,0,0,12">
+            <StackPanel>
+                <TextBlock Text="DEFAULT SERVER HOST / PORT" Style="{StaticResource Label}" Margin="0,0,0,6"/>
+                <Grid Margin="0,0,0,8">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="12"/>
+                        <ColumnDefinition Width="90"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBox Grid.Column="0" x:Name="ServerHostBox" Style="{StaticResource RoundedTextBox}"/>
+                    <TextBox Grid.Column="2" x:Name="ServerPortBox" Style="{StaticResource RoundedTextBox}"/>
                 </Grid>
-                <TextBlock Grid.Row="2" Width="340"
-                           Text="ใช้เป็นค่าเริ่มต้นในหน้า Connect ครั้งถัดไป"
-                           Style="{StaticResource Caption}" TextWrapping="Wrap" HorizontalAlignment="Left" VerticalAlignment="Top"/>
-            </Grid>
+                <TextBlock Text="ใช้เป็นค่าเริ่มต้นในหน้า Connect ครั้งถัดไป"
+                           Style="{StaticResource Caption}" TextWrapping="Wrap"/>
+            </StackPanel>
         </Border>
 
-        <!-- ==================== Live View: keep grid open when leaving tab ==================== -->
-        <Border Grid.Row="5" Height="86" CornerRadius="10" Padding="14"
-                Background="{StaticResource Brush.Background.Card}"
-                BorderBrush="{StaticResource Brush.Border.Default}" BorderThickness="1" VerticalAlignment="Top">
-            <Grid>
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="10"/>
-                    <RowDefinition Height="31"/>
-                    <RowDefinition Height="*"/>
-                </Grid.RowDefinitions>
-                <CheckBox Grid.Row="1" x:Name="KeepLiveViewOpenCheckBox"
-                          Content="คงการเชื่อมต่อไว้เมื่อออกจากแท็บ LIVE VIEW" HorizontalAlignment="Left" VerticalAlignment="Top"/>
-                <TextBlock Grid.Row="2" Width="340"
-                           Text="ค่า default คือปิดทั้งหมดเมื่อออกจากแท็บ"
-                           Style="{StaticResource Caption}" TextWrapping="Wrap" HorizontalAlignment="Left" VerticalAlignment="Top"/>
-            </Grid>
+        <Border Style="{StaticResource Card}" Margin="0,0,0,12">
+            <StackPanel>
+                <CheckBox x:Name="KeepLiveViewOpenCheckBox"
+                          Content="คงการเชื่อมต่อไว้เมื่อออกจากแท็บ LIVE VIEW" Margin="0,0,0,8"/>
+                <TextBlock Text="ค่า default คือปิดทั้งหมดเมื่อออกจากแท็บ"
+                           Style="{StaticResource Caption}" TextWrapping="Wrap"/>
+            </StackPanel>
         </Border>
 
-        <!-- ==================== My account ==================== -->
-        <Border Grid.Row="6" Height="86" CornerRadius="10" Padding="14" Margin="0,0,0,12"
-                Background="{StaticResource Brush.Background.Card}"
-                BorderBrush="{StaticResource Brush.Border.Default}" BorderThickness="1" VerticalAlignment="Top">
-            <Grid>
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="20"/>
-                    <RowDefinition Height="36"/>
-                    <RowDefinition Height="*"/>
-                </Grid.RowDefinitions>
-                <TextBlock Grid.Row="0" Text="MY ACCOUNT" Style="{StaticResource Label}" HorizontalAlignment="Left" VerticalAlignment="Top"/>
-                <Button Grid.Row="1" Width="200" x:Name="ChangeMyPasswordButton" Content="CHANGE MY PASSWORD..."
-                        Style="{StaticResource ButtonSecondary}" Padding="10,9" FontSize="12"
-                        HorizontalAlignment="Left" VerticalAlignment="Top" Click="ChangeMyPasswordButton_Click"/>
-                <TextBlock Grid.Row="2" Width="340"
-                           Text="เปลี่ยน password ของ account ที่ login อยู่ตอนนี้เท่านั้น"
-                           Style="{StaticResource Caption}" TextWrapping="Wrap" HorizontalAlignment="Left" VerticalAlignment="Top"/>
-            </Grid>
+        <Border Style="{StaticResource Card}" Margin="0,0,0,16">
+            <StackPanel>
+                <TextBlock Text="MY ACCOUNT" Style="{StaticResource Label}" Margin="0,0,0,8"/>
+                <Button x:Name="ChangeMyPasswordButton" Content="CHANGE MY PASSWORD..." HorizontalAlignment="Left"
+                        Style="{StaticResource ButtonSecondary}" Padding="10,9" FontSize="12" Margin="0,0,0,8" Click="ChangeMyPasswordButton_Click"/>
+                <TextBlock Text="เปลี่ยน password ของ account ที่ login อยู่ตอนนี้เท่านั้น"
+                           Style="{StaticResource Caption}" TextWrapping="Wrap"/>
+            </StackPanel>
         </Border>
 
-        <TextBlock Grid.Row="7" Width="380" x:Name="StatusText" Style="{StaticResource Caption}" TextWrapping="Wrap" HorizontalAlignment="Left" VerticalAlignment="Top"/>
+        <TextBlock x:Name="StatusText" Style="{StaticResource Caption}" TextWrapping="Wrap" Margin="0,0,0,16"/>
 
-        <Grid Grid.Row="8" Margin="0,8,0,0">
+        <Grid>
+            <Button Content="CANCEL" Style="{StaticResource ButtonSecondary}"
+                    Padding="10,5" FontSize="11" HorizontalAlignment="Right" Margin="0,0,96,0" Click="CancelButton_Click"/>
             <Button Content="SAVE" Style="{StaticResource ButtonPrimary}"
-                    Click="SaveButton_Click" Margin="320,0,0,0"/>
-            <Button Content="CANCEL" Style="{StaticResource ButtonSecondary}" Width="80"
-                    Padding="10,5" FontSize="11" Click="CancelButton_Click" HorizontalAlignment="Left" Margin="225,0,0,0"/>
+                    HorizontalAlignment="Right" Click="SaveButton_Click"/>
         </Grid>
-    </Grid>
+    </StackPanel>
 </Window>

@@ -6,13 +6,12 @@
         WindowStartupLocation="CenterOwner"
         Icon="/Theme/icon.ico"
         Style="{StaticResource AppWindowStyle}">
-    <!-- คิวตรวจสอบของ Program Control (2026-08-31) - โปรแกรมที่อัลกอริทึมเจอแต่ไม่มั่นใจพอจะตัดสินเอง
-         ครูกดยืนยันครั้งเดียว แล้วผลผูกกับ SHA-256 ของไฟล์นั้นตลอดไปทั้ง 40 เครื่อง (IsManual ชนะ
-         อัลกอริทึมเสมอ - ดู Models/ProgramVerdict.cs ฝั่ง Server)
-
-         ทุก style ที่ใช้ที่นี่มาจาก Theme/Controls.xaml ที่ merge ไว้ระดับ App เท่านั้น ห้ามอ้าง
-         StaticResource ที่ประกาศไว้ใน Window.Resources ของหน้าต่างอื่นเด็ดขาด - เคยทำให้ Console
-         ปิดตัวทั้งโปรแกรมมาแล้วจริง (XamlParseException ตอนเปิดหน้าต่าง ดู RunningProcessesWindow) -->
+    <!-- Rebuilt 2026-09-03 - header controls now spaced via Grid columns instead of per-control
+         Margin; the reasons box now uses the shared Card style (was a hand-copied Border with square
+         corners - the only un-rounded container in this window, now consistent with the rest of the
+         app). DataGrid columns/bindings unchanged - styles come from Theme/Controls.xaml, merged at
+         App level only (see original comment about the XamlParseException this app hit once from a
+         Window-scoped style reference). -->
     <Grid Margin="20">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
@@ -26,11 +25,13 @@
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*"/>
                 <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="12"/>
                 <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="12"/>
                 <ColumnDefinition Width="Auto"/>
             </Grid.ColumnDefinitions>
-            <TextBlock Grid.Column="0" Text="PROGRAM CONTROL" Style="{StaticResource Heading2}"/>
-            <ComboBox Grid.Column="1" x:Name="FilterCombo" Width="160" Margin="0,0,10,0"
+            <TextBlock Grid.Column="0" Text="PROGRAM CONTROL" Style="{StaticResource Heading2}" VerticalAlignment="Center"/>
+            <ComboBox Grid.Column="1" x:Name="FilterCombo" Width="160" VerticalAlignment="Center"
                       SelectionChanged="FilterCombo_SelectionChanged">
                 <ComboBoxItem Content="รอตรวจสอบ" Tag="flagged" IsSelected="True"/>
                 <ComboBoxItem Content="ที่บล็อกอยู่" Tag="blocked"/>
@@ -40,19 +41,22 @@
             </ComboBox>
             <!-- หมวด: รายการในกล่องนี้สร้างจากข้อมูลจริงตอน refresh (ดู RebuildCategoryCombo) ไม่ได้
                  ประกาศไว้ตายตัวใน XAML เพราะต้องมีจำนวนแถวต่อหมวดกำกับ และต้องซ่อนหมวดที่ไม่มีของ -->
-            <ComboBox Grid.Column="2" x:Name="CategoryCombo" Width="200" Margin="0,0,10,0"
+            <ComboBox Grid.Column="3" x:Name="CategoryCombo" Width="200" VerticalAlignment="Center"
                       SelectionChanged="CategoryCombo_SelectionChanged"/>
-            <Button Grid.Column="3" Content="REFRESH" Style="{StaticResource ButtonSecondary}"
+            <Button Grid.Column="5" Content="REFRESH" Style="{StaticResource ButtonSecondary}"
                     Padding="10,5" FontSize="11" Click="RefreshButton_Click"/>
         </Grid>
 
         <TextBlock Grid.Row="1" x:Name="StatusText" Style="{StaticResource Caption}"
-                   TextWrapping="Wrap" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="0,8,0,8"/>
+                   TextWrapping="Wrap" Margin="0,10,0,10"/>
 
-        <DataGrid Grid.Row="2" x:Name="VerdictsGrid" AutoGenerateColumns="False" IsReadOnly="True"
+        <Border Grid.Row="2" CornerRadius="12" ClipToBounds="True"
+                Background="{StaticResource Brush.Background.Card}"
+                BorderBrush="{StaticResource Brush.Border.Default}" BorderThickness="1">
+        <DataGrid x:Name="VerdictsGrid" AutoGenerateColumns="False" IsReadOnly="True"
                   SelectionMode="Single"
-                  Background="{StaticResource Brush.Background.Card}"
-                  BorderBrush="{StaticResource Brush.Border.Default}" BorderThickness="1"
+                  Background="Transparent"
+                  BorderThickness="0"
                   RowBackground="{StaticResource Brush.Background.Card}"
                   AlternatingRowBackground="{StaticResource Brush.Background.Card}"
                   HorizontalGridLinesBrush="{StaticResource Brush.Border.Default}"
@@ -72,11 +76,10 @@
                 <DataGridTextColumn Header="เครื่องล่าสุด" Binding="{Binding LastSeenOnMachine}" Width="120"/>
             </DataGrid.Columns>
         </DataGrid>
+        </Border>
 
         <!-- เหตุผลของคะแนน - ส่วนที่ทำให้ครูตัดสินใจได้จริง ไม่ใช่แค่เห็นตัวเลขลอยๆ -->
-        <Border Grid.Row="3" Margin="0,10,0,0" Padding="12"
-                Background="{StaticResource Brush.Background.Card}"
-                BorderBrush="{StaticResource Brush.Border.Default}" BorderThickness="1">
+        <Border Grid.Row="3" Style="{StaticResource Card}" Margin="0,12,0,0">
             <StackPanel>
                 <TextBlock Text="เหตุผลที่ได้คะแนนนี้" Style="{StaticResource Caption}" Margin="0,0,0,6"/>
                 <ScrollViewer MaxHeight="120" VerticalScrollBarVisibility="Auto">

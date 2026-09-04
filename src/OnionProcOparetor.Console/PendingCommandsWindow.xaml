@@ -6,12 +6,8 @@
         WindowStartupLocation="CenterOwner"
         Icon="/Theme/icon.ico"
         Style="{StaticResource AppWindowStyle}">
-    <!-- คำสั่งที่ยังค้าง Pending (ยังไม่ Delivered) ของเครื่องนี้ - ดึงตรงจาก Server ทุกครั้งที่เปิด/
-         REFRESH ไม่พึ่ง ActionReportWindow เลย (หน้านั้นยกเลิกได้แค่ตอนยังเปิดอยู่เท่านั้น) เพิ่มขึ้น
-         หลังบั๊กจริง (2026-08-25): Restart/Shutdown ที่ ack ไม่ทันเครื่องดับจริง (โอกาสสูงขึ้นตอนใช้
-         Tailscale fallback) ค้าง Pending แล้วถูกส่งซ้ำทุกรอบ poll วนไม่จบหลังเครื่องบูตกลับมา - หน้านี้
-         ให้ครูเห็น+ยกเลิกได้แม้พลาดหน้าต่างตอนสั่งไปแล้ว ไม่ modal เหมือน RunningProcessesWindow
-         (เปิดดูหลายเครื่องพร้อมกันได้) -->
+    <!-- Rebuilt 2026-09-03 - spacing polish only; this window's Auto/Auto/* Grid shape was already
+         sound (no Canvas-carryover magic pixels here). DataGrid columns/bindings unchanged. -->
     <Grid Margin="20">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
@@ -24,18 +20,21 @@
                 <ColumnDefinition Width="*"/>
                 <ColumnDefinition Width="Auto"/>
             </Grid.ColumnDefinitions>
-            <TextBlock Grid.Column="0" x:Name="MachineNameText" Style="{StaticResource Heading2}"/>
+            <TextBlock Grid.Column="0" x:Name="MachineNameText" Style="{StaticResource Heading2}" VerticalAlignment="Center"/>
             <Button Grid.Column="1" Content="REFRESH" Style="{StaticResource ButtonSecondary}"
                     Padding="10,5" FontSize="11" Click="RefreshButton_Click"/>
         </Grid>
 
         <TextBlock Grid.Row="1" x:Name="StatusText" Style="{StaticResource Caption}"
-                   TextWrapping="Wrap" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="0,8,0,8"/>
+                   TextWrapping="Wrap" Margin="0,10,0,10"/>
 
         <Grid Grid.Row="2">
+            <Border CornerRadius="12" ClipToBounds="True"
+                    Background="{StaticResource Brush.Background.Card}"
+                    BorderBrush="{StaticResource Brush.Border.Default}" BorderThickness="1">
             <DataGrid x:Name="CommandsGrid" AutoGenerateColumns="False" IsReadOnly="True"
-                      Background="{StaticResource Brush.Background.Card}"
-                      BorderBrush="{StaticResource Brush.Border.Default}" BorderThickness="1"
+                      Background="Transparent"
+                      BorderThickness="0"
                       RowBackground="{StaticResource Brush.Background.Card}"
                       AlternatingRowBackground="{StaticResource Brush.Background.Card}"
                       HorizontalGridLinesBrush="{StaticResource Brush.Border.Default}"
@@ -59,9 +58,10 @@
                     </DataGridTemplateColumn>
                 </DataGrid.Columns>
             </DataGrid>
+            </Border>
             <TextBlock x:Name="EmptyText"
                        Text="ไม่มีคำสั่งที่ค้างอยู่สำหรับเครื่องนี้" Style="{StaticResource Caption}" TextAlignment="Center"
-                       VerticalAlignment="Center" Visibility="Collapsed" IsHitTestVisible="False"/>
+                       VerticalAlignment="Center" IsHitTestVisible="False" Visibility="Collapsed"/>
         </Grid>
     </Grid>
 </Window>
