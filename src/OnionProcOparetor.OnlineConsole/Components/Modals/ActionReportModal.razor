@@ -1,0 +1,160 @@
+@* Ported from ActionReportWindow (WPF) - opens immediately (before any command has actually been sent
+   yet) then fires Request.SendAsync per row itself, so the UI never sits frozen for several seconds
+   waiting for every target machine to be dispatched before showing anything - rows fill in as each
+   send completes, then again as real command results arrive via SignalR (fast path) or polling
+   GET /api/commands/batch/{batchId} every 2s (fallback, same interval the WPF version uses). *@
+@inject ApiClient Api
+@inject LabHubClient LabHub
+@implements IAsyncDisposable
+
+<ModalShell Title="@Request.ActionLabel" OnClose="OnClose">
+    @{
+        var pendingCount = Request.Rows.Count(r => r.IsPending);
+        var doneCount = Request.Rows.Count - pendingCount;
+        var percent = Request.Rows.Count == 0 ? 100 : (int)Math.Round(doneCount * 100.0 / Request.Rows.Count);
+    }
+
+    @* A progress bar, not just "12/40 เสร็จแล้ว". Sending to 40 machines takes a visible amount of
+       time, and a number that changes every second or two gives no sense of how much is left or
+       whether anything is still moving - a bar answers both at a glance, from across a room. *@
+    <div class="progress-row">
+        <div class="progress-track"><div class="progress-fill" style="width:@(percent)%"></div></div>
+        <span class="caption" style="white-space:nowrap">@doneCount/@Request.Rows.Count</span>
+    </div>
+    @if (pendingCount > 0)
+    {
+        <div class="status-text">กำลังรอ @pendingCount เครื่อง...</div>
+    }
+
+    <div class="card-list narrow-only">
+        @foreach (var row in Request.Rows)
+        {
+            <div class="data-card" @key="row.ClientGuid" style="padding:.6rem .7rem; gap:.35rem">
+                <div class="data-card-head">
+                    <div style="flex:1; min-width:0">
+                        <div class="data-card-title" style="font-size:14px">@row.MachineName</div>
+                        @if (!string.IsNullOrEmpty(row.Message))
+                        {
+                            <div class="data-card-sub">@row.Message</div>
+                        }
+                    </div>
+                    <span class="badge @row.StatusCssClass">@row.StatusText</span>
+                </div>
+                @if (row.IsPending && row.CommandId is not null)
+                {
+                    <button class="btn btn-danger btn-sm btn-block" @onclick="() => CancelAsync(row)">ยกเลิกคำสั่งนี้</button>
+                }
+            </div>
+        }
+    </div>
+
+    <div class="table-scroll wide-only">
+        <table>
+            <thead><tr><th>สถานะ</th><th>เครื่อง</th><th>ข้อความ</th><th></th></tr></thead>
+            <tbody>
+                @foreach (var row in Request.Rows)
+                {
+                    <tr @key="row.ClientGuid">
+                        <td><span class="badge @row.StatusCssClass">@row.StatusText</span></td>
+                        <td>@row.MachineName</td>
+                        <td style="white-space:normal">@row.Message</td>
+                        <td>
+                            @if (row.IsPending && row.CommandId is not null)
+                            {
+                                <button class="btn btn-danger btn-sm" @onclick="() => CancelAsync(row)">ยกเลิก</button>
+                            }
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</ModalShell>
+
+@code {
+    [Parameter, EditorRequired] public ActionReportRequest Request { get; set; } = null!;
+    [Parameter] public EventCallback OnClose { get; set; }
+
+    private CancellationTokenSource? _pollCts;
+
+    protected override async Task OnInitializedAsync()
+    {
+        LabHub.CommandResultChanged += OnCommandResultChanged;
+
+        // ยิงให้ทุกเครื่องพร้อมกัน (ไม่รอทีละเครื่อง) - แต่ละแถวอัปเดตตัวเองทันทีที่ send เสร็จ
+        _ = Task.WhenAll(Request.Rows.Select(SendOneAsync));
+
+        if (Request.BatchId is not null)
+        {
+            _pollCts = new CancellationTokenSource();
+            _ = PollLoopAsync(Request.BatchId, _pollCts.Token);
+        }
+    }
+
+    private async Task SendOneAsync(ActionReportRow row)
+    {
+        var (ok, message) = await Request.SendAsync(row);
+        row.Status = ok
+            ? (Request.BatchId is null ? ActionReportStatus.Succeeded : ActionReportStatus.Pending)
+            : ActionReportStatus.SendFailed;
+        row.Message = message;
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task PollLoopAsync(string batchId, CancellationToken ct)
+    {
+        while (!ct.IsCancellationRequested)
+        {
+            try { await Task.Delay(TimeSpan.FromSeconds(2), ct); }
+            catch (OperationCanceledException) { return; }
+
+            var results = await Api.GetBatchStatusAsync(batchId);
+            ApplyResults(results);
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private void OnCommandResultChanged(CommandResultDto dto)
+    {
+        if (dto.BatchId != Request.BatchId) return;
+        ApplyResults([dto]);
+        InvokeAsync(StateHasChanged);
+    }
+
+    private void ApplyResults(IEnumerable<CommandResultDto> results)
+    {
+        foreach (var result in results)
+        {
+            var row = Request.Rows.FirstOrDefault(r => r.CommandId == result.CommandId);
+            if (row is null) continue;
+
+            row.Status = result.ExecutionStatus switch
+            {
+                "Succeeded" => ActionReportStatus.Succeeded,
+                "Failed" => ActionReportStatus.Failed,
+                "TimedOut" => ActionReportStatus.TimedOut,
+                _ => ActionReportStatus.Pending
+            };
+            row.Message = result.ExecutionMessage;
+        }
+    }
+
+    private async Task CancelAsync(ActionReportRow row)
+    {
+        if (row.CommandId is null) return;
+        var (ok, message) = await Api.CancelCommandAsync(row.CommandId.Value);
+        if (!ok)
+        {
+            row.Message = message;
+            StateHasChanged();
+        }
+    }
+
+    public ValueTask DisposeAsync()
+    {
+        LabHub.CommandResultChanged -= OnCommandResultChanged;
+        _pollCts?.Cancel();
+        _pollCts?.Dispose();
+        return ValueTask.CompletedTask;
+    }
+}

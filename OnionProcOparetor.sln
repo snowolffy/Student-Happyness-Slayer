@@ -15,6 +15,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "OnionProcOparetor.Agent", "
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "OnionProcOparetor.UninstallHelper", "src\OnionProcOparetor.UninstallHelper\OnionProcOparetor.UninstallHelper.csproj", "{89297E05-8137-4125-A398-2C6775C0CD6B}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "OnionProcOparetor.OnlineConsole", "src\OnionProcOparetor.OnlineConsole\OnionProcOparetor.OnlineConsole.csproj", "{1DACDDA0-ED42-4331-B827-C28BC18FF99D}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -85,6 +87,18 @@ Global
 		{89297E05-8137-4125-A398-2C6775C0CD6B}.Release|x64.Build.0 = Release|Any CPU
 		{89297E05-8137-4125-A398-2C6775C0CD6B}.Release|x86.ActiveCfg = Release|Any CPU
 		{89297E05-8137-4125-A398-2C6775C0CD6B}.Release|x86.Build.0 = Release|Any CPU
+		{1DACDDA0-ED42-4331-B827-C28BC18FF99D}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{1DACDDA0-ED42-4331-B827-C28BC18FF99D}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{1DACDDA0-ED42-4331-B827-C28BC18FF99D}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{1DACDDA0-ED42-4331-B827-C28BC18FF99D}.Debug|x64.Build.0 = Debug|Any CPU
+		{1DACDDA0-ED42-4331-B827-C28BC18FF99D}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{1DACDDA0-ED42-4331-B827-C28BC18FF99D}.Debug|x86.Build.0 = Debug|Any CPU
+		{1DACDDA0-ED42-4331-B827-C28BC18FF99D}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{1DACDDA0-ED42-4331-B827-C28BC18FF99D}.Release|Any CPU.Build.0 = Release|Any CPU
+		{1DACDDA0-ED42-4331-B827-C28BC18FF99D}.Release|x64.ActiveCfg = Release|Any CPU
+		{1DACDDA0-ED42-4331-B827-C28BC18FF99D}.Release|x64.Build.0 = Release|Any CPU
+		{1DACDDA0-ED42-4331-B827-C28BC18FF99D}.Release|x86.ActiveCfg = Release|Any CPU
+		{1DACDDA0-ED42-4331-B827-C28BC18FF99D}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -92,5 +106,6 @@ Global
 	GlobalSection(NestedProjects) = preSolution
 		{DAAED6AF-0184-471D-9504-BB3959F47FF9} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
 		{89297E05-8137-4125-A398-2C6775C0CD6B} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
+		{1DACDDA0-ED42-4331-B827-C28BC18FF99D} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
 	EndGlobalSection
 EndGlobal

@@ -1,0 +1,1166 @@
+/* ====================================================================================
+   OnionProcOparetor Online Console - design system
+   ------------------------------------------------------------------------------------
+   Palette builds on the WPF Console's Theme/Colors.xaml (same accent orange, same status
+   colors) but the sidebar is a deliberate departure: a deep warm charcoal-brown panel instead
+   of flat white-on-white, so the nav reads as its own layer instead of blending into the
+   content cards (Operate-mode guidance: "a second neutral layer for sidebars, toolbars, and
+   panels"). The warm dark brown also echoes the onion-skin logo's own palette rather than
+   being an arbitrary dark-mode gray, and gives the orange accent something to actually pop
+   against - on the old all-white layout the accent only ever showed up as a thin 3px border.
+
+   Mobile-first throughout (base rules target small screens, @media min-width raises up to
+   desktop) rather than the more common desktop-first + max-width overrides, because the
+   whole point of this app is remote access - a teacher is just as likely to glance at it from
+   a phone on the way out the door as from a desk, and mobile-first means a phone never has to
+   download/parse styles it's going to immediately override, and there's no risk of a missed
+   breakpoint leaving desktop-only assumptions (wide fixed-width tables etc.) active on mobile.
+
+   THEMES: every color below is a token, defined three times - bare :root (light), a
+   prefers-color-scheme:dark block guarded with :not([data-theme="light"]) (so the OS default is
+   honored when the user hasn't chosen), and :root[data-theme="dark"] (so an explicit in-app
+   choice wins in both directions). No color is ever defined ONLY inside a media query, which is
+   the usual way a "dark mode" ends up with one unreadable widget nobody noticed. Dark mode isn't
+   decoration here: this console gets opened at night and in dim labs, and a full-white page on a
+   phone in a dark room is physically unpleasant. Shipping both themes from day one is now the
+   baseline expectation for a dashboard, not a nice-to-have.
+   ==================================================================================== */
+
+:root {
+    color-scheme: light;
+
+    --bg: #F1F2F5;
+    --bg-sunken: #E7E9EE;    /* one step darker than --bg, for table headers / inset strips that must read *below* the card surface */
+    --card: #FFFFFF;
+    --card-raised: #FAFBFC;  /* hover/stripe surface that still reads as "the card", not a new layer */
+    --border: #D7DBE2;
+    --border-strong: #C3C9D2;
+    --accent: #F5A623;
+    --accent-light: #F7B84D;
+    --accent-dark: #D6890F;
+    --accent-text: #B4740C;  /* accent is a mid-orange: legible as a fill behind white text, NOT legible as text on white - so link/label text gets its own darker shade instead of reusing --accent and quietly failing contrast */
+    --online: #2E9B5D;
+    --offline: #9AA1AC;
+    --warning: #EAB308;
+    --warning-text: #8A6A0A; /* same problem as --accent-text: yellow-on-white is unreadable at 11px */
+    --danger: #D64545;
+    --text: #1F2430;
+    --text-secondary: #6B7280;
+    --scroll-thumb: #C7CCD4;
+    --scroll-thumb-hover: #AEB4BF;
+    --overlay: rgba(15, 12, 10, .45);
+
+    /* Sidebar is its own dark layer, independent of the light content palette above. */
+    --sidebar-bg: #241E1A;
+    --sidebar-bg-raised: #2E2621;
+    --sidebar-border: #3B322B;
+    --sidebar-text: #F1EAE3;
+    --sidebar-text-secondary: #A89A8C;
+    --sidebar-active-bg: rgba(245, 166, 35, .16);
+
+    --sidebar-width: 248px;
+    --header-height: 56px;
+    --tabbar-height: 58px;
+    --radius: 8px;
+    --radius-lg: 12px;
+    --shadow-sm: 0 1px 2px rgba(31, 36, 48, .06), 0 1px 1px rgba(31, 36, 48, .04);
+    --shadow-md: 0 4px 12px rgba(31, 36, 48, .08), 0 2px 4px rgba(31, 36, 48, .06);
+    --shadow-lg: 0 12px 32px rgba(31, 36, 48, .16), 0 4px 8px rgba(31, 36, 48, .08);
+}
+
+/* Dark theme token overrides. ONLY colors change here - every size, radius and shadow above is
+   theme-independent, so there is exactly one place to edit layout and two to edit color.
+   Surfaces get *lighter* as they come forward (bg #141210 -> card #1B1815 -> raised #221E1A),
+   because elevation in the dark has to come from luminance: shadows are nearly invisible against
+   a near-black ground, and porting the light theme's shadows unchanged is why most retrofitted
+   dark modes look flat. Status colors are re-picked brighter/less saturated for the same reason -
+   a green tuned to contrast against white (#2E9B5D) goes muddy against #1B1815. */
+@media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+        color-scheme: dark;
+
+        --bg: #141210;
+        --bg-sunken: #0F0D0C;
+        --card: #1B1815;
+        --card-raised: #221E1A;
+        --border: #332C26;
+        --border-strong: #453C34;
+        --accent-text: #F7B84D;
+        --online: #4ADE80;
+        --offline: #8A8681;
+        --warning: #FACC15;
+        --warning-text: #FACC15;
+        --danger: #F87171;
+        --text: #F3EFEA;
+        --text-secondary: #A39C93;
+        --scroll-thumb: #3A322B;
+        --scroll-thumb-hover: #4C4239;
+        --overlay: rgba(0, 0, 0, .62);
+
+        --sidebar-bg: #0F0D0C;
+        --sidebar-bg-raised: #1D1916;
+        --sidebar-border: #2A231E;
+
+        --shadow-sm: 0 1px 2px rgba(0, 0, 0, .4);
+        --shadow-md: 0 4px 12px rgba(0, 0, 0, .45);
+        --shadow-lg: 0 12px 32px rgba(0, 0, 0, .6);
+    }
+}
+
+/* Duplicated rather than shared with the block above on purpose: an explicit choice has to beat
+   the OS preference in BOTH directions (dark UI on a light-mode phone, light UI on a dark-mode
+   phone), and a media query can't express "unless the user said otherwise" for the light case. */
+:root[data-theme="dark"] {
+    color-scheme: dark;
+
+    --bg: #141210;
+    --bg-sunken: #0F0D0C;
+    --card: #1B1815;
+    --card-raised: #221E1A;
+    --border: #332C26;
+    --border-strong: #453C34;
+    --accent-text: #F7B84D;
+    --online: #4ADE80;
+    --offline: #8A8681;
+    --warning: #FACC15;
+    --warning-text: #FACC15;
+    --danger: #F87171;
+    --text: #F3EFEA;
+    --text-secondary: #A39C93;
+    --scroll-thumb: #3A322B;
+    --scroll-thumb-hover: #4C4239;
+    --overlay: rgba(0, 0, 0, .62);
+
+    --sidebar-bg: #0F0D0C;
+    --sidebar-bg-raised: #1D1916;
+    --sidebar-border: #2A231E;
+
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, .4);
+    --shadow-md: 0 4px 12px rgba(0, 0, 0, .45);
+    --shadow-lg: 0 12px 32px rgba(0, 0, 0, .6);
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+    margin: 0;
+    padding: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: "Segoe UI", -apple-system, BlinkMacSystemFont, Roboto, sans-serif;
+    font-size: 14px;
+    -webkit-tap-highlight-color: transparent; /* mobile Safari/Chrome paint a grey flash on tap by default - looks broken next to our own hover/active states */
+    scrollbar-color: var(--scroll-thumb) var(--bg); /* Firefox */
+    overscroll-behavior-y: none; /* stops the whole page rubber-banding past its end on iOS when a scroll gesture starts inside a table - reads as an app, not a web page in a shell */
+}
+
+/* Browser surfaces that no design system draws by default still carry the design - the cheapest
+   signal a page was actually built rather than assembled from framework defaults. */
+::selection { background: var(--accent); color: #fff; }
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: var(--bg); }
+::-webkit-scrollbar-thumb { background: var(--scroll-thumb); border-radius: 999px; border: 2px solid var(--bg); }
+::-webkit-scrollbar-thumb:hover { background: var(--scroll-thumb-hover); }
+
+:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+}
+/* NOTE: no border-radius here. An earlier version set border-radius:2px on the focused element, which
+   doesn't round the OUTLINE - it re-shapes the element itself while it has focus, so a 44px round-cornered
+   icon button visibly turned square the moment you tapped it. Browsers already follow the element's own
+   radius when drawing the outline, so there is nothing to set. */
+
+h1, h2, h3 { margin: 0 0 .5rem; font-weight: 600; }
+.heading1 { font-size: 24px; font-weight: 700; letter-spacing: -.01em; }
+.heading2 { font-size: 18px; font-weight: 600; letter-spacing: -.005em; }
+.caption { font-size: 11px; color: var(--text-secondary); }
+.field-label { font-size: 12px; font-weight: 600; color: var(--text-secondary); text-transform: uppercase; letter-spacing: .04em; }
+.mono { font-family: "Cascadia Mono", Consolas, "SF Mono", ui-monospace, monospace; } /* file paths, hashes, GUIDs - a proportional font makes l/1/I and 0/O ambiguous in exactly the strings an admin has to compare by eye */
+.truncate { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+a { color: var(--accent-text); }
+a:hover { color: var(--text); }
+
+.icon { flex-shrink: 0; }
+
+/* ---- Layout shell ---- */
+
+/* COLUMN, not the default row - found live from a real phone screenshot. The shell's in-flow children
+   are the sticky header and <main> (the sidebar, backdrop and tab bar are all position:fixed, so they
+   sit outside the flow). As a row, that laid the header out as a narrow flex item on the LEFT with the
+   page content beside it, instead of a full-width bar across the top: the "topbar" was not on top at
+   all. Desktop never showed it because the header is display:none there. */
+.app-shell { min-height: 100vh; display: flex; flex-direction: column; }
+
+.app-header {
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    height: calc(var(--header-height) + env(safe-area-inset-top));
+    padding-top: env(safe-area-inset-top); /* notched phones: without this the title sits *under* the status bar / camera cutout once the app is installed to the home screen and runs standalone */
+    display: flex;
+    align-items: center;
+    gap: .65rem;
+    padding-left: 1rem;
+    padding-right: .35rem;
+    background: var(--card);
+    border-bottom: 1px solid var(--border);
+}
+.app-header-logo { width: 26px; height: 26px; object-fit: contain; flex-shrink: 0; }
+.app-title { font-weight: 600; font-size: 15px; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Icon-only header/toolbar button. 44px is the commonly-cited minimum comfortable touch target -
+   a smaller one here is the single most common reason a "responsive" admin panel still feels
+   broken on a real phone. */
+.icon-btn {
+    width: 44px;
+    height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+    border: none;
+    border-radius: var(--radius);
+    cursor: pointer;
+    flex-shrink: 0;
+    color: var(--text);
+    transition: background-color .15s ease;
+}
+.icon-btn:hover { background: var(--bg); }
+
+/* Theme toggle icon swap, done in CSS rather than by JS rewriting the button's contents. Both icons
+   are always in the DOM and CSS picks which one shows, keyed off exactly the same three-state logic
+   theme.css already uses for colors - so the button can live in the statically-rendered header and
+   still show the right glyph immediately on load, with no JS-driven flicker. The button always shows
+   the CURRENT theme (moon = you are in dark), not the destination, since the icon has to be readable
+   as a status even when nobody is about to press it. */
+.theme-toggle .icon-moon { display: none; }
+@media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) .theme-toggle .icon-sun { display: none; }
+    :root:not([data-theme="light"]) .theme-toggle .icon-moon { display: block; }
+}
+:root[data-theme="dark"] .theme-toggle .icon-sun { display: none; }
+:root[data-theme="dark"] .theme-toggle .icon-moon { display: block; }
+:root[data-theme="light"] .theme-toggle .icon-sun { display: block; }
+:root[data-theme="light"] .theme-toggle .icon-moon { display: none; }
+
+/* Sidebar: off-canvas by default below 900px (mobile-first), permanently visible from 900px up
+   (see the desktop media query). Toggled via a class on .app-shell rather than only reacting to
+   @media, because it's a real drawer opened by a real control, not just a mobile fallback. */
+.sidebar {
+    position: fixed;
+    inset: 0 auto 0 0;
+    width: min(82vw, var(--sidebar-width));
+    background: var(--sidebar-bg);
+    display: flex;
+    flex-direction: column;
+    transform: translateX(-100%);
+    transition: transform .2s ease;
+    z-index: 30;
+    box-shadow: var(--shadow-md);
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+}
+.app-shell.sidebar-open .sidebar { transform: translateX(0); }
+
+.sidebar-header {
+    display: flex;
+    align-items: center;
+    gap: .65rem;
+    padding: 1.1rem 1rem;
+    border-bottom: 1px solid var(--sidebar-border);
+}
+.sidebar-logo { width: 40px; height: 40px; object-fit: contain; flex-shrink: 0; }
+.sidebar-brand { min-width: 0; } /* lets the two brand lines shrink instead of widening the drawer */
+.sidebar-brand-name { color: var(--sidebar-text); font-weight: 700; font-size: 14px; line-height: 1.25; }
+.sidebar-brand-sub { color: var(--sidebar-text-secondary); font-size: 11px; }
+
+/* Dim/backdrop behind the sidebar on mobile so tapping outside it closes it - without this the
+   sidebar just floats over content with no obvious "tap here to dismiss" affordance, a common
+   source of users thinking a mobile nav drawer is "stuck open". Hidden entirely on wide screens
+   where the sidebar is persistent, not an overlay.
+
+   The backdrop is always in the DOM and shown/hidden by CSS off .sidebar-open, rather than being
+   added and removed by the layout: the layout is statically rendered here (see app.js), so it has no
+   way to conditionally render anything after the first paint. */
+.sidebar-backdrop {
+    position: fixed;
+    inset: 0;
+    background: var(--overlay);
+    z-index: 25;
+    display: none;
+    animation: fade-in .15s ease;
+}
+.app-shell.sidebar-open .sidebar-backdrop { display: block; }
+
+.sidebar-nav {
+    flex: 1;
+    overflow-y: auto;
+    padding: .6rem;
+    scrollbar-color: var(--sidebar-bg-raised) var(--sidebar-bg);
+}
+
+/* Nav is grouped under quiet section labels instead of being one flat list of eight links. Eight
+   equally-weighted items make the eye read all eight every time; three labelled groups let it jump
+   straight to the right neighbourhood. */
+.sidebar-section {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: var(--sidebar-text-secondary);
+    opacity: .7;
+    padding: .9rem .75rem .35rem;
+}
+.sidebar-section:first-child { padding-top: .3rem; }
+
+.sidebar-link {
+    display: flex;
+    align-items: center;
+    gap: .7rem;
+    padding: .65rem .75rem;
+    border-radius: var(--radius);
+    color: var(--sidebar-text-secondary);
+    text-decoration: none;
+    font-size: 13px;
+    font-weight: 500;
+    min-height: 44px; /* touch target, see .icon-btn */
+    transition: background-color .15s ease, color .15s ease;
+}
+.sidebar-link .icon { color: var(--sidebar-text-secondary); transition: color .15s ease; }
+.sidebar-link:hover { background: var(--sidebar-bg-raised); color: var(--sidebar-text); }
+.sidebar-link:hover .icon { color: var(--sidebar-text); }
+.sidebar-link.active {
+    background: var(--sidebar-active-bg);
+    color: #fff;
+    font-weight: 600;
+}
+.sidebar-link.active .icon { color: var(--accent-light); }
+
+.sidebar-footer {
+    padding: .85rem 1rem 1rem;
+    border-top: 1px solid var(--sidebar-border);
+    font-size: 11px;
+    color: var(--sidebar-text-secondary);
+}
+.sidebar-footer .tailscale-status { display: flex; align-items: center; gap: .4rem; margin-bottom: .65rem; }
+.sidebar-footer .tailscale-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--online);
+    flex-shrink: 0;
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--online) 25%, transparent); /* soft glow reads as "live" without an animation loop running forever */
+}
+.sidebar-logout-btn { width: 100%; }
+
+.app-main {
+    flex: 1;
+    min-width: 0; /* without this a wide child (e.g. a table) can force the whole flex column wider than the viewport, defeating overflow-x:auto below */
+    padding: .75rem;
+    /* Bottom padding clears the fixed tab bar AND the iPhone home-indicator strip, so the last row
+       of a list is never parked permanently underneath the nav where it can't be tapped. */
+    padding-bottom: calc(var(--tabbar-height) + env(safe-area-inset-bottom) + 1rem);
+}
+
+/* ---- Bottom tab bar (mobile/tablet only) ----------------------------------------------------
+   Deliberate replacement for "the hamburger is the only way to navigate". A bottom tab bar keeps
+   the destinations that actually matter permanently visible and inside the thumb's natural arc,
+   where a top-LEFT hamburger is about the furthest point on a phone screen from a right-handed
+   thumb. The published guidance is consistent: <=5 top-level destinations -> tab bar, everything
+   else -> menu, and teams that switched report large jumps in feature discovery simply because
+   out-of-sight nav is out of mind. So the four pages a teacher opens mid-lesson get tabs, and the
+   other four (Rules, Users, Audit Log, Settings) stay one tap away behind "เมนู", which opens the
+   same drawer as before. Desktop never shows this - it has the always-visible sidebar instead. */
+.tab-bar {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 22;
+    display: flex;
+    background: color-mix(in srgb, var(--card) 92%, transparent);
+    -webkit-backdrop-filter: blur(12px);
+    backdrop-filter: blur(12px); /* content scrolling under a solid bar looks like it vanishes into a wall; a translucent blur keeps the page feeling continuous, the way native tab bars do */
+    border-top: 1px solid var(--border);
+    padding-bottom: env(safe-area-inset-bottom);
+}
+.tab-item {
+    flex: 1;
+    min-width: 0;
+    height: var(--tabbar-height);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    text-decoration: none;
+    color: var(--text-secondary);
+    font-size: 10px;
+    font-weight: 600;
+    padding: 0 2px;
+    position: relative;
+    transition: color .15s ease;
+}
+.tab-item span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tab-item.active { color: var(--accent-text); }
+/* Active state is carried by BOTH color and a top rule, never color alone - roughly 1 in 12 men has
+   a color-vision deficiency, and orange-vs-grey is exactly the pair that collapses for them. */
+.tab-item.active::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 22%;
+    right: 22%;
+    height: 2px;
+    border-radius: 0 0 2px 2px;
+    background: var(--accent);
+}
+.tab-item:active { background: var(--bg); }
+
+@media (min-width: 900px) {
+    /* Desktop: sidebar is always visible, full stop - no collapse state here at all. Found live (real
+       report from a real desktop screenshot): an earlier version of this block also had a
+       ".app-shell:not(.sidebar-open) .sidebar { transform: translateX(-100%) }" escape hatch meant to
+       let desktop collapse the sidebar too, but .sidebar-open is only ever added by clicking the
+       hamburger button - which the very next rule below hides on desktop. Since .sidebar-open is never
+       true by default, that "escape hatch" was actually just permanently hiding the sidebar with no way
+       to bring it back, on every desktop load. Simplest correct fix: desktop just doesn't have a
+       collapse feature - .sidebar-open only ever matters below 900px (the off-canvas overlay case). */
+    .sidebar { transform: translateX(0); box-shadow: none; border-right: 1px solid var(--sidebar-border); }
+    .sidebar-backdrop { display: none; }
+    .app-main { margin-left: var(--sidebar-width); padding: 1.75rem 2rem; padding-bottom: 2.5rem; }
+    .app-header { display: none; } /* mobile/tablet affordance only; desktop gets the always-visible sidebar instead */
+    .tab-bar { display: none; }
+}
+
+/* ---- Cards ---- */
+
+.card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 1.1rem;
+    margin-bottom: 1rem;
+    box-shadow: var(--shadow-sm);
+}
+
+/* ---- KPI / stat tiles -----------------------------------------------------------------------
+   A dashboard whose first screen is a raw table makes every visitor do the counting themselves.
+   The standard opening move - and what every current "good dashboard" writeup converges on - is a
+   row of 4-6 single-number tiles answering the questions you'd otherwise scan the table for: how
+   many are online, how many are unprotected, is anything on the fallback path. Four is deliberate:
+   past ~6 the row stops being a glance and becomes another thing to read.
+   2-up on a phone, 4-up from tablet width - two columns keeps each number large enough to read at
+   arm's length instead of squashing four tiles into one unreadable row. */
+.stat-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: .6rem;
+    margin-bottom: 1rem;
+}
+@media (min-width: 700px) { .stat-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: .85rem; } }
+
+.stat-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: .8rem .9rem;
+    box-shadow: var(--shadow-sm);
+    display: flex;
+    flex-direction: column;
+    gap: .15rem;
+    text-align: left;
+    position: relative;
+    overflow: hidden;
+    /* Tiles are real <button>s when they filter the list below them, so they carry the button reset. */
+    font: inherit;
+    color: inherit;
+    width: 100%;
+    cursor: default;
+    transition: border-color .15s ease, transform .1s ease, box-shadow .15s ease;
+}
+/* The accent stripe encodes the tile's status at a glance and, unlike a colored number, survives
+   both themes and a grayscale print. */
+.stat-card::before {
+    content: "";
+    position: absolute;
+    inset: 0 auto 0 0;
+    width: 3px;
+    background: var(--stat-color, var(--accent));
+}
+.stat-card.clickable { cursor: pointer; }
+.stat-card.clickable:hover { border-color: var(--border-strong); box-shadow: var(--shadow-md); }
+.stat-card.clickable:active { transform: scale(.985); }
+.stat-card.selected { border-color: var(--stat-color, var(--accent)); box-shadow: 0 0 0 1px var(--stat-color, var(--accent)); }
+.stat-label {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: .04em;
+    display: flex;
+    align-items: center;
+    gap: .35rem;
+}
+.stat-value {
+    font-size: 26px;
+    font-weight: 700;
+    line-height: 1.15;
+    letter-spacing: -.02em;
+    color: var(--stat-color, var(--text));
+    font-variant-numeric: tabular-nums; /* stops the number jittering sideways as it ticks between e.g. 9 and 10 on every 10s refresh */
+}
+.stat-value .stat-total { font-size: 15px; font-weight: 600; color: var(--text-secondary); letter-spacing: 0; }
+.stat-hint { font-size: 11px; color: var(--text-secondary); }
+
+/* ---- Tables ---- */
+
+/* Every data table on this site is wrapped in .table-scroll rather than being left to overflow the
+   page - an 8-column table simply cannot fit a 360px phone no matter how the CSS is tuned, so the
+   honest wide-screen answer is "let the table scroll horizontally inside its own box". On phones we
+   don't even do that: see .card-list below. */
+/* HORIZONTAL ONLY. An earlier version also capped this at max-height:74vh with overflow-y:auto, to make
+   the sticky <th> below actually stick. Reported from real use, and correct: that produced TWO vertical
+   scrollbars on the same screen - the page's and the table's - so the wheel/finger did different things
+   depending on where the pointer happened to be, and reaching the end of the table then required a
+   second, separate scroll to continue the page. One vertical scroller per screen; here that is the page.
+
+   The sticky header went with it rather than being left in as dead CSS. It cannot work either way: a box
+   with overflow-x:auto is a scroll container on BOTH axes (CSS overflow spec - a `visible` value computes
+   to `auto` when the other axis isn't visible), so a sticky <th> inside sticks to THIS box's scrollport,
+   not the page's. With no height cap the box never scrolls vertically, so the header would simply never
+   stick to anything. Getting both would need the page itself to stop scrolling and the table to become
+   the app's only scroll region - a much bigger change than a sticky header is worth. */
+.table-scroll {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    border-radius: var(--radius-lg);
+    border: 1px solid var(--border);
+    background: var(--card);
+    box-shadow: var(--shadow-sm);
+}
+table { width: 100%; border-collapse: collapse; font-size: 13px; white-space: nowrap; }
+th, td { padding: .65rem .85rem; text-align: left; border-bottom: 1px solid var(--border); }
+th {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+    font-weight: 600;
+    color: var(--text-secondary);
+    background: var(--bg-sunken);
+}
+tbody tr { transition: background-color .1s ease; }
+tbody tr:hover { background: var(--card-raised); }
+tbody tr:last-child td { border-bottom: none; }
+tbody tr.row-attention { background: color-mix(in srgb, var(--danger) 7%, var(--card)); } /* a machine that is offline or unprotected shouldn't need a column-by-column read to spot */
+
+/* Sortable column headers. Sorting is the most-requested table affordance and costs one click to
+   provide; the caret is what makes it discoverable rather than a hidden feature. */
+th.sortable { cursor: pointer; user-select: none; }
+th.sortable:hover { color: var(--text); }
+th .sort-caret { opacity: .4; margin-left: .25rem; font-size: 9px; }
+th.sorted { color: var(--text); }
+th.sorted .sort-caret { opacity: 1; color: var(--accent-text); }
+
+/* ---- Mobile record cards --------------------------------------------------------------------
+   The usual advice is "don't stack tables into cards unless mobile is a primary use case". Here it
+   demonstrably is: the entire reason OnlineConsole exists is checking the lab from a phone over
+   Tailscale, and a sideways-scrolling 7-column grid is a miserable way to answer "is COM-25 up?".
+   So below 720px each row is re-rendered as a card - identity on top, fields as label/value pairs,
+   actions as real full-width buttons. From 720px up the table returns verbatim. The two are
+   alternate renderings of the same data, never different features, so nothing is phone-only. */
+.card-list { display: flex; flex-direction: column; gap: .55rem; }
+.data-card {
+    transition: border-color .2s ease, background-color .2s ease;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--data-card-accent, var(--border));
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-sm);
+    padding: .75rem .85rem;
+    display: flex;
+    flex-direction: column;
+    gap: .5rem;
+}
+.data-card-head { display: flex; align-items: flex-start; gap: .5rem; }
+.data-card-title { font-weight: 700; font-size: 15px; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.data-card-sub { font-size: 11px; color: var(--text-secondary); margin-top: .1rem; word-break: break-word; }
+.data-card-rows { display: grid; grid-template-columns: auto 1fr; gap: .3rem .8rem; font-size: 12px; margin: 0; }
+.data-card-rows dt { color: var(--text-secondary); }
+.data-card-rows dd { margin: 0; text-align: right; overflow: hidden; text-overflow: ellipsis; }
+.data-card-actions { display: flex; gap: .4rem; }
+.data-card-actions .btn { flex: 1; } /* full-width targets: a 60px "ACTIONS" button lifted straight out of a desktop table is the classic mis-tap generator */
+
+/* The one pair of helpers that switches between the two renderings. Named for what they mean
+   ("only on a narrow viewport") rather than for a device, so they still read correctly in a
+   half-width desktop window. */
+.narrow-only { display: block; }
+.wide-only { display: none; }
+@media (min-width: 720px) {
+    .narrow-only { display: none; }
+    .wide-only { display: block; }
+}
+
+/* ---- Badges ---- */
+
+.badge {
+    /* State changes (ONLINE -> OFFLINE, ON -> OFF) ease rather than snap. Cheap, and it is most of the
+       difference between a list that "updates" and one that visibly twitches every 10 seconds. */
+    transition: background-color .2s ease, color .2s ease;
+    display: inline-flex;
+    align-items: center;
+    gap: .35rem;
+    padding: .2rem .6rem;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: .02em;
+    white-space: nowrap;
+}
+.badge::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; flex-shrink: 0; }
+/* Mixing against var(--card) instead of a literal white means these tint correctly in dark mode for
+   free - the old `color-mix(..., white)` produced pale pastel pills glowing off a near-black card. */
+.badge-online { background: color-mix(in srgb, var(--online) 14%, var(--card)); color: var(--online); }
+.badge-offline { background: color-mix(in srgb, var(--offline) 16%, var(--card)); color: var(--offline); }
+.badge-warning { background: color-mix(in srgb, var(--warning) 20%, var(--card)); color: var(--warning-text); }
+.badge-danger { background: color-mix(in srgb, var(--danger) 14%, var(--card)); color: var(--danger); }
+.badge-accent { background: color-mix(in srgb, var(--accent) 16%, var(--card)); color: var(--accent-text); }
+
+/* ---- Filter chips ---------------------------------------------------------------------------
+   A <select> is the wrong control for 3-4 mutually exclusive filters that get switched constantly:
+   it hides the current value behind a tap, hides the options entirely, and on mobile opens a
+   full-screen picker. Chips show the whole choice set AND the current state at once, and each one
+   carries its own count, so the filter row doubles as a second, finer summary. */
+.chip-row {
+    display: flex;
+    gap: .4rem;
+    overflow-x: auto;
+    padding-bottom: .2rem;
+    margin-bottom: .75rem;
+    scrollbar-width: none;
+}
+.chip-row::-webkit-scrollbar { display: none; } /* the row scrolls on a narrow phone; a visible scrollbar under four pills reads as a bug */
+.chip {
+    display: inline-flex;
+    align-items: center;
+    gap: .35rem;
+    padding: .35rem .75rem;
+    min-height: 34px;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    background: var(--card);
+    color: var(--text-secondary);
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    white-space: nowrap;
+    flex-shrink: 0;
+    transition: background-color .15s ease, border-color .15s ease, color .15s ease;
+}
+.chip:hover { border-color: var(--border-strong); color: var(--text); }
+.chip.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+.chip .chip-count { font-variant-numeric: tabular-nums; opacity: .75; }
+
+/* ---- Empty states ---- */
+/* A table with zero rows and nothing else looks broken, not "nothing here yet" - this teaches what
+   the page is for and what to do next instead of leaving a bare header row over blank space. */
+.empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    gap: .5rem;
+    padding: 3rem 1.5rem;
+    color: var(--text-secondary);
+}
+.empty-state .icon { color: var(--border-strong); margin-bottom: .25rem; }
+.empty-state-title { font-size: 14px; font-weight: 600; color: var(--text); }
+.empty-state-detail { font-size: 13px; max-width: 32ch; }
+
+/* ---- Skeleton loading -----------------------------------------------------------------------
+   Shown on first load in place of a spinner. A spinner says "something is happening"; a skeleton
+   says "a list of rows is coming, roughly this many, roughly this wide" - the layout doesn't jump
+   when the data lands, and the wait measures shorter because the page is already half-built. Over
+   Tailscale from a phone on cellular that wait is a real second or two, not a theoretical one. */
+.skeleton {
+    background: linear-gradient(90deg, var(--bg-sunken) 25%, var(--card-raised) 37%, var(--bg-sunken) 63%);
+    background-size: 400% 100%;
+    animation: skeleton-shimmer 1.4s ease infinite;
+    border-radius: var(--radius);
+}
+@keyframes skeleton-shimmer { from { background-position: 100% 50%; } to { background-position: 0 50%; } }
+.skeleton-row { height: 44px; margin-bottom: .5rem; }
+.skeleton-card { height: 96px; margin-bottom: .55rem; border-radius: var(--radius-lg); }
+.skeleton-stat { height: 76px; border-radius: var(--radius-lg); }
+
+/* ---- Buttons ---- */
+
+.btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: .4rem;
+    padding: .5rem 1rem;
+    min-height: 40px; /* comfortable touch target without being as large as the 44px nav links, which look odd this densely packed in a toolbar */
+    border-radius: var(--radius);
+    font-size: 13px;
+    font-weight: 600;
+    border: 1px solid transparent;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background-color .15s ease, border-color .15s ease, transform .1s ease;
+}
+.btn:active { transform: scale(.98); }
+.btn-primary { background: var(--accent); color: #fff; }
+.btn-primary:hover { background: var(--accent-dark); }
+.btn-secondary { background: var(--card); border-color: var(--border); color: var(--text); }
+.btn-secondary:hover { background: var(--card-raised); border-color: var(--border-strong); }
+.btn-danger { background: var(--danger); color: #fff; }
+.btn-danger:hover { filter: brightness(.92); }
+.btn-ghost { background: transparent; color: var(--text-secondary); }
+.btn-ghost:hover { background: var(--bg); color: var(--text); }
+.btn:disabled { opacity: .5; cursor: not-allowed; transform: none; }
+.btn-sm { min-height: 32px; padding: .3rem .6rem; font-size: 12px; }
+.btn-block { width: 100%; }
+
+/* A button that fires a network call and then looks identical for two seconds gets pressed twice.
+   .is-busy spins its icon and blocks the pointer for the duration. */
+.btn.is-busy { pointer-events: none; opacity: .75; }
+.btn.is-busy .icon { animation: spin 1s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* Toolbars (page title + action buttons) wrap onto multiple lines on narrow screens instead of
+   squeezing buttons down to unreadable sizes or forcing horizontal scroll on the whole page. */
+.toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; margin-bottom: 1.1rem; }
+.toolbar .spacer { flex: 1; }
+
+/* Page header: title + a one-line "what am I looking at" subtitle, plus room for a live-status pill.
+   The subtitle is the cheapest way to stop a dense admin screen reading as a wall of nouns. */
+.page-head { display: flex; align-items: flex-start; gap: .75rem; flex-wrap: wrap; margin-bottom: 1rem; }
+.page-head .spacer { flex: 1; }
+.page-subtitle { font-size: 12px; color: var(--text-secondary); margin-top: .15rem; }
+
+/* Live/degraded indicator - the honest answer to "is this page still telling me the truth?".
+   Green pulsing dot = SignalR push connected; amber = pushed dropped, falling back to the 10s poll.
+   A dashboard that silently stops updating is more dangerous than one that is visibly stale. */
+.live-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: .4rem;
+    padding: .25rem .6rem;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 600;
+    background: var(--card);
+    border: 1px solid var(--border);
+    color: var(--text-secondary);
+    white-space: nowrap;
+}
+.live-pill .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--offline); flex-shrink: 0; }
+.live-pill.is-live .dot { background: var(--online); animation: pulse 2.4s ease-out infinite; }
+.live-pill.is-degraded .dot { background: var(--warning); }
+@keyframes pulse {
+    0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--online) 55%, transparent); }
+    70%, 100% { box-shadow: 0 0 0 5px transparent; }
+}
+
+/* ---- Selection bar --------------------------------------------------------------------------
+   When rows are selected the bulk actions come down to the thumb, instead of the thumb going back
+   up to a toolbar that has probably scrolled off the top by then. Having the count in the bar also
+   makes an accidental "select all" impossible to miss before a destructive bulk action. */
+.selection-bar {
+    position: fixed;
+    left: .6rem;
+    right: .6rem;
+    bottom: calc(var(--tabbar-height) + env(safe-area-inset-bottom) + .6rem);
+    z-index: 24;
+    display: flex;
+    align-items: center;
+    gap: .5rem;
+    padding: .6rem .7rem;
+    border-radius: var(--radius-lg);
+    background: var(--sidebar-bg);
+    color: var(--sidebar-text);
+    box-shadow: var(--shadow-lg);
+    animation: sheet-in .18s cubic-bezier(.16, 1, .3, 1);
+}
+.selection-bar .selection-count { font-weight: 700; font-size: 13px; flex: 1; min-width: 0; }
+.selection-bar .btn-secondary { background: var(--sidebar-bg-raised); border-color: var(--sidebar-border); color: var(--sidebar-text); }
+.selection-bar .btn-secondary:hover { background: var(--sidebar-border); }
+@media (min-width: 900px) {
+    .selection-bar { left: calc(var(--sidebar-width) + 2rem); right: 2rem; bottom: 1.25rem; }
+}
+
+/* ---- Forms ---- */
+
+input[type=text], input[type=password], input[type=number], input[type=search], select, textarea {
+    width: 100%;
+    padding: .55rem .65rem;
+    min-height: 40px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    font-size: 14px; /* iOS Safari auto-zooms the page on focus for any input below 16px - 14px matches the rest of the UI, so inputs get an explicit exception below instead of bumping the whole site's base size */
+    background: var(--card);
+    color: var(--text);
+    transition: border-color .15s ease;
+}
+@media (max-width: 480px) {
+    input[type=text], input[type=password], input[type=number], input[type=search], select, textarea {
+        font-size: 16px;
+    }
+}
+input:hover, select:hover, textarea:hover { border-color: var(--border-strong); }
+input:focus, select:focus, textarea:focus { outline: 2px solid var(--accent-light); outline-offset: 1px; border-color: var(--accent); }
+input:disabled, select:disabled, textarea:disabled { background: var(--bg); color: var(--text-secondary); cursor: not-allowed; }
+label { display: block; font-size: 12px; font-weight: 600; color: var(--text-secondary); margin-bottom: .3rem; }
+.form-row { margin-bottom: .85rem; }
+
+/* Search field with a leading magnifier. Typing is faster than any filter UI for 40 machines or 100
+   log lines, but only if the box is obviously a search box. */
+.search-field { position: relative; flex: 1; min-width: 150px; max-width: 320px; }
+.search-field .icon { position: absolute; left: .55rem; top: 50%; transform: translateY(-50%); color: var(--text-secondary); pointer-events: none; }
+.search-field input { padding-left: 2rem; }
+
+/* Checkboxes inherit the width:100% rule above without this, which is why the old table markup had
+   to repeat style="width:auto; min-height:auto" on every single one. */
+input[type=checkbox], input[type=radio] {
+    width: 18px;
+    height: 18px;
+    min-height: 0;
+    accent-color: var(--accent); /* the browser's native blue tick is the one piece of someone else's design system that otherwise shows through on every page */
+    cursor: pointer;
+}
+
+/* ---- Modals ---- */
+/* Full-screen sheet on mobile (a centered floating dialog is awkward on a small screen - nothing to
+   drag, tiny close target, content clipped) vs. a centered card on wider screens. */
+.modal-backdrop {
+    position: fixed;
+    inset: 0;
+    background: var(--overlay);
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    z-index: 50;
+    animation: fade-in .15s ease;
+    -webkit-backdrop-filter: blur(2px);
+    backdrop-filter: blur(2px);
+}
+.modal {
+    background: var(--card);
+    width: 100%;
+    max-height: 92vh;
+    overflow-y: auto;
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+    padding: 1.1rem;
+    padding-bottom: calc(1.1rem + env(safe-area-inset-bottom));
+    box-shadow: var(--shadow-lg);
+    animation: sheet-in .2s cubic-bezier(.16, 1, .3, 1);
+}
+/* Grab handle - the universal "this came up from the bottom and can go back down" signal on mobile.
+   Purely an affordance: the backdrop tap and the close button are what actually dismiss. */
+.modal::before {
+    content: "";
+    display: block;
+    width: 36px;
+    height: 4px;
+    border-radius: 999px;
+    background: var(--border);
+    margin: -.35rem auto .8rem;
+}
+@media (min-width: 700px) {
+    .modal-backdrop { align-items: center; }
+    .modal { width: 640px; max-width: 92vw; border-radius: var(--radius-lg); animation: card-in .18s cubic-bezier(.16, 1, .3, 1); }
+    .modal::before { display: none; }
+}
+.modal-sm { }
+@media (min-width: 700px) { .modal.modal-sm { width: 420px; } } /* a two-line confirm dialog in a 640px shell looks like a bug */
+
+@keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes sheet-in { from { transform: translateY(16px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+@keyframes card-in { from { transform: translateY(8px) scale(.98); opacity: 0; } to { transform: translateY(0) scale(1); opacity: 1; } }
+
+.modal-header { display: flex; align-items: center; gap: .5rem; margin-bottom: 1rem; }
+.modal-header .heading2 { flex: 1; margin: 0; }
+
+/* ---- Progress ---------------------------------------------------------------------------------
+   Used by the action report while a command batch is dispatched to N machines. The bar carries the
+   shape of the answer (how far, still moving?) and the "12/40" beside it carries the exact figure -
+   neither alone does both. */
+.progress-row { display: flex; align-items: center; gap: .6rem; margin-bottom: .5rem; }
+.progress-track { flex: 1; height: 6px; border-radius: 999px; background: var(--bg-sunken); overflow: hidden; }
+.progress-fill { height: 100%; background: var(--accent); border-radius: 999px; transition: width .3s ease; }
+
+/* Same rule inside a modal: the sheet itself is already the scroll container (max-height:92vh,
+   overflow-y:auto), so a table that also scrolled vertically would put two scrollers inside one sheet. */
+
+/* ---- Action sheet ---------------------------------------------------------------------------
+   Grouping for the per-machine command panel. Two columns rather than one, because fifteen
+   full-width buttons stacked vertically is several screens of scrolling on a phone and gives no
+   clue which of them is the one you came for; paired buttons under a section label let the eye
+   land on a group first and read four labels instead of fifteen. Single column below 360px, where
+   two columns would start truncating Thai labels. */
+.action-groups { display: flex; flex-direction: column; gap: 1.1rem; }
+.action-group .field-label { margin-bottom: .45rem; }
+.action-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .5rem; }
+@media (max-width: 360px) { .action-grid { grid-template-columns: 1fr; } }
+
+/* The destructive group is fenced off with its own rule and a tinted ground, so the boundary is
+   visible before the thumb reaches it rather than after. */
+.action-group-danger {
+    border-top: 1px solid var(--border);
+    padding-top: .9rem;
+}
+
+.error-text { color: var(--danger); font-size: 13px; margin: .5rem 0; }
+.status-text { color: var(--text-secondary); font-size: 13px; margin: .5rem 0; }
+
+/* ---- Toasts ---------------------------------------------------------------------------------
+   Replaces the old pattern of writing a result into a <div class="status-text"> at the top of the
+   page: on a phone the top of the page is usually scrolled out of view by the time you tap
+   anything, so "ทำรายการแล้ว" appeared exactly where the user could not see it. Toasts appear over
+   the thumb, get announced by screen readers (aria-live on the host), and expire on their own.
+   Anchored above the tab bar so they never cover the nav. */
+.toast-host {
+    position: fixed;
+    left: .6rem;
+    right: .6rem;
+    bottom: calc(var(--tabbar-height) + env(safe-area-inset-bottom) + .6rem);
+    z-index: 60;
+    display: flex;
+    flex-direction: column;
+    gap: .4rem;
+    pointer-events: none; /* the host spans the screen; only the toasts themselves should catch taps */
+}
+@media (min-width: 900px) {
+    .toast-host { left: auto; right: 1.5rem; bottom: 1.5rem; width: 380px; }
+}
+.toast {
+    pointer-events: auto;
+    display: flex;
+    align-items: flex-start;
+    gap: .55rem;
+    padding: .7rem .8rem;
+    border-radius: var(--radius);
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--toast-color, var(--accent));
+    box-shadow: var(--shadow-lg);
+    font-size: 13px;
+    animation: sheet-in .18s cubic-bezier(.16, 1, .3, 1);
+}
+.toast .icon { color: var(--toast-color, var(--accent)); margin-top: 1px; }
+.toast-body { flex: 1; min-width: 0; }
+.toast-title { font-weight: 600; }
+.toast-detail { color: var(--text-secondary); font-size: 12px; margin-top: .1rem; word-break: break-word; }
+.toast-success { --toast-color: var(--online); }
+.toast-error { --toast-color: var(--danger); }
+.toast-info { --toast-color: var(--accent); }
+
+/* Every animation in this file is decorative - none of them carry information a static style
+   doesn't. So they all come off in one place for users who ask the OS for reduced motion
+   (vestibular disorders, migraine triggers), rather than being disabled one at a time and missing
+   some. */
+@media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+        animation-duration: .001ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: .001ms !important;
+    }
+}
+
+/* ---- Auth pages (Login / ChangePassword) - centered card, no sidebar chrome at all ---- */
+.auth-page {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+    padding-top: calc(1rem + env(safe-area-inset-top));
+    padding-bottom: calc(1rem + env(safe-area-inset-bottom));
+    background: radial-gradient(circle at 50% -10%, color-mix(in srgb, var(--accent) 8%, var(--bg)), var(--bg) 55%);
+}
+.auth-card { width: 100%; max-width: 400px; }
+.auth-brand { display: flex; align-items: center; gap: .85rem; margin-bottom: 1.4rem; }
+.auth-brand img { width: 52px; height: 52px; object-fit: contain; flex-shrink: 0; }
+.auth-brand h1 { margin: 0; font-size: 20px; } /* 24px wrapped "OnionProcOparetor" onto two lines beside the logo on a 360px phone */
+.auth-brand .caption { margin-top: .15rem; }
+
+/* ---- VNC view (Screen View) ---- */
+.vnc-canvas-wrap { position: relative; background: #000; border-radius: var(--radius); overflow: hidden; }
+.vnc-canvas-wrap canvas { display: block; width: 100%; height: auto; touch-action: none; } /* touch-action:none lets vncInterop.js handle single-finger drag as a mouse-move without the page also trying to scroll under it */
+
+/* The multi-tile grid that used to live here is gone with the Live View page (2026-09-04). Left as a
+   note rather than as dead CSS: N tiles = N full-resolution RFB streams, because noVNC has no
+   thumbnail mode. Reinstating a grid needs server-side downscaling first, not a stylesheet. */
+
+/* ---- Navigation progress bar ------------------------------------------------------------------
+   Shown by app.js from the moment a nav link is tapped until Blazor's enhanced navigation finishes.
+   It is indeterminate on purpose: the app has no idea how long the round-trip will take, and a fake
+   percentage that jumps to 90% and waits is a worse lie than an honest "working on it". */
+.nav-progress {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    z-index: 70;
+    background: transparent;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity .15s ease;
+}
+.nav-progress::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(90deg, transparent, var(--accent), var(--accent-light), transparent);
+    transform: translateX(-100%);
+}
+:root.nav-busy .nav-progress { opacity: 1; }
+:root.nav-busy .nav-progress::after { animation: nav-sweep 1.1s ease-in-out infinite; }
+@keyframes nav-sweep {
+    from { transform: translateX(-100%); }
+    to { transform: translateX(100%); }
+}
+
+/* ---- Reconnect overlay -------------------------------------------------------------------------
+   Replaces Blazor's built-in white "Rejoining the server..." card (see the markup in App.razor).
+   Hidden by default and shown purely by the classes Blazor toggles - no JS of ours involved, so it
+   still works in exactly the situation it exists for: the circuit is gone. */
+.reconnect-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    z-index: 80;
+    align-items: center;
+    justify-content: center;
+    padding: 1.25rem;
+    background: var(--overlay);
+    -webkit-backdrop-filter: blur(3px);
+    backdrop-filter: blur(3px);
+}
+.reconnect-overlay.components-reconnect-show,
+.reconnect-overlay.components-reconnect-retrying,
+.reconnect-overlay.components-reconnect-paused,
+.reconnect-overlay.components-reconnect-failed,
+.reconnect-overlay.components-reconnect-resume-failed,
+.reconnect-overlay.components-reconnect-rejected { display: flex; }
+.reconnect-overlay.components-reconnect-hide { display: none; }
+
+.reconnect-card {
+    background: var(--card);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-lg);
+    padding: 1.4rem 1.25rem;
+    width: 100%;
+    max-width: 340px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: .7rem;
+    text-align: center;
+}
+.reconnect-spinner {
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    border: 3px solid var(--border);
+    border-top-color: var(--accent);
+    animation: spin 900ms linear infinite;
+}
+.reconnect-title { font-weight: 700; font-size: 15px; }
+.reconnect-detail { font-size: 12px; color: var(--text-secondary); }
+.reconnect-body { display: none; flex-direction: column; gap: .5rem; align-items: center; }
+/* Each state shows exactly one message block, so "retrying", "gave up" and "session is gone" never
+   overlap - they call for three different actions from the reader. */
+.components-reconnect-show .reconnect-when-show,
+.components-reconnect-paused .reconnect-when-paused,
+.components-reconnect-failed .reconnect-when-failed,
+.components-reconnect-resume-failed .reconnect-when-resume-failed,
+.components-reconnect-rejected .reconnect-when-rejected { display: flex; }
+/* Blazor only fills the countdown while it is actually waiting between attempts (it adds -retrying on
+   top of -show), so the line stays hidden during the first attempt rather than reading "ในอีก 0 วินาที". */
+.reconnect-countdown { display: none; }
+.components-reconnect-retrying .reconnect-countdown { display: block; }
+/* The spinner means "something is still happening". In every terminal state it would be a lie. */
+.components-reconnect-paused .reconnect-spinner,
+.components-reconnect-failed .reconnect-spinner,
+.components-reconnect-resume-failed .reconnect-spinner,
+.components-reconnect-rejected .reconnect-spinner { display: none; }
+
+/* ---- Fullscreen screen view ---------------------------------------------------------------------
+   Two paths to the same result (see app.js): the real Fullscreen API where it exists, and a fixed
+   full-viewport overlay for iPhone Safari, which refuses fullscreen on anything but a <video>.
+   Both are styled here so the two look identical. */
+.screen-stage { position: relative; }
+.screen-stage:fullscreen,
+.screen-stage.faux-fullscreen {
+    background: #000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.screen-stage.faux-fullscreen {
+    position: fixed;
+    inset: 0;
+    z-index: 90;
+    padding: 0;
+}
+/* The VncView card is chrome that only makes sense in the page. In fullscreen the picture IS the
+   page, so the card melts away and the canvas takes the whole viewport. !important is required, not
+   lazy: the height comes in as an inline style from the Height parameter, and inline beats a class. */
+.screen-stage:fullscreen .card,
+.screen-stage.faux-fullscreen .card {
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: #000;
+    box-shadow: none;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+}
+.screen-stage:fullscreen .vnc-canvas-wrap,
+.screen-stage.faux-fullscreen .vnc-canvas-wrap {
+    height: 100% !important;
+    border-radius: 0;
+}
+.screen-stage:fullscreen .caption,
+.screen-stage.faux-fullscreen .caption { display: none; }
+
+/* Exit control lives inside the stage, because in fullscreen nothing outside it is reachable - and on
+   the faux path there is no browser-provided way out at all. */
+.stage-exit {
+    display: none;
+    position: absolute;
+    top: calc(.6rem + env(safe-area-inset-top));
+    right: calc(.6rem + env(safe-area-inset-right));
+    z-index: 2;
+}
+.screen-stage:fullscreen .stage-exit,
+.screen-stage.faux-fullscreen .stage-exit { display: inline-flex; }
+
+/* Screen-reader-only text: the label a sighted user gets from an icon's shape, spoken for someone
+   who doesn't. Cheaper and far more reliable than trying to make every icon-only control
+   self-describing. */
+.sr-only {
+    position: absolute;
+    width: 1px; height: 1px;
+    padding: 0; margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}

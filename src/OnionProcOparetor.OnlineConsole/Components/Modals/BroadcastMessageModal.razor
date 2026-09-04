@@ -1,0 +1,59 @@
+@* Ported from BroadcastMessageWindow (WPF) - collects the message + target scope only, doesn't send
+   anything itself. The caller (Home.razor) reads the result and sends one command per target client,
+   same division of responsibility as the WPF version. *@
+
+<ModalShell Title="Broadcast Message" OnClose="OnClose">
+    <div class="form-row">
+        <label>หัวข้อ (ไม่บังคับ)</label>
+        <input type="text" @bind="_title" />
+    </div>
+    <div class="form-row">
+        <label>ข้อความ</label>
+        <textarea rows="4" @bind="_text"></textarea>
+    </div>
+    <div class="form-row">
+        <label style="display:flex; align-items:center; gap:.4rem; min-height:auto; font-weight:400; text-transform:none">
+            <input type="radio" name="broadcastTarget" checked="@(!_sendToAll)" disabled="@(SelectedCount == 0)" @onchange="() => _sendToAll = false" />
+            ส่งไปเครื่องที่เลือกไว้ (@SelectedCount เครื่อง)
+        </label>
+        <label style="display:flex; align-items:center; gap:.4rem; min-height:auto; font-weight:400; text-transform:none; margin-top:.4rem">
+            <input type="radio" name="broadcastTarget" checked="@_sendToAll" @onchange="() => _sendToAll = true" />
+            ส่งไปทุกเครื่อง
+        </label>
+    </div>
+
+    @if (!string.IsNullOrEmpty(_error))
+    {
+        <div class="error-text">@_error</div>
+    }
+
+    <div class="toolbar">
+        <span class="spacer"></span>
+        <button class="btn btn-secondary" @onclick="OnClose">CANCEL</button>
+        <button class="btn btn-primary" @onclick="Send">SEND</button>
+    </div>
+</ModalShell>
+
+@code {
+    [Parameter] public int SelectedCount { get; set; }
+    [Parameter] public EventCallback OnClose { get; set; }
+    [Parameter] public EventCallback<(string? Title, string Text, bool SendToAll)> OnSend { get; set; }
+
+    private string? _title;
+    private string _text = string.Empty;
+    private bool _sendToAll;
+    private string? _error;
+
+    protected override void OnInitialized() => _sendToAll = SelectedCount == 0;
+
+    private async Task Send()
+    {
+        if (string.IsNullOrWhiteSpace(_text))
+        {
+            _error = "กรอกข้อความก่อน";
+            return;
+        }
+
+        await OnSend.InvokeAsync((_title, _text, _sendToAll));
+    }
+}

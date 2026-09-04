@@ -1,0 +1,36 @@
+@* Bottom tab bar - the primary navigation on phones and tablets (hidden from 900px up, where the
+   sidebar is permanently visible instead).
+
+   Why this exists at all: a top-left hamburger is roughly the furthest point on a phone screen from a
+   right-handed thumb, and it hides every destination behind a tap, so people forget the app has them.
+   The consistent published guidance is "up to five top-level destinations belong in a visible bottom
+   bar; the rest belong in a menu", and teams that made the switch report large jumps in feature
+   discovery for exactly that reason. So the four screens a teacher opens mid-lesson are always one
+   thumb-tap away, and the four administrative ones (Rules, Users, Audit Log, Settings) stay behind
+   "เมนู", which opens the same drawer.
+
+   Plain <NavLink>s (anchors) rather than click handlers, deliberately: this component is rendered
+   inside the statically-rendered layout, so anchors are the only navigation that can work here at all -
+   and they are also what gives long-press-to-open-in-new-tab, middle-click, and keyboard focus order
+   for free. The "เมนู" item is the one non-navigation control, and it goes through the same
+   data-drawer-toggle hook app.js binds for the header button. *@
+
+<nav class="tab-bar" aria-label="เมนูหลัก">
+    <NavLink class="tab-item" href="" Match="NavLinkMatch.All">
+        <Icon Name="monitor" Size="21" /> <span>Clients</span>
+    </NavLink>
+    @* Rules took the slot the Live View grid used to hold. Screen View is deliberately NOT a tab: it
+       only ever makes sense for one specific machine, so it is reached from that machine's row/card. *@
+    <NavLink class="tab-item" href="rules">
+        <Icon Name="shield" Size="21" /> <span>Rules</span>
+    </NavLink>
+    <NavLink class="tab-item" href="program-review">
+        <Icon Name="search" Size="21" /> <span>Programs</span>
+    </NavLink>
+    <NavLink class="tab-item" href="logs">
+        <Icon Name="file-text" Size="21" /> <span>Logs</span>
+    </NavLink>
+    <button type="button" class="tab-item" data-drawer-toggle aria-controls="app-drawer" aria-expanded="false">
+        <Icon Name="more-horizontal" Size="21" /> <span>เมนู</span>
+    </button>
+</nav>

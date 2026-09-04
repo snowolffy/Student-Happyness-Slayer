@@ -1,0 +1,175 @@
+@* Ported from RunningProcessesWindow (WPF). Fetch is async over SignalR, not a plain REST call: sending
+   "GetRunningProcesses" just asks the Agent to go scan (it has to relay the request to AgentTray, which
+   runs in the interactive user session since the Agent service itself runs as Session-0 LocalSystem and
+   can't see real desktop windows) - the actual list arrives later via the ProcessListReady hub event. *@
+@inject ApiClient Api
+@inject LabHubClient LabHub
+@inject ToastService Toasts
+@implements IDisposable
+
+<ModalShell Title="@($"โปรแกรมที่เปิดอยู่ - {Client.MachineName}")" OnClose="OnClose">
+    @if (_processes.Count == 0)
+    {
+        @* This wait is a real one - the request goes Server -> Agent -> AgentTray and back - so it gets
+           a proper waiting state instead of an empty box with a line of grey text under it. *@
+        <div style="padding:1.5rem 0">
+            @if (_failed)
+            {
+                <EmptyState IconName="alert-triangle" Title="ขอรายการไม่สำเร็จ" Detail="@_status" />
+            }
+            else if (_loaded)
+            {
+                @* An empty list that arrived successfully is not an error - it means the student has
+                   nothing with a visible window open, which is a perfectly normal (and good) answer. *@
+                <EmptyState IconName="inbox" Title="ไม่พบโปรแกรมที่มีหน้าต่างเปิดอยู่"
+                            Detail="เครื่องนี้ตอบกลับแล้ว แต่ไม่มีโปรแกรมที่แสดงหน้าต่างอยู่ตอนนี้" />
+            }
+            else
+            {
+                <div class="status-text" style="text-align:center">@_status</div>
+                @for (var i = 0; i < 4; i++) { <div class="skeleton skeleton-row"></div> }
+            }
+        </div>
+    }
+    else
+    {
+        @* Search, because this list is routinely 40+ entries long and the entire reason anyone opens it
+           is to find one specific program. Scrolling a modal-inside-a-sheet on a phone to find
+           "roblox" among 40 rows is the worst interaction in the app without it. *@
+        <div style="margin-bottom:.75rem">
+            <SearchBox Value="@_search" ValueChanged="@(v => { _search = v; StateHasChanged(); })"
+                       Placeholder="ค้นหาโปรแกรม / หน้าต่าง..." AriaLabel="ค้นหาโปรแกรม" />
+        </div>
+
+        <div class="card-list narrow-only">
+            @foreach (var proc in Filtered())
+            {
+                <div class="data-card" @key="proc.Pid" style="padding:.65rem .75rem">
+                    <div class="data-card-head">
+                        <div style="flex:1; min-width:0">
+                            <div class="data-card-title">@proc.ProcessName</div>
+                            <div class="data-card-sub">@(string.IsNullOrWhiteSpace(proc.WindowTitle) ? "(ไม่มีชื่อหน้าต่าง)" : proc.WindowTitle)</div>
+                        </div>
+                        @if (proc.HasPublisher)
+                        {
+                            <span class="badge @(proc.IsSignedMatch ? "badge-online" : "badge-offline")">มีลายเซ็น</span>
+                        }
+                        else
+                        {
+                            <span class="badge badge-warning">ไม่มีลายเซ็น</span>
+                        }
+                    </div>
+                    <div class="data-card-actions">
+                        <button class="btn btn-secondary btn-sm" @onclick="() => _ruleFromProcess = proc">สร้างกฎ</button>
+                        <button class="btn btn-danger btn-sm" disabled="@(!proc.CanBlockByHash)" @onclick="() => BlockByHashAsync(proc)">บล็อก</button>
+                    </div>
+                </div>
+            }
+        </div>
+
+        <div class="table-scroll wide-only">
+            <table>
+                <thead><tr><th>PID</th><th>Process</th><th>Window Title</th><th>Publisher</th><th></th></tr></thead>
+                <tbody>
+                    @foreach (var proc in Filtered())
+                    {
+                        <tr @key="proc.Pid">
+                            <td>@proc.Pid</td>
+                            <td><strong>@proc.ProcessName</strong></td>
+                            <td>@proc.WindowTitle</td>
+                            <td>@(proc.HasPublisher ? proc.PublisherName : "(ไม่มี publisher)")</td>
+                            <td>
+                                <div style="display:flex; gap:.3rem">
+                                    <button class="btn btn-secondary btn-sm" @onclick="() => _ruleFromProcess = proc">CREATE RULE</button>
+                                    @* Disabled when the Agent couldn't hash the file - the tooltip says why,
+                                       because a permanently greyed button with no explanation reads as a bug. *@
+                                    <button class="btn btn-danger btn-sm" disabled="@(!proc.CanBlockByHash)"
+                                            title="@(proc.CanBlockByHash ? "บล็อกด้วย SHA-256 ของไฟล์นี้" : "เครื่องอ่าน SHA-256 ของไฟล์นี้ไม่ได้ จึงบล็อกด้วยแฮชไม่ได้")"
+                                            @onclick="() => BlockByHashAsync(proc)">BLOCK</button>
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</ModalShell>
+
+@if (_ruleFromProcess is not null)
+{
+    <AddEditRuleModal
+        InitialRule="@(new RuleDto { Name = _ruleFromProcess.ProcessName, PublisherName = _ruleFromProcess.PublisherName ?? string.Empty })"
+        OnClose="() => _ruleFromProcess = null"
+        OnSaved="() => _ruleFromProcess = null" />
+}
+
+@code {
+    [Parameter, EditorRequired] public ClientMachineDto Client { get; set; } = null!;
+    [Parameter] public EventCallback OnClose { get; set; }
+
+    private List<RunningProcessDto> _processes = new();
+    private RunningProcessDto? _ruleFromProcess;
+    private string _status = "กำลังขอรายการโปรแกรมจากเครื่อง...";
+    private bool _failed;
+    private bool _loaded; // the reply arrived (even if it was an empty list) - distinguishes waiting from nothing-to-show
+    private string _search = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        LabHub.ProcessListReady += OnProcessListReady;
+        LabHub.ProcessListFailed += OnProcessListFailed;
+
+        await Api.SendCommandAsync(Client.ClientGuid, "GetRunningProcesses", new { requestingConsoleSessionId = LabHub.SessionId });
+    }
+
+    private IEnumerable<RunningProcessDto> Filtered() => string.IsNullOrWhiteSpace(_search)
+        ? _processes
+        : _processes.Where(p =>
+            p.ProcessName.Contains(_search, StringComparison.OrdinalIgnoreCase) ||
+            (p.WindowTitle?.Contains(_search, StringComparison.OrdinalIgnoreCase) ?? false) ||
+            (p.PublisherName?.Contains(_search, StringComparison.OrdinalIgnoreCase) ?? false));
+
+    private void OnProcessListReady(string clientGuid, string json)
+    {
+        if (clientGuid != Client.ClientGuid) return; // could be a reply to a different open modal's request
+
+        try
+        {
+            _processes = System.Text.Json.JsonSerializer.Deserialize<List<RunningProcessDto>>(json) ?? new();
+            _status = string.Empty;
+            _loaded = true;
+        }
+        catch
+        {
+            _status = "อ่านผลลัพธ์จากเครื่องไม่สำเร็จ";
+            _failed = true;
+        }
+
+        InvokeAsync(StateHasChanged);
+    }
+
+    private void OnProcessListFailed(string clientGuid, string reason)
+    {
+        if (clientGuid != Client.ClientGuid) return;
+        _status = reason;
+        _failed = true;
+        InvokeAsync(StateHasChanged);
+    }
+
+    private async Task BlockByHashAsync(RunningProcessDto process)
+    {
+        var (ok, message) = await Api.SetManualProgramVerdictAsync(process, Client.MachineName, action: 2);
+
+        // Toast rather than overwriting _status: _status is the loading/error line for the LIST, and
+        // reusing it for an action result meant a successful block wiped the header of a list the user
+        // was still reading - and on a long list, the message was scrolled out of sight anyway.
+        Toasts.Result(ok, $"บล็อก {process.ProcessName} แล้ว", "บล็อกไม่สำเร็จ", message);
+    }
+
+    public void Dispose()
+    {
+        LabHub.ProcessListReady -= OnProcessListReady;
+        LabHub.ProcessListFailed -= OnProcessListFailed;
+    }
+}

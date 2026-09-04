@@ -1,0 +1,79 @@
+@* Debounced search input.
+
+   THE PROBLEM IT SOLVES: every page here used `@@bind:event="oninput"`, which in Blazor Server means a
+   WebSocket round-trip to the server on EVERY KEYSTROKE - the server then re-filters the list, re-renders
+   both the table and the card list, and ships a DOM diff back. Over Tailscale from a phone that is one
+   full network round-trip per character, and it is exactly why typing felt like the app was thinking
+   about something else.
+
+   Two changes fix it:
+
+   1. DEBOUNCE (300ms). The keystroke still reaches the server, but the expensive part - re-filtering and
+      re-rendering the list - only runs once the user pauses. 300ms is the widely used figure: long
+      enough to swallow a burst of typing, short enough that the result still feels immediate.
+
+   2. THE INPUT IS NOT TWO-WAY BOUND. `value` is written once, at first render, and never re-sent from
+      server state afterwards. That matters more than the debounce: with @@bind, the server echoes the
+      value back and Blazor writes it into the DOM, so on a slow link characters can visibly reorder or
+      get eaten mid-word. Left unbound, the browser's own input handling stays in charge and typing is
+      always instant regardless of latency - the only thing that waits is the filtered list.
+
+   The cancellation is deliberately per-keystroke: each new character cancels the pending timer, so N
+   fast characters produce exactly one filter pass, not N. *@
+@implements IDisposable
+
+<div class="search-field">
+    <Icon Name="search" Size="16" />
+    <input type="search"
+           placeholder="@Placeholder"
+           aria-label="@(AriaLabel ?? Placeholder)"
+           value="@_initialValue"
+           @oninput="OnInputAsync" />
+</div>
+
+@code {
+    /// <summary>Initial text only - this is NOT re-applied on later renders, by design (see the note above).</summary>
+    [Parameter] public string Value { get; set; } = string.Empty;
+
+    [Parameter] public EventCallback<string> ValueChanged { get; set; }
+    [Parameter] public string Placeholder { get; set; } = "ค้นหา...";
+    [Parameter] public string? AriaLabel { get; set; }
+
+    /// <summary>Quiet period before the search actually runs. Raise it for a filter that hits the Server
+    /// (Audit Log queries by GUID), leave it for one that filters an already-loaded list.</summary>
+    [Parameter] public int DelayMs { get; set; } = 300;
+
+    private string _initialValue = string.Empty;
+    private CancellationTokenSource? _debounce;
+
+    protected override void OnInitialized() => _initialValue = Value;
+
+    private async Task OnInputAsync(ChangeEventArgs e)
+    {
+        var text = e.Value?.ToString() ?? string.Empty;
+
+        _debounce?.Cancel();
+        _debounce?.Dispose();
+        _debounce = new CancellationTokenSource();
+        var token = _debounce.Token;
+
+        try
+        {
+            await Task.Delay(DelayMs, token);
+        }
+        catch (TaskCanceledException)
+        {
+            return; // a newer keystroke arrived - that one owns the search now
+        }
+
+        if (token.IsCancellationRequested) return;
+        await ValueChanged.InvokeAsync(text);
+    }
+
+    public void Dispose()
+    {
+        // Without this, closing a page mid-type leaves a timer that resolves into a disposed component.
+        _debounce?.Cancel();
+        _debounce?.Dispose();
+    }
+}

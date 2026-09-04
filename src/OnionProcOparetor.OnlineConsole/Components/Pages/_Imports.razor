@@ -1,0 +1,4 @@
+@* Every page under Components/Pages requires authentication by default - Login.razor is the one
+   exception and explicitly opts out with @attribute [AllowAnonymous]. This is easier to keep correct
+   than annotating every single page individually and risking a forgotten [Authorize]. *@
+@attribute [Authorize]

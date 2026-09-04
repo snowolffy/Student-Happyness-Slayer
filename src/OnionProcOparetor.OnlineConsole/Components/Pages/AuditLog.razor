@@ -1,0 +1,186 @@
+@page "/audit-log"
+@rendermode InteractiveServer
+@inherits AuthenticatedPageBase
+
+<PageTitle>Audit Log - OnionProcOparetor Online Console</PageTitle>
+
+<div class="page-head">
+    <div>
+        <h2 class="heading2" style="margin:0">Audit Log</h2>
+        <div class="page-subtitle">ใครสั่งอะไร เครื่องไหนหลุด และระบบทำอะไรเอง - เรียงจากใหม่ไปเก่า</div>
+    </div>
+</div>
+
+@* Severity as chips rather than the old <select>: this is the filter that gets switched constantly
+   ("แค่ที่เป็นปัญหา"), and a dropdown hides both the current value and the options behind a tap. The
+   category stays a <select> because it has no natural order and is changed far less often. *@
+<div class="chip-row">
+    @foreach (var (value, label) in Severities)
+    {
+        <button class="chip @(_minSeverity == value ? "active" : "")" @onclick="() => SetSeverityAsync(value)">@label</button>
+    }
+</div>
+
+<div class="toolbar">
+    <select @bind="_category" @bind:after="ReloadFromFirstPageAsync" style="max-width:190px" aria-label="กรองตามหมวด">
+        <option value="">ทุกหมวด</option>
+        <option value="AdminAction">Admin Action</option>
+        <option value="AgentConnectivity">Agent Connectivity</option>
+        <option value="SystemEvent">System Event</option>
+    </select>
+    @* Longer debounce than the others: this filter round-trips all the way to the Server API and back,
+       soevery keystroke would be a real query, not just a re-render. *@
+    <SearchBox Value="@_clientGuid" DelayMs="500" ValueChanged="OnGuidFilterChangedAsync"
+               Placeholder="Client GUID..." AriaLabel="กรองตาม Client GUID" />
+</div>
+
+@if (_loading)
+{
+    @for (var i = 0; i < 6; i++) { <div class="skeleton skeleton-card"></div> }
+}
+else if (_page.Items.Count == 0)
+{
+    <div class="card">
+        <EmptyState IconName="clock" Title="ไม่มีรายการในช่วงนี้"
+                    Detail="ลองเปลี่ยนระดับความรุนแรง หรือล้างตัวกรองหมวด/Client GUID" />
+    </div>
+}
+else
+{
+    @* Phone rendering: the event and its description carry the meaning, so they lead; category, actor
+       and machine become detail rows. Severity keeps its badge in the top-right where the eye lands
+       first, because scanning for Error/Critical is the entire reason to open this page. *@
+    <div class="card-list narrow-only">
+        @foreach (var entry in _page.Items)
+        {
+            <div class="data-card" @key="entry.Id" style="--data-card-accent: @SeverityColor(entry.Severity)">
+                <div class="data-card-head">
+                    <div style="flex:1; min-width:0">
+                        <div class="data-card-title">@entry.EventType</div>
+                        <div class="data-card-sub">@entry.Description</div>
+                    </div>
+                    <span class="badge @SeverityBadge(entry.Severity)">@entry.Severity</span>
+                </div>
+                <dl class="data-card-rows">
+                    <dt>เวลา</dt><dd><TimeAgo Value="entry.Timestamp" /></dd>
+                    <dt>หมวด</dt><dd>@entry.Category</dd>
+                    @if (!string.IsNullOrEmpty(entry.TargetMachineName)) { <dt>เครื่อง</dt><dd>@entry.TargetMachineName</dd> }
+                    @if (!string.IsNullOrEmpty(entry.ActorUsername)) { <dt>ผู้สั่ง</dt><dd>@entry.ActorUsername</dd> }
+                </dl>
+            </div>
+        }
+    </div>
+
+    <div class="table-scroll wide-only">
+        <table>
+            <thead><tr><th>Time</th><th>Category</th><th>Severity</th><th>Event</th><th>Description</th><th>Machine</th><th>Admin</th></tr></thead>
+            <tbody>
+                @foreach (var entry in _page.Items)
+                {
+                    <tr @key="entry.Id">
+                        <td><TimeAgo Value="entry.Timestamp" /></td>
+                        <td>@entry.Category</td>
+                        <td><span class="badge @SeverityBadge(entry.Severity)">@entry.Severity</span></td>
+                        <td>@entry.EventType</td>
+                        <td style="white-space:normal; min-width:280px">@entry.Description</td>
+                        <td>@entry.TargetMachineName</td>
+                        <td>@entry.ActorUsername</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+
+    @* Pager sits below both renderings and states the range, not just the page number: "1-100 จาก 3,412"
+       tells you how far in you are, which a bare "หน้า 2" never does. Icon + label so the two buttons
+       stay distinguishable at a glance on a small screen. *@
+    <div class="toolbar" style="margin-top:1rem">
+        <button class="btn btn-secondary btn-sm" disabled="@(_pageNum <= 1)" @onclick="PrevPageAsync">
+            <Icon Name="chevron-left" Size="14" /> ก่อนหน้า
+        </button>
+        <span class="caption">@FirstRowNumber()-@LastRowNumber() จาก @_page.TotalCount รายการ</span>
+        <span class="spacer"></span>
+        <button class="btn btn-secondary btn-sm" disabled="@(_pageNum * _pageSize >= _page.TotalCount)" @onclick="NextPageAsync">
+            ถัดไป <Icon Name="chevron-right" Size="14" />
+        </button>
+    </div>
+}
+
+@code {
+    private ActivityLogPageDto _page = new();
+    private int _pageNum = 1;
+    private readonly int _pageSize = 100;
+    private string _category = string.Empty;
+    private string _minSeverity = string.Empty;
+    private string _clientGuid = string.Empty;
+    private bool _loading = true;
+
+    private static readonly (string Value, string Label)[] Severities =
+    {
+        ("", "ทุกระดับ"),
+        ("Info", "Info"),
+        ("Warning", "Warning"),
+        ("Error", "Error"),
+        ("Critical", "Critical")
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        await base.OnInitializedAsync();
+        await LoadAsync();
+        _loading = false;
+    }
+
+    private async Task LoadAsync()
+    {
+        _page = await Api.GetActivityLogAsync(
+            string.IsNullOrEmpty(_category) ? null : _category,
+            string.IsNullOrEmpty(_minSeverity) ? null : _minSeverity,
+            string.IsNullOrEmpty(_clientGuid) ? null : _clientGuid,
+            _pageNum, _pageSize);
+    }
+
+    /// <summary>
+    /// Any filter change resets to page 1 before reloading. Without this, changing the filter while on
+    /// page 4 asks the Server for page 4 of a much shorter result set and gets an empty list back - the
+    /// page then looks like "your filter matched nothing", which is a lie, and the only way out is to
+    /// notice the pager and walk backwards.
+    /// </summary>
+    private async Task ReloadFromFirstPageAsync()
+    {
+        _pageNum = 1;
+        await LoadAsync();
+    }
+
+    private async Task OnGuidFilterChangedAsync(string value)
+    {
+        _clientGuid = value;
+        await ReloadFromFirstPageAsync();
+    }
+
+    private async Task SetSeverityAsync(string severity)
+    {
+        _minSeverity = severity;
+        await ReloadFromFirstPageAsync();
+    }
+
+    private async Task NextPageAsync() { _pageNum++; await LoadAsync(); }
+    private async Task PrevPageAsync() { if (_pageNum > 1) { _pageNum--; await LoadAsync(); } }
+
+    private int FirstRowNumber() => _page.TotalCount == 0 ? 0 : ((_pageNum - 1) * _pageSize) + 1;
+    private int LastRowNumber() => Math.Min(_pageNum * _pageSize, _page.TotalCount);
+
+    private static string SeverityBadge(string severity) => severity switch
+    {
+        "Critical" or "Error" => "badge-danger",
+        "Warning" => "badge-warning",
+        _ => "badge-offline"
+    };
+
+    private static string SeverityColor(string severity) => severity switch
+    {
+        "Critical" or "Error" => "var(--danger)",
+        "Warning" => "var(--warning)",
+        _ => "var(--border)"
+    };
+}

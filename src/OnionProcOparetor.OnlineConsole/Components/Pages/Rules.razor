@@ -1,0 +1,194 @@
+@page "/rules"
+@rendermode InteractiveServer
+@inherits AuthenticatedPageBase
+@inject ToastService Toasts
+
+<PageTitle>Rules - OnionProcOparetor Online Console</PageTitle>
+
+<div class="page-head">
+    <div>
+        <h2 class="heading2" style="margin:0">Rules</h2>
+        <div class="page-subtitle">กฎที่ Agent ทุกเครื่องใช้ตัดสินว่าโปรแกรมไหนถูกบล็อก</div>
+    </div>
+    <span class="spacer"></span>
+    <button class="btn btn-primary" @onclick="() => _editing = new RuleDto()">
+        <Icon Name="plus" Size="15" /> เพิ่มกฎ
+    </button>
+</div>
+
+@if (_loading)
+{
+    @for (var i = 0; i < 4; i++) { <div class="skeleton skeleton-card"></div> }
+}
+else if (_rules.Count == 0)
+{
+    <div class="card">
+        <EmptyState IconName="shield" Title="ยังไม่มีกฎ"
+                    Detail="กด เพิ่มกฎ เพื่อสร้างกฎแรก - ตราบใดที่ยังไม่มีกฎ Agent จะไม่บล็อกโปรแกรมใดเลย" />
+    </div>
+}
+else
+{
+    @* Phone rendering. The ON/OFF switch stays on the card's top line because enable/disable is by far
+       the most common thing done here - being able to turn a rule off in two taps from a phone is the
+       reason a teacher opens this page mid-lesson at all. *@
+    <div class="card-list narrow-only">
+        @foreach (var rule in _rules)
+        {
+            <div class="data-card" @key="rule.Id"
+                 style="--data-card-accent: @(rule.IsEnabled ? "var(--online)" : "var(--offline)")">
+                <div class="data-card-head">
+                    <div style="flex:1; min-width:0">
+                        <div class="data-card-title">@rule.Name</div>
+                        <div class="data-card-sub">@RuleSummary(rule)</div>
+                    </div>
+                    <button class="badge @(rule.IsEnabled ? "badge-online" : "badge-offline")"
+                            style="border:none; cursor:pointer" @onclick="() => ToggleAsync(rule)">
+                        @(rule.IsEnabled ? "เปิด" : "ปิด")
+                    </button>
+                </div>
+
+                <dl class="data-card-rows">
+                    <dt>ต้องตรงลายเซ็น</dt><dd>@(rule.RequireSignedMatch ? "ใช่" : "ไม่")</dd>
+                    <dt>ปิดโปรเซส</dt><dd>@(rule.KillProcess ? "ใช่" : "ไม่")</dd>
+                    @if (!string.IsNullOrWhiteSpace(rule.ActionCommand))
+                    {
+                        <dt>คำสั่งเพิ่มเติม</dt><dd class="mono truncate">@rule.ActionCommand</dd>
+                    }
+                </dl>
+
+                <div class="data-card-actions">
+                    <button class="btn btn-secondary btn-sm" @onclick="() => _editing = rule">
+                        <Icon Name="edit" Size="14" /> แก้ไข
+                    </button>
+                    <button class="btn btn-danger btn-sm" @onclick="() => _deleting = rule">
+                        <Icon Name="trash" Size="14" /> ลบ
+                    </button>
+                </div>
+            </div>
+        }
+    </div>
+
+    <div class="table-scroll wide-only">
+        <table>
+            <thead>
+                <tr>
+                    <th>Status</th><th>Name</th><th>Publisher</th><th>Name Contains</th>
+                    <th>Signed Only</th><th>Kill</th><th>Action Command</th><th></th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var rule in _rules)
+                {
+                    <tr @key="rule.Id">
+                        <td>
+                            <button class="badge @(rule.IsEnabled ? "badge-online" : "badge-offline")" style="border:none; cursor:pointer" @onclick="() => ToggleAsync(rule)">
+                                @(rule.IsEnabled ? "ON" : "OFF")
+                            </button>
+                        </td>
+                        <td><strong>@rule.Name</strong></td>
+                        <td>@rule.PublisherName</td>
+                        <td>@rule.ProcessNameContains</td>
+                        <td>@(rule.RequireSignedMatch ? "Yes" : "No")</td>
+                        <td>@(rule.KillProcess ? "Yes" : "No")</td>
+                        <td class="mono">@rule.ActionCommand</td>
+                        <td>
+                            <div style="display:flex; gap:.3rem">
+                                <button class="btn btn-secondary btn-sm" @onclick="() => _editing = rule">EDIT</button>
+                                <button class="btn btn-danger btn-sm" @onclick="() => _deleting = rule">DELETE</button>
+                            </div>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+}
+
+@if (_editing is not null)
+{
+    <AddEditRuleModal InitialRule="@(_editing.Id == 0 ? null : _editing)" OnClose="() => _editing = null" OnSaved="LoadAsync" />
+}
+
+@* Deleting a rule used to happen on the first tap, with no confirmation and no undo - and it applies
+   to all 40 lab machines at once. On a phone, where DELETE sat inside a sideways-scrolling table right
+   next to EDIT, that was one mis-tap away at all times. The dialog names the rule so the user can
+   check it against what they meant to hit. *@
+@if (_deleting is not null)
+{
+    <ConfirmDialog Title="ลบกฎนี้?"
+                   Message="@($"กฎ \"{_deleting.Name}\" จะถูกลบถาวรและมีผลกับทุกเครื่องทันที การลบนี้ย้อนกลับไม่ได้")"
+                   ConfirmText="ลบกฎ"
+                   OnCancel="() => _deleting = null"
+                   OnConfirm="DeleteConfirmedAsync" />
+}
+
+@code {
+    private List<RuleDto> _rules = new();
+    private RuleDto? _editing;
+    private RuleDto? _deleting;
+    private bool _loading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await base.OnInitializedAsync();
+        await LoadAsync();
+        _loading = false;
+    }
+
+    private async Task LoadAsync() => _rules = await Api.GetRulesAsync();
+
+    /// <summary>The one-line "what does this rule actually match" summary for the phone card, assembled
+    /// from whichever criteria the rule uses. The table shows those as separate columns; a card has no
+    /// room for empty columns, so the fields that are set are joined into a sentence instead.</summary>
+    private static string RuleSummary(RuleDto rule)
+    {
+        var parts = new List<string>();
+        if (!string.IsNullOrWhiteSpace(rule.PublisherName)) parts.Add($"ผู้เผยแพร่: {rule.PublisherName}");
+        if (!string.IsNullOrWhiteSpace(rule.ProcessNameContains)) parts.Add($"ชื่อมีคำว่า: {rule.ProcessNameContains}");
+        return parts.Count == 0 ? "ไม่ได้ระบุเงื่อนไข" : string.Join("  ·  ", parts);
+    }
+
+    /// <summary>
+    /// Optimistic: the badge flips the instant it is tapped, then the API call happens, and the flip is
+    /// undone only if the server refuses.
+    ///
+    /// The old order was call-then-reload-then-repaint, which on a phone over Tailscale meant the badge
+    /// sat unchanged for two network round-trips (browser to this server, this server to the Server API,
+    /// and back) after every tap. That reads as a dropped tap, so people tap again - and the second tap
+    /// toggles the rule straight back, which is the worst possible outcome for a control that decides
+    /// whether 40 machines are being policed.
+    ///
+    /// Safe to be optimistic here specifically because the failure is visible and reversible: the badge
+    /// returns to its old state and a toast says so. Never do this for something that cannot be undone.
+    /// </summary>
+    private async Task ToggleAsync(RuleDto rule)
+    {
+        var previous = rule.IsEnabled;
+        rule.IsEnabled = !previous;
+        StateHasChanged();
+
+        var ok = await Api.ToggleRuleAsync(rule.Id);
+        if (!ok)
+        {
+            rule.IsEnabled = previous;
+            Toasts.Error("เปลี่ยนสถานะกฎไม่สำเร็จ", $"กฎ {rule.Name} ยังเป็น{(previous ? "เปิด" : "ปิด")}เหมือนเดิม");
+            StateHasChanged();
+            return;
+        }
+
+        // No reload: the local model already matches what the server just confirmed, and re-fetching
+        // every rule would throw away the optimistic paint and repaint the whole list for nothing.
+        Toasts.Success(rule.IsEnabled ? $"เปิดกฎ {rule.Name} แล้ว" : $"ปิดกฎ {rule.Name} แล้ว");
+    }
+
+    private async Task DeleteConfirmedAsync()
+    {
+        var rule = _deleting!;
+        _deleting = null;
+
+        var ok = await Api.DeleteRuleAsync(rule.Id);
+        Toasts.Result(ok, $"ลบกฎ {rule.Name} แล้ว", "ลบกฎไม่สำเร็จ");
+        await LoadAsync();
+    }
+}

@@ -1,0 +1,221 @@
+@page "/users"
+@rendermode InteractiveServer
+@inherits AuthenticatedPageBase
+@inject ToastService Toasts
+
+<PageTitle>Users - OnionProcOparetor Online Console</PageTitle>
+
+<div class="page-head">
+    <div>
+        <h2 class="heading2" style="margin:0">Users</h2>
+        <div class="page-subtitle">บัญชีที่เข้าใช้ Console ได้ - ทั้ง Console บนเครื่องและหน้าเว็บนี้</div>
+    </div>
+    <span class="spacer"></span>
+    <button class="btn btn-primary" @onclick="() => _addingUser = true">
+        <Icon Name="plus" Size="15" /> เพิ่มผู้ใช้
+    </button>
+</div>
+
+@if (_loading)
+{
+    @for (var i = 0; i < 3; i++) { <div class="skeleton skeleton-card"></div> }
+}
+else
+{
+    <div class="card-list narrow-only">
+        @foreach (var user in _users)
+        {
+            <div class="data-card" @key="user.Id"
+                 style="--data-card-accent: @(user.HasDefaultPassword ? "var(--danger)" : "var(--border)")">
+                <div class="data-card-head">
+                    <div style="flex:1; min-width:0">
+                        <div class="data-card-title">@user.Username</div>
+                        <div class="data-card-sub">
+                            @(user.LastLoginAt is null ? "ยังไม่เคยเข้าใช้" : "เข้าใช้ล่าสุด ")
+                            @if (user.LastLoginAt is not null) { <TimeAgo Value="user.LastLoginAt.Value" /> }
+                        </div>
+                    </div>
+                    @* A built-in account that still has its default password is the single most useful
+                       fact on this page, so it gets a red badge instead of a "Yes" in a column that
+                       nobody scrolled far enough sideways to read. *@
+                    @if (user.HasDefaultPassword)
+                    {
+                        <span class="badge badge-danger">รหัสผ่าน default</span>
+                    }
+                    else if (user.IsBuiltIn)
+                    {
+                        <span class="badge badge-offline">built-in</span>
+                    }
+                </div>
+
+                @if (!user.IsBuiltIn)
+                {
+                    <div class="data-card-actions">
+                        <button class="btn btn-secondary btn-sm" @onclick="() => OpenReset(user)">รีเซ็ตรหัสผ่าน</button>
+                        <button class="btn btn-danger btn-sm" @onclick="() => _deleting = user">
+                            <Icon Name="trash" Size="14" /> ลบ
+                        </button>
+                    </div>
+                }
+            </div>
+        }
+    </div>
+
+    <div class="table-scroll wide-only">
+        <table>
+            <thead><tr><th>Username</th><th>Built-in</th><th>Default Password</th><th>Created</th><th>Last Login</th><th></th></tr></thead>
+            <tbody>
+                @foreach (var user in _users)
+                {
+                    <tr @key="user.Id" class="@(user.HasDefaultPassword ? "row-attention" : "")">
+                        <td><strong>@user.Username</strong></td>
+                        <td>@(user.IsBuiltIn ? "Yes" : "No")</td>
+                        <td>
+                            @if (user.HasDefaultPassword)
+                            {
+                                <span class="badge badge-danger">YES</span>
+                            }
+                            else
+                            {
+                                <span class="caption">No</span>
+                            }
+                        </td>
+                        <td><TimeAgo Value="user.CreatedAt" /></td>
+                        <td>@if (user.LastLoginAt is not null) { <TimeAgo Value="user.LastLoginAt.Value" /> } else { <span class="caption">ยังไม่เคย</span> }</td>
+                        <td>
+                            <div style="display:flex; gap:.3rem">
+                                @if (!user.IsBuiltIn)
+                                {
+                                    <button class="btn btn-secondary btn-sm" @onclick="() => OpenReset(user)">RESET PASSWORD</button>
+                                    <button class="btn btn-danger btn-sm" @onclick="() => _deleting = user">DELETE</button>
+                                }
+                            </div>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+}
+
+@if (_addingUser)
+{
+    <ModalShell Title="เพิ่มผู้ใช้" OnClose="CloseAdd">
+        <div class="form-row"><label>Username</label><input type="text" @bind="_newUsername" autocomplete="off" /></div>
+        <div class="form-row"><label>Password (อย่างน้อย 8 ตัวอักษร)</label><input type="password" @bind="_newPassword" autocomplete="new-password" /></div>
+        @if (!string.IsNullOrEmpty(_addError)) { <div class="error-text">@_addError</div> }
+        <div class="toolbar" style="margin-bottom:0">
+            <span class="spacer"></span>
+            <button class="btn btn-secondary" @onclick="CloseAdd">ยกเลิก</button>
+            <button class="btn btn-primary" @onclick="CreateUserAsync">สร้าง</button>
+        </div>
+    </ModalShell>
+}
+
+@if (_resettingUser is not null)
+{
+    <ModalShell Title="@($"ตั้งรหัสผ่านใหม่ - {_resettingUser.Username}")" OnClose="() => _resettingUser = null">
+        <div class="form-row"><label>รหัสผ่านใหม่ (อย่างน้อย 8 ตัวอักษร)</label><input type="password" @bind="_resetPassword" autocomplete="new-password" /></div>
+        @if (!string.IsNullOrEmpty(_resetError)) { <div class="error-text">@_resetError</div> }
+        <div class="toolbar" style="margin-bottom:0">
+            <span class="spacer"></span>
+            <button class="btn btn-secondary" @onclick="() => _resettingUser = null">ยกเลิก</button>
+            <button class="btn btn-primary" @onclick="ResetPasswordAsync">ตั้งรหัสผ่าน</button>
+        </div>
+    </ModalShell>
+}
+
+@* Same reasoning as the rule delete: irreversible, one tap away from RESET PASSWORD, and it removes
+   someone's access to the whole console. *@
+@if (_deleting is not null)
+{
+    <ConfirmDialog Title="ลบผู้ใช้นี้?"
+                   Message="@($"บัญชี \"{_deleting.Username}\" จะถูกลบถาวร และจะเข้าใช้ Console ไม่ได้อีก")"
+                   ConfirmText="ลบผู้ใช้"
+                   OnCancel="() => _deleting = null"
+                   OnConfirm="DeleteConfirmedAsync" />
+}
+
+@code {
+    private List<UserDto> _users = new();
+    private bool _loading = true;
+
+    private bool _addingUser;
+    private string _newUsername = string.Empty;
+    private string _newPassword = string.Empty;
+    private string? _addError;
+
+    private UserDto? _resettingUser;
+    private string _resetPassword = string.Empty;
+    private string? _resetError;
+
+    private UserDto? _deleting;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await base.OnInitializedAsync();
+        await LoadAsync();
+        _loading = false;
+    }
+
+    private async Task LoadAsync() => _users = await Api.GetUsersAsync();
+
+    private void CloseAdd()
+    {
+        // Clearing the fields on close, not only on success: reopening the dialog and finding a
+        // half-typed username from an abandoned attempt is confusing, and leaving a typed password
+        // sitting in circuit state for the rest of the session is worse.
+        _addingUser = false;
+        _newUsername = _newPassword = string.Empty;
+        _addError = null;
+    }
+
+    private void OpenReset(UserDto user)
+    {
+        _resettingUser = user;
+        _resetPassword = string.Empty;
+        _resetError = null;
+    }
+
+    private async Task CreateUserAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_newUsername)) { _addError = "ต้องกรอก username"; return; }
+        if (_newPassword.Length < 8) { _addError = "Password ต้องยาวอย่างน้อย 8 ตัวอักษร"; return; }
+
+        var (ok, message) = await Api.CreateUserAsync(_newUsername, _newPassword);
+        if (!ok) { _addError = message; return; }
+
+        var created = _newUsername;
+        CloseAdd();
+        Toasts.Success($"สร้างผู้ใช้ {created} แล้ว");
+        await LoadAsync();
+    }
+
+    private async Task DeleteConfirmedAsync()
+    {
+        var user = _deleting!;
+        _deleting = null;
+
+        var (ok, message) = await Api.DeleteUserAsync(user.Id);
+        Toasts.Result(ok, $"ลบผู้ใช้ {user.Username} แล้ว", "ลบผู้ใช้ไม่สำเร็จ", message);
+        await LoadAsync();
+    }
+
+    private async Task ResetPasswordAsync()
+    {
+        if (_resetPassword.Length < 8) { _resetError = "Password ต้องยาวอย่างน้อย 8 ตัวอักษร"; return; }
+
+        var (ok, message) = await Api.ResetUserPasswordAsync(_resettingUser!.Id, _resetPassword);
+        if (!ok) { _resetError = message; return; }
+
+        var username = _resettingUser.Username;
+        _resettingUser = null;
+        _resetPassword = string.Empty;
+
+        // The old version silently closed the dialog with no confirmation at all, which is
+        // indistinguishable from "the dialog crashed" - and reloading was missing too, so the
+        // "Default Password" column kept showing stale state.
+        Toasts.Success($"ตั้งรหัสผ่านใหม่ให้ {username} แล้ว");
+        await LoadAsync();
+    }
+}

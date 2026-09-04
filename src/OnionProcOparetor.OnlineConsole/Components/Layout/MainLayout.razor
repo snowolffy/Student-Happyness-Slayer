@@ -1,0 +1,142 @@
+@inherits LayoutComponentBase
+@inject TailscaleGatewayService TailscaleGateway
+@inject NavigationManager Navigation
+
+@* No <CascadingAuthenticationState> wrapper needed here - Program.cs already calls
+   builder.Services.AddCascadingAuthenticationState(), which cascades Task<AuthenticationState> from the
+   DI container app-wide (the modern .NET 8+ replacement for wrapping every root with that component).
+
+   IMPORTANT, and the reason this file has no @@onclick handlers left in it: with per-page interactivity
+   (each page opts in with @@rendermode InteractiveServer), Blazor renders LAYOUTS STATICALLY and cannot
+   do otherwise - a layout can't be given a render mode because @@Body is a RenderFragment and can't be
+   serialized as a root component parameter. An earlier version of this file wired the hamburger to
+   @@onclick="Sidebar.Toggle" against a scoped SidebarState service; that handler had no circuit to run
+   on and never fired, so below the 900px breakpoint - where the sidebar is off-canvas and the hamburger
+   is the only way to reach it - the navigation was simply unreachable on a phone. All shell interaction
+   (drawer, theme) is therefore done with delegated listeners in wwwroot/js/app.js, which also makes it
+   instant and keeps it working while the SignalR circuit is reconnecting. *@
+<AuthorizeView>
+    <Authorized>
+        @{ CheckForcePasswordChange(context); }
+        <div class="app-shell">
+            <header class="app-header">
+                <button class="icon-btn" data-drawer-toggle aria-expanded="false" aria-controls="app-drawer" aria-label="เปิด/ปิดเมนู">
+                    <Icon Name="menu" Size="22" />
+                </button>
+                <img src="img/logo-128.png" alt="" class="app-header-logo" />
+                @* Page name, not the product name: on a 360px screen the one string the header can
+                   afford to show should tell you where you are, not what app you already know you
+                   opened. The brand still leads the drawer and the login screen. *@
+                <span class="app-title">@CurrentPageTitle()</span>
+                <button class="icon-btn theme-toggle" data-theme-toggle aria-label="สลับธีมสว่าง/มืด" title="สลับธีม">
+                    <span class="icon-sun"><Icon Name="sun" Size="19" /></span>
+                    <span class="icon-moon"><Icon Name="moon" Size="19" /></span>
+                </button>
+            </header>
+
+            <div class="sidebar-backdrop" data-drawer-close></div>
+
+            <aside class="sidebar" id="app-drawer">
+                <div class="sidebar-header">
+                    <img src="img/logo-128.png" alt="OnionProcOparetor" class="sidebar-logo" />
+                    <div class="sidebar-brand">
+                        <div class="sidebar-brand-name">OnionProcOparetor</div>
+                        <div class="sidebar-brand-sub">Online Console</div>
+                    </div>
+                </div>
+                <NavMenu />
+                <div class="sidebar-footer">
+                    <div class="tailscale-status">
+                        <span class="tailscale-dot"></span>
+                        <span>@(_tailscaleIdentity ?? "เชื่อมต่อผ่าน Tailscale")</span>
+                    </div>
+                    <form method="post" action="/auth/logout">
+                        <AntiforgeryToken />
+                        <button type="submit" class="btn btn-secondary btn-sm sidebar-logout-btn">
+                            <Icon Name="log-out" Size="16" /> ออกจากระบบ
+                        </button>
+                    </form>
+                    <div class="caption" style="margin-top:.5rem">
+                        ออกจากระบบแล้ว การเชื่อมต่อ Tailscale ยังคงอยู่จนกว่าจะ disconnect เอง
+                    </div>
+                </div>
+            </aside>
+
+            <main class="app-main">
+                @Body
+            </main>
+
+            <TabBar />
+
+            @* Mounted once here so every page gets action feedback without repeating a status block of
+               its own. It carries an explicit @@rendermode because the layout around it is static and a
+               toast host that can't re-render is just an empty div - an interactive island inside a
+               static layout is the supported way to do this. It lands in the same circuit (and so the
+               same scoped ToastService instance) as whichever page raised the toast. *@
+            <ToastHost @rendermode="InteractiveServer" />
+        </div>
+    </Authorized>
+    <NotAuthorized>
+        @Body
+    </NotAuthorized>
+</AuthorizeView>
+
+@code {
+    // HttpContext is only available as a cascading parameter during the initial (static/prerender)
+    // render of a Blazor Server page - it goes away once the interactive SignalR circuit takes over,
+    // since there's no more HTTP request/response at that point. Capturing RemoteIpAddress once here,
+    // during that first render, is the only chance to see the browser's real (tailnet) source IP.
+    [CascadingParameter] private HttpContext? HttpContext { get; set; }
+
+    private string? _tailscaleIdentity;
+    private bool _forcePasswordRedirectChecked;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var remoteIp = HttpContext?.Connection.RemoteIpAddress?.ToString();
+        if (!string.IsNullOrEmpty(remoteIp))
+        {
+            var whois = await TailscaleGateway.WhoIsAsync(remoteIp);
+            _tailscaleIdentity = whois is null ? $"Tailscale: {remoteIp}" : $"Tailscale: {whois}";
+        }
+    }
+
+    /// <summary>
+    /// Mirrors ForceChangePasswordWindow's "no way to skip" behavior from the WPF Console: as long as
+    /// the hasDefaultPassword claim baked into the auth cookie says true, every page except
+    /// /change-password itself bounces back there. Checked here (once per navigation, in the shared
+    /// layout) rather than duplicated on every single page component.
+    /// </summary>
+    private void CheckForcePasswordChange(AuthenticationState state)
+    {
+        if (_forcePasswordRedirectChecked) return;
+        _forcePasswordRedirectChecked = true;
+
+        var hasDefaultPassword = state.User.FindFirst("oc:hasDefaultPassword")?.Value == "1";
+        var path = new Uri(Navigation.Uri).AbsolutePath.TrimEnd('/');
+
+        if (hasDefaultPassword && path != "/change-password")
+        {
+            Navigation.NavigateTo("/change-password", forceLoad: true);
+        }
+    }
+
+    /// <summary>
+    /// Derived from the URL rather than from a &lt;PageTitle&gt;/state service, because the layout is
+    /// statically rendered (see the note at the top) and so cannot receive a value pushed up from the
+    /// page it is currently wrapping. Route-to-label is a fixed, tiny mapping and this keeps the header
+    /// honest with zero coupling in the other direction.
+    /// </summary>
+    private string CurrentPageTitle() => new Uri(Navigation.Uri).AbsolutePath.TrimEnd('/').ToLowerInvariant() switch
+    {
+        "" => "Clients",
+        "/rules" => "Rules",
+        "/logs" => "Logs",
+        "/audit-log" => "Audit Log",
+        "/users" => "Users",
+        "/program-review" => "Program Review",
+        "/settings" => "Settings",
+        var p when p.StartsWith("/screen-view") => "Screen View",
+        _ => "OnionProcOparetor"
+    };
+}

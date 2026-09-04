@@ -1,0 +1,56 @@
+@* KPI tile for the top of a dashboard page - see the .stat-grid comment block in theme.css for why a
+   summary row exists at all instead of opening straight onto a table.
+
+   Renders as a <button> only when it has somewhere to go (OnClick set), and as a plain <div>
+   otherwise. That distinction matters more than it looks: a div with a click handler is invisible to
+   the keyboard and to screen readers, while a button that does nothing when pressed is a small lie
+   the user only discovers by pressing it. Here the clickable tiles double as filters ("tap OFFLINE to
+   see just those 3 machines"), which is the single highest-value interaction on the page - the number
+   that worries you is also the fastest route to the rows behind it. *@
+@if (OnClick.HasDelegate)
+{
+    <button type="button"
+            class="stat-card clickable @(Selected ? "selected" : "")"
+            style="--stat-color: @Color"
+            aria-pressed="@(Selected ? "true" : "false")"
+            @onclick="OnClick">
+        @Content()
+    </button>
+}
+else
+{
+    <div class="stat-card" style="--stat-color: @Color">
+        @Content()
+    </div>
+}
+
+@code {
+    [Parameter, EditorRequired] public string Label { get; set; } = string.Empty;
+    [Parameter, EditorRequired] public int Value { get; set; }
+
+    /// <summary>Optional denominator, rendered small and grey after the value ("34 / 40"). A bare "34"
+    /// answers nothing on its own - 34 out of how many? - and this is the cheapest way to give the
+    /// number a scale without a second tile.</summary>
+    [Parameter] public int? Total { get; set; }
+
+    [Parameter] public string? Hint { get; set; }
+    [Parameter] public string? IconName { get; set; }
+
+    /// <summary>A CSS color, normally one of the theme tokens, e.g. "var(--online)". Passed rather than
+    /// hard-coded so a tile's color follows its meaning (green = fine, amber = needs a look).</summary>
+    [Parameter] public string Color { get; set; } = "var(--accent)";
+
+    [Parameter] public bool Selected { get; set; }
+    [Parameter] public EventCallback OnClick { get; set; }
+
+    private RenderFragment Content() =>@<text>
+        <span class="stat-label">
+            @if (IconName is not null) { <Icon Name="@IconName" Size="13" /> }
+            @Label
+        </span>
+        <span class="stat-value">
+            @Value@if (Total is not null) { <span class="stat-total"> / @Total</span> }
+        </span>
+        @if (!string.IsNullOrEmpty(Hint)) { <span class="stat-hint">@Hint</span> }
+    </text>;
+}

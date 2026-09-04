@@ -1,0 +1,83 @@
+@* Ported from PendingCommandsWindow (WPF) - live server state for one client, independent of any batch/session *@
+@inject ApiClient Api
+
+<ModalShell Title="@($"Pending Commands - {Client.MachineName}")" OnClose="OnClose">
+    <div class="toolbar">
+        <span class="spacer"></span>
+        <button class="btn btn-secondary btn-sm" @onclick="LoadAsync">REFRESH</button>
+    </div>
+
+    @if (!string.IsNullOrEmpty(_status))
+    {
+        <div class="status-text">@_status</div>
+    }
+
+    @if (_commands.Count == 0 && string.IsNullOrEmpty(_status))
+    {
+        @* "ไม่มีคำสั่งที่ค้างอยู่" is the healthy answer here, so it gets a real empty state rather than
+           one grey line that reads like the panel failed to load. *@
+        <EmptyState IconName="check-circle" Title="ไม่มีคำสั่งค้างอยู่"
+                    Detail="ทุกคำสั่งที่ส่งไปเครื่องนี้ถูกรับไปทำงานเรียบร้อยแล้ว" />
+    }
+    else if (_commands.Count > 0)
+    {
+        @* Command type leads on the card - the ID is only ever needed for cross-referencing a log, and
+           on a phone it should not be the first thing occupying the strongest line. *@
+        <div class="card-list narrow-only">
+            @foreach (var cmd in _commands)
+            {
+                <div class="data-card" @key="cmd.CommandId" style="padding:.6rem .7rem">
+                    <div class="data-card-head">
+                        <div style="flex:1; min-width:0">
+                            <div class="data-card-title" style="font-size:14px">@cmd.CommandType</div>
+                            <div class="data-card-sub">#@cmd.CommandId</div>
+                        </div>
+                        <span class="badge badge-warning">@cmd.DeliveryStatus</span>
+                    </div>
+                    <button class="btn btn-danger btn-sm btn-block" @onclick="() => CancelAsync(cmd.CommandId)">ยกเลิกคำสั่งนี้</button>
+                </div>
+            }
+        </div>
+
+        <div class="table-scroll wide-only">
+            <table>
+                <thead><tr><th>COMMAND ID</th><th>TYPE</th><th>DELIVERY</th><th></th></tr></thead>
+                <tbody>
+                    @foreach (var cmd in _commands)
+                    {
+                        <tr @key="cmd.CommandId">
+                            <td>@cmd.CommandId</td>
+                            <td>@cmd.CommandType</td>
+                            <td>@cmd.DeliveryStatus</td>
+                            <td><button class="btn btn-danger btn-sm" @onclick="() => CancelAsync(cmd.CommandId)">ยกเลิก</button></td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</ModalShell>
+
+@code {
+    [Parameter, EditorRequired] public ClientMachineDto Client { get; set; } = null!;
+    [Parameter] public EventCallback OnClose { get; set; }
+
+    private List<CommandResultDto> _commands = new();
+    private string? _status;
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _status = "กำลังโหลด...";
+        _commands = await Api.GetPendingCommandsAsync(Client.ClientGuid);
+        _status = null;
+    }
+
+    private async Task CancelAsync(int commandId)
+    {
+        var (ok, message) = await Api.CancelCommandAsync(commandId);
+        _status = ok ? null : message;
+        await LoadAsync();
+    }
+}

@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UserSecretsId>dotnet-OnionProcOparetor.OnlineConsole-9e6f0d3b-4a3c-4b0e-9c1a-7b8f9c2d1a6e</UserSecretsId>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Same package the WPF Console uses to talk to LabHub - see Services/LabHubClient.cs -->
+    <PackageReference Include="Microsoft.AspNetCore.SignalR.Client" Version="10.0.10" />
+    <!-- Lets this run as a real Windows Service (sc.exe create ...), same as OnionProcOparetor.Server -->
+    <PackageReference Include="Microsoft.Extensions.Hosting.WindowsServices" Version="10.0.10" />
+  </ItemGroup>
+
+</Project>

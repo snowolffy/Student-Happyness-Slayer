@@ -1,0 +1,28 @@
+@* Shared backdrop + sheet/card chrome (see .modal-backdrop/.modal in theme.css - full-screen sheet on
+   mobile with a grab handle, centered card on wider screens) so every modal below only has to provide
+   its own body.
+
+   The close control is an icon button rather than a "ปิด" text button: on a bottom sheet the top-right
+   corner is where every mobile OS puts dismiss, the X is understood without reading, and it frees the
+   whole width of that line for a title that would otherwise truncate on a narrow phone. The text label
+   survives for screen readers via .sr-only. *@
+<div class="modal-backdrop" @onclick="Close">
+    <div class="modal" @onclick:stopPropagation="true" role="dialog" aria-modal="true">
+        <div class="modal-header">
+            <span class="heading2">@Title</span>
+            <button class="icon-btn" @onclick="Close">
+                <Icon Name="x" Size="20" />
+                <span class="sr-only">ปิด</span>
+            </button>
+        </div>
+        @ChildContent
+    </div>
+</div>
+
+@code {
+    [Parameter] public string Title { get; set; } = string.Empty;
+    [Parameter] public EventCallback OnClose { get; set; }
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+
+    private Task Close() => OnClose.InvokeAsync();
+}

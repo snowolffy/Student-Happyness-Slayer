@@ -1,0 +1,209 @@
+@* Ported from ActionPanelWindow (WPF) - single-client mode (SingleClient set) shows every button;
+   bulk mode (SingleClient null, BulkClients set) hides the per-machine-only ones (Settings, Config
+   Rule, View Screen, View Processes, Pending Commands) and adds the selected-vs-all target picker,
+   same split as the WPF version's two constructors. *@
+@inject ApiClient Api
+
+<ModalShell Title="@Title" OnClose="OnClose">
+    @if (SingleClient is null)
+    {
+        <div class="form-row">
+            <label style="display:flex; align-items:center; gap:.4rem; min-height:auto; font-weight:400; text-transform:none">
+                <input type="radio" name="apTarget" checked="@(!_targetAll)" disabled="@(BulkClients.Count == 0)" @onchange="() => _targetAll = false" />
+                เครื่องที่เลือกไว้ (@BulkClients.Count เครื่อง)
+            </label>
+            <label style="display:flex; align-items:center; gap:.4rem; min-height:auto; font-weight:400; text-transform:none; margin-top:.3rem">
+                <input type="radio" name="apTarget" checked="@_targetAll" @onchange="() => _targetAll = true" />
+                ทุกเครื่อง (@AllClients.Count เครื่อง)
+            </label>
+        </div>
+    }
+
+    @* This used to be one flat column of fifteen identical grey buttons, DELETE included. Three
+       problems, all of which hurt most on the device this app is for:
+         1. Nothing was scannable - every action looked exactly like every other action, so finding one
+            meant reading all fifteen labels top to bottom, every single time.
+         2. It was one long scroll on a phone, and the destructive actions sat in the middle of it.
+         3. There was no grouping, so "lock the screen" and "wipe this machine out of the database"
+            had identical visual weight.
+       Now: labelled groups in the order they get used, a two-column grid so the common actions fit on
+       one screen without scrolling, and the destructive group last and visually separated. Every
+       command itself is untouched - this is purely how they are presented. *@
+    <div class="action-groups">
+        <div class="action-group">
+            <div class="field-label">ควบคุมหน้าจอ</div>
+            <div class="action-grid">
+                <button class="btn btn-secondary" @onclick='() => RunTrackedAsync("Lock Workstation", "LockWorkstation", null)'>ล็อกเครื่อง</button>
+                <button class="btn btn-secondary" @onclick='() => RunTrackedAsync("Unlock Workstation", "UnlockWorkstation", null)'>ปลดล็อก</button>
+                @if (SingleClient is not null)
+                {
+                    <button class="btn btn-secondary" @onclick="() => OnOpenScreenView.InvokeAsync(SingleClient)">ดูจอ</button>
+                    <button class="btn btn-secondary" @onclick="() => OnOpenRunningProcesses.InvokeAsync(SingleClient)">โปรเซสที่รันอยู่</button>
+                }
+            </div>
+        </div>
+
+        <div class="action-group">
+            <div class="field-label">การบังคับใช้กฎ</div>
+            <div class="action-grid">
+                <button class="btn btn-secondary" @onclick='() => RunImmediateAsync("Toggle Enforcement", c => Api.ToggleClientAsync(c.Id))'>สลับการบังคับใช้</button>
+                @if (SingleClient is not null)
+                {
+                    <button class="btn btn-secondary" @onclick="() => _ruleOverridesOpen = true">ตั้งกฎเฉพาะเครื่อง</button>
+                    <button class="btn btn-secondary" @onclick="() => _clientSettingsOpen = true">ตั้งค่าเครื่อง</button>
+                    <button class="btn btn-secondary" @onclick="() => OnOpenPendingCommands.InvokeAsync(SingleClient)">คำสั่งที่ค้างอยู่</button>
+                }
+            </div>
+        </div>
+
+        <div class="action-group">
+            <div class="field-label">Tailscale</div>
+            <div class="action-grid">
+                <button class="btn btn-secondary" @onclick='() => RunTrackedAsync("Tailscale Status", "GetTailscaleStatus", null)'>ดูสถานะ</button>
+                <button class="btn btn-secondary" @onclick="() => _tailscaleLoginOpen = true">Login...</button>
+                <button class="btn btn-secondary" @onclick='() => RunTrackedAsync("Tailscale Lock", "SetTailscaleLockdown", new { locked = true })'>ล็อก Tailscale</button>
+                <button class="btn btn-secondary" @onclick='() => RunTrackedAsync("Tailscale Unlock", "SetTailscaleLockdown", new { locked = false })'>ปลดล็อก Tailscale</button>
+            </div>
+        </div>
+
+        @* Power and delete share a section titled as dangerous, so the boundary is obvious before the
+           thumb gets there rather than after. The delay field sits with the two buttons it applies to -
+           previously it floated above RESTART with nothing saying the two were related. *@
+        <div class="action-group action-group-danger">
+            <div class="field-label">ต้องระวัง</div>
+            <div class="form-row">
+                <label>หน่วงเวลาก่อน Restart/Shutdown (1-120 วินาที)</label>
+                <input type="number" min="1" max="120" @bind="_delaySeconds" />
+            </div>
+            <div class="action-grid">
+                <button class="btn btn-secondary" @onclick='() => RunTrackedAsync("Restart", "Restart", new { delaySeconds = ClampDelay() })'>รีสตาร์ท</button>
+                <button class="btn btn-danger" @onclick='() => RunTrackedAsync("Shutdown", "Shutdown", new { delaySeconds = ClampDelay() })'>ปิดเครื่อง</button>
+            </div>
+
+            @if (!_confirmingDelete)
+            {
+                <button class="btn btn-danger btn-block" style="margin-top:.5rem" @onclick="() => _confirmingDelete = true">
+                    <Icon Name="trash" Size="15" /> ลบเครื่องออกจากระบบ
+                </button>
+            }
+            else
+            {
+                @* Mixed against var(--card), not a literal white: the old value produced a near-white
+                   panel floating on a near-black sheet in dark mode. *@
+                <div class="card" style="margin-top:.5rem; background:color-mix(in srgb, var(--danger) 8%, var(--card))">
+                    <div style="margin-bottom:.5rem">ยืนยันลบ @Targets.Count เครื่องออกจากระบบ? การกระทำนี้ย้อนกลับไม่ได้</div>
+                    <div class="toolbar" style="margin:0">
+                        <button class="btn btn-secondary btn-sm" @onclick="() => _confirmingDelete = false">ยกเลิก</button>
+                        <span class="spacer"></span>
+                        <button class="btn btn-danger btn-sm" @onclick='() => RunImmediateAsync("Delete", c => Api.DeleteClientAsync(c.Id))'>ยืนยันลบ</button>
+                    </div>
+                </div>
+            }
+        </div>
+    </div>
+</ModalShell>
+
+@if (_clientSettingsOpen && SingleClient is not null)
+{
+    <ClientSettingsModal Client="SingleClient" OnClose="() => _clientSettingsOpen = false" OnSaved="() => OnDataChanged.InvokeAsync()" />
+}
+@if (_ruleOverridesOpen && SingleClient is not null)
+{
+    <RuleOverridesModal Client="SingleClient" OnClose="() => _ruleOverridesOpen = false" />
+}
+@if (_tailscaleLoginOpen)
+{
+    <ModalShell Title="Tailscale Login" OnClose="() => _tailscaleLoginOpen = false">
+        <div class="form-row">
+            <label>AUTH KEY (จาก Tailscale admin console)</label>
+            <input type="text" @bind="_authKey" />
+        </div>
+        <div class="toolbar">
+            <span class="spacer"></span>
+            <button class="btn btn-secondary" @onclick="() => _tailscaleLoginOpen = false">CANCEL</button>
+            <button class="btn btn-primary" @onclick="SubmitTailscaleLoginAsync">LOGIN</button>
+        </div>
+    </ModalShell>
+}
+
+@code {
+    [Parameter] public ClientMachineDto? SingleClient { get; set; }
+    [Parameter] public List<ClientMachineDto> BulkClients { get; set; } = new();
+    [Parameter] public List<ClientMachineDto> AllClients { get; set; } = new();
+    [Parameter] public EventCallback OnClose { get; set; }
+    [Parameter] public EventCallback OnDataChanged { get; set; }
+    [Parameter] public EventCallback<ActionReportRequest> OnReportReady { get; set; }
+    [Parameter] public EventCallback<ClientMachineDto> OnOpenScreenView { get; set; }
+    [Parameter] public EventCallback<ClientMachineDto> OnOpenRunningProcesses { get; set; }
+    [Parameter] public EventCallback<ClientMachineDto> OnOpenPendingCommands { get; set; }
+
+    private bool _targetAll;
+    private int _delaySeconds = 10;
+    private bool _confirmingDelete;
+    private bool _clientSettingsOpen;
+    private bool _ruleOverridesOpen;
+    private bool _tailscaleLoginOpen;
+    private string _authKey = string.Empty;
+
+    private string Title => SingleClient is not null ? SingleClient.MachineName : $"Bulk Actions ({Targets.Count} เครื่อง)";
+
+    private List<ClientMachineDto> Targets => SingleClient is not null
+        ? [SingleClient]
+        : (_targetAll ? AllClients : BulkClients);
+
+    private int ClampDelay() => Math.Clamp(_delaySeconds, 1, 120);
+
+    private async Task SubmitTailscaleLoginAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_authKey)) return;
+        _tailscaleLoginOpen = false;
+        await RunTrackedAsync("Tailscale Login", "RunTailscaleLogin", new { authKey = _authKey });
+    }
+
+    private async Task<(bool Ok, string? Message)> TrackedSendAsync(ActionReportRow row, string commandType, object? payload, string batchId)
+    {
+        var (commandId, error) = await Api.SendCommandTrackedAsync(row.ClientGuid, commandType, payload, batchId);
+        row.CommandId = commandId;
+        return commandId is not null ? (true, null) : (false, error);
+    }
+
+    private async Task RunTrackedAsync(string label, string commandType, object? payload)
+    {
+        var batchId = Guid.NewGuid().ToString();
+        var rows = Targets.Select(c => new ActionReportRow { ClientGuid = c.ClientGuid, MachineName = c.MachineName }).ToList();
+
+        var request = new ActionReportRequest
+        {
+            ActionLabel = label,
+            Rows = rows,
+            BatchId = batchId,
+            SendAsync = row => TrackedSendAsync(row, commandType, payload, batchId)
+        };
+
+        await OnReportReady.InvokeAsync(request);
+        await OnClose.InvokeAsync();
+    }
+
+    private async Task RunImmediateAsync(string label, Func<ClientMachineDto, Task<bool>> action)
+    {
+        var targets = Targets;
+        var rows = targets.Select(c => new ActionReportRow { ClientGuid = c.ClientGuid, MachineName = c.MachineName }).ToList();
+        var byGuid = targets.ToDictionary(c => c.ClientGuid);
+
+        var request = new ActionReportRequest
+        {
+            ActionLabel = label,
+            Rows = rows,
+            BatchId = null, // ไม่ผ่านระบบ command/ack (Toggle/Delete แก้ DB ตรงๆ) - รู้ผลทันทีตอน send เสร็จ ไม่ต้องรอ ack
+            SendAsync = async row =>
+            {
+                var ok = await action(byGuid[row.ClientGuid]);
+                return (ok, ok ? null : "ทำรายการไม่สำเร็จ");
+            }
+        };
+
+        await OnReportReady.InvokeAsync(request);
+        await OnClose.InvokeAsync();
+        await OnDataChanged.InvokeAsync();
+    }
+}

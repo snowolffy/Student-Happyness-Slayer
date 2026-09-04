@@ -1,0 +1,50 @@
+@* Renders whatever ToastService is currently holding. Mounted once, in MainLayout, so every page gets
+   feedback for free without repeating a status-message block of its own.
+
+   aria-live="polite" is the whole reason this is a fixed host element rather than markup each page
+   emits: screen readers only announce content that appears inside a region already marked live, so a
+   toast injected into a page that wasn't marked would be completely silent. "polite" (not "assertive")
+   waits for the reader to finish its current sentence - an action confirmation is not worth cutting
+   someone off mid-word. *@
+@inject ToastService Toasts
+@implements IDisposable
+
+<div class="toast-host" aria-live="polite" aria-atomic="false">
+    @foreach (var toast in Toasts.Toasts)
+    {
+        <div class="toast toast-@(toast.Kind.ToString().ToLowerInvariant())" @key="toast.Id">
+            <Icon Name="@IconFor(toast.Kind)" Size="18" />
+            <div class="toast-body">
+                <div class="toast-title">@toast.Title</div>
+                @if (!string.IsNullOrEmpty(toast.Detail))
+                {
+                    <div class="toast-detail">@toast.Detail</div>
+                }
+            </div>
+            @* Manual dismiss as well as the auto-expiry: an error toast that carries a long server
+               message deserves to be readable for as long as the reader wants, and being able to clear
+               it is the difference between a notification and an obstruction. *@
+            <button type="button" class="icon-btn" style="width:28px;height:28px" @onclick="() => Toasts.Dismiss(toast.Id)">
+                <Icon Name="x" Size="15" />
+                <span class="sr-only">ปิดข้อความนี้</span>
+            </button>
+        </div>
+    }
+</div>
+
+@code {
+    protected override void OnInitialized() => Toasts.Changed += OnChanged;
+
+    // ToastService expires toasts from a Task.Delay continuation - i.e. off the circuit's render thread -
+    // so this has to hop back on via InvokeAsync, exactly like the SignalR handlers elsewhere in this app.
+    private void OnChanged() => InvokeAsync(StateHasChanged);
+
+    private static string IconFor(ToastKind kind) => kind switch
+    {
+        ToastKind.Success => "check-circle",
+        ToastKind.Error => "alert-triangle",
+        _ => "info"
+    };
+
+    public void Dispose() => Toasts.Changed -= OnChanged;
+}

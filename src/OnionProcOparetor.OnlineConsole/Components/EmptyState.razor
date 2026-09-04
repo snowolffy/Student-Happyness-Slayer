@@ -1,0 +1,16 @@
+@* A table with zero rows and nothing else reads as broken, not "nothing here yet" - this teaches
+   what the page is for instead of leaving a bare header row floating over blank space. *@
+<div class="empty-state">
+    <Icon Name="@IconName" Size="32" />
+    <div class="empty-state-title">@Title</div>
+    @if (!string.IsNullOrEmpty(Detail))
+    {
+        <div class="empty-state-detail">@Detail</div>
+    }
+</div>
+
+@code {
+    [Parameter] public string IconName { get; set; } = "inbox";
+    [Parameter, EditorRequired] public string Title { get; set; } = string.Empty;
+    [Parameter] public string? Detail { get; set; }
+}
