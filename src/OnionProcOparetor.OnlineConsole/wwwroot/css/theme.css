@@ -1,4 +1,4 @@
-/* ====================================================================================
+﻿/* ====================================================================================
    OnionProcOparetor Online Console - design system
    ------------------------------------------------------------------------------------
    Palette builds on the WPF Console's Theme/Colors.xaml (same accent orange, same status
@@ -768,6 +768,33 @@ th.sorted .sort-caret { opacity: 1; color: var(--accent-text); }
 @keyframes pulse {
     0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--online) 55%, transparent); }
     70%, 100% { box-shadow: 0 0 0 5px transparent; }
+}
+
+/* ---- Global enforcement banner ---------------------------------------------------------------
+   Shown only while enforcement is switched off for the entire lab. That state used to be invisible
+   in every UI while silently overriding all 40 machines (see Home.razor), so this is deliberately
+   the loudest thing on the page: danger-tinted, full width, above the stat tiles, and carrying the
+   recovery button itself. It is not dismissible - it disappears by being fixed, not by being
+   acknowledged. */
+.global-off-banner {
+    display: flex;
+    align-items: center;
+    gap: .7rem;
+    padding: .7rem .85rem;
+    margin-bottom: 1rem;
+    border-radius: var(--radius-lg);
+    background: color-mix(in srgb, var(--danger) 12%, var(--card));
+    border: 1px solid color-mix(in srgb, var(--danger) 45%, var(--border));
+    color: var(--text-primary);
+}
+.global-off-banner > svg { color: var(--danger); flex-shrink: 0; }
+.global-off-banner .caption { margin-top: .1rem; }
+
+/* On a phone the banner stacks so the button keeps a full-width tap target rather than being
+   squeezed to a few characters wide next to two lines of text. */
+@media (max-width: 640px) {
+    .global-off-banner { flex-wrap: wrap; }
+    .global-off-banner .btn { width: 100%; justify-content: center; }
 }
 
 /* ---- Selection bar --------------------------------------------------------------------------

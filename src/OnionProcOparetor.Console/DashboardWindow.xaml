@@ -59,6 +59,36 @@
                     <TextBlock x:Name="ServerLabel" Text="" Style="{StaticResource Caption}"/>
                 </StackPanel>
 
+                <!-- ==================== แถบเตือน "ปิดการบังคับใช้ทั้งระบบ" ====================
+                     วางในคอลัมน์ที่ 2 ซึ่งเป็นช่องว่าง (Width="*") ของ toolbar อยู่แล้ว - ไม่ต้องขยับ
+                     คอลัมน์อื่นเลย และได้ที่กลาง toolbar ซึ่งมองไม่พลาด
+
+                     ทำไมต้องมี (บั๊กจริง 2026-09-04): GlobalState.IsEnabled เป็น AND gate คร่อม
+                     enforcement ของทุกเครื่อง (ดู /api/poll: enabled = globalEnabled && client.IsEnabled)
+                     แต่ไม่เคยมี UI ไหนแสดงค่านี้เลย และปุ่ม TOGGLE GLOBAL เดิมก็ถูกลบออกไปด้วยความ
+                     เข้าใจผิดว่า "ACTIONS > ทุกเครื่อง > TOGGLE ENFORCEMENT ให้ผลเหมือนกัน" - ซึ่งไม่จริง
+                     เพราะอันนั้นแก้ IsEnabled รายเครื่อง ไม่ได้แตะ gate ตัวนี้ ผลคือพอ gate ถูกปิดไว้
+                     Console จะโชว์ทุกเครื่องเป็น ENABLED ตามปกติ ส่วน Agent ทุกตัวขึ้น Disabled ค้าง
+                     ไม่ว่าจะ toggle รายเครื่องกี่รอบ และไม่มีทางรู้เลยว่าเพราะอะไร -->
+                <Border Grid.Column="2" x:Name="GlobalOffBanner" Visibility="Collapsed"
+                        CornerRadius="10" Margin="16,0,16,0" Padding="12,6"
+                        Background="{StaticResource Brush.Status.Warning}"
+                        VerticalAlignment="Center">
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                        <TextBlock Text="&#9888;" FontSize="16" VerticalAlignment="Center"
+                                   Foreground="{StaticResource Brush.Text.Primary}"/>
+                        <StackPanel Margin="8,0,0,0" VerticalAlignment="Center">
+                            <TextBlock Text="ปิดการบังคับใช้ทั้งระบบอยู่" FontWeight="SemiBold" FontSize="12"
+                                       Foreground="{StaticResource Brush.Text.Primary}"/>
+                            <TextBlock Text="กฎทั้งหมดหยุดทำงานบนทุกเครื่อง แม้เครื่องนั้นจะขึ้น ENABLED" FontSize="11"
+                                       Foreground="{StaticResource Brush.Text.Primary}"/>
+                        </StackPanel>
+                        <Button x:Name="GlobalTurnOnButton" Content="เปิดกลับ" Margin="12,0,0,0"
+                                Style="{StaticResource ButtonPrimary}" Padding="12,4"
+                                Click="GlobalTurnOnButton_Click" VerticalAlignment="Center"/>
+                    </StackPanel>
+                </Border>
+
                 <TextBlock Grid.Column="3" Width="150" x:Name="StatusText" Style="{StaticResource Caption}"
                            VerticalAlignment="Center" Margin="0,0,12,0"/>
 
@@ -204,19 +234,18 @@
                                         </Style.Triggers>
                                     </Style>
 
-                                    <!-- ENFORCEMENT = ครูเปิดใช้งานการบังคับใช้กฎเครื่องนี้ไว้ไหม (IsEnabled) - ใช้ชื่อ
-                                         เดียวกับปุ่ม "ENABLE/DISABLE ENFORCEMENT" ใน ActionPanelWindow ให้สอดคล้องกัน
+                                    <!-- ENFORCEMENT = ตอนนี้ Agent เครื่องนี้บังคับใช้กฎอยู่จริงไหม - ใช้ชื่อเดียวกับปุ่ม
+                                         "ENABLE/DISABLE ENFORCEMENT" ใน ActionPanelWindow ให้สอดคล้องกัน
                                          DISABLED ใช้สี Warning (เหลือง) ไม่ใช่ Danger (แดง) เพราะเป็นสถานะปกติที่ครู
-                                         ตั้งใจปิดเอง ไม่ใช่ error -->
+                                         ตั้งใจปิดเอง ไม่ใช่ error
+
+                                         2026-09-04: เปลี่ยนจากอ่าน IsEnabled รายเครื่องตรงๆ มาอ่าน "ผลจริง" ที่รวม gate
+                                         ทั้งห้องแล้ว (ดู ClientMachineDto.EnforcementBadgeText/Tag) - เดิมคอลัมน์นี้ขึ้น
+                                         ENABLED ทั้งตารางในขณะที่ Agent ทุกตัวไม่ได้บังคับใช้อะไรเลยเพราะ GlobalState
+                                         ถูกปิดไว้ ซึ่งเป็นข้อมูลที่ผิดในจังหวะที่ครูต้องการมันที่สุด -->
                                     <Style x:Key="ClientEnforcementBadge" TargetType="ContentControl" BasedOn="{StaticResource StatusBadge}">
-                                        <Setter Property="Tag" Value="Warning"/>
-                                        <Setter Property="Content" Value="DISABLED"/>
-                                        <Style.Triggers>
-                                            <DataTrigger Binding="{Binding IsEnabled}" Value="True">
-                                                <Setter Property="Tag" Value="Online"/>
-                                                <Setter Property="Content" Value="ENABLED"/>
-                                            </DataTrigger>
-                                        </Style.Triggers>
+                                        <Setter Property="Tag" Value="{Binding EnforcementBadgeTag}"/>
+                                        <Setter Property="Content" Value="{Binding EnforcementBadgeText}"/>
                                     </Style>
 
                                     <!-- CONNECTION = ตอนนี้ Agent poll เข้ามาผ่านทางไหน (UsingFallback จาก Server -

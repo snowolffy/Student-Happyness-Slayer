@@ -1,4 +1,4 @@
-namespace OnionProcOparetor.Console.Models;
+﻿namespace OnionProcOparetor.Console.Models;
 
 /// <summary>ข้อมูลเครื่อง client ที่ได้จาก GET /api/clients</summary>
 public class ClientMachineDto
@@ -27,4 +27,30 @@ public class ClientMachineDto
     /// "ครูเปิดใช้งาน enforcement เครื่องนี้ไว้ไหม" ดู DashboardWindow.xaml's STATUS/ENFORCEMENT column
     /// </summary>
     public bool IsOnline { get; set; }
+
+    /// <summary>
+    /// ค่า GlobalState.IsEnabled ที่ Dashboard เติมให้ทุกครั้งก่อนผูกเข้าตาราง (ไม่ได้มากับ
+    /// GET /api/clients) - pattern เดียวกับ ClientMachine.IsConnectedViaSignalR ฝั่ง Server ที่ set
+    /// จากภายนอกก่อน serialize ทุกครั้ง ดู DashboardWindow.ApplyClientsFilter สำหรับจุดที่ set
+    ///
+    /// default = true เพื่อให้พฤติกรรมเดิม (ไม่มี gate) เป็นค่าตั้งต้นถ้าลืม set ที่ไหนสักจุด
+    /// </summary>
+    public bool GlobalEnforcementEnabled { get; set; } = true;
+
+    /// <summary>
+    /// สิ่งที่ Agent เครื่องนี้ทำอยู่จริง - ตรงกับ `enabled` ที่ Server คำนวณให้ตอน poll เป๊ะๆ
+    /// (globalEnabled &amp;&amp; client.IsEnabled ดู /api/poll)
+    /// </summary>
+    public bool EffectiveEnabled => IsEnabled && GlobalEnforcementEnabled;
+
+    /// <summary>
+    /// ข้อความบน badge คอลัมน์ ENFORCEMENT - "OFF (GLOBAL)" คือกรณีที่เคยทำให้หาสาเหตุไม่เจอมาก่อน
+    /// (2026-09-04): เครื่องเปิด enforcement ไว้ของมันเอง แต่ถูก gate ทั้งห้องกดทับอยู่ ตารางเดิม
+    /// ขึ้น ENABLED เฉยๆ ทั้งที่ Agent รายงาน Disabled - สองฝั่งขัดกันโดยไม่มีอะไรอธิบาย
+    /// </summary>
+    public string EnforcementBadgeText =>
+        IsEnabled && !GlobalEnforcementEnabled ? "OFF (GLOBAL)" : IsEnabled ? "ENABLED" : "DISABLED";
+
+    /// <summary>Tag ของ StatusBadge (Online/Warning) - ดูสีตาม "ผลจริง" ไม่ใช่ค่ารายเครื่อง</summary>
+    public string EnforcementBadgeTag => EffectiveEnabled ? "Online" : "Warning";
 }

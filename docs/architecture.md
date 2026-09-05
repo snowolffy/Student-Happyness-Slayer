@@ -1,4 +1,4 @@
-# Architecture Decisions
+﻿# Architecture Decisions
 
 บันทึกการตัดสินใจทั้งหมดจากการวางแผน เพื่อไม่ให้ต้องย้อนคิดใหม่ตอนเริ่มโค้ดจริง
 
@@ -77,6 +77,21 @@ feature-selection สองรอบจากดีไซน์นี้ (ADDLOC
 - **Fail-safe**: เลือก **fail-secure** — ถ้า client ติดต่อ server ไม่ได้เกิน X นาที
   ให้ยังคง enforce กฎล่าสุดที่มีต่อไป (ไม่ fallback เป็นปิดระบบ)
 - **Toggle**: มี 2 ระดับ — Global (ทั้งห้อง) และ Per-machine (เครื่องเดียว)
+  - ทั้งสองระดับต่อกันแบบ **AND** ไม่ใช่ OR: Agent บังคับใช้กฎก็ต่อเมื่อเปิดทั้งคู่
+    (`enabled = globalEnabled && client.IsEnabled` ใน `GET /api/poll`) — Global จึงเป็น
+    **kill switch คร่อมทุกเครื่อง** ไม่ใช่แค่ "ทางลัดสำหรับกดทีเดียวทั้งห้อง"
+  - บั๊กจริงที่เจอ (2026-09-04, field test): ค่านี้ไม่มี endpoint ให้ "อ่าน" เลยตั้งแต่แรก มีแต่
+    `POST /api/global/toggle` ที่พลิกค่าแบบมองไม่เห็น และปุ่มใน WPF Console ก็เคยถูกลบทิ้งด้วย
+    ความเข้าใจผิดว่า "ACTIONS > ทุกเครื่อง > TOGGLE ENFORCEMENT ให้ผลเหมือนกัน" (ไม่จริง —
+    อันนั้นแก้ `IsEnabled` ราย *เครื่อง* ไม่ได้แตะ gate ตัวนี้) ผลคือพอ gate ถูกปิดค้างไว้
+    Console โชว์ทุกเครื่องเป็น ENABLED ตามปกติ ส่วน Agent ทุกตัวขึ้น Disabled ค้าง toggle
+    รายเครื่องกี่รอบก็ไม่เปลี่ยน ส่วนคำสั่ง lock/shutdown ยังทำงานปกติ (ไม่ผ่าน gate นี้) =
+    อาการที่หาสาเหตุไม่เจอ เพราะค่าเดียวที่อธิบายมันได้มองไม่เห็นจากทุก UI ที่มี
+  - แก้แล้ว: `GET /api/global` (อ่านค่า) + `POST /api/global/set` (ตั้งค่าตรงๆ idempotent
+    ไม่ใช่พลิกค่า — กัน lost-update ตอนครู 2 คนกดพร้อมกันด้วย) ส่วน `/toggle` เก็บไว้เพื่อ
+    Console เวอร์ชันเก่าที่ deploy ไปแล้ว ฝั่ง UI ทั้ง WPF Console และ Online Console แสดง
+    แถบเตือนตลอดเวลาที่ gate ปิดอยู่ พร้อมปุ่มเปิดกลับในแถบนั้นเอง และคอลัมน์ ENFORCEMENT
+    ขึ้น `OFF (GLOBAL)` แทน `ENABLED` สำหรับเครื่องที่เปิดไว้เองแต่ถูก gate กดทับ
 
 ## Auth
 

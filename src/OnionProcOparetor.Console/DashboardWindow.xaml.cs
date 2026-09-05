@@ -186,11 +186,22 @@ public partial class DashboardWindow : Window
         });
     }
 
+    /// <summary>
+    /// สถานะ enforcement ทั้งห้อง - null = ยังอ่านค่าไม่ได้ ซึ่งต้องต่างจาก "รู้ว่าเปิดอยู่" เสมอ
+    /// (ดู RefreshGlobalStateUi) โหลดใหม่ทุกครั้งที่ LoadAllDataAsync ทำงาน เพราะครูอีกคนอาจปิด
+    /// ทั้งระบบจาก Online Console อยู่คนละเครื่องกัน
+    /// </summary>
+    private GlobalStateDto? _globalState;
+
     private async Task LoadAllDataAsync()
     {
         StatusText.Text = "กำลังโหลดข้อมูล...";
         try
         {
+            // อ่านก่อน _allClients เสมอ - ApplyClientsFilter ต้องใช้ค่านี้เติมลง DTO แต่ละตัว
+            _globalState = await _apiClient.GetGlobalStateAsync();
+            RefreshGlobalStateUi();
+
             _allClients = await _apiClient.GetClientsAsync();
             ApplyClientsFilter();
             ApplyLiveViewClientList();
@@ -237,16 +248,78 @@ public partial class DashboardWindow : Window
         await LoadAllDataAsync();
     }
 
+    /// <summary>ปุ่ม "เปิดกลับ" บนแถบเตือน - ทางออกอยู่ตรงที่เห็นปัญหา ไม่ต้องไปหาในเมนู</summary>
+    private async void GlobalTurnOnButton_Click(object sender, RoutedEventArgs e)
+    {
+        await SetGlobalEnforcementAsync(true);
+    }
+
     /// <summary>
-    /// ปุ่มเกียร์บน toolbar (แทนที่ TOGGLE GLOBAL เดิม - ลบออกเพราะ effect เดียวกัน (ปิด/เปิดทุกเครื่อง
-    /// พร้อมกัน) ทำได้อยู่แล้วผ่านปุ่ม ACTIONS > เลือก "ทุกเครื่อง" > TOGGLE ENFORCEMENT ใน
-    /// ActionPanelWindow - ดู BulkActionsButton_Click ไม่ได้ลบ ApiClient.ToggleGlobalAsync()/Server
-    /// endpoint ออก เพราะยังเป็น mechanism จริงที่ผูกกับ GlobalState ฝั่ง Server อยู่) เปิด ContextMenu
-    /// ให้เลือก Settings/About แทนที่จะแยกปุ่มคนละจุด
+    /// ตั้งค่า gate ทั้งห้องแบบระบุค่าตรงๆ - การปิดต้องยืนยันก่อน (มีผลทุกเครื่องพร้อมกัน)
+    /// ส่วนการเปิดกลับไม่ต้องถาม เพราะนั่นคือการกู้คืนจากสถานะที่ทำให้ทั้งห้องไม่บังคับใช้กฎ
+    /// </summary>
+    private async Task SetGlobalEnforcementAsync(bool enabled)
+    {
+        if (!enabled && !ConfirmWindow.Show(
+                "กฎทั้งหมดจะหยุดทำงานบนทุกเครื่องในห้องแล็บพร้อมกัน จนกว่าจะเปิดกลับ - "
+                    + "การเปิด/ปิด enforcement รายเครื่องจะไม่มีผลใดๆ ตลอดช่วงที่ปิดอยู่",
+                "ปิดการบังคับใช้ทั้งระบบ?", this))
+        {
+            return;
+        }
+
+        var success = await _apiClient.SetGlobalEnabledAsync(enabled);
+        StatusText.Text = success
+            ? enabled ? "เปิดการบังคับใช้ทั้งระบบแล้ว" : "ปิดการบังคับใช้ทั้งระบบแล้ว"
+            : "เปลี่ยนการบังคับใช้ทั้งระบบไม่สำเร็จ";
+
+        // โหลดใหม่ทั้งชุดเสมอ ไม่ใช่แค่เดาค่าใหม่ลง _globalState เอง - แถบเตือนกับคอลัมน์
+        // ENFORCEMENT ต้องสะท้อนสิ่งที่ Server ตอบจริง ไม่ใช่สิ่งที่ Console เพิ่งกดไป
+        await LoadAllDataAsync();
+    }
+
+    /// <summary>
+    /// แสดง/ซ่อนแถบเตือน "ปิดการบังคับใช้ทั้งระบบ" ตาม _globalState
+    ///
+    /// _globalState เป็น null (อ่านค่าไม่ได้ เช่น Server เวอร์ชันเก่าที่ยังไม่มี GET /api/global)
+    /// ให้ซ่อนแถบไว้ - ขึ้นเตือนว่า "ปิดอยู่" ทั้งที่ยังไม่รู้ว่าปิดจริงไหม แย่กว่าไม่ขึ้นเลย
+    /// (เมนูเกียร์จะขึ้นว่า "อ่านค่าไม่ได้" ให้เห็นแทน)
+    /// </summary>
+    private void RefreshGlobalStateUi()
+    {
+        GlobalOffBanner.Visibility = _globalState is { IsEnabled: false }
+            ? Visibility.Visible
+            : Visibility.Collapsed;
+    }
+
+    /// <summary>
+    /// ปุ่มเกียร์บน toolbar - เปิด ContextMenu ให้เลือก Settings/About แทนที่จะแยกปุ่มคนละจุด
+    ///
+    /// รวมสวิตช์ "การบังคับใช้ทั้งระบบ" กลับเข้ามาที่นี่ด้วย (2026-09-04): ปุ่ม TOGGLE GLOBAL เดิม
+    /// เคยถูกลบทิ้งด้วยเหตุผลที่ผิด - เข้าใจว่า "ACTIONS > ทุกเครื่อง > TOGGLE ENFORCEMENT ให้ผล
+    /// เหมือนกัน" ซึ่งไม่จริงเลย: อันนั้นพลิก IsEnabled ราย "เครื่อง" ส่วนอันนี้คือ GlobalState ที่เป็น
+    /// AND gate คร่อมทุกเครื่องอีกชั้น (ดู /api/poll) พอลบไปโดยที่ gate ยังอยู่ Console ตัวนี้จึงไม่มี
+    /// ทางทั้ง "เห็น" และ "แก้" ค่านั้นได้อีกเลย = ถ้ามันถูกปิดไว้ ทั้งห้องหยุดบังคับใช้กฎถาวรโดยที่
+    /// ครูหาสาเหตุไม่เจอ (เจอจริงตอน field test)
     /// </summary>
     private void SettingsMenuButton_Click(object sender, RoutedEventArgs e)
     {
         var menu = new ContextMenu();
+
+        // header บอกสถานะปัจจุบันเสมอ ไม่ใช่แค่ "Toggle" - ปุ่มที่ไม่บอกว่ากดแล้วจะได้อะไร คือครึ่งหนึ่ง
+        // ของบั๊กเดิม
+        var globalItem = new MenuItem
+        {
+            Header = _globalState is null
+                ? "การบังคับใช้ทั้งระบบ: อ่านค่าไม่ได้"
+                : _globalState.IsEnabled
+                    ? "ปิดการบังคับใช้ทั้งระบบ (ทุกเครื่อง)"
+                    : "เปิดการบังคับใช้ทั้งระบบ (ทุกเครื่อง)",
+            IsEnabled = _globalState is not null
+        };
+        globalItem.Click += async (_, _) => await SetGlobalEnforcementAsync(!_globalState!.IsEnabled);
+        menu.Items.Add(globalItem);
+        menu.Items.Add(new Separator());
 
         var settingsItem = new MenuItem { Header = "Settings..." };
         settingsItem.Click += (_, _) => new SettingsWindow(_apiClient) { Owner = this }.ShowDialog();
@@ -516,6 +589,15 @@ public partial class DashboardWindow : Window
         // จำ selection เดิมไว้ก่อนเปลี่ยน ItemsSource (ไม่งั้นจะหลุดทุกครั้งที่ reload ข้อมูล
         // เช่นตอน auto-refresh ทุก 10 วิ หรือตอนพิมพ์ค้นหา) แล้วเลือกคืนให้ตาม Id หลังโหลดเสร็จ
         var selectedIds = ClientsGrid.SelectedItems.Cast<ClientMachineDto>().Select(c => c.Id).ToHashSet();
+
+        // เติม gate ทั้งห้องลงทุกแถวก่อนผูกเข้าตาราง - คอลัมน์ ENFORCEMENT แสดง "ผลจริง" ที่ Agent
+        // ทำอยู่ ไม่ใช่แค่ค่ารายเครื่อง (ดู ClientMachineDto.EnforcementBadgeText) ถ้าอ่านค่า global
+        // ไม่ได้เลย ให้ถือว่าเปิด = แสดงผลแบบเดิมทุกประการ ไม่ใช่ขึ้น OFF (GLOBAL) ผิดๆ ทั้งตาราง
+        var globalEnforcementEnabled = _globalState?.IsEnabled ?? true;
+        foreach (var client in _allClients)
+        {
+            client.GlobalEnforcementEnabled = globalEnforcementEnabled;
+        }
 
         var keyword = ClientsSearchBox.Text.Trim();
         var filtered = string.IsNullOrEmpty(keyword)

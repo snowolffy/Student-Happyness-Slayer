@@ -1,4 +1,4 @@
-using System.Net.Http.Json;
+﻿using System.Net.Http.Json;
 using OnionProcOparetor.OnlineConsole.Models;
 
 namespace OnionProcOparetor.OnlineConsole.Services;
@@ -187,9 +187,27 @@ public class ApiClient
         return response.IsSuccessStatusCode;
     }
 
-    public async Task<bool> ToggleGlobalAsync()
+    /// <summary>
+    /// อ่านสถานะ enforcement ทั้งห้อง - คืน null ถ้าอ่านไม่ได้ (Server เก่าที่ยังไม่มี endpoint นี้
+    /// ก็ตอบ 404 มาเช่นกัน) ผู้เรียกต้องแยกกรณี "ไม่รู้" ออกจาก "รู้ว่าปิดอยู่" ให้ชัด - การเดาว่า
+    /// เปิดอยู่เวลาที่อ่านไม่ได้ คือการกลับไปสู่บั๊กเดิมที่ทำให้ค่านี้มองไม่เห็น
+    /// </summary>
+    public async Task<GlobalStateDto?> GetGlobalStateAsync()
     {
-        var response = await _httpClient.PostAsync("/api/global/toggle", null);
+        try
+        {
+            return await _httpClient.GetFromJsonAsync<GlobalStateDto>("/api/global");
+        }
+        catch (HttpRequestException)
+        {
+            return null;
+        }
+    }
+
+    /// <summary>ตั้งค่า enforcement ทั้งห้องแบบระบุค่าตรงๆ (idempotent) - ใช้แทน ToggleGlobalAsync</summary>
+    public async Task<bool> SetGlobalEnabledAsync(bool enabled)
+    {
+        var response = await _httpClient.PostAsJsonAsync("/api/global/set", new { enabled });
         return response.IsSuccessStatusCode;
     }
 

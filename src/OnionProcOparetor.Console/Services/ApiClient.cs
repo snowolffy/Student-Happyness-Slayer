@@ -215,9 +215,31 @@ public class ApiClient
         return response.IsSuccessStatusCode;
     }
 
-    public async Task<bool> ToggleGlobalAsync()
+    /// <summary>
+    /// อ่านสถานะ enforcement ทั้งห้อง - คืน null ถ้าอ่านไม่ได้ ผู้เรียกต้องแยก "ไม่รู้" ออกจาก
+    /// "รู้ว่าเปิดอยู่" ให้ชัด (การเดาว่าเปิดอยู่เวลาที่อ่านไม่ได้ คือการกลับไปสู่บั๊กเดิมที่ทำให้
+    /// ค่านี้มองไม่เห็น - ดู DashboardWindow.RefreshGlobalStateUi)
+    /// </summary>
+    public async Task<GlobalStateDto?> GetGlobalStateAsync()
     {
-        var response = await _httpClient.PostAsync("/api/global/toggle", null);
+        try
+        {
+            return await _httpClient.GetFromJsonAsync<GlobalStateDto>("/api/global");
+        }
+        catch (HttpRequestException)
+        {
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// ตั้งค่า enforcement ทั้งห้องแบบระบุค่าตรงๆ (idempotent) - แทน ToggleGlobalAsync เดิมที่พลิกค่า
+    /// จากของเดิม ซึ่งต้องรู้ค่าปัจจุบันก่อนถึงจะรู้ว่ากดแล้วได้อะไร และแพ้ lost-update ถ้าครู 2 คน
+    /// กดพร้อมกัน (กดคนละครั้ง = กลับมาที่เดิม)
+    /// </summary>
+    public async Task<bool> SetGlobalEnabledAsync(bool enabled)
+    {
+        var response = await _httpClient.PostAsJsonAsync("/api/global/set", new { enabled });
         return response.IsSuccessStatusCode;
     }
 

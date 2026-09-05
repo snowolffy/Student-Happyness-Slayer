@@ -1,4 +1,4 @@
-@page "/"
+﻿@page "/"
 @rendermode InteractiveServer
 @inherits AuthenticatedPageBase
 @inject LabHubClient LabHub
@@ -44,6 +44,30 @@
 }
 else
 {
+@* ---------------------------------------------------------------------------------------------
+   The global enforcement gate, made visible. This banner exists because of a real field bug
+   (2026-09-04): GlobalState.IsEnabled is an AND gate over EVERY machine's own IsEnabled (the
+   Agent enforces only when both are on - see /api/poll), but nothing anywhere displayed it. With
+   it off, this table happily showed all 40 machines as ENABLED while every Agent reported
+   "Disabled", and toggling a machine changed nothing at all - an unfalsifiable symptom, because
+   the one value that explained it was invisible in every UI we had. Commands kept working, which
+   made it look like the connection was fine (it was).
+
+   So it gets the loudest treatment on the page: full width, above the numbers, with the way out
+   in the banner itself. Nobody should have to know this state exists to get out of it.
+   --------------------------------------------------------------------------------------------- *@
+@if (_globalState is { IsEnabled: false })
+{
+    <div class="global-off-banner" role="alert">
+        <Icon Name="shield-off" Size="20" />
+        <div style="flex:1; min-width:0">
+            <strong>ปิดการบังคับใช้ทั้งระบบอยู่</strong>
+            <div class="caption">กฎทั้งหมดหยุดทำงานบนทุกเครื่อง ไม่ว่าเครื่องนั้นจะขึ้น ENABLED ในตารางหรือไม่ก็ตาม</div>
+        </div>
+        <button class="btn btn-primary" @onclick="() => SetGlobalAsync(true)">เปิดกลับ</button>
+    </div>
+}
+
 <div class="stat-grid">
     @* Every tile is also a filter. The number that worries you is the number you want to drill into,
        so making it the tap target removes an entire step ("see 3 offline" -> "which 3?"). Tapping the
@@ -60,8 +84,10 @@ else
               Selected="_filter == ClientFilter.Offline"
               OnClick="() => SetFilter(ClientFilter.Offline)" />
 
+    @* Counts the EFFECTIVE state, not the per-machine flag: with the global gate off the honest
+       answer to "how many machines are not enforcing?" is "all of them". *@
     <StatCard Label="ปิดการบังคับใช้" IconName="shield-off"
-              Value="_clients.Count(c => !c.IsEnabled)"
+              Value="_clients.Count(c => !EffectiveEnabled(c))"
               Color="var(--warning)" Hint="กฎไม่ถูกบังคับใช้บนเครื่องนี้"
               Selected="_filter == ClientFilter.Disabled"
               OnClick="() => SetFilter(ClientFilter.Disabled)" />
@@ -82,9 +108,16 @@ else
     <button class="btn btn-secondary @(_refreshing ? "is-busy" : "")" @onclick="RefreshAsync">
         <Icon Name="refresh-cw" Size="15" /> รีเฟรช
     </button>
-    @* Confirmed, because this one switch reaches all 40 machines at once - see ConfirmDialog. *@
-    <button class="btn btn-secondary" @onclick="() => _confirmGlobalToggle = true">
-        <Icon Name="power" Size="15" /> สลับการบังคับใช้ทั้งระบบ
+    @* Says what it will DO, not that it will "สลับ" something. The old blind-flip label was half of
+       the field bug above: pressing it told you nothing about which state you had just left the
+       whole lab in, and nothing on the page told you either. Turning the gate OFF is confirmed
+       (it reaches all 40 machines); turning it back ON is one tap, because that is the recovery. *@
+    <button class="btn @(_globalState is { IsEnabled: false } ? "btn-primary" : "btn-secondary")"
+            disabled="@(_globalState is null)"
+            title="@(_globalState is null ? "อ่านสถานะการบังคับใช้ทั้งระบบจาก Server ไม่ได้" : null)"
+            @onclick="OnGlobalButtonClick">
+        <Icon Name="power" Size="15" />
+        @(_globalState is { IsEnabled: false } ? "เปิดการบังคับใช้ทั้งระบบ" : "ปิดการบังคับใช้ทั้งระบบ")
     </button>
 </div>
 
@@ -141,7 +174,9 @@ else
 
                 <dl class="data-card-rows">
                     <dt>การบังคับใช้</dt>
-                    <dd><span class="badge @(client.IsEnabled ? "badge-online" : "badge-warning")">@(client.IsEnabled ? "เปิด" : "ปิด")</span></dd>
+                    <dd>
+                        <span class="badge @EnforcementBadgeClass(client)" title="@EnforcementBadgeHint(client)">@EnforcementLabelTh(client)</span>
+                    </dd>
                     <dt>เห็นล่าสุด</dt>
                     <dd><TimeAgo Value="client.LastSeenAt" /></dd>
                 </dl>
@@ -187,7 +222,7 @@ else
                             @if (client.LastKnownIp is not null) { <span class="caption mono"> @client.LastKnownIp</span> }
                         </td>
                         <td><span class="badge @(client.IsOnline ? "badge-online" : "badge-offline")">@(client.IsOnline ? "ONLINE" : "OFFLINE")</span></td>
-                        <td><span class="badge @(client.IsEnabled ? "badge-online" : "badge-warning")">@(client.IsEnabled ? "ENABLED" : "DISABLED")</span></td>
+                        <td><span class="badge @EnforcementBadgeClass(client)" title="@EnforcementBadgeHint(client)">@EnforcementLabelEn(client)</span></td>
                         <td>@(client.UsingFallback ? "Tailscale" : "LAN")</td>
                         <td><TimeAgo Value="client.LastSeenAt" /></td>
                         <td>
@@ -226,13 +261,13 @@ else
     </div>
 }
 
-@if (_confirmGlobalToggle)
+@if (_confirmGlobalOff)
 {
-    <ConfirmDialog Title="สลับการบังคับใช้ทั้งระบบ?"
-                   Message="คำสั่งนี้มีผลกับทุกเครื่องในห้องแล็บพร้อมกัน ถ้ากำลังปิดอยู่ กฎทั้งหมดจะหยุดทำงานจนกว่าจะเปิดกลับ"
-                   ConfirmText="สลับเลย" Danger="true"
-                   OnCancel="() => _confirmGlobalToggle = false"
-                   OnConfirm="ToggleGlobalAsync" />
+    <ConfirmDialog Title="ปิดการบังคับใช้ทั้งระบบ?"
+                   Message="กฎทั้งหมดจะหยุดทำงานบนทุกเครื่องในห้องแล็บพร้อมกัน จนกว่าจะเปิดกลับจากปุ่มเดิม - การเปิด/ปิด enforcement รายเครื่องจะไม่มีผลใดๆ ตลอดช่วงที่ปิดอยู่"
+                   ConfirmText="ปิดทั้งระบบ" Danger="true"
+                   OnCancel="() => _confirmGlobalOff = false"
+                   OnConfirm="() => SetGlobalAsync(false)" />
 }
 
 @if (_actionPanelClient is not null)
@@ -297,7 +332,13 @@ else
     private ClientMachineDto? _actionPanelClient;
     private bool _bulkActionPanelOpen;
     private bool _broadcastOpen;
-    private bool _confirmGlobalToggle;
+    private bool _confirmGlobalOff;
+
+    /// <summary>
+    /// null = ยังอ่านค่าไม่ได้ (Server ตอบไม่สำเร็จ) ซึ่งต้องต่างจาก "รู้ว่าเปิดอยู่" เสมอ - การ
+    /// สมมติว่าเปิดอยู่เวลาที่ไม่รู้ คือการทำให้ค่านี้มองไม่เห็นอีกครั้ง ซึ่งเป็นตัวบั๊กเอง
+    /// </summary>
+    private GlobalStateDto? _globalState;
     private ClientMachineDto? _runningProcessesClient;
     private ClientMachineDto? _pendingCommandsClient;
     private ActionReportRequest? _report;
@@ -350,6 +391,11 @@ else
     private async Task LoadClientsAsync()
     {
         _clients = await Api.GetClientsAsync();
+
+        // ดึงมาพร้อมกันทุกครั้ง (รวมถึงรอบ poll ทุก 10 วิ) - ครูอีกคนอาจปิดทั้งระบบจากอีกเครื่องหนึ่ง
+        // และหน้านี้ต้องไม่ใช่หน้าที่แสดงว่าทุกอย่างปกติทั้งที่ทั้งห้องหยุดบังคับใช้ไปแล้ว
+        _globalState = await Api.GetGlobalStateAsync();
+
         await InvokeAsync(StateHasChanged);
     }
 
@@ -387,7 +433,7 @@ else
         {
             ClientFilter.Online => query.Where(c => c.IsOnline),
             ClientFilter.Offline => query.Where(c => !c.IsOnline),
-            ClientFilter.Disabled => query.Where(c => !c.IsEnabled),
+            ClientFilter.Disabled => query.Where(c => !EffectiveEnabled(c)),
             ClientFilter.Fallback => query.Where(c => c.UsingFallback),
             _ => query
         };
@@ -511,17 +557,54 @@ else
 
     // ---- Actions -------------------------------------------------------------------------------
 
-    private async Task ToggleGlobalAsync()
+    /// <summary>ปิด = ต้องยืนยันก่อน (มีผลทั้งห้อง) / เปิดกลับ = ทำเลย นั่นคือทางออกจากปัญหา</summary>
+    private async Task OnGlobalButtonClick()
     {
-        _confirmGlobalToggle = false;
-        var ok = await Api.ToggleGlobalAsync();
+        if (_globalState is null) return;
+
+        if (_globalState.IsEnabled) _confirmGlobalOff = true;
+        else await SetGlobalAsync(true);
+    }
+
+    private async Task SetGlobalAsync(bool enabled)
+    {
+        _confirmGlobalOff = false;
+        var ok = await Api.SetGlobalEnabledAsync(enabled);
 
         // Toast instead of the old inline status line: on a phone, by the time you have scrolled to a
         // button the top of the page (where that line lived) is long gone, so both the confirmation and
-        // - much worse - the failure were being written somewhere nobody would ever see them.
-        Toasts.Result(ok, "สลับการบังคับใช้ทั้งระบบแล้ว", "สลับไม่สำเร็จ", "Server ปฏิเสธคำสั่ง - ลองใหม่อีกครั้ง");
+        // - much worse - the failure were being written somewhere nobody would ever see them. It also
+        // names the resulting state now: "สลับแล้ว" left the reader exactly as uninformed as before.
+        Toasts.Result(ok,
+            enabled ? "เปิดการบังคับใช้ทั้งระบบแล้ว" : "ปิดการบังคับใช้ทั้งระบบแล้ว",
+            "เปลี่ยนไม่สำเร็จ", "Server ปฏิเสธคำสั่ง - ลองใหม่อีกครั้ง");
+
         await LoadClientsAsync();
     }
+
+    // ---- Enforcement badges --------------------------------------------------------------------
+
+    /// <summary>สิ่งที่ Agent ทำอยู่จริง - ตรงกับ `enabled` ที่ Server คำนวณให้ตอน poll เป๊ะๆ</summary>
+    private bool EffectiveEnabled(ClientMachineDto client) =>
+        client.IsEnabled && _globalState?.IsEnabled != false;
+
+    /// <summary>true = เครื่องนี้เปิดอยู่ของมันเอง แต่ถูก gate ทั้งห้องกดทับไว้</summary>
+    private bool MaskedByGlobal(ClientMachineDto client) =>
+        client.IsEnabled && _globalState is { IsEnabled: false };
+
+    private string EnforcementBadgeClass(ClientMachineDto client) =>
+        EffectiveEnabled(client) ? "badge-online" : "badge-warning";
+
+    private string EnforcementLabelTh(ClientMachineDto client) =>
+        MaskedByGlobal(client) ? "ปิด (ทั้งระบบ)" : client.IsEnabled ? "เปิด" : "ปิด";
+
+    private string EnforcementLabelEn(ClientMachineDto client) =>
+        MaskedByGlobal(client) ? "OFF (GLOBAL)" : client.IsEnabled ? "ENABLED" : "DISABLED";
+
+    private string? EnforcementBadgeHint(ClientMachineDto client) =>
+        MaskedByGlobal(client)
+            ? "เครื่องนี้เปิด enforcement ไว้ แต่การบังคับใช้ทั้งระบบถูกปิดอยู่ กฎจึงไม่ทำงาน"
+            : null;
 
     private void ShowReport(ActionReportRequest request) => _report = request;
 
