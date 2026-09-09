@@ -66,11 +66,36 @@ public partial class App : Application
         var dialogArg = e.Args.FirstOrDefault(a => a.StartsWith("--dialog=", StringComparison.Ordinal));
         if (dialogArg is not null)
         {
+            var api = new Services.ApiClient();
+            var sampleClient = new Models.ClientMachineDto
+            {
+                Id = 1,
+                ClientGuid = "a1b2c3d4-preview",
+                MachineName = "LAB-PC-01",
+                LastKnownIp = "192.168.1.11",
+                IsOnline = true,
+                IsEnabled = true,
+                LastSeenAt = DateTime.UtcNow
+            };
+
             Window dialog = dialogArg["--dialog=".Length..] switch
             {
                 "confirm" => ConfirmWindow.CreatePreview(typeToConfirm: false),
                 "confirm-type" => ConfirmWindow.CreatePreview(typeToConfirm: true),
                 "about" => new AboutWindow(),
+                "settings" => new SettingsWindow(api),
+                "broadcast" => new BroadcastMessageWindow(3),
+                "add-rule" => new AddEditRuleWindow(api),
+                "change-password" => new ChangeMyPasswordWindow(api),
+                "force-password" => new ForceChangePasswordWindow(api),
+                "reset-password" => new ResetPasswordWindow("teacher01"),
+                "tailscale" => new TailscaleLoginWindow(),
+                "program-review" => new ProgramReviewWindow(api),
+                "client-settings" => new ClientSettingsWindow(api, sampleClient),
+                "rule-overrides" => new RuleOverridesWindow(api, sampleClient),
+                "pending-commands" => new PendingCommandsWindow(api, sampleClient),
+                "running-processes" => new RunningProcessesWindow(api, new Services.LabHubClient(), sampleClient),
+                "action-panel" => new ActionPanelWindow(api, sampleClient),
                 _ => throw new ArgumentException($"ไม่รู้จัก dialog: {dialogArg}")
             };
 

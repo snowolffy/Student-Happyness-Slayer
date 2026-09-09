@@ -941,11 +941,11 @@
                                     <ColumnDefinition Width="*"/>
                                     <ColumnDefinition Width="Auto"/>
                                 </Grid.ColumnDefinitions>
-                                <TextBox Grid.Column="0" x:Name="NewUserUsernameBox" Width="160" Height="35" VerticalAlignment="Center"
-                                         Style="{StaticResource RoundedTextBox}"
+                                <TextBox Grid.Column="0" x:Name="NewUserUsernameBox" Width="180" Height="35" VerticalAlignment="Center"
+                                         Style="{StaticResource PlaceholderTextBox}" Tag="Username"
                                          ToolTip="Username" TextChanged="NewUserUsernameBox_TextChanged"/>
-                                <PasswordBox Grid.Column="2" x:Name="NewUserPasswordBox" Width="160" Height="35" VerticalAlignment="Center"
-                                             Style="{StaticResource RoundedPasswordBox}"
+                                <PasswordBox Grid.Column="2" x:Name="NewUserPasswordBox" Width="200" Height="35" VerticalAlignment="Center"
+                                             Style="{StaticResource PlaceholderPasswordBox}" Tag="Password (อย่างน้อย 8 ตัว)"
                                              ToolTip="Password (อย่างน้อย 8 ตัวอักษร)"/>
                                 <Button Grid.Column="4" Content="ADD USER" Style="{StaticResource ButtonPrimary}"
                                         VerticalAlignment="Center" Click="AddUserButton_Click"/>

@@ -75,6 +75,12 @@
     <SolidColorBrush x:Key="Brush.Danger.Light" Color="{StaticResource Color.Danger.Light}"/>
     <SolidColorBrush x:Key="Brush.Danger.Dark" Color="{StaticResource Color.Danger.Dark}"/>
 
+    <!-- Danger.Fill = สีพื้นของปุ่มอันตราย ซึ่ง "ไม่ใช่ตัวเดียวกับ" Danger.Default ที่เป็นสีของ
+         ตัวหนังสือ/เม็ด badge - แยกกันด้วยเหตุผลเดียวกับที่ Accent.Default กับ Accent.Text แยกกัน
+         ในธีมสว่างสองค่านี้เท่ากัน ส่วนในธีมมืดต่างกัน (ดูไฟล์ Dark) -->
+    <Color x:Key="Color.Danger.Fill">#D64545</Color>
+    <SolidColorBrush x:Key="Brush.Danger.Fill" Color="{StaticResource Color.Danger.Fill}"/>
+
     <!-- ==================== Text ==================== -->
     <Color x:Key="Color.Text.Primary">#1F2430</Color>            <!-- css:text -->
     <Color x:Key="Color.Text.Secondary">#6B7280</Color>          <!-- css:text-secondary -->

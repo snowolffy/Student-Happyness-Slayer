@@ -331,7 +331,7 @@
     <!-- ==================== ButtonDanger ====================
          Explicit Template restored - same reasoning as ButtonPrimary above. -->
     <Style x:Key="ButtonDanger" TargetType="Button">
-        <Setter Property="Background" Value="{DynamicResource Brush.Danger.Default}"/>
+        <Setter Property="Background" Value="{DynamicResource Brush.Danger.Fill}"/>
         <Setter Property="Foreground" Value="{DynamicResource Brush.Text.OnAccent}"/>
         <Setter Property="FontFamily" Value="{StaticResource FontFamily.Primary}"/>
         <Setter Property="FontWeight" Value="SemiBold"/>
@@ -591,6 +591,75 @@
                             <Setter TargetName="Placeholder" Property="Visibility" Value="Visible"/>
                         </Trigger>
                         <Trigger Property="IsKeyboardFocusWithin" Value="True">
+                            <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource Brush.Accent.Default}"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- ==================== PlaceholderTextBox / PlaceholderPasswordBox ====================
+         เหมือน RoundedTextBox/RoundedPasswordBox ทุกอย่าง แต่วาดข้อความ placeholder จาก Tag ตอนที่
+         ช่องยังว่าง - ใช้กับช่องกรอกที่ไม่มีป้ายกำกับอยู่ข้าง ๆ (เช่นช่องเพิ่มผู้ใช้ในแท็บ Users ซึ่ง
+         เดิมเป็นกล่องเปล่าสองกล่องเรียงกัน บอกไม่ได้เลยว่าอันไหนคือ username ถ้าไม่เอาเมาส์ไปชี้)
+
+         PasswordBox ไม่มี property Text ให้ trigger เกาะ (จงใจ ด้วยเหตุผลด้านความปลอดภัย) จึงต้องใช้
+         PasswordChanged จาก code-behind ไม่ได้ - ที่นี่ใช้วิธีผูกกับ IsKeyboardFocusWithin แทน คือ
+         ซ่อน placeholder ทันทีที่ช่องได้ focus ซึ่งครอบคลุมกรณีจริงทั้งหมด (จะพิมพ์ก็ต้อง focus ก่อน)
+         และไม่ต้องแตะ code-behind ของทุกหน้าต่างที่ใช้ -->
+    <Style x:Key="PlaceholderTextBox" TargetType="TextBox" BasedOn="{StaticResource RoundedTextBox}">
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="TextBox">
+                    <Border x:Name="Bd" CornerRadius="8"
+                            Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}">
+                        <Grid>
+                            <TextBlock x:Name="Placeholder" Text="{TemplateBinding Tag}"
+                                       Margin="{TemplateBinding Padding}" VerticalAlignment="Center"
+                                       IsHitTestVisible="False" Visibility="Collapsed"
+                                       FontSize="{TemplateBinding FontSize}"
+                                       Foreground="{DynamicResource Brush.Text.Secondary}"/>
+                            <ScrollViewer x:Name="PART_ContentHost" Margin="{TemplateBinding Padding}"
+                                          VerticalAlignment="Center"/>
+                        </Grid>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="Text" Value="">
+                            <Setter TargetName="Placeholder" Property="Visibility" Value="Visible"/>
+                        </Trigger>
+                        <Trigger Property="IsKeyboardFocusWithin" Value="True">
+                            <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource Brush.Accent.Default}"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="PlaceholderPasswordBox" TargetType="PasswordBox" BasedOn="{StaticResource RoundedPasswordBox}">
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="PasswordBox">
+                    <Border x:Name="Bd" CornerRadius="8"
+                            Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}">
+                        <Grid>
+                            <TextBlock x:Name="Placeholder" Text="{TemplateBinding Tag}"
+                                       Margin="{TemplateBinding Padding}" VerticalAlignment="Center"
+                                       IsHitTestVisible="False"
+                                       FontSize="{TemplateBinding FontSize}"
+                                       Foreground="{DynamicResource Brush.Text.Secondary}"/>
+                            <ScrollViewer x:Name="PART_ContentHost" Margin="{TemplateBinding Padding}"
+                                          VerticalAlignment="Center"/>
+                        </Grid>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsKeyboardFocusWithin" Value="True">
+                            <Setter TargetName="Placeholder" Property="Visibility" Value="Collapsed"/>
                             <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource Brush.Accent.Default}"/>
                         </Trigger>
                     </ControlTemplate.Triggers>

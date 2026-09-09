@@ -75,6 +75,13 @@
     <SolidColorBrush x:Key="Brush.Danger.Light" Color="{StaticResource Color.Danger.Light}"/>
     <SolidColorBrush x:Key="Brush.Danger.Dark" Color="{StaticResource Color.Danger.Dark}"/>
 
+    <!-- Danger.Fill เข้มกว่า Danger.Default ในธีมมืดโดยเจตนา: #F87171 เป็นสีแดงที่ถูกเลือกมาให้
+         "อ่านออกบนพื้นเข้ม" จึงสว่าง ซึ่งแปลว่ามันสว่างเกินกว่าจะเอาไปเป็นพื้นหลังของตัวหนังสือสีขาว
+         (ขาวบน #F87171 = ~2.5:1 ตกเกณฑ์แม้แต่ตัวใหญ่ ส่วนขาวบน #DC2626 = ~4.8:1 ผ่าน)
+         เจอจากการดูภาพจริงของปุ่ม SHUTDOWN/DELETE ในโหมดมืด ไม่ใช่จากการเดา -->
+    <Color x:Key="Color.Danger.Fill">#DC2626</Color>
+    <SolidColorBrush x:Key="Brush.Danger.Fill" Color="{StaticResource Color.Danger.Fill}"/>
+
     <!-- ==================== Text ==================== -->
     <Color x:Key="Color.Text.Primary">#F3EFEA</Color>            <!-- css:text: warm off-white, not #FFF - pure white on near-black glares -->
     <Color x:Key="Color.Text.Secondary">#A39C93</Color>          <!-- css:text-secondary -->
