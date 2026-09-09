@@ -295,43 +295,211 @@
 
     <!-- ==================== StatusBadge ====================
          Usage: <ContentControl Style="{StaticResource StatusBadge}" Tag="Online" Content="Online"/>
-         Tag accepts "Online" / "Offline" / "Warning". -->
+         Tag รับ "Online" / "Offline" / "Warning" / "Danger" / "Accent"
+
+         2026-09-09: เปลี่ยนจาก "ถมสีทึบ + ตัวหนังสือขาว" มาเป็น "เม็ดสีอ่อน + ตัวหนังสือสีสถานะ +
+         จุดนำหน้า" ให้ตรงกับ .badge ของฝั่งเว็บ นอกจากเรื่องความเหมือนกันแล้วยังแก้ปัญหาจริงสองอย่าง:
+
+         1. badge สีทึบ 3 อันเรียงกันในหนึ่งแถวของตาราง 40 แถว กลายเป็นกำแพงสีที่แย่งสายตาไปจาก
+            ข้อมูลในตารางเอง แบบเม็ดสีอ่อนยังอ่านสถานะได้จากสีเหมือนเดิมแต่ไม่ตะโกน
+         2. badge "Warning" เดิมใช้ตัวหนังสือ Brush.Text.Primary บนพื้นเหลือง ซึ่งพอเข้าธีมมืด
+            Text.Primary กลายเป็นขาวนวล = ขาวบนเหลือง อ่านไม่ออก ตอนนี้ตัวหนังสือใช้ Status.WarningText
+            ที่ถูกเลือกมาให้อ่านออกในธีมของมันเอง
+
+         จุดนำหน้าไม่ใช่ของประดับ: มันคือตัวที่ทำให้แยกสถานะได้โดยไม่ต้องพึ่งสีอย่างเดียว และเป็น
+         ของเดียวกับ .badge::before ฝั่งเว็บ -->
     <Style x:Key="StatusBadge" TargetType="ContentControl">
         <Setter Property="Tag" Value="Offline"/>
         <Setter Property="FontFamily" Value="{StaticResource FontFamily.Primary}"/>
         <Setter Property="FontSize" Value="11"/>
-        <Setter Property="FontWeight" Value="SemiBold"/>
+        <Setter Property="FontWeight" Value="Bold"/>
         <Setter Property="HorizontalAlignment" Value="Center"/>
         <Setter Property="VerticalAlignment" Value="Center"/>
+        <Setter Property="Foreground" Value="{DynamicResource Brush.Status.Offline}"/>
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="ContentControl">
-                    <Border x:Name="Bd" CornerRadius="10" Padding="10,3"
-                            Background="{DynamicResource Brush.Status.Offline}">
-                        <TextBlock x:Name="Txt" Text="{TemplateBinding Content}"
-                                   Foreground="{DynamicResource Brush.Text.OnAccent}"
-                                   FontFamily="{TemplateBinding FontFamily}"
-                                   FontSize="{TemplateBinding FontSize}"
-                                   FontWeight="{TemplateBinding FontWeight}"/>
+                    <Border x:Name="Bd" CornerRadius="999" Padding="9,3"
+                            Background="{DynamicResource Brush.Badge.Offline.Background}">
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                            <Ellipse Width="6" Height="6" VerticalAlignment="Center"
+                                     Fill="{TemplateBinding Foreground}"/>
+                            <TextBlock Text="{TemplateBinding Content}" Margin="6,0,0,0"
+                                       Foreground="{TemplateBinding Foreground}"
+                                       FontFamily="{TemplateBinding FontFamily}"
+                                       FontSize="{TemplateBinding FontSize}"
+                                       FontWeight="{TemplateBinding FontWeight}"/>
+                        </StackPanel>
                     </Border>
                     <ControlTemplate.Triggers>
                         <Trigger Property="Tag" Value="Online">
-                            <Setter TargetName="Bd" Property="Background" Value="{DynamicResource Brush.Status.Online}"/>
+                            <Setter TargetName="Bd" Property="Background" Value="{DynamicResource Brush.Badge.Online.Background}"/>
+                            <Setter Property="Foreground" Value="{DynamicResource Brush.Status.Online}"/>
                         </Trigger>
                         <Trigger Property="Tag" Value="Offline">
-                            <Setter TargetName="Bd" Property="Background" Value="{DynamicResource Brush.Status.Offline}"/>
+                            <Setter TargetName="Bd" Property="Background" Value="{DynamicResource Brush.Badge.Offline.Background}"/>
+                            <Setter Property="Foreground" Value="{DynamicResource Brush.Status.Offline}"/>
                         </Trigger>
                         <Trigger Property="Tag" Value="Warning">
-                            <Setter TargetName="Bd" Property="Background" Value="{DynamicResource Brush.Status.Warning}"/>
-                            <Setter TargetName="Txt" Property="Foreground" Value="{DynamicResource Brush.Text.Primary}"/>
+                            <Setter TargetName="Bd" Property="Background" Value="{DynamicResource Brush.Badge.Warning.Background}"/>
+                            <Setter Property="Foreground" Value="{DynamicResource Brush.Status.WarningText}"/>
                         </Trigger>
                         <Trigger Property="Tag" Value="Danger">
-                            <Setter TargetName="Bd" Property="Background" Value="{DynamicResource Brush.Danger.Default}"/>
+                            <Setter TargetName="Bd" Property="Background" Value="{DynamicResource Brush.Badge.Danger.Background}"/>
+                            <Setter Property="Foreground" Value="{DynamicResource Brush.Danger.Default}"/>
+                        </Trigger>
+                        <Trigger Property="Tag" Value="Accent">
+                            <Setter TargetName="Bd" Property="Background" Value="{DynamicResource Brush.Badge.Accent.Background}"/>
+                            <Setter Property="Foreground" Value="{DynamicResource Brush.Accent.Text}"/>
                         </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>
             </Setter.Value>
         </Setter>
+    </Style>
+
+    <!-- ==================== StatCardFilter ====================
+         การ์ดตัวเลขสรุปบนหัวหน้า Clients ที่ "กดเพื่อกรองตารางข้างล่าง" ได้
+
+         เป็น RadioButton ไม่ใช่ Button/ToggleButton โดยเจตนา: การกรองเป็นตัวเลือกที่เลือกได้ทีละอัน
+         ซึ่งเป็นความหมายของ RadioButton พอดี เลยได้พฤติกรรม "กดอันใหม่แล้วอันเก่าคลายเอง" ฟรี
+         ไม่ต้องเขียน code-behind ไล่ปลดการ์ดอื่น และคนที่ใช้ keyboard ก็ได้ลูกศรเลื่อนในกลุ่มมาให้ด้วย
+
+         Content = ป้ายกำกับ, Tag = ตัวเลข (code-behind เขียนทับทุกครั้งที่ข้อมูลเปลี่ยน) ที่ต้องแยก
+         สองที่แบบนี้เพราะ ContentControl มีช่องใส่ "เนื้อหา" ช่องเดียว แต่การ์ดนี้มีสองบรรทัดที่
+         อัพเดตคนละจังหวะกัน -->
+    <Style x:Key="StatCardFilter" TargetType="RadioButton">
+        <Setter Property="Cursor" Value="Hand"/>
+        <Setter Property="Foreground" Value="{DynamicResource Brush.Text.Primary}"/>
+        <Setter Property="FontFamily" Value="{StaticResource FontFamily.Primary}"/>
+        <Setter Property="MinWidth" Value="118"/>
+        <Setter Property="Margin" Value="0,0,10,0"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="RadioButton">
+                    <Border x:Name="Bd" CornerRadius="12" Padding="14,9" BorderThickness="1"
+                            Background="{DynamicResource Brush.Background.Card}"
+                            BorderBrush="{DynamicResource Brush.Border.Default}">
+                        <StackPanel>
+                            <TextBlock Text="{TemplateBinding Tag}" FontSize="22" FontWeight="Bold"
+                                       Foreground="{TemplateBinding Foreground}"/>
+                            <TextBlock Text="{TemplateBinding Content}" FontSize="11" Margin="0,2,0,0"
+                                       Foreground="{DynamicResource Brush.Text.Secondary}"/>
+                        </StackPanel>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Bd" Property="Background" Value="{DynamicResource Brush.Background.CardRaised}"/>
+                            <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource Brush.Border.Strong}"/>
+                        </Trigger>
+                        <Trigger Property="IsChecked" Value="True">
+                            <Setter TargetName="Bd" Property="Background" Value="{DynamicResource Brush.Badge.Accent.Background}"/>
+                            <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource Brush.Accent.Default}"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- ==================== SearchTextBox ====================
+         RoundedTextBox + แว่นขยาย + ข้อความ placeholder ที่ "แสดงจริง"
+
+         ของเดิมตั้ง Tag="ค้นหา machine name..." ไว้ทุกช่องค้นหาแต่ template ไม่เคยวาดมันออกมาเลย
+         ช่องค้นหาจึงเป็นกล่องเปล่าที่ไม่มีอะไรบอกว่าใส่อะไรได้ - ตรงนี้ทำให้ Tag ทำงานจริงตามที่
+         ตั้งใจไว้ตั้งแต่แรก โดยไม่ต้องแก้ call site สักที่ -->
+    <Style x:Key="SearchTextBox" TargetType="TextBox" BasedOn="{StaticResource RoundedTextBox}">
+        <Setter Property="Padding" Value="34,4.5,10,4.5"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="TextBox">
+                    <Border x:Name="Bd" CornerRadius="8"
+                            Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}">
+                        <Grid>
+                            <controls:IconPresenter Icon="search" IconSize="16"
+                                                    HorizontalAlignment="Left" VerticalAlignment="Center"
+                                                    Margin="10,0,0,0"
+                                                    Foreground="{DynamicResource Brush.Text.Secondary}"/>
+                            <TextBlock x:Name="Placeholder" Text="{TemplateBinding Tag}"
+                                       Margin="{TemplateBinding Padding}" VerticalAlignment="Center"
+                                       IsHitTestVisible="False" Visibility="Collapsed"
+                                       FontSize="{TemplateBinding FontSize}"
+                                       Foreground="{DynamicResource Brush.Text.Secondary}"/>
+                            <ScrollViewer x:Name="PART_ContentHost" Margin="{TemplateBinding Padding}"
+                                          VerticalAlignment="Center"/>
+                        </Grid>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="Text" Value="">
+                            <Setter TargetName="Placeholder" Property="Visibility" Value="Visible"/>
+                        </Trigger>
+                        <Trigger Property="IsKeyboardFocusWithin" Value="True">
+                            <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource Brush.Accent.Default}"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- ==================== EmptyState ====================
+         แทนข้อความเปล่าบรรทัดเดียวกลางตารางว่าง ๆ ("ยังไม่มีเครื่องในระบบ") ด้วยไอคอน + ประโยคหลัก +
+         บรรทัดบอกว่าให้ทำอะไรต่อ
+
+         Content = ประโยคหลัก, Tag = บรรทัดรอง (ซ่อนเองถ้าไม่ใส่), Nav.Icon = ไอคอน
+         code-behind สลับข้อความได้ระหว่าง "ยังไม่มีข้อมูลเลย" กับ "กรองแล้วไม่เจอ" ซึ่งเป็นคนละ
+         สถานการณ์และมีทางออกคนละแบบ - ของเดิมพูดเหมือนกันทั้งสองกรณี -->
+    <Style x:Key="EmptyState" TargetType="ContentControl">
+        <Setter Property="HorizontalAlignment" Value="Center"/>
+        <Setter Property="VerticalAlignment" Value="Center"/>
+        <Setter Property="IsHitTestVisible" Value="False"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ContentControl">
+                    <StackPanel>
+                        <controls:IconPresenter
+                            Icon="{Binding (controls:Nav.Icon), RelativeSource={RelativeSource TemplatedParent}}"
+                            IconSize="32" HorizontalAlignment="Center" Opacity="0.55"
+                            Foreground="{DynamicResource Brush.Text.Secondary}"/>
+                        <TextBlock Text="{TemplateBinding Content}" Margin="0,10,0,0"
+                                   HorizontalAlignment="Center" TextAlignment="Center"
+                                   FontFamily="{StaticResource FontFamily.Primary}"
+                                   FontSize="13" FontWeight="SemiBold"
+                                   Foreground="{DynamicResource Brush.Text.Secondary}"/>
+                        <TextBlock x:Name="Hint" Text="{TemplateBinding Tag}" Margin="0,4,0,0"
+                                   HorizontalAlignment="Center" TextAlignment="Center"
+                                   FontFamily="{StaticResource FontFamily.Primary}"
+                                   FontSize="11" MaxWidth="320" TextWrapping="Wrap"
+                                   Foreground="{DynamicResource Brush.Text.Secondary}" Opacity="0.8"/>
+                    </StackPanel>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="Tag" Value="{x:Null}">
+                            <Setter TargetName="Hint" Property="Visibility" Value="Collapsed"/>
+                        </Trigger>
+                        <Trigger Property="Tag" Value="">
+                            <Setter TargetName="Hint" Property="Visibility" Value="Collapsed"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- ==================== SelectionBar ====================
+         แถบที่โผล่มาเมื่อเลือกเครื่องไว้อย่างน้อยหนึ่งเครื่อง พร้อมปุ่มที่ทำกับ "เครื่องที่เลือกอยู่"
+
+         ที่ต้องมี (ไม่ใช่แค่ความสวย): ActionPanelWindow รับ List<ClientMachineDto> มาตั้งแต่แรกและ
+         ตารางก็ SelectionMode="Extended" อยู่แล้ว คือทำงานกับหลายเครื่องพร้อมกันได้มาตลอด แต่ทางเข้า
+         คือปุ่ม ACTIONS ที่นิ่งอยู่มุมบนตลอดเวลา ไม่มีอะไรบอกว่ามันผูกกับสิ่งที่เลือกไว้ - ความสามารถ
+         ที่สำคัญที่สุดสำหรับห้อง 40 เครื่องเลยถูกซ่อนอยู่หลังปุ่มที่ดูเหมือนปุ่มทั่วไป -->
+    <Style x:Key="SelectionBar" TargetType="Border">
+        <Setter Property="CornerRadius" Value="10"/>
+        <Setter Property="Padding" Value="14,8"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="Background" Value="{DynamicResource Brush.Badge.Accent.Background}"/>
+        <Setter Property="BorderBrush" Value="{DynamicResource Brush.Accent.Default}"/>
     </Style>
 
     <!-- ==================== Shared DataGrid look ====================

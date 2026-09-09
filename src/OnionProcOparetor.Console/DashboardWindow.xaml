@@ -247,33 +247,74 @@
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto"/>
                             <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
                             <RowDefinition Height="*"/>
                         </Grid.RowDefinitions>
 
                         <Grid Grid.Row="0">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="Auto"/>
-                                <ColumnDefinition Width="Auto"/>
-                                <ColumnDefinition Width="Auto"/>
                                 <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
                                 <ColumnDefinition Width="Auto"/>
                             </Grid.ColumnDefinitions>
                             <TextBlock Grid.Column="0" Text="Client Management" Style="{StaticResource Heading2}" VerticalAlignment="Center"/>
-                            <Button Grid.Column="1" Width="110" Content="ACTIONS" Style="{StaticResource ButtonSecondary}"
-                                    Padding="10,5" FontSize="11" Margin="20,0,0,0"
-                                    Click="BulkActionsButton_Click" VerticalAlignment="Center"/>
-                            <Button Grid.Column="2" Width="180" Content="BROADCAST MESSAGE" Style="{StaticResource ButtonSecondary}"
-                                    Padding="10,5" FontSize="11" Margin="10,0,0,0"
+                            <!-- BROADCAST อยู่ตรงนี้ ไม่ได้อยู่ในแถบเลือก เพราะมันส่งหาทุกเครื่องได้ด้วย
+                                 (BroadcastMessageWindow มีตัวเลือก "ส่งทุกเครื่อง") จึงไม่ได้ต้องการ selection
+                                 ต่างจาก ACTIONS ที่บังคับให้เลือกอย่างน้อยหนึ่งเครื่อง -->
+                            <Button Grid.Column="2" Content="BROADCAST MESSAGE" Style="{StaticResource ButtonSecondary}"
+                                    Padding="12,6" FontSize="11" Margin="10,0,10,0"
                                     Click="BroadcastMessageButton_Click" VerticalAlignment="Center"/>
-                            <TextBlock Grid.Column="4" x:Name="SelectedClientsCountText"
-                                    Foreground="{DynamicResource Brush.Text.Secondary}" Text="" VerticalAlignment="Center"/>
+                            <TextBox Grid.Column="3" x:Name="ClientsSearchBox" Width="240" Height="34"
+                                    Style="{StaticResource SearchTextBox}" VerticalAlignment="Center"
+                                    Tag="ค้นหาชื่อเครื่อง..." TextChanged="ClientsSearchBox_TextChanged"/>
                         </Grid>
 
-                        <TextBox Grid.Row="1" x:Name="ClientsSearchBox" Width="250" Height="36" HorizontalAlignment="Left" Margin="0,10,0,0"
-                                Style="{StaticResource RoundedTextBox}"
-                                Tag="ค้นหา machine name..." TextChanged="ClientsSearchBox_TextChanged"/>
+                        <!-- ==================== การ์ดตัวเลขสรุป = ตัวกรองไปในตัว ====================
+                             แนวปฏิบัติของ dashboard ยุคนี้คือ "ตัวเลขสำคัญไม่กี่ตัวใหญ่ ๆ ข้างบน ที่เหลือ
+                             เจาะลงไปได้ในคลิกเดียว" ที่นี่การเจาะลงไปคือตัวการ์ดเอง - กดแล้วตารางข้างล่าง
+                             กรองตามทันที ไม่ต้องมี dropdown ตัวกรองแยกอีกตัวที่ซ่อนทั้งตัวเลือกและค่าปัจจุบัน
 
-                        <Grid Grid.Row="2" Margin="0,10,0,0">
+                             เลือก 4 ตัวนี้เพราะตอบคำถามที่ครูถามจริงตอนเดินเข้าห้อง: มากี่เครื่อง หายไปกี่เครื่อง
+                             และมีเครื่องไหนที่กฎไม่ทำงานอยู่บ้าง ตัวเลขทั้งหมดคำนวณจากข้อมูลที่โหลดมาแล้ว
+                             ไม่ต้องยิง API เพิ่มแม้แต่ครั้งเดียว -->
+                        <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,12,0,0">
+                            <RadioButton x:Name="ClientStatAll" Style="{StaticResource StatCardFilter}"
+                                         GroupName="ClientStatFilter" IsChecked="True" Tag="0" Content="ทั้งหมด"
+                                         Checked="ClientStatFilter_Checked"/>
+                            <RadioButton x:Name="ClientStatOnline" Style="{StaticResource StatCardFilter}"
+                                         GroupName="ClientStatFilter" Tag="0" Content="ออนไลน์"
+                                         Foreground="{DynamicResource Brush.Status.Online}"
+                                         Checked="ClientStatFilter_Checked"/>
+                            <RadioButton x:Name="ClientStatOffline" Style="{StaticResource StatCardFilter}"
+                                         GroupName="ClientStatFilter" Tag="0" Content="ออฟไลน์"
+                                         Foreground="{DynamicResource Brush.Status.Offline}"
+                                         Checked="ClientStatFilter_Checked"/>
+                            <RadioButton x:Name="ClientStatNotEnforcing" Style="{StaticResource StatCardFilter}"
+                                         GroupName="ClientStatFilter" Tag="0" Content="กฎไม่ทำงาน"
+                                         Foreground="{DynamicResource Brush.Status.WarningText}"
+                                         ToolTip="เครื่องที่ Agent ไม่ได้บังคับใช้กฎอยู่จริง (รวมกรณีที่ถูกปิดด้วย gate ทั้งระบบ)"
+                                         Checked="ClientStatFilter_Checked"/>
+                        </StackPanel>
+
+                        <Border Grid.Row="2" x:Name="ClientsSelectionBar" Style="{StaticResource SelectionBar}"
+                                Margin="0,12,0,0" Visibility="Collapsed">
+                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                <controls:IconPresenter Icon="check-circle" IconSize="18" VerticalAlignment="Center"
+                                                        Foreground="{DynamicResource Brush.Accent.Text}"/>
+                                <TextBlock x:Name="SelectedClientsCountText" Text="" Margin="8,0,16,0"
+                                           VerticalAlignment="Center" FontWeight="SemiBold" FontSize="12"
+                                           Foreground="{DynamicResource Brush.Accent.Text}"/>
+                                <Button Content="ACTIONS" Style="{StaticResource ButtonPrimary}"
+                                        Padding="14,5" FontSize="11"
+                                        Click="BulkActionsButton_Click" VerticalAlignment="Center"/>
+                                <Button Content="ล้างการเลือก" Style="{StaticResource ButtonSecondary}"
+                                        Padding="12,5" FontSize="11" Margin="8,0,0,0"
+                                        Click="ClearClientSelectionButton_Click" VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </Border>
+
+                        <Grid Grid.Row="3" Margin="0,10,0,0">
                             <!-- Border+ClipToBounds rounds the DataGrid's corners - DataGrid itself has no
                                  CornerRadius property (it's not a Border subclass), so the grid's own
                                  Background/Border are moved out to this wrapper and the grid goes transparent. -->
@@ -387,18 +428,25 @@
                                     <DataGridTemplateColumn Header="ACTIONS" Width="120">
                                         <DataGridTemplateColumn.CellTemplate>
                                             <DataTemplate>
-                                                <Button Content="ACTIONS ▾" Style="{StaticResource ButtonSecondary}"
+                                                <Button Style="{StaticResource ButtonSecondary}"
                                                         Padding="10,5" FontSize="11"
-                                                        Click="ClientActionsButton_Click" Tag="{Binding}"/>
+                                                        Click="ClientActionsButton_Click" Tag="{Binding}">
+                                                    <StackPanel Orientation="Horizontal">
+                                                        <TextBlock Text="ACTIONS" VerticalAlignment="Center"/>
+                                                        <controls:IconPresenter Icon="more-horizontal" IconSize="14"
+                                                                                Margin="6,0,0,0" VerticalAlignment="Center"/>
+                                                    </StackPanel>
+                                                </Button>
                                             </DataTemplate>
                                         </DataGridTemplateColumn.CellTemplate>
                                     </DataGridTemplateColumn>
                                 </DataGrid.Columns>
                             </DataGrid>
                             </Border>
-                            <TextBlock x:Name="ClientsEmptyText"
-                                    Text="ยังไม่มีเครื่องในระบบ" Style="{StaticResource Caption}" TextAlignment="Center"
-                                    VerticalAlignment="Center" Visibility="Collapsed" IsHitTestVisible="False"/>
+                            <ContentControl x:Name="ClientsEmptyText"
+                                            Style="{StaticResource EmptyState}" controls:Nav.Icon="monitor"
+                                            Content="ยังไม่มีเครื่องในระบบ" Tag="เครื่องจะขึ้นมาเองเมื่อ Agent ติดตั้งแล้ว poll เข้ามาครั้งแรก"
+                                            Visibility="Collapsed"/>
                         </Grid>
                     </Grid>
                 </TabItem>
@@ -510,7 +558,7 @@
                         <TextBlock Grid.Row="0" Text="Activity Logs" Style="{StaticResource Heading2}"/>
 
                         <TextBox Grid.Row="1" x:Name="LogsSearchBox" Width="250" Height="35" HorizontalAlignment="Left" Margin="0,10,0,0"
-                                Style="{StaticResource RoundedTextBox}"
+                                Style="{StaticResource SearchTextBox}"
                                 Tag="ค้นหา machine/process/publisher..." TextChanged="LogsSearchBox_TextChanged"/>
 
                         <Grid Grid.Row="2" Margin="0,10,0,0">
@@ -557,9 +605,10 @@
                                 </DataGrid.Columns>
                             </DataGrid>
                             </Border>
-                            <TextBlock x:Name="LogsEmptyText"
-                                    Text="ยังไม่มี log" Style="{StaticResource Caption}" TextAlignment="Center"
-                                    VerticalAlignment="Center" Visibility="Collapsed" IsHitTestVisible="False"/>
+                            <ContentControl x:Name="LogsEmptyText"
+                                            Style="{StaticResource EmptyState}" controls:Nav.Icon="file-text"
+                                            Content="ยังไม่มี log" Tag="log จะถูกบันทึกเมื่อ Agent ตรวจพบหรือปิดโปรแกรมตามกฎ"
+                                            Visibility="Collapsed"/>
                         </Grid>
                     </Grid>
                 </TabItem>
@@ -585,7 +634,7 @@
                         </Grid>
 
                         <TextBox Grid.Row="2" x:Name="RulesSearchBox" Width="250" Height="40" HorizontalAlignment="Left" Margin="0,10,0,0"
-                                Style="{StaticResource RoundedTextBox}"
+                                Style="{StaticResource SearchTextBox}"
                                 Tag="ค้นหาชื่อกฎ/publisher..." TextChanged="RulesSearchBox_TextChanged"/>
 
                         <Grid Grid.Row="3" Margin="0,10,0,0">
@@ -649,9 +698,10 @@
                                 </DataGrid.Columns>
                             </DataGrid>
                             </Border>
-                            <TextBlock x:Name="RulesEmptyText"
-                                    Text="ยังไม่มีกฎ" Style="{StaticResource Caption}" TextAlignment="Center"
-                                    VerticalAlignment="Center" Visibility="Collapsed" IsHitTestVisible="False"/>
+                            <ContentControl x:Name="RulesEmptyText"
+                                            Style="{StaticResource EmptyState}" controls:Nav.Icon="shield"
+                                            Content="ยังไม่มีกฎ" Tag="กด ADD RULE เพื่อสร้างกฎแรก - ตราบใดที่ยังไม่มีกฎ จะไม่มีโปรแกรมไหนถูกปิด"
+                                            Visibility="Collapsed"/>
                         </Grid>
                     </Grid>
                 </TabItem>
@@ -696,8 +746,8 @@
                                 <ComboBoxItem Content="Warning ขึ้นไป"/>
                                 <ComboBoxItem Content="Error ขึ้นไป"/>
                             </ComboBox>
-                            <TextBox Grid.Column="4" x:Name="AuditLogClientGuidFilter" Width="220" Height="35" VerticalAlignment="Center"
-                                    Style="{StaticResource RoundedTextBox}"
+                            <TextBox Grid.Column="4" x:Name="AuditLogClientGuidFilter" Width="260" Height="35" VerticalAlignment="Center"
+                                    Style="{StaticResource SearchTextBox}"
                                     Tag="Client GUID (เว้นว่าง = ทุกเครื่อง)" TextChanged="AuditLogClientGuidFilter_TextChanged"/>
                         </Grid>
 
@@ -709,10 +759,20 @@
                                 <ColumnDefinition Width="12"/>
                                 <ColumnDefinition Width="Auto"/>
                             </Grid.ColumnDefinitions>
-                            <Button Grid.Column="0" Content="◀ PREV" Style="{StaticResource ButtonSecondary}"
-                                    Padding="10,5" FontSize="11" Click="AuditLogPrevButton_Click"/>
-                            <Button Grid.Column="2" Content="NEXT ▶" Style="{StaticResource ButtonSecondary}"
-                                    Padding="10,5" FontSize="11" Click="AuditLogNextButton_Click"/>
+                            <Button Grid.Column="0" Style="{StaticResource ButtonSecondary}"
+                                    Padding="10,5" FontSize="11" Click="AuditLogPrevButton_Click">
+                                <StackPanel Orientation="Horizontal">
+                                    <controls:IconPresenter Icon="chevron-left" IconSize="14" VerticalAlignment="Center"/>
+                                    <TextBlock Text="PREV" Margin="6,0,0,0" VerticalAlignment="Center"/>
+                                </StackPanel>
+                            </Button>
+                            <Button Grid.Column="2" Style="{StaticResource ButtonSecondary}"
+                                    Padding="10,5" FontSize="11" Click="AuditLogNextButton_Click">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="NEXT" Margin="0,0,6,0" VerticalAlignment="Center"/>
+                                    <controls:IconPresenter Icon="chevron-right" IconSize="14" VerticalAlignment="Center"/>
+                                </StackPanel>
+                            </Button>
                             <TextBlock Grid.Column="4" x:Name="AuditLogPageInfoText" VerticalAlignment="Center"
                                     Foreground="{DynamicResource Brush.Text.Secondary}"/>
                         </Grid>
@@ -766,9 +826,10 @@
                                 </DataGrid.Columns>
                             </DataGrid>
                             </Border>
-                            <TextBlock x:Name="AuditLogEmptyText"
-                                    Text="ยังไม่มี activity log" Style="{StaticResource Caption}" TextAlignment="Center"
-                                    VerticalAlignment="Center" Visibility="Collapsed" IsHitTestVisible="False"/>
+                            <ContentControl x:Name="AuditLogEmptyText"
+                                            Style="{StaticResource EmptyState}" controls:Nav.Icon="clock"
+                                            Content="ยังไม่มี activity log" Tag="ทุกการกระทำจากหน้า Console จะถูกบันทึกไว้ที่นี่"
+                                            Visibility="Collapsed"/>
                         </Grid>
                     </Grid>
                 </TabItem>
@@ -867,9 +928,10 @@
                                 </DataGrid.Columns>
                             </DataGrid>
                             </Border>
-                            <TextBlock x:Name="UsersEmptyText"
-                                    Text="ยังไม่มีผู้ใช้เพิ่มเติม" Style="{StaticResource Caption}" TextAlignment="Center"
-                                    VerticalAlignment="Center" Visibility="Collapsed" IsHitTestVisible="False"/>
+                            <ContentControl x:Name="UsersEmptyText"
+                                            Style="{StaticResource EmptyState}" controls:Nav.Icon="users"
+                                            Content="ยังไม่มีผู้ใช้เพิ่มเติม" Tag="เพิ่มบัญชีให้ครูคนอื่นได้จากช่องด้านบน"
+                                            Visibility="Collapsed"/>
                         </Grid>
                     </Grid>
                 </TabItem>
@@ -907,8 +969,13 @@
                 </Grid.RowDefinitions>
 
                 <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,10">
-                    <Button Content="← BACK TO GRID" Style="{StaticResource ButtonPrimary}"
-                            Padding="14,8" Click="BackToGridButton_Click"/>
+                    <Button Style="{StaticResource ButtonPrimary}"
+                            Padding="14,8" Click="BackToGridButton_Click">
+                        <StackPanel Orientation="Horizontal">
+                            <controls:IconPresenter Icon="chevron-left" IconSize="16" VerticalAlignment="Center"/>
+                            <TextBlock Text="BACK TO GRID" Margin="6,0,0,0" VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </Button>
                     <!-- Toggle target input: กันนักเรียนแย่งเมาส์/คีย์บอร์ดขณะครูควบคุมผ่าน full-screen VNC
                          (ดู PhysicalInputBlocker ฝั่ง AgentTray) - default ปิด (ไม่บล็อก) ตั้งแต่เข้า
                          fullscreen ทุกครั้ง (ดู ExpandLiveViewCell ที่ reset _targetInputBlocked) Content/

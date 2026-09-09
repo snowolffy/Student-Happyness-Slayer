@@ -1,4 +1,4 @@
-using System.Windows;
+﻿using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
@@ -76,6 +76,59 @@ public partial class DashboardWindow : Window
         public VncViewMode? BitmapMode { get; set; }
         public VncSessionHandle? Handle { get; set; }
     }
+
+#if DEBUG
+    /// <summary>
+    /// โหมดตรวจงาน UI (App.OnStartup, --ui-preview) มีเฉพาะ build แบบ Debug - publish-all.ps1 ใช้
+    /// -c Release เสมอ จึงไม่มีอยู่จริงในของที่ส่งขึ้นเครื่องครู
+    /// </summary>
+    public bool PreviewMode { get; set; }
+
+    /// <summary>ชื่อแท็บที่จะเลือกไว้ตอนเปิดในโหมดตรวจ UI (ตรงกับ TabItem.Header เช่น "Rules")</summary>
+    public string? PreviewTab { get; set; }
+
+    /// <summary>
+    /// ใส่ข้อมูลปลอมลงตารางเพื่อให้เห็น badge / การ์ดตัวเลข / แถบเลือก ตอนตรวจงาน UI โดยไม่ต้อง
+    /// login เข้า Server ตัวจริงที่รันอยู่บนเครื่อง dev เครื่องนี้ - ค่าถูกเลือกให้ครบทุกสถานะที่
+    /// UI ต้องรับมือ (ออนไลน์/ออฟไลน์, กฎทำงาน/ไม่ทำงาน, ต่อผ่าน LAN/Tailscale) ไม่ใช่แค่แถวสวย ๆ
+    /// </summary>
+    private void SeedPreviewData()
+    {
+        var now = DateTime.UtcNow;
+        _globalState = new GlobalStateDto { IsEnabled = true };
+        _allClients =
+        [
+            new() { Id = 1, ClientGuid = "a1", MachineName = "LAB-PC-01", LastKnownIp = "192.168.1.11", IsOnline = true,  IsEnabled = true,  LastSeenAt = now },
+            new() { Id = 2, ClientGuid = "b2", MachineName = "LAB-PC-02", LastKnownIp = "192.168.1.12", IsOnline = true,  IsEnabled = false, LastSeenAt = now },
+            new() { Id = 3, ClientGuid = "c3", MachineName = "LAB-PC-03", LastKnownIp = "100.84.2.7",   IsOnline = true,  IsEnabled = true,  UsingFallback = true, LastSeenAt = now },
+            new() { Id = 4, ClientGuid = "d4", MachineName = "LAB-PC-04", LastKnownIp = "192.168.1.14", IsOnline = false, IsEnabled = true,  LastSeenAt = now.AddHours(-3) },
+            new() { Id = 5, ClientGuid = "e5", MachineName = "LAB-PC-05", LastKnownIp = null,           IsOnline = false, IsEnabled = false, LastSeenAt = now.AddDays(-2) },
+        ];
+
+        ApplyClientsFilter();
+        ApplyLiveViewClientList();
+
+        // แท็บอื่นตั้งใจปล่อยว่าง เพื่อให้เห็น empty state ของจริงตอนไล่ตรวจ
+        RulesEmptyText.Visibility = Visibility.Visible;
+        LogsEmptyText.Visibility = Visibility.Visible;
+        AuditLogEmptyText.Visibility = Visibility.Visible;
+        UsersEmptyText.Visibility = Visibility.Visible;
+
+        if (!string.IsNullOrEmpty(PreviewTab))
+        {
+            foreach (TabItem item in MainTabControl.Items)
+            {
+                if (string.Equals(item.Header as string, PreviewTab, StringComparison.OrdinalIgnoreCase))
+                {
+                    MainTabControl.SelectedItem = item;
+                    break;
+                }
+            }
+        }
+
+        StatusText.Text = "โหมดตรวจ UI (ข้อมูลปลอม)";
+    }
+#endif
 
     // ==================== Sidebar / ธีม (2026-09-09) ====================
 
@@ -161,6 +214,13 @@ public partial class DashboardWindow : Window
         Loaded += async (_, _) =>
         {
             ApplySidebarAndThemeState();
+#if DEBUG
+            if (PreviewMode)
+            {
+                SeedPreviewData();
+                return;
+            }
+#endif
             await LoadAllDataAsync();
         };
 
@@ -214,7 +274,7 @@ public partial class DashboardWindow : Window
             if (_liveViewFullscreenClientGuid is not null)
             {
                 e.Cancel = true;
-                StatusText.Text = "กด \"← BACK TO GRID\" ก่อนปิดโปรแกรม (กำลังควบคุมเครื่อง target แบบเต็มจออยู่)";
+                StatusText.Text = "กด \"BACK TO GRID\" ก่อนปิดโปรแกรม (กำลังควบคุมเครื่อง target แบบเต็มจออยู่)";
             }
         };
 
@@ -567,8 +627,14 @@ public partial class DashboardWindow : Window
     private void ClientsGrid_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
         var count = ClientsGrid.SelectedItems.Count;
-        SelectedClientsCountText.Text = count > 0 ? $"เลือกไว้ {count} เครื่อง" : "";
+        SelectedClientsCountText.Text = count == 1 ? "เลือกไว้ 1 เครื่อง" : $"เลือกไว้ {count} เครื่อง";
+
+        // แถบจะโผล่มาเมื่อมีเครื่องถูกเลือกเท่านั้น - เป็นตัวที่ทำให้ "เลือกหลายเครื่องแล้วสั่งทีเดียว"
+        // มองเห็นได้จริง แทนที่จะซ่อนอยู่หลังปุ่ม ACTIONS ที่นิ่งอยู่ตลอดเวลาแบบเดิม
+        ClientsSelectionBar.Visibility = count > 0 ? Visibility.Visible : Visibility.Collapsed;
     }
+
+    private void ClearClientSelectionButton_Click(object sender, RoutedEventArgs e) => ClientsGrid.UnselectAll();
 
     private async void BroadcastMessageButton_Click(object sender, RoutedEventArgs e)
     {
@@ -677,18 +743,88 @@ public partial class DashboardWindow : Window
             client.GlobalEnforcementEnabled = globalEnforcementEnabled;
         }
 
+        // ตัวเลขบนการ์ดคิดจาก _allClients เสมอ ไม่ใช่จากผลที่กรองแล้ว - ไม่งั้นพอกด "ออนไลน์" การ์ด
+        // "ออฟไลน์" จะกลายเป็น 0 ทันที ซึ่งอ่านแล้วเหมือนเครื่องหายไปจากระบบจริง ๆ การ์ดต้องบอก
+        // "ห้องนี้มีอะไรอยู่บ้าง" คงที่ ส่วนตารางข้างล่างต่างหากที่เป็นตัวตอบ "ตอนนี้กำลังดูอะไรอยู่"
+        ClientStatAll.Tag = _allClients.Count.ToString();
+        ClientStatOnline.Tag = _allClients.Count(c => c.IsOnline).ToString();
+        ClientStatOffline.Tag = _allClients.Count(c => !c.IsOnline).ToString();
+        ClientStatNotEnforcing.Tag = _allClients.Count(c => !c.EffectiveEnabled).ToString();
+
         var keyword = ClientsSearchBox.Text.Trim();
-        var filtered = string.IsNullOrEmpty(keyword)
-            ? _allClients
-            : _allClients.Where(c => c.MachineName.Contains(keyword, StringComparison.OrdinalIgnoreCase)).ToList();
+        var byStatus = _clientStatusFilter switch
+        {
+            ClientStatusFilter.Online => _allClients.Where(c => c.IsOnline),
+            ClientStatusFilter.Offline => _allClients.Where(c => !c.IsOnline),
+            ClientStatusFilter.NotEnforcing => _allClients.Where(c => !c.EffectiveEnabled),
+            _ => _allClients
+        };
+
+        var filtered = (string.IsNullOrEmpty(keyword)
+            ? byStatus
+            : byStatus.Where(c => c.MachineName.Contains(keyword, StringComparison.OrdinalIgnoreCase))).ToList();
 
         ClientsGrid.ItemsSource = filtered;
-        ClientsEmptyText.Visibility = filtered.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+
+        // แยก "ยังไม่มีเครื่องเลย" ออกจาก "กรองแล้วไม่เจอ" - คนละสถานการณ์ และทางออกคนละอย่าง
+        // (อันแรกคือไปติดตั้ง Agent อันหลังคือล้างตัวกรอง) ของเดิมขึ้นข้อความเดียวกันทั้งสองกรณี
+        var filteringSomething = !string.IsNullOrEmpty(keyword) || _clientStatusFilter != ClientStatusFilter.All;
+        if (filtered.Count > 0)
+        {
+            ClientsEmptyText.Visibility = Visibility.Collapsed;
+        }
+        else
+        {
+            ClientsEmptyText.Visibility = Visibility.Visible;
+            if (filteringSomething)
+            {
+                ClientsEmptyText.Content = "ไม่มีเครื่องที่ตรงกับตัวกรอง";
+                ClientsEmptyText.Tag = _allClients.Count > 0
+                    ? $"ในระบบมีทั้งหมด {_allClients.Count} เครื่อง - ลองล้างคำค้นหรือกดการ์ด \"ทั้งหมด\""
+                    : null;
+            }
+            else
+            {
+                ClientsEmptyText.Content = "ยังไม่มีเครื่องในระบบ";
+                ClientsEmptyText.Tag = "เครื่องจะขึ้นมาเองเมื่อ Agent ติดตั้งแล้ว poll เข้ามาครั้งแรก";
+            }
+        }
 
         foreach (var client in filtered.Where(c => selectedIds.Contains(c.Id)))
         {
             ClientsGrid.SelectedItems.Add(client);
         }
+    }
+
+    /// <summary>ตัวกรองสถานะที่การ์ดตัวเลขด้านบนตาราง Clients เลือกอยู่</summary>
+    private enum ClientStatusFilter
+    {
+        All,
+        Online,
+        Offline,
+        NotEnforcing
+    }
+
+    private ClientStatusFilter _clientStatusFilter = ClientStatusFilter.All;
+
+    private void ClientStatFilter_Checked(object sender, RoutedEventArgs e)
+    {
+        // ยิงตั้งแต่ตอน InitializeComponent จาก IsChecked="True" ที่ตั้งไว้ใน XAML ซึ่งเป็นจังหวะที่
+        // ClientsGrid/ClientsSearchBox ยังไม่พร้อม - เช็คก่อนเสมอ (pattern เดียวกับ AuditLog filter
+        // ที่มี comment เรื่องนี้อยู่แล้ว)
+        if (!IsLoaded)
+        {
+            _clientStatusFilter = ClientStatusFilter.All;
+            return;
+        }
+
+        _clientStatusFilter =
+            ReferenceEquals(sender, ClientStatOnline) ? ClientStatusFilter.Online :
+            ReferenceEquals(sender, ClientStatOffline) ? ClientStatusFilter.Offline :
+            ReferenceEquals(sender, ClientStatNotEnforcing) ? ClientStatusFilter.NotEnforcing :
+            ClientStatusFilter.All;
+
+        ApplyClientsFilter();
     }
 
     private void ApplyRulesFilter()
@@ -1241,7 +1377,9 @@ public partial class DashboardWindow : Window
 
         var removeButton = new Button
         {
-            Content = "✕",
+            // IconPresenter ไม่ใช่ตัวอักษร "✕": ตัวอักษรจะขึ้นกับ font ที่ระบบ fallback มาให้ ซึ่ง
+            // ขนาดและน้ำหนักเส้นไม่ตรงกับไอคอนตัวอื่นในแอปเลย - ชุดเดียวกันทั้งหมดดีกว่า
+            Content = new Controls.IconPresenter { Icon = "x", IconSize = 12 },
             Width = 22,
             Height = 22,
             Padding = new Thickness(0),

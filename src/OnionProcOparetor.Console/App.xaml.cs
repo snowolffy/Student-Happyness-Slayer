@@ -63,7 +63,48 @@ public partial class App : Application
         // Dashboard ด้วย ApiClient ที่ยังไม่ได้ login ทุก API call จึงล้มเหลวหมด (ตั้งใจ) เห็นแต่โครง UI
         if (e.Args.Contains("--ui-preview"))
         {
-            new DashboardWindow(new Services.ApiClient()).Show();
+            var preview = new DashboardWindow(new Services.ApiClient()) { PreviewMode = true };
+
+            // --tab=<ชื่อแท็บ> เลือกแท็บก่อนถ่ายภาพ ใช้ไล่ตรวจทุกหน้าจอในโหมดมืดรอบเดียว
+            var tab = e.Args.FirstOrDefault(a => a.StartsWith("--tab=", StringComparison.Ordinal));
+            if (tab is not null)
+            {
+                preview.PreviewTab = tab["--tab=".Length..];
+            }
+
+            preview.Show();
+
+            // --shot=<path> เรนเดอร์หน้าต่างเป็น PNG แล้วปิดโปรแกรม
+            //
+            // ที่ต้องเรนเดอร์เองในแอปแทนที่จะให้สคริปต์ข้างนอกจับภาพหน้าจอ: ทั้ง CopyFromScreen และ
+            // PrintWindow พึ่งสิ่งที่อยู่บนจอจริงและ DWM ต้องมี redirection surface ให้ - พอหน้าต่าง
+            // ถูกเบราว์เซอร์บังอยู่ CopyFromScreen จะจับภาพเบราว์เซอร์มาแทน (เจอมาแล้ว) ส่วน
+            // PrintWindow จะคืนเฟรมขาวเปล่า ๆ (เจอมาแล้วเหมือนกัน) และ Windows ไม่ยอมให้ process
+            // เบื้องหลังแย่ง foreground มาแก้ RenderTargetBitmap วาดจาก visual tree ตรง ๆ จึงได้ภาพ
+            // ที่ถูกต้องเสมอไม่ว่าหน้าต่างจะถูกบัง ย่อ หรือมีอะไรทับอยู่
+            var shot = e.Args.FirstOrDefault(a => a.StartsWith("--shot=", StringComparison.Ordinal));
+            if (shot is not null)
+            {
+                var path = shot["--shot=".Length..];
+                preview.Dispatcher.BeginInvoke(
+                    System.Windows.Threading.DispatcherPriority.ApplicationIdle,
+                    () =>
+                    {
+                        var bitmap = new System.Windows.Media.Imaging.RenderTargetBitmap(
+                            (int)preview.ActualWidth, (int)preview.ActualHeight, 96, 96,
+                            System.Windows.Media.PixelFormats.Pbgra32);
+                        bitmap.Render(preview);
+
+                        var encoder = new System.Windows.Media.Imaging.PngBitmapEncoder();
+                        encoder.Frames.Add(System.Windows.Media.Imaging.BitmapFrame.Create(bitmap));
+                        using (var stream = System.IO.File.Create(path))
+                        {
+                            encoder.Save(stream);
+                        }
+
+                        Shutdown();
+                    });
+            }
             // StartupUri ถูกประมวลผลหลัง OnStartup คืนค่า (และ set เป็น null จะ throw) เลยต้องปิด
             // หน้าต่าง login ที่มันเปิดให้ ทีหลังแทน - BeginInvoke จึงจำเป็น ไม่ใช่แค่สไตล์
             Dispatcher.BeginInvoke(() =>

@@ -94,6 +94,26 @@
     <Color x:Key="Color.Row.Hover">#26F7B84D</Color>
     <SolidColorBrush x:Key="Brush.Row.Hover" Color="{StaticResource Color.Row.Hover}"/>
 
+    <!-- ==================== Badge tints ====================
+         พื้นของ badge = สีสถานะทับลงบนสีการ์ดด้วย alpha ต่ำ ให้ผลเดียวกับ
+         color-mix(in srgb, var(css:online) 14%, var(css:card)) ของฝั่งเว็บ
+         (14% ของ 255 = 36 = 0x24, 16% = 41 = 0x29, 20% = 51 = 0x33)
+
+         เก็บเป็น alpha ไม่ใช่สีทึบที่ผสมไว้แล้ว เพราะถ้าวันหลังปรับสีการ์ด badge จะตามให้เอง
+         และเป็นเหตุผลเดียวกับที่ฝั่งเว็บผสมกับ var(css:card) ไม่ใช่กับสีขาว - ผสมกับขาวแล้วเอาไป
+         วางบนการ์ดสีเกือบดำจะได้เม็ดสีพาสเทลเรืองแสง -->
+    <Color x:Key="Color.Badge.Online.Background">#242E9B5D</Color>
+    <Color x:Key="Color.Badge.Offline.Background">#299AA1AC</Color>
+    <Color x:Key="Color.Badge.Warning.Background">#33EAB308</Color>
+    <Color x:Key="Color.Badge.Danger.Background">#24D64545</Color>
+    <Color x:Key="Color.Badge.Accent.Background">#29F5A623</Color>
+
+    <SolidColorBrush x:Key="Brush.Badge.Online.Background" Color="{StaticResource Color.Badge.Online.Background}"/>
+    <SolidColorBrush x:Key="Brush.Badge.Offline.Background" Color="{StaticResource Color.Badge.Offline.Background}"/>
+    <SolidColorBrush x:Key="Brush.Badge.Warning.Background" Color="{StaticResource Color.Badge.Warning.Background}"/>
+    <SolidColorBrush x:Key="Brush.Badge.Danger.Background" Color="{StaticResource Color.Badge.Danger.Background}"/>
+    <SolidColorBrush x:Key="Brush.Badge.Accent.Background" Color="{StaticResource Color.Badge.Accent.Background}"/>
+
     <!-- ==================== Overlay (dim behind modal dialogs) ==================== -->
     <Color x:Key="Color.Overlay">#730F0C0A</Color>               <!-- css:overlay: rgba(15,12,10,.45) -->
     <SolidColorBrush x:Key="Brush.Overlay" Color="{StaticResource Color.Overlay}"/>
