@@ -1,4 +1,4 @@
-﻿using System.Windows;
+using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
@@ -1183,13 +1183,16 @@ public partial class DashboardWindow : Window
 
         var border = new Border
         {
+            // Black คงไว้เป็นค่าตายตัวโดยเจตนา ไม่ใช่ token: นี่คือพื้นหลังของ "จอวิดีโอ" ที่ภาพ VNC letterbox
+            // อยู่ข้างใน เหมือนขอบดำของจอทีวี - มันไม่ใช่ surface ของแอปและไม่ควรเปลี่ยนตามธีม เช่นเดียวกับ
+            // ข้อความสีขาวที่ทับอยู่บนภาพด้านบน มีแต่ "ขอบ" เท่านั้นที่เป็นส่วนของ UI จริงจึงผูกกับธีม
             Background = Brushes.Black,
-            BorderBrush = (Brush)FindResource("Brush.Border.Default"),
             BorderThickness = new Thickness(1),
             Margin = new Thickness(3),
             Child = overlayGrid,
             Cursor = Cursors.Hand
         };
+        border.SetResourceReference(Border.BorderBrushProperty, "Brush.Border.Default");
 
         // Button.Click กิน MouseLeftButtonUp ที่ trigger มันไปแล้ว (ButtonBase mark e.Handled ให้เอง) เลย
         // ไม่ bubble มาถึง handler นี้ตอนกดปุ่ม X - คลิกที่ไหนอื่นใน cell จะ trigger ขยายเต็มจอ

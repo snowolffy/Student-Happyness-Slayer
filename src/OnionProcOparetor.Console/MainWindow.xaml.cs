@@ -42,7 +42,8 @@ public partial class MainWindow : Window
         var serverAddress = string.IsNullOrEmpty(port) ? serverIp : $"{serverIp}:{port}";
 
         ConnectButton.IsEnabled = false;
-        StatusText.Foreground = (System.Windows.Media.Brush)FindResource("Brush.Status.Offline");
+        // SetResourceReference ไม่ใช่ FindResource: FindResource คืน "ค่า ณ ตอนนั้น" ครั้งเดียว ซึ่งจะค้างอยู่กับธีมเดิมตลอดไปเมื่อผู้ใช้สลับธีม - SetResourceReference ผูกเป็น DynamicResource จริงเหมือนที่เขียนใน XAML จึงตามธีมใหม่ให้เอง
+        StatusText.SetResourceReference(System.Windows.Controls.TextBlock.ForegroundProperty, "Brush.Status.Offline");
         StatusText.Text = "กำลังเชื่อมต่อ...";
 
         _apiClient = new ApiClient();
@@ -55,7 +56,7 @@ public partial class MainWindow : Window
 
             if (_apiClient.HasDefaultPassword)
             {
-                StatusText.Foreground = (System.Windows.Media.Brush)FindResource("Brush.Status.Online");
+                StatusText.SetResourceReference(System.Windows.Controls.TextBlock.ForegroundProperty, "Brush.Status.Online");
                 StatusText.Text = "เชื่อมต่อสำเร็จ กรุณาเปลี่ยน password ก่อนใช้งาน...";
 
                 var forceChangeWindow = new ForceChangePasswordWindow(_apiClient);
@@ -64,7 +65,7 @@ public partial class MainWindow : Window
             }
             else
             {
-                StatusText.Foreground = (System.Windows.Media.Brush)FindResource("Brush.Status.Online");
+                StatusText.SetResourceReference(System.Windows.Controls.TextBlock.ForegroundProperty, "Brush.Status.Online");
                 StatusText.Text = "เชื่อมต่อสำเร็จ กำลังเปิด Dashboard...";
 
                 var dashboard = new DashboardWindow(_apiClient);
@@ -74,7 +75,7 @@ public partial class MainWindow : Window
         }
         else
         {
-            StatusText.Foreground = (System.Windows.Media.Brush)FindResource("Brush.Danger.Default");
+            StatusText.SetResourceReference(System.Windows.Controls.TextBlock.ForegroundProperty, "Brush.Danger.Default");
             StatusText.Text = message;
             ConnectButton.IsEnabled = true;
         }

@@ -20,9 +20,9 @@
         </Grid.RowDefinitions>
 
         <!-- ==================== Header ==================== -->
-        <Border Grid.Row="0" Background="{StaticResource Brush.Accent.Default}" Padding="20,18">
+        <Border Grid.Row="0" Background="{DynamicResource Brush.Accent.Default}" Padding="20,18">
             <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                <Border Width="48" Height="48" CornerRadius="12" Background="{StaticResource Brush.Accent.Dark}">
+                <Border Width="48" Height="48" CornerRadius="12" Background="{DynamicResource Brush.Accent.Dark}">
                     <Border.Clip>
                         <RectangleGeometry RadiusX="12" RadiusY="12" Rect="0,0,48,48"/>
                     </Border.Clip>

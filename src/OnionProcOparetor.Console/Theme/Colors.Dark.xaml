@@ -1,0 +1,119 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                     xmlns:sys="clr-namespace:System;assembly=System.Runtime">
+
+    <!-- ====================================================================================
+         DARK palette. Key-for-key mirror of Colors.Light.xaml - see the contract note at the
+         top of that file. If you add a token there, add it here too or it silently disappears
+         in one theme.
+
+         Values ported from the OnlineConsole's theme.css dark block, including its reasoning,
+         which is worth restating because it is the part people get wrong when retrofitting a
+         dark mode:
+
+         1. SURFACES GET LIGHTER AS THEY COME FORWARD (bg #141210 -> card #1B1815 ->
+            card-raised #221E1A). In the dark, elevation has to come from luminance: a drop
+            shadow is nearly invisible against a near-black ground, so a dark mode that just
+            reuses the light theme's shadows reads as completely flat.
+         2. STATUS COLORS ARE RE-PICKED, NOT REUSED. #2E9B5D is a green tuned to contrast
+            against white; against #1B1815 it goes muddy and stops reading as "online" at a
+            glance. The dark set is brighter and less saturated.
+         3. The accent itself does NOT change (#F5A623 works on both grounds) but Accent.Text
+            does - on a dark card the darkened #B4740C is the unreadable one, so it flips to
+            the light shade.
+         ==================================================================================== -->
+
+    <sys:String x:Key="Theme.Name">Dark</sys:String>
+    <sys:Boolean x:Key="Theme.IsDark">True</sys:Boolean>
+
+    <!-- ==================== Background / Surface / Border ==================== -->
+    <Color x:Key="Color.Background.Primary">#141210</Color>      <!-- css:bg -->
+    <Color x:Key="Color.Background.Sunken">#0F0D0C</Color>       <!-- css:bg-sunken -->
+    <Color x:Key="Color.Background.Card">#1B1815</Color>         <!-- css:card -->
+    <Color x:Key="Color.Background.CardRaised">#221E1A</Color>   <!-- css:card-raised -->
+    <Color x:Key="Color.Border.Default">#332C26</Color>          <!-- css:border -->
+    <Color x:Key="Color.Border.Strong">#453C34</Color>           <!-- css:border-strong -->
+
+    <SolidColorBrush x:Key="Brush.Background.Primary" Color="{StaticResource Color.Background.Primary}"/>
+    <SolidColorBrush x:Key="Brush.Background.Sunken" Color="{StaticResource Color.Background.Sunken}"/>
+    <SolidColorBrush x:Key="Brush.Background.Card" Color="{StaticResource Color.Background.Card}"/>
+    <SolidColorBrush x:Key="Brush.Background.CardRaised" Color="{StaticResource Color.Background.CardRaised}"/>
+    <SolidColorBrush x:Key="Brush.Border.Default" Color="{StaticResource Color.Border.Default}"/>
+    <SolidColorBrush x:Key="Brush.Border.Strong" Color="{StaticResource Color.Border.Strong}"/>
+
+    <!-- ==================== Accent (amber/orange) ==================== -->
+    <Color x:Key="Color.Accent.Default">#F5A623</Color>          <!-- css:accent: unchanged in dark, on purpose -->
+    <Color x:Key="Color.Accent.Light">#F7B84D</Color>
+    <Color x:Key="Color.Accent.Dark">#D6890F</Color>
+    <Color x:Key="Color.Accent.Text">#F7B84D</Color>             <!-- css:accent-text: flips to the LIGHT shade on a dark card -->
+
+    <SolidColorBrush x:Key="Brush.Accent.Default" Color="{StaticResource Color.Accent.Default}"/>
+    <SolidColorBrush x:Key="Brush.Accent.Light" Color="{StaticResource Color.Accent.Light}"/>
+    <SolidColorBrush x:Key="Brush.Accent.Dark" Color="{StaticResource Color.Accent.Dark}"/>
+    <SolidColorBrush x:Key="Brush.Accent.Text" Color="{StaticResource Color.Accent.Text}"/>
+
+    <!-- ==================== Status ==================== -->
+    <Color x:Key="Color.Status.Online">#4ADE80</Color>           <!-- css:online -->
+    <Color x:Key="Color.Status.Offline">#8A8681</Color>          <!-- css:offline -->
+    <Color x:Key="Color.Status.Warning">#FACC15</Color>          <!-- css:warning -->
+    <Color x:Key="Color.Status.WarningText">#FACC15</Color>      <!-- css:warning-text: on a dark card the fill colour IS the legible text colour -->
+
+    <SolidColorBrush x:Key="Brush.Status.Online" Color="{StaticResource Color.Status.Online}"/>
+    <SolidColorBrush x:Key="Brush.Status.Offline" Color="{StaticResource Color.Status.Offline}"/>
+    <SolidColorBrush x:Key="Brush.Status.Warning" Color="{StaticResource Color.Status.Warning}"/>
+    <SolidColorBrush x:Key="Brush.Status.WarningText" Color="{StaticResource Color.Status.WarningText}"/>
+
+    <!-- ==================== Danger ====================
+         Light/Dark variants have no CSS counterpart (the web side only needs one danger colour);
+         they exist here because ButtonDanger uses them for its hover/pressed states. Derived from
+         css:danger #F87171 the same way the light set is derived from #D64545. -->
+    <Color x:Key="Color.Danger.Default">#F87171</Color>          <!-- css:danger -->
+    <Color x:Key="Color.Danger.Light">#FCA5A5</Color>
+    <Color x:Key="Color.Danger.Dark">#DC2626</Color>
+
+    <SolidColorBrush x:Key="Brush.Danger.Default" Color="{StaticResource Color.Danger.Default}"/>
+    <SolidColorBrush x:Key="Brush.Danger.Light" Color="{StaticResource Color.Danger.Light}"/>
+    <SolidColorBrush x:Key="Brush.Danger.Dark" Color="{StaticResource Color.Danger.Dark}"/>
+
+    <!-- ==================== Text ==================== -->
+    <Color x:Key="Color.Text.Primary">#F3EFEA</Color>            <!-- css:text: warm off-white, not #FFF - pure white on near-black glares -->
+    <Color x:Key="Color.Text.Secondary">#A39C93</Color>          <!-- css:text-secondary -->
+    <Color x:Key="Color.Text.OnAccent">#FFFFFF</Color>           <!-- Deliberately the SAME as light. The web console keeps
+                                                                      `.btn-primary { color:#fff }` in both themes and the amber fill
+                                                                      is identical in both, so flipping this to dark ink would make
+                                                                      the two consoles' primary buttons visibly different products. -->
+
+    <SolidColorBrush x:Key="Brush.Text.Primary" Color="{StaticResource Color.Text.Primary}"/>
+    <SolidColorBrush x:Key="Brush.Text.Secondary" Color="{StaticResource Color.Text.Secondary}"/>
+    <SolidColorBrush x:Key="Brush.Text.OnAccent" Color="{StaticResource Color.Text.OnAccent}"/>
+
+    <!-- ==================== Row states (DataGrid) ====================
+         เดิมเขียนเป็น <SolidColorBrush Color="{StaticResource Color.Accent.Light}" Opacity="0.15"/>
+         แบบ inline อยู่ใน Setter.Value ของ ConsoleGridRowStyle - ย้ายมาเป็น token เพราะ Freezable ที่
+         ประกาศ inline ใน Style setter จะถูก WPF freeze ทำให้ผูก DynamicResource เข้าไปไม่ได้ (ธีมจะค้าง)
+         ค่า ARGB ตรงนี้ให้ผลเหมือนเดิมทุกพิกเซลในโหมดสว่าง: 0.15 * 255 = 38 = 0x26 -->
+    <Color x:Key="Color.Row.Hover">#26F7B84D</Color>
+    <SolidColorBrush x:Key="Brush.Row.Hover" Color="{StaticResource Color.Row.Hover}"/>
+
+    <!-- ==================== Overlay ==================== -->
+    <Color x:Key="Color.Overlay">#9E000000</Color>               <!-- css:overlay: rgba(0,0,0,.62) -->
+    <SolidColorBrush x:Key="Brush.Overlay" Color="{StaticResource Color.Overlay}"/>
+
+    <!-- ==================== Sidebar ====================
+         In dark mode the sidebar goes DARKER than the page, not lighter - it is the sunken
+         layer here, the mirror of being the raised dark layer in light mode. -->
+    <Color x:Key="Color.Sidebar.Background">#0F0D0C</Color>          <!-- css:sidebar-bg -->
+    <Color x:Key="Color.Sidebar.BackgroundRaised">#1D1916</Color>    <!-- css:sidebar-bg-raised -->
+    <Color x:Key="Color.Sidebar.Border">#2A231E</Color>              <!-- css:sidebar-border -->
+    <Color x:Key="Color.Sidebar.Text">#F1EAE3</Color>                <!-- unchanged: the sidebar was already dark in light mode -->
+    <Color x:Key="Color.Sidebar.TextSecondary">#A89A8C</Color>
+    <Color x:Key="Color.Sidebar.ActiveBackground">#29F5A623</Color>
+
+    <SolidColorBrush x:Key="Brush.Sidebar.Background" Color="{StaticResource Color.Sidebar.Background}"/>
+    <SolidColorBrush x:Key="Brush.Sidebar.BackgroundRaised" Color="{StaticResource Color.Sidebar.BackgroundRaised}"/>
+    <SolidColorBrush x:Key="Brush.Sidebar.Border" Color="{StaticResource Color.Sidebar.Border}"/>
+    <SolidColorBrush x:Key="Brush.Sidebar.Text" Color="{StaticResource Color.Sidebar.Text}"/>
+    <SolidColorBrush x:Key="Brush.Sidebar.TextSecondary" Color="{StaticResource Color.Sidebar.TextSecondary}"/>
+    <SolidColorBrush x:Key="Brush.Sidebar.ActiveBackground" Color="{StaticResource Color.Sidebar.ActiveBackground}"/>
+
+</ResourceDictionary>

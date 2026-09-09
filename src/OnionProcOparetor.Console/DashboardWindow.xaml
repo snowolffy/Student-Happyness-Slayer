@@ -8,7 +8,7 @@
         ResizeMode="CanResize"
         Icon="/Theme/icon.ico"
         Style="{StaticResource AppWindowStyle}"
-        Background="{StaticResource Brush.Background.Primary}">
+        Background="{DynamicResource Brush.Background.Primary}">
     <!--
         Layout: Toolbar -> TabControl with 6 tabs: CLIENTS / RULES / LOGS / USERS / SCREEN VIEW / LIVE VIEW
         -> footer status bar, on a root Grid (Auto/*/Auto rows) so the window can actually be resized -
@@ -32,8 +32,8 @@
 
         <!-- ==================== Toolbar (logo/title, last-updated, global actions) ==================== -->
         <Border Grid.Row="0" Height="60" CornerRadius="12" Margin="0,0,0,12"
-                Background="{StaticResource Brush.Background.Card}"
-                BorderBrush="{StaticResource Brush.Border.Default}"
+                Background="{DynamicResource Brush.Background.Card}"
+                BorderBrush="{DynamicResource Brush.Border.Default}"
                 BorderThickness="1" Padding="16,12">
             <Grid>
                 <Grid.ColumnDefinitions>
@@ -47,7 +47,7 @@
                 </Grid.ColumnDefinitions>
 
                 <Border Grid.Column="0" Width="36" Height="36" CornerRadius="10"
-                        Background="{StaticResource Brush.Accent.Default}" VerticalAlignment="Center">
+                        Background="{DynamicResource Brush.Accent.Default}" VerticalAlignment="Center">
                     <Border.Clip>
                         <RectangleGeometry RadiusX="10" RadiusY="10" Rect="0,0,36,36"/>
                     </Border.Clip>
@@ -72,16 +72,16 @@
                      ไม่ว่าจะ toggle รายเครื่องกี่รอบ และไม่มีทางรู้เลยว่าเพราะอะไร -->
                 <Border Grid.Column="2" x:Name="GlobalOffBanner" Visibility="Collapsed"
                         CornerRadius="10" Margin="16,0,16,0" Padding="12,6"
-                        Background="{StaticResource Brush.Status.Warning}"
+                        Background="{DynamicResource Brush.Status.Warning}"
                         VerticalAlignment="Center">
                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                         <TextBlock Text="&#9888;" FontSize="16" VerticalAlignment="Center"
-                                   Foreground="{StaticResource Brush.Text.Primary}"/>
+                                   Foreground="{DynamicResource Brush.Text.Primary}"/>
                         <StackPanel Margin="8,0,0,0" VerticalAlignment="Center">
                             <TextBlock Text="ปิดการบังคับใช้ทั้งระบบอยู่" FontWeight="SemiBold" FontSize="12"
-                                       Foreground="{StaticResource Brush.Text.Primary}"/>
+                                       Foreground="{DynamicResource Brush.Text.Primary}"/>
                             <TextBlock Text="กฎทั้งหมดหยุดทำงานบนทุกเครื่อง แม้เครื่องนั้นจะขึ้น ENABLED" FontSize="11"
-                                       Foreground="{StaticResource Brush.Text.Primary}"/>
+                                       Foreground="{DynamicResource Brush.Text.Primary}"/>
                         </StackPanel>
                         <Button x:Name="GlobalTurnOnButton" Content="เปิดกลับ" Margin="12,0,0,0"
                                 Style="{StaticResource ButtonPrimary}" Padding="12,4"
@@ -112,8 +112,8 @@
 
         <!-- ==================== Main content ==================== -->
         <Border Grid.Row="1" CornerRadius="12" Margin="0,0,0,5"
-                Background="{StaticResource Brush.Background.Card}"
-                BorderBrush="{StaticResource Brush.Border.Default}"
+                Background="{DynamicResource Brush.Background.Card}"
+                BorderBrush="{DynamicResource Brush.Border.Default}"
                 BorderThickness="1" Padding="0">
             <!-- Explicit TabControl.Template 2026-09-03: found via raw pixel sampling (not just
                  eyeballing a screenshot) that ONLY the selected pill's bottom-right corner clipped
@@ -185,7 +185,7 @@
                                     Padding="10,5" FontSize="11" Margin="10,0,0,0"
                                     Click="BroadcastMessageButton_Click" VerticalAlignment="Center"/>
                             <TextBlock Grid.Column="4" x:Name="SelectedClientsCountText"
-                                    Foreground="{StaticResource Brush.Text.Secondary}" Text="" VerticalAlignment="Center"/>
+                                    Foreground="{DynamicResource Brush.Text.Secondary}" Text="" VerticalAlignment="Center"/>
                         </Grid>
 
                         <TextBox Grid.Row="1" x:Name="ClientsSearchBox" Width="250" Height="36" HorizontalAlignment="Left" Margin="0,10,0,0"
@@ -197,17 +197,17 @@
                                  CornerRadius property (it's not a Border subclass), so the grid's own
                                  Background/Border are moved out to this wrapper and the grid goes transparent. -->
                             <Border CornerRadius="12" ClipToBounds="True"
-                                    Background="{StaticResource Brush.Background.Card}"
-                                    BorderBrush="{StaticResource Brush.Border.Default}" BorderThickness="1">
+                                    Background="{DynamicResource Brush.Background.Card}"
+                                    BorderBrush="{DynamicResource Brush.Border.Default}" BorderThickness="1">
                             <DataGrid x:Name="ClientsGrid" AutoGenerateColumns="False" IsReadOnly="True"
                                     SelectionMode="Extended" SelectionUnit="FullRow"
                                     SelectionChanged="ClientsGrid_SelectionChanged"
                                     Background="Transparent"
                                     BorderThickness="0"
-                                    RowBackground="{StaticResource Brush.Background.Card}"
-                                    AlternatingRowBackground="{StaticResource Brush.Background.Card}"
-                                    HorizontalGridLinesBrush="{StaticResource Brush.Border.Default}"
-                                    VerticalGridLinesBrush="{StaticResource Brush.Border.Default}"
+                                    RowBackground="{DynamicResource Brush.Background.Card}"
+                                    AlternatingRowBackground="{DynamicResource Brush.Background.Card}"
+                                    HorizontalGridLinesBrush="{DynamicResource Brush.Border.Default}"
+                                    VerticalGridLinesBrush="{DynamicResource Brush.Border.Default}"
                                     RowHeight="40" CanUserAddRows="False"
                                     ColumnHeaderStyle="{StaticResource ConsoleGridColumnHeaderStyle}"
                                     RowStyle="{StaticResource ConsoleGridRowStyle}"
@@ -348,15 +348,15 @@
 
                         <Grid Grid.Row="3" Margin="0,10,0,0">
                             <Border CornerRadius="12" ClipToBounds="True"
-                                    Background="{StaticResource Brush.Background.Card}"
-                                    BorderBrush="{StaticResource Brush.Border.Default}" BorderThickness="1">
+                                    Background="{DynamicResource Brush.Background.Card}"
+                                    BorderBrush="{DynamicResource Brush.Border.Default}" BorderThickness="1">
                             <DataGrid x:Name="RulesGrid" AutoGenerateColumns="False" IsReadOnly="True"
                                     Background="Transparent"
                                     BorderThickness="0"
-                                    RowBackground="{StaticResource Brush.Background.Card}"
-                                    AlternatingRowBackground="{StaticResource Brush.Background.Card}"
-                                    HorizontalGridLinesBrush="{StaticResource Brush.Border.Default}"
-                                    VerticalGridLinesBrush="{StaticResource Brush.Border.Default}"
+                                    RowBackground="{DynamicResource Brush.Background.Card}"
+                                    AlternatingRowBackground="{DynamicResource Brush.Background.Card}"
+                                    HorizontalGridLinesBrush="{DynamicResource Brush.Border.Default}"
+                                    VerticalGridLinesBrush="{DynamicResource Brush.Border.Default}"
                                     RowHeight="40" CanUserAddRows="False"
                                     ColumnHeaderStyle="{StaticResource ConsoleGridColumnHeaderStyle}"
                                     RowStyle="{StaticResource ConsoleGridRowStyle}"
@@ -431,15 +431,15 @@
 
                         <Grid Grid.Row="2" Margin="0,10,0,0">
                             <Border CornerRadius="12" ClipToBounds="True"
-                                    Background="{StaticResource Brush.Background.Card}"
-                                    BorderBrush="{StaticResource Brush.Border.Default}" BorderThickness="1">
+                                    Background="{DynamicResource Brush.Background.Card}"
+                                    BorderBrush="{DynamicResource Brush.Border.Default}" BorderThickness="1">
                             <DataGrid x:Name="LogsGrid" AutoGenerateColumns="False" IsReadOnly="True"
                                     Background="Transparent"
                                     BorderThickness="0"
-                                    RowBackground="{StaticResource Brush.Background.Card}"
-                                    AlternatingRowBackground="{StaticResource Brush.Background.Card}"
-                                    HorizontalGridLinesBrush="{StaticResource Brush.Border.Default}"
-                                    VerticalGridLinesBrush="{StaticResource Brush.Border.Default}"
+                                    RowBackground="{DynamicResource Brush.Background.Card}"
+                                    AlternatingRowBackground="{DynamicResource Brush.Background.Card}"
+                                    HorizontalGridLinesBrush="{DynamicResource Brush.Border.Default}"
+                                    VerticalGridLinesBrush="{DynamicResource Brush.Border.Default}"
                                     RowHeight="40" CanUserAddRows="False"
                                     ColumnHeaderStyle="{StaticResource ConsoleGridColumnHeaderStyle}"
                                     RowStyle="{StaticResource ConsoleGridRowStyle}"
@@ -538,20 +538,20 @@
                             <Button Grid.Column="2" Content="NEXT ▶" Style="{StaticResource ButtonSecondary}"
                                     Padding="10,5" FontSize="11" Click="AuditLogNextButton_Click"/>
                             <TextBlock Grid.Column="4" x:Name="AuditLogPageInfoText" VerticalAlignment="Center"
-                                    Foreground="{StaticResource Brush.Text.Secondary}"/>
+                                    Foreground="{DynamicResource Brush.Text.Secondary}"/>
                         </Grid>
 
                         <Grid Grid.Row="3" Margin="0,10,0,0">
                             <Border CornerRadius="12" ClipToBounds="True"
-                                    Background="{StaticResource Brush.Background.Card}"
-                                    BorderBrush="{StaticResource Brush.Border.Default}" BorderThickness="1">
+                                    Background="{DynamicResource Brush.Background.Card}"
+                                    BorderBrush="{DynamicResource Brush.Border.Default}" BorderThickness="1">
                             <DataGrid x:Name="AuditLogGrid" AutoGenerateColumns="False" IsReadOnly="True"
                                     Background="Transparent"
                                     BorderThickness="0"
-                                    RowBackground="{StaticResource Brush.Background.Card}"
-                                    AlternatingRowBackground="{StaticResource Brush.Background.Card}"
-                                    HorizontalGridLinesBrush="{StaticResource Brush.Border.Default}"
-                                    VerticalGridLinesBrush="{StaticResource Brush.Border.Default}"
+                                    RowBackground="{DynamicResource Brush.Background.Card}"
+                                    AlternatingRowBackground="{DynamicResource Brush.Background.Card}"
+                                    HorizontalGridLinesBrush="{DynamicResource Brush.Border.Default}"
+                                    VerticalGridLinesBrush="{DynamicResource Brush.Border.Default}"
                                     RowHeight="40" CanUserAddRows="False"
                                     ColumnHeaderStyle="{StaticResource ConsoleGridColumnHeaderStyle}"
                                     RowStyle="{StaticResource ConsoleGridRowStyle}"
@@ -609,8 +609,8 @@
                         <TextBlock Grid.Row="0" Text="User Management" Style="{StaticResource Heading2}"/>
 
                         <Border Grid.Row="1" CornerRadius="10" Padding="12" Margin="0,10,0,0"
-                                Background="{StaticResource Brush.Background.Primary}"
-                                BorderBrush="{StaticResource Brush.Border.Default}"
+                                Background="{DynamicResource Brush.Background.Primary}"
+                                BorderBrush="{DynamicResource Brush.Border.Default}"
                                 BorderThickness="1">
                             <Grid>
                                 <Grid.ColumnDefinitions>
@@ -633,15 +633,15 @@
 
                         <Grid Grid.Row="2" Margin="0,10,0,0">
                             <Border CornerRadius="12" ClipToBounds="True"
-                                    Background="{StaticResource Brush.Background.Card}"
-                                    BorderBrush="{StaticResource Brush.Border.Default}" BorderThickness="1">
+                                    Background="{DynamicResource Brush.Background.Card}"
+                                    BorderBrush="{DynamicResource Brush.Border.Default}" BorderThickness="1">
                             <DataGrid x:Name="UsersGrid" AutoGenerateColumns="False" IsReadOnly="True"
                                     Background="Transparent"
                                     BorderThickness="0"
-                                    RowBackground="{StaticResource Brush.Background.Card}"
-                                    AlternatingRowBackground="{StaticResource Brush.Background.Card}"
-                                    HorizontalGridLinesBrush="{StaticResource Brush.Border.Default}"
-                                    VerticalGridLinesBrush="{StaticResource Brush.Border.Default}"
+                                    RowBackground="{DynamicResource Brush.Background.Card}"
+                                    AlternatingRowBackground="{DynamicResource Brush.Background.Card}"
+                                    HorizontalGridLinesBrush="{DynamicResource Brush.Border.Default}"
+                                    VerticalGridLinesBrush="{DynamicResource Brush.Border.Default}"
                                     RowHeight="40" CanUserAddRows="False"
                                     ColumnHeaderStyle="{StaticResource ConsoleGridColumnHeaderStyle}"
                                     RowStyle="{StaticResource ConsoleGridRowStyle}"
@@ -722,7 +722,7 @@
                         <TextBlock Grid.Row="1" x:Name="VncStatusText" Style="{StaticResource Body}" TextWrapping="Wrap" Margin="0,10,0,0"/>
 
                         <Border Grid.Row="2" CornerRadius="10" Background="Black" Margin="0,10,0,0"
-                                BorderBrush="{StaticResource Brush.Border.Default}" BorderThickness="1">
+                                BorderBrush="{DynamicResource Brush.Border.Default}" BorderThickness="1">
                             <Image x:Name="VncScreenImage" Stretch="Uniform" Margin="3"/>
                         </Border>
                     </Grid>
@@ -747,8 +747,8 @@
 
                             <!-- เลือกเครื่อง - reuse _allClients เดิม ไม่ query ใหม่ (ดู ApplyLiveViewClientList ใน .xaml.cs) -->
                             <Border Grid.Column="0" CornerRadius="10" Padding="10"
-                                    Background="{StaticResource Brush.Background.Primary}"
-                                    BorderBrush="{StaticResource Brush.Border.Default}" BorderThickness="1">
+                                    Background="{DynamicResource Brush.Background.Primary}"
+                                    BorderBrush="{DynamicResource Brush.Border.Default}" BorderThickness="1">
                                 <Grid>
                                     <Grid.RowDefinitions>
                                         <RowDefinition Height="Auto"/>
@@ -786,7 +786,7 @@
 
                             <!-- Grid area - ช่องขนาดปรับอัตโนมัติตามจำนวนเครื่องผ่าน UniformGrid (auto-compute แถว/คอลัมน์ในตัว) -->
                             <Border Grid.Column="2" CornerRadius="10"
-                                    Background="Black" BorderBrush="{StaticResource Brush.Border.Default}" BorderThickness="1">
+                                    Background="Black" BorderBrush="{DynamicResource Brush.Border.Default}" BorderThickness="1">
                                 <UniformGrid x:Name="LiveViewGrid"/>
                             </Border>
                         </Grid>
@@ -798,8 +798,8 @@
 
         <!-- ==================== Footer status bar ==================== -->
         <Border Grid.Row="2" Height="52" CornerRadius="12"
-                Background="{StaticResource Brush.Background.Card}"
-                BorderBrush="{StaticResource Brush.Border.Default}"
+                Background="{DynamicResource Brush.Background.Card}"
+                BorderBrush="{DynamicResource Brush.Border.Default}"
                 BorderThickness="1" Padding="16,10">
             <Grid VerticalAlignment="Center">
                 <Grid.ColumnDefinitions>
@@ -835,7 +835,7 @@
              ด้านล่างนี้ stretch เต็ม Grid.Row="*" ของ overlay เอง) - verify ด้วยการ resize จริงระหว่างเปิด
              full-screen แล้วดูว่าพิกัดคลิกยังตรงตำแหน่งเป้าหมาย ไม่ใช่แค่เชื่อ logic เฉยๆ -->
         <Border x:Name="LiveViewFullscreenOverlay" Grid.Row="0" Grid.RowSpan="3"
-                Background="{StaticResource Brush.Background.Primary}" Visibility="Collapsed"
+                Background="{DynamicResource Brush.Background.Primary}" Visibility="Collapsed"
                 Focusable="True" FocusVisualStyle="{x:Null}"
                 PreviewKeyDown="LiveViewFullscreenOverlay_PreviewKeyDown"
                 PreviewKeyUp="LiveViewFullscreenOverlay_PreviewKeyUp"
@@ -860,12 +860,12 @@
                     <TextBlock x:Name="FullscreenHeaderText" Style="{StaticResource Heading2}"
                                Margin="20,0,0,0" VerticalAlignment="Center"/>
                     <TextBlock x:Name="FullscreenStatusText" Style="{StaticResource Caption}"
-                               Foreground="{StaticResource Brush.Danger.Default}"
+                               Foreground="{DynamicResource Brush.Danger.Default}"
                                Margin="20,0,0,0" VerticalAlignment="Center"/>
                 </StackPanel>
 
                 <Border Grid.Row="1" Background="Black" CornerRadius="10"
-                        BorderBrush="{StaticResource Brush.Border.Default}" BorderThickness="1">
+                        BorderBrush="{DynamicResource Brush.Border.Default}" BorderThickness="1">
                     <!-- Step 4h: คุมเมาส์เต็มพื้นที่ Image นี้ - Stretch="Uniform" ทำให้ภาพ letterbox
                          (แถบดำซ้าย-ขวาหรือบน-ล่าง) ถ้าอัตราส่วน target ไม่ตรงกับพื้นที่แสดงผลพอดี ต้องแปลง
                          พิกัดคลิกกลับเป็นพิกัดจริงของ target เอง (ดู TryMapFullscreenPointToTarget) -->

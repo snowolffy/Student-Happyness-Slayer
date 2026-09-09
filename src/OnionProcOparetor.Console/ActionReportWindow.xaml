@@ -9,13 +9,13 @@
     <Window.Resources>
         <!-- ใช้สไตล์ตารางชุดเดียวกับ DashboardWindow เพื่อให้หน้าตาเป็นระบบเดียวกันทั้ง Console -->
         <Style x:Key="ReportGridColumnHeaderStyle" TargetType="DataGridColumnHeader">
-            <Setter Property="Background" Value="{StaticResource Brush.Background.Primary}"/>
-            <Setter Property="Foreground" Value="{StaticResource Brush.Text.Secondary}"/>
+            <Setter Property="Background" Value="{DynamicResource Brush.Background.Primary}"/>
+            <Setter Property="Foreground" Value="{DynamicResource Brush.Text.Secondary}"/>
             <Setter Property="FontFamily" Value="{StaticResource FontFamily.Primary}"/>
             <Setter Property="FontWeight" Value="SemiBold"/>
             <Setter Property="FontSize" Value="11"/>
             <Setter Property="Padding" Value="10,8"/>
-            <Setter Property="BorderBrush" Value="{StaticResource Brush.Border.Default}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource Brush.Border.Default}"/>
             <Setter Property="BorderThickness" Value="0,0,1,1"/>
         </Style>
         <Style x:Key="ReportGridRowStyle" TargetType="DataGridRow">
@@ -26,7 +26,7 @@
                 <Trigger Property="IsMouseOver" Value="True">
                     <Setter Property="Background">
                         <Setter.Value>
-                            <SolidColorBrush Color="{StaticResource Color.Accent.Light}" Opacity="0.15"/>
+                            <SolidColorBrush Color="{DynamicResource Color.Accent.Light}" Opacity="0.15"/>
                         </Setter.Value>
                     </Setter>
                 </Trigger>
@@ -34,15 +34,15 @@
         </Style>
         <Style x:Key="ReportGridCellStyle" TargetType="DataGridCell">
             <Setter Property="Background" Value="Transparent"/>
-            <Setter Property="Foreground" Value="{StaticResource Brush.Text.Primary}"/>
+            <Setter Property="Foreground" Value="{DynamicResource Brush.Text.Primary}"/>
             <Setter Property="BorderThickness" Value="0"/>
             <Setter Property="Padding" Value="10,4"/>
             <Setter Property="FontFamily" Value="{StaticResource FontFamily.Primary}"/>
             <Setter Property="FontSize" Value="12"/>
             <Style.Triggers>
                 <Trigger Property="IsSelected" Value="True">
-                    <Setter Property="Background" Value="{StaticResource Brush.Background.Primary}"/>
-                    <Setter Property="Foreground" Value="{StaticResource Brush.Text.Primary}"/>
+                    <Setter Property="Background" Value="{DynamicResource Brush.Background.Primary}"/>
+                    <Setter Property="Foreground" Value="{DynamicResource Brush.Text.Primary}"/>
                 </Trigger>
             </Style.Triggers>
         </Style>
@@ -77,13 +77,13 @@
 
         <!-- ==================== สรุปผลรวม ==================== -->
         <Border Grid.Row="1" Margin="0,12,0,0" CornerRadius="10" Padding="14"
-                Background="{StaticResource Brush.Background.Primary}"
-                BorderBrush="{StaticResource Brush.Border.Default}" BorderThickness="1">
+                Background="{DynamicResource Brush.Background.Primary}"
+                BorderBrush="{DynamicResource Brush.Border.Default}" BorderThickness="1">
             <StackPanel>
                 <TextBlock x:Name="SummaryText" FontSize="15" FontWeight="SemiBold"
-                           Foreground="{StaticResource Brush.Text.Primary}" TextWrapping="Wrap"/>
+                           Foreground="{DynamicResource Brush.Text.Primary}" TextWrapping="Wrap"/>
                 <TextBlock x:Name="PendingIndicatorText" Margin="0,6,0,0" FontSize="12"
-                           Foreground="{StaticResource Brush.Accent.Dark}" TextWrapping="Wrap"/>
+                           Foreground="{DynamicResource Brush.Accent.Dark}" TextWrapping="Wrap"/>
             </StackPanel>
         </Border>
 
@@ -95,18 +95,18 @@
             ทีหลังเผลอเปลี่ยนเป็น StackPanel/ItemsControl ธรรมดาแล้วประสิทธิภาพตกโดยไม่รู้ตัว)
         -->
         <Border Grid.Row="2" Margin="0,12,0,0" CornerRadius="12" ClipToBounds="True"
-                Background="{StaticResource Brush.Background.Card}"
-                BorderBrush="{StaticResource Brush.Border.Default}" BorderThickness="1">
+                Background="{DynamicResource Brush.Background.Card}"
+                BorderBrush="{DynamicResource Brush.Border.Default}" BorderThickness="1">
         <DataGrid x:Name="ResultsGrid"
                   AutoGenerateColumns="False" IsReadOnly="True"
                   SelectionMode="Single" SelectionUnit="FullRow"
                   SelectionChanged="ResultsGrid_SelectionChanged"
                   Background="Transparent"
                   BorderThickness="0"
-                  RowBackground="{StaticResource Brush.Background.Card}"
-                  AlternatingRowBackground="{StaticResource Brush.Background.Card}"
-                  HorizontalGridLinesBrush="{StaticResource Brush.Border.Default}"
-                  VerticalGridLinesBrush="{StaticResource Brush.Border.Default}"
+                  RowBackground="{DynamicResource Brush.Background.Card}"
+                  AlternatingRowBackground="{DynamicResource Brush.Background.Card}"
+                  HorizontalGridLinesBrush="{DynamicResource Brush.Border.Default}"
+                  VerticalGridLinesBrush="{DynamicResource Brush.Border.Default}"
                   RowHeight="36" CanUserAddRows="False"
                   EnableRowVirtualization="True" EnableColumnVirtualization="True"
                   VirtualizingPanel.IsVirtualizing="True"
@@ -143,8 +143,8 @@
 
         <!-- รายละเอียดของแถวที่เลือก - เผื่อข้อความยาวเกินกว่าจะอ่านจบใน tooltip/คอลัมน์ -->
         <Border Grid.Row="3" Margin="0,12,0,0" CornerRadius="8" Padding="12"
-                Background="{StaticResource Brush.Background.Primary}"
-                BorderBrush="{StaticResource Brush.Border.Default}" BorderThickness="1">
+                Background="{DynamicResource Brush.Background.Primary}"
+                BorderBrush="{DynamicResource Brush.Border.Default}" BorderThickness="1">
             <TextBlock x:Name="SelectedDetailText" TextWrapping="Wrap" MinHeight="32"
                        Style="{StaticResource Caption}"
                        Text="เลือกแถวเพื่อดูรายละเอียดของเครื่องนั้น"/>

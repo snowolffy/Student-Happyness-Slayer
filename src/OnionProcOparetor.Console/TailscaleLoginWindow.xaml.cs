@@ -20,7 +20,8 @@ public partial class TailscaleLoginWindow : Window
         if (string.IsNullOrEmpty(key))
         {
             StatusText.Text = "กรุณากรอก auth key";
-            StatusText.Foreground = (System.Windows.Media.Brush)FindResource("Brush.Danger.Default");
+            // SetResourceReference ไม่ใช่ FindResource: FindResource คืน "ค่า ณ ตอนนั้น" ครั้งเดียว ซึ่งจะค้างอยู่กับธีมเดิมตลอดไปเมื่อผู้ใช้สลับธีม - SetResourceReference ผูกเป็น DynamicResource จริงเหมือนที่เขียนใน XAML จึงตามธีมใหม่ให้เอง
+            StatusText.SetResourceReference(System.Windows.Controls.TextBlock.ForegroundProperty, "Brush.Danger.Default");
             return;
         }
 

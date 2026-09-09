@@ -20,27 +20,28 @@ public partial class ForceChangePasswordWindow : Window
 
         if (string.IsNullOrEmpty(newPassword) || newPassword.Length < 8)
         {
-            StatusText.Foreground = (System.Windows.Media.Brush)FindResource("Brush.Danger.Default");
+            // SetResourceReference ไม่ใช่ FindResource: FindResource คืน "ค่า ณ ตอนนั้น" ครั้งเดียว ซึ่งจะค้างอยู่กับธีมเดิมตลอดไปเมื่อผู้ใช้สลับธีม - SetResourceReference ผูกเป็น DynamicResource จริงเหมือนที่เขียนใน XAML จึงตามธีมใหม่ให้เอง
+            StatusText.SetResourceReference(System.Windows.Controls.TextBlock.ForegroundProperty, "Brush.Danger.Default");
             StatusText.Text = "Password ต้องมีความยาวอย่างน้อย 8 ตัวอักษร";
             return;
         }
 
         if (newPassword != confirmPassword)
         {
-            StatusText.Foreground = (System.Windows.Media.Brush)FindResource("Brush.Danger.Default");
+            StatusText.SetResourceReference(System.Windows.Controls.TextBlock.ForegroundProperty, "Brush.Danger.Default");
             StatusText.Text = "Password ทั้งสองช่องไม่ตรงกัน";
             return;
         }
 
         ChangePasswordButton.IsEnabled = false;
-        StatusText.Foreground = (System.Windows.Media.Brush)FindResource("Brush.Status.Offline");
+        StatusText.SetResourceReference(System.Windows.Controls.TextBlock.ForegroundProperty, "Brush.Status.Offline");
         StatusText.Text = "กำลังเปลี่ยน password...";
 
         var (success, message) = await _apiClient.ChangePasswordAsync(newPassword);
 
         if (success)
         {
-            StatusText.Foreground = (System.Windows.Media.Brush)FindResource("Brush.Status.Online");
+            StatusText.SetResourceReference(System.Windows.Controls.TextBlock.ForegroundProperty, "Brush.Status.Online");
             StatusText.Text = "เปลี่ยน password สำเร็จ กำลังเปิด Dashboard...";
 
             var dashboard = new DashboardWindow(_apiClient);
@@ -49,7 +50,7 @@ public partial class ForceChangePasswordWindow : Window
         }
         else
         {
-            StatusText.Foreground = (System.Windows.Media.Brush)FindResource("Brush.Danger.Default");
+            StatusText.SetResourceReference(System.Windows.Controls.TextBlock.ForegroundProperty, "Brush.Danger.Default");
             StatusText.Text = message;
             ChangePasswordButton.IsEnabled = true;
         }

@@ -29,11 +29,11 @@
                          ToolTip="[OPTIONAL] narrow เพิ่มจากชื่อไฟล์ เช่น 'notepad' - เว้นว่างได้ถ้าไม่รู้ชื่อไฟล์ล่วงหน้า"/>
 
                 <CheckBox x:Name="RequireSignedMatchCheckBox" Content="Require signed match (Authenticode)"
-                          Foreground="{StaticResource Brush.Text.Primary}" Margin="0,0,0,8"/>
+                          Foreground="{DynamicResource Brush.Text.Primary}" Margin="0,0,0,8"/>
                 <CheckBox x:Name="KillProcessCheckBox" Content="Kill process ทันทีที่ match"
-                          Foreground="{StaticResource Brush.Text.Primary}" Margin="0,0,0,8"/>
+                          Foreground="{DynamicResource Brush.Text.Primary}" Margin="0,0,0,8"/>
                 <CheckBox x:Name="IsEnabledCheckBox" Content="เปิดใช้งานกฎนี้"
-                          Foreground="{StaticResource Brush.Text.Primary}" Margin="0,0,0,12"/>
+                          Foreground="{DynamicResource Brush.Text.Primary}" Margin="0,0,0,12"/>
 
                 <TextBlock Text="ACTION COMMAND (OPTIONAL)" Style="{StaticResource Label}" Margin="0,0,0,4"/>
                 <TextBox x:Name="ActionCommandBox" Style="{StaticResource RoundedTextBox}" Margin="0,0,0,12"

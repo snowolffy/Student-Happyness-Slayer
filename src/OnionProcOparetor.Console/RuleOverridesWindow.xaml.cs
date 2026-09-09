@@ -67,10 +67,13 @@ public partial class RuleOverridesWindow : Window
             CornerRadius = new CornerRadius(8),
             Padding = new Thickness(10, 8, 10, 8),
             Margin = new Thickness(0, 0, 0, 6),
-            Background = (Brush)FindResource("Brush.Background.Card"),
-            BorderBrush = (Brush)FindResource("Brush.Border.Default"),
             BorderThickness = new Thickness(1)
         };
+        // SetResourceReference ไม่ใช่ FindResource: FindResource คืน "ค่า ณ ตอนนั้น" ครั้งเดียว ซึ่งจะค้างอยู่กับ
+        // ธีมเดิมตลอดไปเมื่อผู้ใช้สลับธีม - SetResourceReference ผูกเป็น DynamicResource จริงเหมือนที่เขียนใน XAML
+        // จึงตามธีมใหม่ให้เอง (แถวพวกนี้ถูกสร้างด้วย code-behind ล้วน ไม่มี XAML ให้ผูกให้อัตโนมัติ)
+        row.SetResourceReference(BackgroundProperty, "Brush.Background.Card");
+        row.SetResourceReference(BorderBrushProperty, "Brush.Border.Default");
 
         var grid = new Grid();
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
@@ -78,12 +81,9 @@ public partial class RuleOverridesWindow : Window
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
 
         var namePanel = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
-        namePanel.Children.Add(new TextBlock
-        {
-            Text = rule.Name,
-            FontWeight = FontWeights.SemiBold,
-            Foreground = (Brush)FindResource("Brush.Text.Primary")
-        });
+        var nameText = new TextBlock { Text = rule.Name, FontWeight = FontWeights.SemiBold };
+        nameText.SetResourceReference(TextBlock.ForegroundProperty, "Brush.Text.Primary");
+        namePanel.Children.Add(nameText);
         namePanel.Children.Add(new TextBlock
         {
             Text = hasOverride
@@ -99,9 +99,9 @@ public partial class RuleOverridesWindow : Window
         {
             IsChecked = effectiveEnabled,
             VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(10, 0, 10, 0),
-            Foreground = (Brush)FindResource("Brush.Text.Primary")
+            Margin = new Thickness(10, 0, 10, 0)
         };
+        checkBox.SetResourceReference(ForegroundProperty, "Brush.Text.Primary");
         checkBox.Checked += async (_, _) => await SetOverrideAsync(rule, true);
         checkBox.Unchecked += async (_, _) => await SetOverrideAsync(rule, false);
         Grid.SetColumn(checkBox, 1);
