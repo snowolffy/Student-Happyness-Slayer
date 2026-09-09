@@ -1,4 +1,4 @@
-<Window x:Class="OnionProcOparetor.Console.BroadcastMessageWindow"
+﻿<Window x:Class="OnionProcOparetor.Console.BroadcastMessageWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Broadcast Message"
@@ -7,7 +7,7 @@
         WindowStartupLocation="Manual"
         ResizeMode="NoResize"
         Icon="/Theme/icon.ico"
-        Style="{StaticResource AppWindowStyle}">
+        Style="{StaticResource AppDialogWindow}">
     <!-- Rebuilt 2026-09-03 - StackPanel replaces the old fixed-pixel RowDefinitions. WindowStartupLocation
          stays Manual + WindowCenteringHelper (code-behind), same SizeToContent+CenterOwner reasoning
          as the other dialogs in this app. -->

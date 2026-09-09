@@ -1,11 +1,11 @@
-<Window x:Class="OnionProcOparetor.Console.ActionReportWindow"
+﻿<Window x:Class="OnionProcOparetor.Console.ActionReportWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="ผลการทำงาน"
         Height="560" Width="720"
         MinHeight="360" MinWidth="520"
         WindowStartupLocation="CenterOwner"
-        Style="{StaticResource AppWindowStyle}">
+        Style="{StaticResource AppDialogWindow}">
     <Window.Resources>
         <!-- ใช้สไตล์ตารางชุดเดียวกับ DashboardWindow เพื่อให้หน้าตาเป็นระบบเดียวกันทั้ง Console -->
         <Style x:Key="ReportGridColumnHeaderStyle" TargetType="DataGridColumnHeader">

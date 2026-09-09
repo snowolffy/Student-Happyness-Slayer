@@ -1,4 +1,4 @@
-<Window x:Class="OnionProcOparetor.Console.MainWindow"
+﻿<Window x:Class="OnionProcOparetor.Console.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Onion ProcOparetor Console"
@@ -6,7 +6,7 @@
         WindowStartupLocation="CenterScreen"
         ResizeMode="NoResize"
         Icon="/Theme/icon.ico"
-        Style="{StaticResource AppWindowStyle}">
+        Style="{StaticResource AppDialogWindow}">
     <!-- Rebuilt 2026-09-03 (Fluent-adoption redesign) - Button/TextBox/PasswordBox now render through
          Fluent's own templates (see Theme/Controls.xaml). Replaced the old absolute
          Margin="Left,Top,0,0" positioning (a Canvas-in-disguise left over from the original

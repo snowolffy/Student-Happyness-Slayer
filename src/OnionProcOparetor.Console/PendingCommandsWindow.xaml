@@ -1,11 +1,11 @@
-<Window x:Class="OnionProcOparetor.Console.PendingCommandsWindow"
+﻿<Window x:Class="OnionProcOparetor.Console.PendingCommandsWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Pending Commands"
         Height="420" Width="640"
         WindowStartupLocation="CenterOwner"
         Icon="/Theme/icon.ico"
-        Style="{StaticResource AppWindowStyle}">
+        Style="{StaticResource AppDialogWindow}">
     <!-- Rebuilt 2026-09-03 - spacing polish only; this window's Auto/Auto/* Grid shape was already
          sound (no Canvas-carryover magic pixels here). DataGrid columns/bindings unchanged. -->
     <Grid Margin="20">

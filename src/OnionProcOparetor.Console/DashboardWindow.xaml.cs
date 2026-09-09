@@ -544,7 +544,15 @@ public partial class DashboardWindow : Window
     {
         if (sender is Button { Tag: int ruleId })
         {
-            var confirmed = ConfirmWindow.Show("ยืนยันการลบกฎนี้? การกระทำนี้ย้อนกลับไม่ได้", "ยืนยันการลบ", this);
+            // ต้องพิมพ์ชื่อกฎให้ตรงก่อนถึงจะลบได้ - ลบกฎเป็นหนึ่งในสองอย่างในแอปนี้ที่เอาคืนไม่ได้จริง ๆ
+            // (อีกอย่างคือลบผู้ใช้) และแถวในตารางกฎหน้าตาคล้ายกันมากจนกดผิดแถวได้ง่าย การพิมพ์ชื่อบังคับ
+            // ให้ต้องอ่านก่อนว่ากำลังลบตัวไหนอยู่ ไม่ใช่แค่กดผ่านกล่องยืนยันอีกกล่อง
+            var ruleName = _allRules.FirstOrDefault(r => r.Id == ruleId)?.Name;
+            var confirmed = string.IsNullOrWhiteSpace(ruleName)
+                ? ConfirmWindow.Show("ยืนยันการลบกฎนี้? การกระทำนี้ย้อนกลับไม่ได้", "ยืนยันการลบ", this)
+                : ConfirmWindow.ShowWithTypeToConfirm(
+                    $"กำลังจะลบกฎ \"{ruleName}\" ออกจากระบบถาวร การกระทำนี้ย้อนกลับไม่ได้",
+                    "ยืนยันการลบกฎ", ruleName, this);
             if (!confirmed)
             {
                 return;
@@ -612,7 +620,13 @@ public partial class DashboardWindow : Window
     {
         if (sender is Button { Tag: int userId })
         {
-            var confirmed = ConfirmWindow.Show("ยืนยันการลบ user นี้? การกระทำนี้ย้อนกลับไม่ได้", "ยืนยันการลบ", this);
+            // เหตุผลเดียวกับการลบกฎ - ชื่อผู้ใช้ที่ต้องพิมพ์ดึงมาจากแถวที่กด ไม่ใช่จากที่อื่น
+            var userName = (UsersGrid.ItemsSource as IEnumerable<UserDto>)?.FirstOrDefault(u => u.Id == userId)?.Username;
+            var confirmed = string.IsNullOrWhiteSpace(userName)
+                ? ConfirmWindow.Show("ยืนยันการลบ user นี้? การกระทำนี้ย้อนกลับไม่ได้", "ยืนยันการลบ", this)
+                : ConfirmWindow.ShowWithTypeToConfirm(
+                    $"กำลังจะลบผู้ใช้ \"{userName}\" ออกจากระบบถาวร การกระทำนี้ย้อนกลับไม่ได้",
+                    "ยืนยันการลบผู้ใช้", userName, this);
             if (!confirmed)
             {
                 return;

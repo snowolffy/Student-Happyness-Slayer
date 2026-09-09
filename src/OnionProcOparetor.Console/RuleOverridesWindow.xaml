@@ -1,4 +1,4 @@
-<Window x:Class="OnionProcOparetor.Console.RuleOverridesWindow"
+﻿<Window x:Class="OnionProcOparetor.Console.RuleOverridesWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Config Rule"
@@ -6,7 +6,7 @@
         WindowStartupLocation="CenterOwner"
         ResizeMode="NoResize"
         Icon="/Theme/icon.ico"
-        Style="{StaticResource AppWindowStyle}">
+        Style="{StaticResource AppDialogWindow}">
     <!-- Rebuilt 2026-09-03 - same Auto/*/Auto row shape as before (a legitimate use of Grid here:
          the rule list is variable-length and needs a flexible scrollable middle region), just
          re-spaced with margins instead of a fixed-pixel Auto/8/*/Auto/40 row set. -->

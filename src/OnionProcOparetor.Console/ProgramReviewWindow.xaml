@@ -1,11 +1,11 @@
-<Window x:Class="OnionProcOparetor.Console.ProgramReviewWindow"
+﻿<Window x:Class="OnionProcOparetor.Console.ProgramReviewWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Program Control - คิวตรวจสอบ"
         Height="640" Width="1040"
         WindowStartupLocation="CenterOwner"
         Icon="/Theme/icon.ico"
-        Style="{StaticResource AppWindowStyle}">
+        Style="{StaticResource AppDialogWindow}">
     <!-- Rebuilt 2026-09-03 - header controls now spaced via Grid columns instead of per-control
          Margin; the reasons box now uses the shared Card style (was a hand-copied Border with square
          corners - the only un-rounded container in this window, now consistent with the rest of the

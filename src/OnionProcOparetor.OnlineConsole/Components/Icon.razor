@@ -164,6 +164,14 @@
            Kept in step with Theme/Icons.xaml on the Console side so the two icon sets stay one set
            rather than drifting into two; if the tile grid ever comes back to the web (it was
            removed 2026-09-04 over bandwidth), the icon is already here. *@
+        @* minus / square are the WPF Console's own window-chrome buttons (minimise, maximise).
+           Same reason as "grid" below: the two icon sets are kept as one set. *@
+        case "minus":
+            <line x1="5" y1="12" x2="19" y2="12" />
+            break;
+        case "square":
+            <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+            break;
         case "grid":
             <rect x="3" y="3" width="7" height="7" />
             <rect x="14" y="3" width="7" height="7" />

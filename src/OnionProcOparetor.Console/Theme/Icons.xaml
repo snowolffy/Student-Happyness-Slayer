@@ -254,4 +254,14 @@
         <RectangleGeometry Rect="3,14,7,7"/>
     </GeometryGroup>
 
+    <!-- minus / square - ปุ่มย่อและปุ่มขยายในแถบหัวหน้าต่างที่เราวาดเอง (AppDialogWindow)
+         เพิ่มพร้อมกันทั้งสองฝั่งตามสัญญา "Icons.xaml กับ Icon.razor ต้องมีชุดเดียวกันเสมอ" -->
+    <GeometryGroup x:Key="Icon.Minus" FillRule="Nonzero">
+        <LineGeometry StartPoint="5,12" EndPoint="19,12"/>
+    </GeometryGroup>
+
+    <GeometryGroup x:Key="Icon.Square" FillRule="Nonzero">
+        <RectangleGeometry Rect="3,3,18,18" RadiusX="2" RadiusY="2"/>
+    </GeometryGroup>
+
 </ResourceDictionary>

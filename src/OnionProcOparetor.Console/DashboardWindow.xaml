@@ -8,7 +8,7 @@
         WindowStartupLocation="CenterScreen"
         ResizeMode="CanResize"
         Icon="/Theme/icon.ico"
-        Style="{StaticResource AppWindowStyle}"
+        Style="{StaticResource AppDialogWindow}"
         Background="{DynamicResource Brush.Background.Primary}">
     <!--
         Layout: Toolbar -> TabControl with 6 tabs: CLIENTS / RULES / LOGS / USERS / SCREEN VIEW / LIVE VIEW

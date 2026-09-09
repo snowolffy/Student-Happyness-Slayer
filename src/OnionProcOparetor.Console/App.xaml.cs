@@ -61,6 +61,25 @@ public partial class App : Application
         // มีไว้เพราะเครื่อง dev เครื่องนี้รัน Server ตัวจริงอยู่ด้วย การจะดู Dashboard สักทีจึงต้อง
         // login เข้าเซิร์ฟเวอร์ของจริง ซึ่งไม่ควรทำแค่เพื่อดูว่าปุ่มจัดตำแหน่งตรงไหม - ทางนี้เปิด
         // Dashboard ด้วย ApiClient ที่ยังไม่ได้ login ทุก API call จึงล้มเหลวหมด (ตั้งใจ) เห็นแต่โครง UI
+        // --dialog=<ชื่อ> เปิดหน้าต่างย่อยขึ้นมาถ่ายภาพตรวจ chrome ที่เราวาดเอง (แถบหัว/ปุ่มปิด/
+        // การคำนวณความสูงแบบ SizeToContent ซึ่งเป็นจุดที่ Window template ของตัวเองพังได้ง่ายสุด)
+        var dialogArg = e.Args.FirstOrDefault(a => a.StartsWith("--dialog=", StringComparison.Ordinal));
+        if (dialogArg is not null)
+        {
+            Window dialog = dialogArg["--dialog=".Length..] switch
+            {
+                "confirm" => ConfirmWindow.CreatePreview(typeToConfirm: false),
+                "confirm-type" => ConfirmWindow.CreatePreview(typeToConfirm: true),
+                "about" => new AboutWindow(),
+                _ => throw new ArgumentException($"ไม่รู้จัก dialog: {dialogArg}")
+            };
+
+            dialog.WindowStartupLocation = WindowStartupLocation.CenterScreen;
+            dialog.Show();
+            CapturePreview(dialog, e.Args);
+            return;
+        }
+
         if (e.Args.Contains("--ui-preview"))
         {
             var preview = new DashboardWindow(new Services.ApiClient()) { PreviewMode = true };
@@ -82,29 +101,7 @@ public partial class App : Application
             // PrintWindow จะคืนเฟรมขาวเปล่า ๆ (เจอมาแล้วเหมือนกัน) และ Windows ไม่ยอมให้ process
             // เบื้องหลังแย่ง foreground มาแก้ RenderTargetBitmap วาดจาก visual tree ตรง ๆ จึงได้ภาพ
             // ที่ถูกต้องเสมอไม่ว่าหน้าต่างจะถูกบัง ย่อ หรือมีอะไรทับอยู่
-            var shot = e.Args.FirstOrDefault(a => a.StartsWith("--shot=", StringComparison.Ordinal));
-            if (shot is not null)
-            {
-                var path = shot["--shot=".Length..];
-                preview.Dispatcher.BeginInvoke(
-                    System.Windows.Threading.DispatcherPriority.ApplicationIdle,
-                    () =>
-                    {
-                        var bitmap = new System.Windows.Media.Imaging.RenderTargetBitmap(
-                            (int)preview.ActualWidth, (int)preview.ActualHeight, 96, 96,
-                            System.Windows.Media.PixelFormats.Pbgra32);
-                        bitmap.Render(preview);
-
-                        var encoder = new System.Windows.Media.Imaging.PngBitmapEncoder();
-                        encoder.Frames.Add(System.Windows.Media.Imaging.BitmapFrame.Create(bitmap));
-                        using (var stream = System.IO.File.Create(path))
-                        {
-                            encoder.Save(stream);
-                        }
-
-                        Shutdown();
-                    });
-            }
+            CapturePreview(preview, e.Args);
             // StartupUri ถูกประมวลผลหลัง OnStartup คืนค่า (และ set เป็น null จะ throw) เลยต้องปิด
             // หน้าต่าง login ที่มันเปิดให้ ทีหลังแทน - BeginInvoke จึงจำเป็น ไม่ใช่แค่สไตล์
             Dispatcher.BeginInvoke(() =>
@@ -121,4 +118,44 @@ public partial class App : Application
         }
 #endif
     }
+
+#if DEBUG
+    /// <summary>
+    /// --shot=&lt;path&gt; เรนเดอร์หน้าต่างเป็น PNG แล้วปิดโปรแกรม (โหมดตรวจ UI เท่านั้น)
+    ///
+    /// ที่ต้องเรนเดอร์เองในแอปแทนที่จะให้สคริปต์ข้างนอกจับภาพหน้าจอ: ทั้ง CopyFromScreen และ
+    /// PrintWindow พึ่งสิ่งที่อยู่บนจอจริงและ DWM ต้องมี redirection surface ให้ - พอหน้าต่างถูก
+    /// เบราว์เซอร์บังอยู่ CopyFromScreen จะจับภาพเบราว์เซอร์มาแทน (เจอมาแล้ว) ส่วน PrintWindow จะคืน
+    /// เฟรมขาวเปล่า ๆ (เจอมาแล้วเหมือนกัน) และ Windows ไม่ยอมให้ process เบื้องหลังแย่ง foreground
+    /// มาแก้ RenderTargetBitmap วาดจาก visual tree ตรง ๆ จึงได้ภาพที่ถูกต้องเสมอไม่ว่าจะถูกอะไรบัง
+    /// </summary>
+    private void CapturePreview(Window window, string[] args)
+    {
+        var shot = args.FirstOrDefault(a => a.StartsWith("--shot=", StringComparison.Ordinal));
+        if (shot is null)
+        {
+            return;
+        }
+
+        var path = shot["--shot=".Length..];
+        window.Dispatcher.BeginInvoke(
+            System.Windows.Threading.DispatcherPriority.ApplicationIdle,
+            () =>
+            {
+                var bitmap = new System.Windows.Media.Imaging.RenderTargetBitmap(
+                    (int)window.ActualWidth, (int)window.ActualHeight, 96, 96,
+                    System.Windows.Media.PixelFormats.Pbgra32);
+                bitmap.Render(window);
+
+                var encoder = new System.Windows.Media.Imaging.PngBitmapEncoder();
+                encoder.Frames.Add(System.Windows.Media.Imaging.BitmapFrame.Create(bitmap));
+                using (var stream = System.IO.File.Create(path))
+                {
+                    encoder.Save(stream);
+                }
+
+                Shutdown();
+            });
+    }
+#endif
 }

@@ -1,4 +1,4 @@
-<Window x:Class="OnionProcOparetor.Console.TailscaleLoginWindow"
+﻿<Window x:Class="OnionProcOparetor.Console.TailscaleLoginWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Tailscale Login"
@@ -7,7 +7,7 @@
         WindowStartupLocation="Manual"
         ResizeMode="NoResize"
         Icon="/Theme/icon.ico"
-        Style="{StaticResource AppWindowStyle}">
+        Style="{StaticResource AppDialogWindow}">
     <!-- Rebuilt 2026-09-03 (Fluent-adoption redesign): StackPanel replaces the old fixed-pixel
          RowDefinitions. WindowStartupLocation stays Manual + WindowCenteringHelper (code-behind) -
          SizeToContent + CenterOwner drifts otherwise, per the original comment history. -->

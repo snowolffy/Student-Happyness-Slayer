@@ -18,6 +18,161 @@
         <Setter Property="FontSize" Value="13"/>
     </Style>
 
+    <!-- ==================== AppDialogWindow ====================
+         แถบหัวหน้าต่างที่เราวาดเอง ใช้กับหน้าต่างย่อยทุกบาน
+
+         เหตุผลหลักไม่ใช่ความสวย: บน Windows 10 build นี้แถบหัวของ Windows ไม่ยอมเป็นสีเข้ม แม้จะ
+         ตั้ง DWMWA_USE_IMMERSIVE_DARK_MODE สำเร็จ (อ่านค่ากลับมาได้ 1 แต่ยังวาดขาว - ของนี้เริ่ม
+         ทำงานจริงบน Windows 11) ดู ThemeService.ApplyToWindow ที่ยังคงเรียกไว้เผื่อเครื่อง Windows 11
+         โหมดมืดจึงมีแถบขาวพาดหัวทุกหน้าต่างถ้าไม่วาดเอง
+
+         ใช้ WindowChrome ไม่ใช่ WindowStyle="None" เปล่า ๆ: WindowChrome ยกเฉพาะ "การวาด" ของ
+         non-client area มาให้เรา แต่ยังคง **พฤติกรรม** ของ Windows ไว้ครบ - ลากไปชน snap ที่ขอบจอ
+         ปุ่มบนแถบงาน เงา การ resize ด้วยขอบ ทั้งหมดยังทำงานตามปกติ ต่างจาก WindowStyle="None"
+         อย่างเดียวที่ต้องเขียนเลียนแบบเองทุกอย่างและมักจะได้ไม่ครบ
+         CaptionHeight=38 ทำให้ 38px บนสุดลากย้ายหน้าต่างได้ ส่วนปุ่มปิดต้องประกาศ
+         WindowChrome.IsHitTestVisibleInChrome="True" ไม่งั้นการลากจะกินคลิกไปหมด -->
+    <Style x:Key="AppDialogWindow" TargetType="Window" BasedOn="{StaticResource AppWindowStyle}">
+        <Setter Property="WindowStyle" Value="SingleBorderWindow"/>
+        <Setter Property="WindowChrome.WindowChrome">
+            <Setter.Value>
+                <WindowChrome CaptionHeight="38" GlassFrameThickness="0" CornerRadius="0"
+                              ResizeBorderThickness="6" UseAeroCaptionButtons="False"/>
+            </Setter.Value>
+        </Setter>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Window">
+                    <!-- Padding บน Border ตัวนอกคือท่าแก้ปัญหาคลาสสิกของ WindowChrome: ตอนหน้าต่างถูก
+                         maximize Windows จะขยายเลยขอบจอออกไปด้านละ ~7px (เผื่อขอบ resize ที่ปกติมองไม่เห็น)
+                         ถ้าไม่ชดเชย ขอบบนของแถบหัวกับปุ่มปิดจะถูกตัดหายไปนอกจอ -->
+                    <Border x:Name="WindowRoot"
+                            Background="{DynamicResource Brush.Background.Primary}"
+                            BorderBrush="{DynamicResource Brush.Border.Strong}"
+                            BorderThickness="1">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="38"/>
+                                <RowDefinition Height="*"/>
+                            </Grid.RowDefinitions>
+
+                            <Border Grid.Row="0" Background="{DynamicResource Brush.Background.Card}"
+                                    BorderBrush="{DynamicResource Brush.Border.Default}"
+                                    BorderThickness="0,0,0,1">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+
+                                    <TextBlock Grid.Column="0" Text="{TemplateBinding Title}"
+                                               Margin="14,0,0,0" VerticalAlignment="Center"
+                                               FontFamily="{StaticResource FontFamily.Primary}"
+                                               FontSize="12" FontWeight="SemiBold"
+                                               TextTrimming="CharacterEllipsis"
+                                               Foreground="{DynamicResource Brush.Text.Primary}"/>
+
+                                    <StackPanel Grid.Column="1" Orientation="Horizontal"
+                                                WindowChrome.IsHitTestVisibleInChrome="True">
+                                        <Button x:Name="MinimizeButton" Width="46" Height="37"
+                                                controls:DialogChrome.IsMinimizeButton="True"
+                                                controls:Nav.Icon="minus"
+                                                ToolTip="ย่อ" Visibility="Collapsed"
+                                                Style="{DynamicResource DialogChromeButton}"/>
+                                        <Button x:Name="MaximizeButton" Width="46" Height="37"
+                                                controls:DialogChrome.IsMaximizeButton="True"
+                                                controls:Nav.Icon="square"
+                                                ToolTip="ขยาย / คืนขนาด" Visibility="Collapsed"
+                                                Style="{DynamicResource DialogChromeButton}"/>
+                                        <Button Width="46" Height="37"
+                                                controls:DialogChrome.IsCloseButton="True"
+                                                ToolTip="ปิด"
+                                                Style="{DynamicResource DialogCloseButton}"/>
+                                    </StackPanel>
+                                </Grid>
+                            </Border>
+
+                            <!-- AdornerDecorator จำเป็นเมื่อเขียน Window template เอง: adorner layer
+                                 เป็นของที่ template มาตรฐานใส่มาให้ ถ้าไม่มี ToolTip/validation error
+                                 template/drag adorner จะไม่ปรากฏเลยในหน้าต่างเหล่านี้ -->
+                            <AdornerDecorator Grid.Row="1">
+                                <ContentPresenter/>
+                            </AdornerDecorator>
+                        </Grid>
+                    </Border>
+
+                    <ControlTemplate.Triggers>
+                        <!-- ปุ่มย่อ/ขยายโผล่ตาม ResizeMode ของหน้าต่างนั้น ๆ - dialog ส่วนใหญ่เป็น
+                             NoResize จึงมีแค่ปุ่มปิด เหมือนที่ Windows เองทำ -->
+                        <Trigger Property="ResizeMode" Value="CanResize">
+                            <Setter TargetName="MinimizeButton" Property="Visibility" Value="Visible"/>
+                            <Setter TargetName="MaximizeButton" Property="Visibility" Value="Visible"/>
+                        </Trigger>
+                        <Trigger Property="ResizeMode" Value="CanResizeWithGrip">
+                            <Setter TargetName="MinimizeButton" Property="Visibility" Value="Visible"/>
+                            <Setter TargetName="MaximizeButton" Property="Visibility" Value="Visible"/>
+                        </Trigger>
+                        <Trigger Property="ResizeMode" Value="CanMinimize">
+                            <Setter TargetName="MinimizeButton" Property="Visibility" Value="Visible"/>
+                        </Trigger>
+                        <Trigger Property="WindowState" Value="Maximized">
+                            <Setter TargetName="WindowRoot" Property="Padding" Value="7"/>
+                            <Setter TargetName="WindowRoot" Property="BorderThickness" Value="0"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- ปุ่มย่อ/ขยายในแถบหัว - hover เป็นสีพื้นธรรมดา ไม่ใช่สีแดง (แดงสงวนไว้ให้ปุ่มปิดเท่านั้น
+         ตามที่ Windows เองทำ) ไอคอนมาจาก Nav.Icon เพื่อให้ปุ่มเดียวกันใช้ได้ทั้งย่อและขยาย -->
+    <Style x:Key="DialogChromeButton" TargetType="Button">
+        <Setter Property="Cursor" Value="Hand"/>
+        <Setter Property="Foreground" Value="{DynamicResource Brush.Text.Secondary}"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="Bd" Background="Transparent">
+                        <controls:IconPresenter
+                            Icon="{Binding (controls:Nav.Icon), RelativeSource={RelativeSource TemplatedParent}}"
+                            IconSize="14" HorizontalAlignment="Center" VerticalAlignment="Center"
+                            Foreground="{TemplateBinding Foreground}"/>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Bd" Property="Background" Value="{DynamicResource Brush.Background.CardRaised}"/>
+                            <Setter Property="Foreground" Value="{DynamicResource Brush.Text.Primary}"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- ปุ่มปิดในแถบหัว - แดงตอน hover ตามแบบที่ Windows เองทำ เพื่อให้ยังรู้สึกเป็นปุ่มปิดของระบบ -->
+    <Style x:Key="DialogCloseButton" TargetType="Button">
+        <Setter Property="Cursor" Value="Hand"/>
+        <Setter Property="Foreground" Value="{DynamicResource Brush.Text.Secondary}"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="Bd" Background="Transparent">
+                        <controls:IconPresenter Icon="x" IconSize="16"
+                                                HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                Foreground="{TemplateBinding Foreground}"/>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Bd" Property="Background" Value="{DynamicResource Brush.Danger.Default}"/>
+                            <Setter Property="Foreground" Value="{DynamicResource Brush.Text.OnAccent}"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
     <!-- ==================== Card (Border) ==================== -->
     <Style x:Key="Card" TargetType="Border">
         <Setter Property="Background" Value="{DynamicResource Brush.Background.Card}"/>

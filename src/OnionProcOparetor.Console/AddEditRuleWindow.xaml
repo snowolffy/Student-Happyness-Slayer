@@ -1,4 +1,4 @@
-<Window x:Class="OnionProcOparetor.Console.AddEditRuleWindow"
+﻿<Window x:Class="OnionProcOparetor.Console.AddEditRuleWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Rule"
@@ -7,7 +7,7 @@
         WindowStartupLocation="Manual"
         ResizeMode="NoResize"
         Icon="/Theme/icon.ico"
-        Style="{StaticResource AppWindowStyle}">
+        Style="{StaticResource AppDialogWindow}">
     <!-- Rebuilt 2026-09-03 - outer layout is now a single StackPanel (was a Grid of Auto rows
          wrapping the same StackPanel-based form) for consistency with the rest of the app's rebuilt
          dialogs. Still one form shared by Add / Edit / create-from-process (see code-behind). -->

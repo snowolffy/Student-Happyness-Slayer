@@ -1,4 +1,4 @@
-<Window x:Class="OnionProcOparetor.Console.ConfirmWindow"
+﻿<Window x:Class="OnionProcOparetor.Console.ConfirmWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Confirm"
@@ -8,7 +8,7 @@
         WindowStartupLocation="Manual"
         ResizeMode="NoResize"
         Icon="/Theme/icon.ico"
-        Style="{StaticResource AppWindowStyle}">
+        Style="{StaticResource AppDialogWindow}">
     <!-- WindowStartupLocation="Manual" + WindowCenteringHelper (ดู code-behind): CenterOwner คำนวณ
          ตำแหน่งผิดเมื่อใช้ร่วมกับ SizeToContent (หน้าต่างเลื่อนไปทางขวา/ล่างจากจุดกึ่งกลางจริง) เลย
          คำนวณเองใน Loaded event แทนที่ตอนขนาดจริง resolve เสร็จแล้ว -->
@@ -26,8 +26,19 @@
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
-        <TextBlock Grid.Row="0" x:Name="MessageText" Width="380"
-                   Style="{StaticResource Caption}" FontSize="13" TextWrapping="Wrap" HorizontalAlignment="Left"/>
+        <StackPanel Grid.Row="0">
+            <TextBlock x:Name="MessageText" Width="380"
+                       Style="{StaticResource Caption}" FontSize="13" TextWrapping="Wrap" HorizontalAlignment="Left"/>
+
+            <!-- ยืนยันด้วยการพิมพ์ชื่อ - ซ่อนไว้เสมอ นอกจากจะเรียกผ่าน ShowWithTypeToConfirm
+                 ใช้เฉพาะปุ่มลบ ซึ่งเป็นอย่างเดียวในแอปนี้ที่กดแล้วเอาคืนไม่ได้ -->
+            <StackPanel x:Name="TypeToConfirmPanel" Visibility="Collapsed" Margin="0,14,0,0">
+                <TextBlock x:Name="TypeToConfirmPrompt" Style="{StaticResource Label}" Margin="0,0,0,6"/>
+                <TextBox x:Name="TypeToConfirmBox" Width="380" HorizontalAlignment="Left"
+                         Style="{StaticResource RoundedTextBox}"
+                         TextChanged="TypeToConfirmBox_TextChanged"/>
+            </StackPanel>
+        </StackPanel>
 
         <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right">
             <Button Width="80" Content="NO" Style="{StaticResource ButtonSecondary}"
