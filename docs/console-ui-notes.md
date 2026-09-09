@@ -151,7 +151,7 @@
 ```
 OnionProcOparetor.Console.exe --ui-preview                       เปิด Dashboard พร้อมข้อมูลปลอม 5 เครื่อง
                              --tab="Audit Log"                   เลือกแท็บก่อนถ่าย
-                             --dialog=confirm-type               เปิดหน้าต่างย่อยแทน (16 ตัว)
+                             --dialog=confirm-type               เปิดหน้าต่างย่อยแทน (17 บาน รวมหน้า login)
                              --shot=C:\path\out.png              เรนเดอร์เป็น PNG แล้วปิดโปรแกรม
 ```
 

@@ -80,6 +80,10 @@ public partial class App : Application
 
             Window dialog = dialogArg["--dialog=".Length..] switch
             {
+                // หน้า login เป็นหน้าต่างแรกที่ครูเห็น จึงต้องตรวจเหมือนหน้าต่างอื่น - StartupUri จะ
+                // เปิดอีกบานตามมาหลัง OnStartup คืนค่า แต่ไม่เป็นไรเพราะเราถ่ายภาพบานที่สร้างเองแล้วปิด
+                // โปรแกรมทันที
+                "login" => new MainWindow(),
                 "confirm" => ConfirmWindow.CreatePreview(typeToConfirm: false),
                 "confirm-type" => ConfirmWindow.CreatePreview(typeToConfirm: true),
                 "about" => new AboutWindow(),

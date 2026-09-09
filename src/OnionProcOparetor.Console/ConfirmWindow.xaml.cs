@@ -30,6 +30,16 @@ public partial class ConfirmWindow : Window
 
     private void TypeToConfirmBox_TextChanged(object sender, System.Windows.Controls.TextChangedEventArgs e)
     {
+        // กันไว้: ถ้าหน้าต่างนี้ถูกเรียกแบบยืนยันธรรมดา (ไม่ต้องพิมพ์ชื่อ) แล้ว WPF ดัน raise
+        // TextChanged ระหว่าง InitializeComponent ตอนที่ _requiredPhrase ยังเป็น null อยู่ บรรทัด
+        // ข้างล่างจะไป **ปิดปุ่ม YES ทิ้งถาวร** ในกล่องยืนยันทุกใบของแอป (ยืนยันปิดเครื่อง, ปิด
+        // enforcement, kill process ฯลฯ) - ทดสอบแล้วว่าตอนนี้ WPF ไม่ raise แต่นั่นเป็นรายละเอียด
+        // ภายในที่เปลี่ยนได้ ไม่ใช่สัญญา จึงกันไว้ตรงนี้แทนที่จะพึ่งพฤติกรรมนั้น
+        if (_requiredPhrase is null)
+        {
+            return;
+        }
+
         // ต้องตรงเป๊ะรวมตัวพิมพ์เล็ก-ใหญ่: ทั้งหมดของการให้พิมพ์ชื่อคือการบังคับให้ "อ่านว่ากำลังลบอะไร"
         // ถ้าเทียบแบบไม่สนตัวพิมพ์ ก็ยังพอไหว แต่การเทียบเป๊ะทำให้ต้องมองของจริงก่อนพิมพ์จริง ๆ
         ConfirmButton.IsEnabled = string.Equals(TypeToConfirmBox.Text.Trim(), _requiredPhrase, StringComparison.Ordinal);
