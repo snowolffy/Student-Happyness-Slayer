@@ -114,6 +114,13 @@ public partial class DashboardWindow : Window
         AuditLogEmptyText.Visibility = Visibility.Visible;
         UsersEmptyText.Visibility = Visibility.Visible;
 
+        // เลือกแถวแรกไว้เลย เพื่อให้ภาพตรวจงานเห็นทั้งแถบเลือกและแผงรายละเอียดฝั่งขวาด้วย
+        // ไม่ใช่เห็นแค่ตารางเปล่า ๆ
+        if (ClientsGrid.Items.Count > 0)
+        {
+            ClientsGrid.SelectedIndex = 0;
+        }
+
         if (!string.IsNullOrEmpty(PreviewTab))
         {
             foreach (TabItem item in MainTabControl.Items)
@@ -646,9 +653,111 @@ public partial class DashboardWindow : Window
         // แถบจะโผล่มาเมื่อมีเครื่องถูกเลือกเท่านั้น - เป็นตัวที่ทำให้ "เลือกหลายเครื่องแล้วสั่งทีเดียว"
         // มองเห็นได้จริง แทนที่จะซ่อนอยู่หลังปุ่ม ACTIONS ที่นิ่งอยู่ตลอดเวลาแบบเดิม
         ClientsSelectionBar.Visibility = count > 0 ? Visibility.Visible : Visibility.Collapsed;
+        UpdateClientInspector();
     }
 
     private void ClearClientSelectionButton_Click(object sender, RoutedEventArgs e) => ClientsGrid.UnselectAll();
+
+    // ==================== แผงรายละเอียดเครื่องฝั่งขวา (2026-09-09) ====================
+
+    /// <summary>
+    /// เครื่องที่แผงขวากำลังแสดงอยู่ - เก็บไว้เองแทนที่จะอ่าน ClientsGrid.SelectedItem ตอนกดปุ่ม
+    /// เพราะ auto-refresh ทุก 2 วิสร้าง DTO ชุดใหม่แล้วผูกเข้าตารางใหม่ทั้งหมด ระหว่างที่แผงยังเปิดค้าง
+    /// อยู่ ถ้าอ่านสด ๆ ตอนกดอาจได้ instance คนละตัวกับที่ผู้ใช้เห็นอยู่ตรงหน้า
+    /// </summary>
+    private ClientMachineDto? _inspectedClient;
+
+    /// <summary>
+    /// แผงขวาแสดงเมื่อเลือก "เครื่องเดียว" เท่านั้น - เลือกหลายเครื่องคือคนละโหมด (สั่งงานหมู่)
+    /// ซึ่งมีแถบเลือกด้านบนรับหน้าที่อยู่แล้ว การโชว์รายละเอียดของเครื่องใดเครื่องหนึ่งตอนเลือก 7 เครื่อง
+    /// จะทำให้เข้าใจผิดว่าคำสั่งจะไปลงที่เครื่องนั้นเครื่องเดียว
+    /// </summary>
+    private void UpdateClientInspector()
+    {
+        var selected = ClientsGrid.SelectedItems.Cast<ClientMachineDto>().ToList();
+        if (selected.Count != 1)
+        {
+            _inspectedClient = null;
+            ClientInspector.Visibility = Visibility.Collapsed;
+            return;
+        }
+
+        var client = selected[0];
+        _inspectedClient = client;
+        ClientInspector.Visibility = Visibility.Visible;
+
+        InspectorMachineName.Text = client.MachineName;
+
+        InspectorStatusBadge.Content = client.IsOnline ? "ONLINE" : "OFFLINE";
+        InspectorStatusBadge.Tag = client.IsOnline ? "Online" : "Offline";
+
+        InspectorEnforcementBadge.Content = client.EnforcementBadgeText;
+        InspectorEnforcementBadge.Tag = client.EnforcementBadgeTag;
+
+        InspectorConnectionBadge.Content = client.UsingFallback ? "TAILSCALE" : "LAN";
+        InspectorConnectionBadge.Tag = client.UsingFallback ? "Warning" : "Online";
+
+        InspectorIp.Text = string.IsNullOrWhiteSpace(client.LastKnownIp) ? "-" : client.LastKnownIp;
+        InspectorLastSeen.Text = client.LastSeenAt.ToString("yyyy-MM-dd HH:mm:ss");
+        InspectorGuid.Text = client.ClientGuid;
+        InspectorPollInterval.Text = client.PollIntervalOverrideSeconds is { } seconds
+            ? $"{seconds} วินาที (ตั้งเฉพาะเครื่องนี้)"
+            : "ตามค่าเริ่มต้นของระบบ";
+    }
+
+    private async void InspectorViewScreenButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_inspectedClient is { } client)
+        {
+            await ShowVncViewAsync(client);
+        }
+    }
+
+    private void InspectorProcessesButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_inspectedClient is { } client)
+        {
+            new RunningProcessesWindow(_apiClient, _labHubClient, client) { Owner = this }.Show();
+        }
+    }
+
+    private void InspectorPendingCommandsButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_inspectedClient is { } client)
+        {
+            new PendingCommandsWindow(_apiClient, client) { Owner = this }.Show();
+        }
+    }
+
+    private async void InspectorClientSettingsButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_inspectedClient is not { } client)
+        {
+            return;
+        }
+
+        new ClientSettingsWindow(_apiClient, client) { Owner = this }.ShowDialog();
+        await LoadAllDataAsync();
+    }
+
+    private async void InspectorRuleOverridesButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_inspectedClient is not { } client)
+        {
+            return;
+        }
+
+        new RuleOverridesWindow(_apiClient, client) { Owner = this }.ShowDialog();
+        await LoadAllDataAsync();
+    }
+
+    private async void InspectorActionsButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_inspectedClient is { } client)
+        {
+            await RunActionPanelAsync(new ActionPanelWindow(_apiClient, client) { Owner = this });
+        }
+    }
 
     private async void BroadcastMessageButton_Click(object sender, RoutedEventArgs e)
     {

@@ -4,7 +4,7 @@
         xmlns:controls="clr-namespace:OnionProcOparetor.Console.Controls"
         Title="Onion ProcOparetor Console - Dashboard"
         Height="732" Width="1000"
-        MinWidth="820" MinHeight="520"
+        MinWidth="1000" MinHeight="560"
         WindowStartupLocation="CenterScreen"
         ResizeMode="CanResize"
         Icon="/Theme/icon.ico"
@@ -314,11 +314,28 @@
                             </StackPanel>
                         </Border>
 
+                        <!-- ==================== ตาราง + แผงรายละเอียดฝั่งขวา ====================
+                             แผงขวาโผล่เมื่อเลือกเครื่อง "ตัวเดียว" (เลือกหลายตัวคือโหมดสั่งงานหมู่ ซึ่งมี
+                             แถบเลือกด้านบนรับหน้าที่ไปแล้ว) มันตอบคำถามที่ครูถามบ่อยที่สุดโดยไม่ต้องเปิด
+                             หน้าต่างใหม่เลย - เครื่องนี้ IP อะไร เห็นล่าสุดเมื่อไหร่ ต่อมาทางไหน กฎทำงานอยู่ไหม
+                             และรวมทางเข้าของหน้าต่างราย client ทั้ง 6 บานไว้ที่เดียว แทนที่จะซ่อนอยู่หลัง
+                             ปุ่ม ACTIONS แล้วต้องกดต่ออีกชั้น
+
+                             หมายเหตุสำหรับคนที่มาทำต่อ: ตั้งใจให้ปุ่มพวกนี้ยัง "เปิดหน้าต่างเดิม" อยู่
+                             ไม่ได้ยุบเนื้อหาของหน้าต่างเหล่านั้นเข้ามาไว้ในแผงนี้ - RunningProcesses กับ
+                             ActionReport รับสตรีมสดผ่าน SignalR และ ActionPanel สั่งงานเป็นชุด การรื้อ
+                             โครงหน้าต่างพวกนั้นต้องทดสอบกับ Agent จริงในห้องแล็บ ซึ่งทำไม่ได้จากที่นี่
+                             โครงแผงพร้อมแล้ว ยุบทีละบานทีหลังได้โดยไม่ต้องแก้อะไรตรงนี้ -->
                         <Grid Grid.Row="3" Margin="0,10,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+
                             <!-- Border+ClipToBounds rounds the DataGrid's corners - DataGrid itself has no
                                  CornerRadius property (it's not a Border subclass), so the grid's own
                                  Background/Border are moved out to this wrapper and the grid goes transparent. -->
-                            <Border CornerRadius="12" ClipToBounds="True"
+                            <Border Grid.Column="0" CornerRadius="12" ClipToBounds="True"
                                     Background="{DynamicResource Brush.Background.Card}"
                                     BorderBrush="{DynamicResource Brush.Border.Default}" BorderThickness="1">
                             <DataGrid x:Name="ClientsGrid" AutoGenerateColumns="False" IsReadOnly="True"
@@ -443,10 +460,77 @@
                                 </DataGrid.Columns>
                             </DataGrid>
                             </Border>
-                            <ContentControl x:Name="ClientsEmptyText"
+                            <ContentControl x:Name="ClientsEmptyText" Grid.Column="0"
                                             Style="{StaticResource EmptyState}" controls:Nav.Icon="monitor"
                                             Content="ยังไม่มีเครื่องในระบบ" Tag="เครื่องจะขึ้นมาเองเมื่อ Agent ติดตั้งแล้ว poll เข้ามาครั้งแรก"
                                             Visibility="Collapsed"/>
+
+                            <Border x:Name="ClientInspector" Grid.Column="1" Width="258" Margin="12,0,0,0"
+                                    Visibility="Collapsed" CornerRadius="12" Padding="16"
+                                    Background="{DynamicResource Brush.Background.Card}"
+                                    BorderBrush="{DynamicResource Brush.Border.Default}" BorderThickness="1">
+                                <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                                    <StackPanel>
+                                        <StackPanel Orientation="Horizontal">
+                                            <controls:IconPresenter Icon="monitor" IconSize="18" VerticalAlignment="Center"
+                                                                    Foreground="{DynamicResource Brush.Accent.Text}"/>
+                                            <TextBlock x:Name="InspectorMachineName" Margin="8,0,0,0"
+                                                       VerticalAlignment="Center" FontSize="15" FontWeight="Bold"
+                                                       TextTrimming="CharacterEllipsis"
+                                                       Foreground="{DynamicResource Brush.Text.Primary}"/>
+                                        </StackPanel>
+
+                                        <WrapPanel Margin="0,10,0,0">
+                                            <ContentControl x:Name="InspectorStatusBadge" Style="{StaticResource StatusBadge}" Margin="0,0,6,6"/>
+                                            <ContentControl x:Name="InspectorEnforcementBadge" Style="{StaticResource StatusBadge}" Margin="0,0,6,6"/>
+                                            <ContentControl x:Name="InspectorConnectionBadge" Style="{StaticResource StatusBadge}" Margin="0,0,6,6"/>
+                                        </WrapPanel>
+
+                                        <Border Height="1" Margin="0,8,0,12"
+                                                Background="{DynamicResource Brush.Border.Default}"/>
+
+                                        <!-- ปุ่มอยู่เหนือรายละเอียด ไม่ใช่ใต้: พอเลือกเครื่องแล้ว สิ่งที่ตั้งใจ
+                                             จะทำไม่ควรอยู่ใต้เส้นที่ต้องเลื่อนลงไปหา ส่วนรายละเอียดเป็นของที่
+                                             อ่านเมื่ออยากรู้ จึงอยู่ล่างได้ -->
+                                        <Button Content="ดูหน้าจอ" Style="{StaticResource ButtonPrimary}"
+                                                HorizontalAlignment="Stretch" Margin="0,0,0,6"
+                                                Click="InspectorViewScreenButton_Click"/>
+                                        <Button Content="โปรแกรมที่เปิดอยู่" Style="{StaticResource ButtonSecondary}"
+                                                HorizontalAlignment="Stretch" Margin="0,0,0,6"
+                                                Click="InspectorProcessesButton_Click"/>
+                                        <Button Content="คำสั่งที่ค้างอยู่" Style="{StaticResource ButtonSecondary}"
+                                                HorizontalAlignment="Stretch" Margin="0,0,0,6"
+                                                Click="InspectorPendingCommandsButton_Click"/>
+                                        <Button Content="ตั้งค่าเครื่องนี้" Style="{StaticResource ButtonSecondary}"
+                                                HorizontalAlignment="Stretch" Margin="0,0,0,6"
+                                                Click="InspectorClientSettingsButton_Click"/>
+                                        <Button Content="ยกเว้นกฎเฉพาะเครื่องนี้" Style="{StaticResource ButtonSecondary}"
+                                                HorizontalAlignment="Stretch" Margin="0,0,0,6"
+                                                Click="InspectorRuleOverridesButton_Click"/>
+                                        <Button Content="คำสั่งทั้งหมด..." Style="{StaticResource ButtonSecondary}"
+                                                HorizontalAlignment="Stretch"
+                                                Click="InspectorActionsButton_Click"/>
+
+                                        <Border Height="1" Margin="0,14,0,10"
+                                                Background="{DynamicResource Brush.Border.Default}"/>
+
+                                        <TextBlock Text="IP ล่าสุด" Style="{StaticResource Label}"/>
+                                        <TextBlock x:Name="InspectorIp" Style="{StaticResource Body}" Margin="0,1,0,8"
+                                                   TextTrimming="CharacterEllipsis"/>
+
+                                        <TextBlock Text="เห็นล่าสุด (UTC)" Style="{StaticResource Label}"/>
+                                        <TextBlock x:Name="InspectorLastSeen" Style="{StaticResource Body}" Margin="0,1,0,8"/>
+
+                                        <TextBlock Text="รอบ poll" Style="{StaticResource Label}"/>
+                                        <TextBlock x:Name="InspectorPollInterval" Style="{StaticResource Body}" Margin="0,1,0,8"
+                                                   TextWrapping="Wrap"/>
+
+                                        <TextBlock Text="Client GUID" Style="{StaticResource Label}"/>
+                                        <TextBlock x:Name="InspectorGuid" Style="{StaticResource Caption}" Margin="0,1,0,0"
+                                                   TextTrimming="CharacterEllipsis"/>
+                                    </StackPanel>
+                                </ScrollViewer>
+                            </Border>
                         </Grid>
                     </Grid>
                 </TabItem>
