@@ -36,8 +36,14 @@ public class ConnectionSettings
     public int DashboardPollIntervalSeconds { get; set; } = 10;
 }
 
-/// <summary>เผื่อขยาย (เช่น theme) ในอนาคต - ยังไม่มี UI ให้แก้ตอนนี้ โดยเจตนา</summary>
 public class UiSettings
 {
+    /// <summary>"Light" / "Dark" / "System" - null = ยังไม่เคยเลือก ซึ่ง ThemeService ตีความเป็น System</summary>
     public string? Theme { get; set; }
+
+    /// <summary>
+    /// sidebar ของ Dashboard ถูกย่อไว้หรือไม่ - จำต่อเครื่อง ไม่ผูกกับบัญชี เพราะมันเป็นเรื่อง
+    /// "จอนี้กว้างแค่ไหน" ไม่ใช่ "คนนี้ชอบแบบไหน" (ครูคนเดียวกันใช้ทั้งเครื่องจอใหญ่และโน้ตบุ๊ก)
+    /// </summary>
+    public bool SidebarCollapsed { get; set; }
 }

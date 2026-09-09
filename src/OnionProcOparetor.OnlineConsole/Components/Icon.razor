@@ -160,6 +160,16 @@
         case "activity":
             <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
             break;
+        @* Not used by any page here yet - it is the WPF Console's LIVE VIEW (CCTV wall) nav icon.
+           Kept in step with Theme/Icons.xaml on the Console side so the two icon sets stay one set
+           rather than drifting into two; if the tile grid ever comes back to the web (it was
+           removed 2026-09-04 over bandwidth), the icon is already here. *@
+        case "grid":
+            <rect x="3" y="3" width="7" height="7" />
+            <rect x="14" y="3" width="7" height="7" />
+            <rect x="14" y="14" width="7" height="7" />
+            <rect x="3" y="14" width="7" height="7" />
+            break;
     }
 </svg>
 

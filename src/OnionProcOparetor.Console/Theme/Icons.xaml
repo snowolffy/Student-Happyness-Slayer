@@ -244,4 +244,14 @@
         <PathGeometry Figures="M22,12 L18,12 L15,21 L9,3 L6,12 L2,12"/>
     </GeometryGroup>
 
+    <!-- grid - ตัวที่ 32 เพิ่มทีหลัง (2026-09-09) สำหรับเมนู LIVE VIEW ซึ่งเป็นกำแพงจอแบบ CCTV
+         ฝั่ง OnlineConsole ยังไม่มีหน้านี้ (12-tile grid ถูกถอดออกเพราะแบนด์วิดท์ 2026-09-04) แต่
+         เพิ่ม case "grid" ไว้ใน Icon.razor ด้วยเพื่อรักษาสัญญา "สองไฟล์ต้องมีชุดเดียวกันเสมอ" -->
+    <GeometryGroup x:Key="Icon.Grid" FillRule="Nonzero">
+        <RectangleGeometry Rect="3,3,7,7"/>
+        <RectangleGeometry Rect="14,3,7,7"/>
+        <RectangleGeometry Rect="14,14,7,7"/>
+        <RectangleGeometry Rect="3,14,7,7"/>
+    </GeometryGroup>
+
 </ResourceDictionary>

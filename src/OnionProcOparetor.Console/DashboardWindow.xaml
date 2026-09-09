@@ -1,6 +1,7 @@
 ﻿<Window x:Class="OnionProcOparetor.Console.DashboardWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:controls="clr-namespace:OnionProcOparetor.Console.Controls"
         Title="Onion ProcOparetor Console - Dashboard"
         Height="732" Width="1000"
         MinWidth="820" MinHeight="520"
@@ -23,145 +24,225 @@
         MinWidth/MinHeight are set to keep the toolbar buttons and the 6 tab headers from overlapping/
         wrapping at small sizes - re-check these if a tab's content changes materially later.
     -->
-    <Grid Margin="20">
-        <Grid.RowDefinitions>
-            <RowDefinition Height="Auto"/>
-            <RowDefinition Height="*"/>
-            <RowDefinition Height="Auto"/>
-        </Grid.RowDefinitions>
+    <Grid>
+        <!-- ==================== โครงหน้าจอ: sidebar ซ้าย + เนื้อหาขวา (2026-09-09) ====================
+             เดิมเป็น "แถบเครื่องมือบน + แท็บเรียงแนวนอน" เปลี่ยนมาเป็น sidebar ให้ตรงกับ OnlineConsole
+             โดย **ยังเป็น TabControl ตัวเดิมทุกประการ** - เปลี่ยนแค่ ControlTemplate ให้ panel ที่
+             IsItemsHost ไปอยู่คอลัมน์ซ้าย และเปลี่ยน ItemContainerStyle เป็นแถวเมนู ผลคือ
+             MainTabControl_SelectionChanged / ScreenViewTabItem / AuditLogTabItem / LiveViewTabItem
+             และโค้ดที่สั่งสลับแท็บเองยังทำงานเหมือนเดิมทั้งหมด ไม่ต้องแก้ code-behind เลย
 
-        <!-- ==================== Toolbar (logo/title, last-updated, global actions) ==================== -->
-        <Border Grid.Row="0" Height="60" CornerRadius="12" Margin="0,0,0,12"
-                Background="{DynamicResource Brush.Background.Card}"
-                BorderBrush="{DynamicResource Brush.Border.Default}"
-                BorderThickness="1" Padding="16,12">
-            <Grid>
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="Auto"/>
-                    <ColumnDefinition Width="Auto"/>
-                    <ColumnDefinition Width="*"/>
-                    <ColumnDefinition Width="Auto"/>
-                    <ColumnDefinition Width="Auto"/>
-                    <ColumnDefinition Width="Auto"/>
-                    <ColumnDefinition Width="Auto"/>
-                </Grid.ColumnDefinitions>
+             แถบบนกับแถบสถานะล่างส่งเข้า template ผ่าน Nav.TopBar / Nav.StatusBar แทนที่จะย้ายเข้าไป
+             เขียนใน template ตรง ๆ เพราะ element ที่อยู่ใน ControlTemplate จะไม่มี field ให้ code-behind
+             เรียกถึงด้วย x:Name (คนละ namescope) - ดูเหตุผลเต็มใน Controls/Nav.cs
 
-                <Border Grid.Column="0" Width="36" Height="36" CornerRadius="10"
-                        Background="{DynamicResource Brush.Accent.Default}" VerticalAlignment="Center">
-                    <Border.Clip>
-                        <RectangleGeometry RadiusX="10" RadiusY="10" Rect="0,0,36,36"/>
-                    </Border.Clip>
-                    <Image Source="/Theme/logo.png" Stretch="UniformToFill"/>
-                </Border>
+             ลำดับแท็บถูกจัดใหม่ให้กลุ่มติดกัน (ตรวจตรา / กฎและการบังคับใช้ / ระบบ) ตาม NavMenu.razor
+             ซึ่งปลอดภัยเพราะไม่มีโค้ดตรงไหนอ้างแท็บด้วย index เลย มีแต่ SelectedItem กับชื่อ TabItem
+        -->
+        <TabControl x:Name="MainTabControl" Background="Transparent" BorderThickness="0"
+                    ItemContainerStyle="{StaticResource SidebarTabItem}"
+                    SelectionChanged="MainTabControl_SelectionChanged">
 
-                <StackPanel Grid.Column="1" Margin="10,0,0,0" VerticalAlignment="Center">
-                    <TextBlock Text="Onion ProcOparetor" Style="{StaticResource Heading2}"/>
-                    <TextBlock x:Name="ServerLabel" Text="" Style="{StaticResource Caption}"/>
-                </StackPanel>
+            <!-- ==================== แถบบน ====================
+                 โลโก้กับชื่อแอปย้ายไปหัว sidebar แล้ว ที่นี่เหลือเฉพาะของที่เป็น "สถานะตอนนี้":
+                 ปลายทางที่ต่ออยู่ แบนเนอร์เตือน สถานะการโหลด และปุ่มรีเฟรช ส่วนปุ่ม PROGRAMS/SETTINGS
+                 ย้ายลงไปท้าย sidebar เพราะเป็น "ที่ที่ไปได้" ไม่ใช่ "สิ่งที่เกิดขึ้นกับหน้านี้" -->
+            <controls:Nav.TopBar>
+                <Border Height="60" CornerRadius="12" Margin="0,0,0,12"
+                        Background="{DynamicResource Brush.Background.Card}"
+                        BorderBrush="{DynamicResource Brush.Border.Default}"
+                        BorderThickness="1" Padding="16,12">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
 
-                <!-- ==================== แถบเตือน "ปิดการบังคับใช้ทั้งระบบ" ====================
-                     วางในคอลัมน์ที่ 2 ซึ่งเป็นช่องว่าง (Width="*") ของ toolbar อยู่แล้ว - ไม่ต้องขยับ
-                     คอลัมน์อื่นเลย และได้ที่กลาง toolbar ซึ่งมองไม่พลาด
-
-                     ทำไมต้องมี (บั๊กจริง 2026-09-04): GlobalState.IsEnabled เป็น AND gate คร่อม
-                     enforcement ของทุกเครื่อง (ดู /api/poll: enabled = globalEnabled && client.IsEnabled)
-                     แต่ไม่เคยมี UI ไหนแสดงค่านี้เลย และปุ่ม TOGGLE GLOBAL เดิมก็ถูกลบออกไปด้วยความ
-                     เข้าใจผิดว่า "ACTIONS > ทุกเครื่อง > TOGGLE ENFORCEMENT ให้ผลเหมือนกัน" - ซึ่งไม่จริง
-                     เพราะอันนั้นแก้ IsEnabled รายเครื่อง ไม่ได้แตะ gate ตัวนี้ ผลคือพอ gate ถูกปิดไว้
-                     Console จะโชว์ทุกเครื่องเป็น ENABLED ตามปกติ ส่วน Agent ทุกตัวขึ้น Disabled ค้าง
-                     ไม่ว่าจะ toggle รายเครื่องกี่รอบ และไม่มีทางรู้เลยว่าเพราะอะไร -->
-                <Border Grid.Column="2" x:Name="GlobalOffBanner" Visibility="Collapsed"
-                        CornerRadius="10" Margin="16,0,16,0" Padding="12,6"
-                        Background="{DynamicResource Brush.Status.Warning}"
-                        VerticalAlignment="Center">
-                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                        <TextBlock Text="&#9888;" FontSize="16" VerticalAlignment="Center"
-                                   Foreground="{DynamicResource Brush.Text.Primary}"/>
-                        <StackPanel Margin="8,0,0,0" VerticalAlignment="Center">
-                            <TextBlock Text="ปิดการบังคับใช้ทั้งระบบอยู่" FontWeight="SemiBold" FontSize="12"
-                                       Foreground="{DynamicResource Brush.Text.Primary}"/>
-                            <TextBlock Text="กฎทั้งหมดหยุดทำงานบนทุกเครื่อง แม้เครื่องนั้นจะขึ้น ENABLED" FontSize="11"
-                                       Foreground="{DynamicResource Brush.Text.Primary}"/>
+                        <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                            <controls:IconPresenter Icon="wifi" IconSize="16" VerticalAlignment="Center"
+                                                    Foreground="{DynamicResource Brush.Text.Secondary}"/>
+                            <TextBlock x:Name="ServerLabel" Text="" Style="{StaticResource Caption}"
+                                       Margin="8,0,0,0" VerticalAlignment="Center"/>
                         </StackPanel>
-                        <Button x:Name="GlobalTurnOnButton" Content="เปิดกลับ" Margin="12,0,0,0"
-                                Style="{StaticResource ButtonPrimary}" Padding="12,4"
-                                Click="GlobalTurnOnButton_Click" VerticalAlignment="Center"/>
-                    </StackPanel>
+
+                        <!-- ==================== แถบเตือน "ปิดการบังคับใช้ทั้งระบบ" ====================
+                             วางในคอลัมน์ที่เป็นช่องว่าง (Width="*") ของแถบบน จึงได้ที่กลางจอซึ่งมองไม่พลาด
+
+                             ทำไมต้องมี (บั๊กจริง 2026-09-04): GlobalState.IsEnabled เป็น AND gate คร่อม
+                             enforcement ของทุกเครื่อง (ดู /api/poll: enabled = globalEnabled && client.IsEnabled)
+                             แต่ไม่เคยมี UI ไหนแสดงค่านี้เลย และปุ่ม TOGGLE GLOBAL เดิมก็ถูกลบออกไปด้วยความ
+                             เข้าใจผิดว่า "ACTIONS > ทุกเครื่อง > TOGGLE ENFORCEMENT ให้ผลเหมือนกัน" ซึ่งไม่จริง
+                             เพราะอันนั้นแก้ IsEnabled รายเครื่อง ไม่ได้แตะ gate ตัวนี้ ผลคือพอ gate ถูกปิดไว้
+                             Console จะโชว์ทุกเครื่องเป็น ENABLED ตามปกติ ส่วน Agent ทุกตัวขึ้น Disabled ค้าง
+                             ไม่ว่าจะ toggle รายเครื่องกี่รอบ และไม่มีทางรู้เลยว่าเพราะอะไร -->
+                        <Border Grid.Column="1" x:Name="GlobalOffBanner" Visibility="Collapsed"
+                                CornerRadius="10" Margin="16,0,16,0" Padding="12,6"
+                                Background="{DynamicResource Brush.Status.Warning}"
+                                VerticalAlignment="Center">
+                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                <controls:IconPresenter Icon="alert-triangle" IconSize="18" VerticalAlignment="Center"
+                                                        Foreground="{DynamicResource Brush.Text.Primary}"/>
+                                <StackPanel Margin="8,0,0,0" VerticalAlignment="Center">
+                                    <TextBlock Text="ปิดการบังคับใช้ทั้งระบบอยู่" FontWeight="SemiBold" FontSize="12"
+                                               Foreground="{DynamicResource Brush.Text.Primary}"/>
+                                    <TextBlock Text="กฎทั้งหมดหยุดทำงานบนทุกเครื่อง แม้เครื่องนั้นจะขึ้น ENABLED" FontSize="11"
+                                               Foreground="{DynamicResource Brush.Text.Primary}"/>
+                                </StackPanel>
+                                <Button x:Name="GlobalTurnOnButton" Content="เปิดกลับ" Margin="12,0,0,0"
+                                        Style="{StaticResource ButtonPrimary}" Padding="12,4"
+                                        Click="GlobalTurnOnButton_Click" VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </Border>
+
+                        <TextBlock Grid.Column="2" Width="170" x:Name="StatusText" Style="{StaticResource Caption}"
+                                   TextAlignment="Right" TextTrimming="CharacterEllipsis"
+                                   VerticalAlignment="Center" Margin="0,0,12,0"/>
+
+                        <Button Grid.Column="3" x:Name="RefreshButton" Content="REFRESH"
+                                Style="{StaticResource ButtonSecondary}" Padding="14,7"
+                                Click="RefreshButton_Click" VerticalAlignment="Center"/>
+                    </Grid>
                 </Border>
+            </controls:Nav.TopBar>
 
-                <TextBlock Grid.Column="3" Width="150" x:Name="StatusText" Style="{StaticResource Caption}"
-                           VerticalAlignment="Center" Margin="0,0,12,0"/>
+            <controls:Nav.StatusBar>
+                <!-- ==================== Footer status bar ==================== -->
+                <Border Height="52" Margin="0,10,0,0" CornerRadius="12"
+                        Background="{DynamicResource Brush.Background.Card}"
+                        BorderBrush="{DynamicResource Brush.Border.Default}"
+                        BorderThickness="1" Padding="16,10">
+                    <Grid VerticalAlignment="Center">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="20"/>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Grid.Column="0" Text="Server:" Style="{StaticResource Label}"/>
+                        <TextBlock Grid.Column="1" Width="300" x:Name="FooterServerText" Style="{StaticResource Caption}" Margin="6,0,0,0"/>
+                        <TextBlock Grid.Column="3" Text="User:" Style="{StaticResource Label}"/>
+                        <TextBlock Grid.Column="4" Width="200" x:Name="FooterUserText" Style="{StaticResource Caption}" Margin="6,0,0,0"/>
+                    </Grid>
+                </Border>
+            </controls:Nav.StatusBar>
 
-                <Button Grid.Column="4" Width="44" x:Name="SettingsMenuButton" Content="&#9881;"
-                        Style="{StaticResource ButtonSecondary}"
-                        FontSize="16" Padding="0"
-                        ToolTip="Settings / About"
-                        Click="SettingsMenuButton_Click" VerticalAlignment="Center" Margin="0,0,6,0"/>
-                <!-- Program Control (2026-08-31) - คิวตรวจสอบโปรแกรมที่ระบบเจอแต่ตัดสินเองไม่ได้
-                     วางไว้ที่ header ไม่ใช่ในแท็บ เพราะเป็นงานที่ครูต้องกลับมาดูเป็นระยะ ไม่ผูกกับ
-                     เครื่องใดเครื่องหนึ่ง (ต่างจาก action panel ที่เป็นราย client) -->
-                <Button Grid.Column="5" Width="120" x:Name="ProgramControlButton" Content="PROGRAMS"
-                        Style="{StaticResource ButtonSecondary}"
-                        ToolTip="Program Control - คิวตรวจสอบโปรแกรมที่ตรวจพบอัตโนมัติ"
-                        Click="ProgramControlButton_Click" VerticalAlignment="Center" Margin="0,0,6,0"/>
-                <Button Grid.Column="6" Width="90" x:Name="RefreshButton" Content="REFRESH"
-                        Style="{StaticResource ButtonSecondary}"
-                        Click="RefreshButton_Click" VerticalAlignment="Center"/>
-            </Grid>
-        </Border>
+            <TabControl.Template>
+                <ControlTemplate TargetType="TabControl">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
 
-        <!-- ==================== Main content ==================== -->
-        <Border Grid.Row="1" CornerRadius="12" Margin="0,0,0,5"
-                Background="{DynamicResource Brush.Background.Card}"
-                BorderBrush="{DynamicResource Brush.Border.Default}"
-                BorderThickness="1" Padding="0">
-            <!-- Explicit TabControl.Template 2026-09-03: found via raw pixel sampling (not just
-                 eyeballing a screenshot) that ONLY the selected pill's bottom-right corner clipped
-                 short of its full curve - the unselected pills rendered a fully symmetric curve.
-                 PillTabItem's own ControlTemplate only changes Background/BorderBrush/Foreground on
-                 IsSelected, never size or clip - so the asymmetry had to be coming from outside it,
-                 i.e. Fluent's own default TabControl chrome (unstyled here before this change - only
-                 ItemContainerStyle was set, TabControl itself had no Style) applying its own
-                 selected-tab overlap/clip geometry meant for its own tab shape, clashing with this
-                 app's fully custom pill design. (Tried FrameworkElement.ThemeMode="None" first to opt
-                 just this control out of Fluent - doesn't exist as a settable XAML property outside
-                 Window/Application, confirmed by build error.) A minimal explicit Template - just a
-                 TabPanel for headers over a Border+ContentPresenter for the selected tab's content -
-                 sidesteps Fluent's chrome entirely, the same reliable fix already used for
-                 Button/TextBox/PasswordBox in Theme/Controls.xaml. -->
-            <TabControl x:Name="MainTabControl" Background="Transparent" BorderThickness="0" Margin="16"
-                        ItemContainerStyle="{StaticResource UnderlineTabItem}"
-                        SelectionChanged="MainTabControl_SelectionChanged">
-                <TabControl.Template>
-                    <ControlTemplate TargetType="TabControl">
-                        <Grid>
+                        <!-- ========== Sidebar ========== -->
+                        <Border x:Name="SidebarRoot" Grid.Column="0" Width="248"
+                                Background="{DynamicResource Brush.Sidebar.Background}"
+                                BorderBrush="{DynamicResource Brush.Sidebar.Border}"
+                                BorderThickness="0,0,1,0">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="*"/>
+                                    <RowDefinition Height="Auto"/>
+                                </Grid.RowDefinitions>
+
+                                <Grid Grid.Row="0" Margin="14,16,12,10">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <Border Grid.Column="0" Width="36" Height="36" CornerRadius="10"
+                                            Background="{DynamicResource Brush.Accent.Default}">
+                                        <Border.Clip>
+                                            <RectangleGeometry RadiusX="10" RadiusY="10" Rect="0,0,36,36"/>
+                                        </Border.Clip>
+                                        <Image Source="/Theme/logo.png" Stretch="UniformToFill"/>
+                                    </Border>
+                                    <StackPanel x:Name="BrandText" Grid.Column="1" Margin="10,0,0,0"
+                                                VerticalAlignment="Center">
+                                        <TextBlock Text="Onion ProcOparetor" FontSize="13" FontWeight="SemiBold"
+                                                   Foreground="{DynamicResource Brush.Sidebar.Text}"
+                                                   TextTrimming="CharacterEllipsis"/>
+                                        <TextBlock Text="Server Console" FontSize="11"
+                                                   Foreground="{DynamicResource Brush.Sidebar.TextSecondary}"/>
+                                    </StackPanel>
+                                </Grid>
+
+                                <!-- StackPanel ไม่ใช่ TabPanel เหมือนเดิม (เหตุผลเดิมจากปี 2026-09-03 ยังใช้ได้:
+                                     TabPanel มี layout บีบความกว้างของตัวเองที่ ControlTemplate ไหนก็แก้ไม่ได้
+                                     ทำให้ป้ายชื่อโดนตัด) แค่เปลี่ยนจาก Horizontal เป็นแนวตั้งซึ่งเป็นค่า default
+                                     ครอบ ScrollViewer ไว้เพราะเมนู 7 รายการ + หัวข้อกลุ่ม สูงเกินจอเตี้ย ๆ ได้ -->
+                                <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto"
+                                              HorizontalScrollBarVisibility="Disabled">
+                                    <StackPanel IsItemsHost="True" Background="Transparent"/>
+                                </ScrollViewer>
+
+                                <StackPanel Grid.Row="2" Margin="0,8,0,10">
+                                    <Border Height="1" Margin="12,0,12,8"
+                                            Background="{DynamicResource Brush.Sidebar.Border}"/>
+                                    <!-- Program Control (2026-08-31) - คิวตรวจสอบโปรแกรมที่ระบบเจอแต่ตัดสินเองไม่ได้
+                                         เป็นงานที่ครูต้องกลับมาดูเป็นระยะ ไม่ผูกกับเครื่องใดเครื่องหนึ่ง จึงอยู่ที่
+                                         เมนูรวม ไม่ใช่ในแท็บ (ต่างจาก action panel ที่เป็นราย client) -->
+                                    <Button Style="{StaticResource SidebarActionButton}"
+                                            controls:Nav.Icon="search" Content="Program Review"
+                                            ToolTip="Program Control - คิวตรวจสอบโปรแกรมที่ตรวจพบอัตโนมัติ"
+                                            Click="ProgramControlButton_Click"/>
+                                    <Button Style="{StaticResource SidebarActionButton}"
+                                            controls:Nav.Icon="settings" Content="Settings"
+                                            ToolTip="Settings / About"
+                                            Click="SettingsMenuButton_Click"/>
+                                    <Button x:Name="ThemeToggleButton" Style="{StaticResource SidebarActionButton}"
+                                            controls:Nav.Icon="moon" Content="ธีมมืด"
+                                            ToolTip="สลับธีมสว่าง/มืด"
+                                            Click="ThemeToggleButton_Click"/>
+                                    <Button x:Name="SidebarCollapseButton" Style="{StaticResource SidebarActionButton}"
+                                            controls:Nav.Icon="chevron-left" Content="ย่อเมนู"
+                                            ToolTip="ย่อ/ขยายเมนู"
+                                            Click="SidebarCollapseButton_Click"/>
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+
+                        <!-- ========== เนื้อหา ========== -->
+                        <Grid Grid.Column="1" Margin="16,16,16,10">
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="Auto"/>
                                 <RowDefinition Height="*"/>
+                                <RowDefinition Height="Auto"/>
                             </Grid.RowDefinitions>
-                            <!-- StackPanel, not TabPanel, as the header host 2026-09-03: every tab
-                                 label rendered truncated ("CLIENTS" as "CLIEN", "RULES" as "RU", etc.)
-                                 no matter what the TabItem's own ControlTemplate looked like (tried both
-                                 a Grid- and a StackPanel-based one, identical truncation either way,
-                                 even after a much longer render-settle wait ruled out a screenshot-
-                                 timing fluke) - proof the header HOST panel was squeezing each item's
-                                 width, not the item's own template. WPF's TabPanel class has its own
-                                 built-in width-squeezing layout independent of any ControlTemplate;
-                                 StackPanel has none - it lays out children left-to-right at their
-                                 natural desired width with no squeeze. -->
-                            <StackPanel Grid.Row="0" Orientation="Horizontal" IsItemsHost="True" Background="Transparent"/>
-                            <Border Grid.Row="1" Margin="0,12,0,0"
-                                    Background="{TemplateBinding Background}"
-                                    BorderBrush="{TemplateBinding BorderBrush}"
-                                    BorderThickness="{TemplateBinding BorderThickness}">
+
+                            <ContentPresenter Grid.Row="0"
+                                              Content="{Binding (controls:Nav.TopBar), RelativeSource={RelativeSource TemplatedParent}}"/>
+
+                            <Border Grid.Row="1" CornerRadius="12" Padding="16"
+                                    Background="{DynamicResource Brush.Background.Card}"
+                                    BorderBrush="{DynamicResource Brush.Border.Default}"
+                                    BorderThickness="1">
                                 <ContentPresenter ContentSource="SelectedContent"/>
                             </Border>
+
+                            <ContentPresenter Grid.Row="2"
+                                              Content="{Binding (controls:Nav.StatusBar), RelativeSource={RelativeSource TemplatedParent}}"/>
                         </Grid>
-                    </ControlTemplate>
-                </TabControl.Template>
+                    </Grid>
+
+                    <ControlTemplate.Triggers>
+                        <!-- Nav.IsCollapsed ตั้งที่ TabControl ตัวเดียวจาก code-behind แล้วไหลลงไปทั้งต้นไม้เอง
+                             (property นี้ประกาศเป็น Inherits) แถวเมนูทุกแถวกับปุ่มท้าย sidebar จึงรู้พร้อมกัน
+                             โดยไม่ต้องไล่หา element ข้าม namescope -->
+                        <Trigger Property="controls:Nav.IsCollapsed" Value="True">
+                            <Setter TargetName="SidebarRoot" Property="Width" Value="64"/>
+                            <Setter TargetName="BrandText" Property="Visibility" Value="Collapsed"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </TabControl.Template>
 
                 <!-- ========== Clients tab ========== -->
-                <TabItem Header="CLIENTS">
+                <TabItem Header="Clients" controls:Nav.Icon="monitor" controls:Nav.Group="ตรวจตรา">
                     <Grid Margin="0,12,0,0">
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto"/>
@@ -322,8 +403,169 @@
                     </Grid>
                 </TabItem>
 
+                <!-- ========== Screen View tab (Step 4d) ========== -->
+                <TabItem x:Name="ScreenViewTabItem" Header="Screen View" controls:Nav.Icon="video" controls:Nav.Group="">
+                    <Grid Margin="0,12,0,0">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="*"/>
+                        </Grid.RowDefinitions>
+
+                        <Grid Grid.Row="0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0" x:Name="VncHeaderText"
+                                    Text="ยังไม่ได้เลือกเครื่อง - กด VIEW SCREEN จากรายการ Clients" Style="{StaticResource Heading2}"
+                                    TextWrapping="Wrap" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                            <Button Grid.Column="1" Width="100" Content="DISCONNECT" Style="{StaticResource ButtonSecondary}"
+                                    Padding="10,5" FontSize="11" Click="VncDisconnectButton_Click" VerticalAlignment="Center"/>
+                        </Grid>
+
+                        <TextBlock Grid.Row="1" x:Name="VncStatusText" Style="{StaticResource Body}" TextWrapping="Wrap" Margin="0,10,0,0"/>
+
+                        <Border Grid.Row="2" CornerRadius="10" Background="Black" Margin="0,10,0,0"
+                                BorderBrush="{DynamicResource Brush.Border.Default}" BorderThickness="1">
+                            <Image x:Name="VncScreenImage" Stretch="Uniform" Margin="3"/>
+                        </Border>
+                    </Grid>
+                </TabItem>
+
+                <!-- ========== Live View tab (Step 4f) - CCTV-wall grid ========== -->
+                <TabItem x:Name="LiveViewTabItem" Header="Live View" controls:Nav.Icon="grid" controls:Nav.Group="">
+                    <Grid Margin="0,12,0,0">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="*"/>
+                        </Grid.RowDefinitions>
+
+                        <TextBlock Grid.Row="0" Text="Live View" Style="{StaticResource Heading2}"/>
+
+                        <Grid Grid.Row="1" Margin="0,10,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="200"/>
+                                <ColumnDefinition Width="16"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+
+                            <!-- เลือกเครื่อง - reuse _allClients เดิม ไม่ query ใหม่ (ดู ApplyLiveViewClientList ใน .xaml.cs) -->
+                            <Border Grid.Column="0" CornerRadius="10" Padding="10"
+                                    Background="{DynamicResource Brush.Background.Primary}"
+                                    BorderBrush="{DynamicResource Brush.Border.Default}" BorderThickness="1">
+                                <Grid>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="*"/>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                    </Grid.RowDefinitions>
+
+                                    <TextBlock Grid.Row="0" Text="เลือกเครื่อง"
+                                               Style="{StaticResource Caption}" TextWrapping="Wrap" Margin="0,0,0,6"/>
+
+                                    <ListBox Grid.Row="1" x:Name="LiveViewClientListBox" SelectionMode="Extended"
+                                             Background="Transparent" BorderThickness="0">
+                                        <ListBox.ItemTemplate>
+                                            <DataTemplate>
+                                                <TextBlock Text="{Binding MachineName}" Padding="4,3" TextTrimming="CharacterEllipsis"/>
+                                            </DataTemplate>
+                                        </ListBox.ItemTemplate>
+                                    </ListBox>
+
+                                    <!-- Rebuilt 2026-09-03 - AddSelectedToGridButton/LiveViewStatusText used to both sit in
+                                         Grid.Row="1" (the same row as the ListBox above) with Grid.RowSpan="2" and a
+                                         Margin="0,306,0,10" magic offset trying to push the status text below the button
+                                         by guessing a fixed pixel position - broke as soon as the panel's actual height
+                                         differed from what that guess assumed (confirmed: it grows and covers the
+                                         ListBox). Each now has its own dedicated Auto row below the list instead. -->
+                                    <Button Grid.Row="2" x:Name="AddSelectedToGridButton" Content="ADD SELECTED TO GRID"
+                                            Style="{StaticResource ButtonPrimary}" Margin="0,10,0,4"
+                                            Click="AddSelectedToGridButton_Click"/>
+
+                                    <TextBlock Grid.Row="3" x:Name="LiveViewStatusText" Style="{StaticResource Caption}"
+                                               TextWrapping="Wrap"/>
+                                </Grid>
+                            </Border>
+
+                            <!-- Grid area - ช่องขนาดปรับอัตโนมัติตามจำนวนเครื่องผ่าน UniformGrid (auto-compute แถว/คอลัมน์ในตัว) -->
+                            <Border Grid.Column="2" CornerRadius="10"
+                                    Background="Black" BorderBrush="{DynamicResource Brush.Border.Default}" BorderThickness="1">
+                                <UniformGrid x:Name="LiveViewGrid"/>
+                            </Border>
+                        </Grid>
+                    </Grid>
+                </TabItem>
+
+                <!-- ========== Logs tab ========== -->
+                <TabItem Header="Logs" controls:Nav.Icon="file-text" controls:Nav.Group="">
+                    <Grid Margin="0,12,0,0">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="*"/>
+                        </Grid.RowDefinitions>
+
+                        <TextBlock Grid.Row="0" Text="Activity Logs" Style="{StaticResource Heading2}"/>
+
+                        <TextBox Grid.Row="1" x:Name="LogsSearchBox" Width="250" Height="35" HorizontalAlignment="Left" Margin="0,10,0,0"
+                                Style="{StaticResource RoundedTextBox}"
+                                Tag="ค้นหา machine/process/publisher..." TextChanged="LogsSearchBox_TextChanged"/>
+
+                        <Grid Grid.Row="2" Margin="0,10,0,0">
+                            <Border CornerRadius="12" ClipToBounds="True"
+                                    Background="{DynamicResource Brush.Background.Card}"
+                                    BorderBrush="{DynamicResource Brush.Border.Default}" BorderThickness="1">
+                            <DataGrid x:Name="LogsGrid" AutoGenerateColumns="False" IsReadOnly="True"
+                                    Background="Transparent"
+                                    BorderThickness="0"
+                                    RowBackground="{DynamicResource Brush.Background.Card}"
+                                    AlternatingRowBackground="{DynamicResource Brush.Background.Card}"
+                                    HorizontalGridLinesBrush="{DynamicResource Brush.Border.Default}"
+                                    VerticalGridLinesBrush="{DynamicResource Brush.Border.Default}"
+                                    RowHeight="40" CanUserAddRows="False"
+                                    ColumnHeaderStyle="{StaticResource ConsoleGridColumnHeaderStyle}"
+                                    RowStyle="{StaticResource ConsoleGridRowStyle}"
+                                    CellStyle="{StaticResource ConsoleGridCellStyle}">
+                                <DataGrid.Resources>
+                                    <Style x:Key="LogSignedBadge" TargetType="ContentControl" BasedOn="{StaticResource StatusBadge}">
+                                        <Setter Property="Tag" Value="Danger"/>
+                                        <Setter Property="Content" Value="UNSIGNED"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding WasSignedMatch}" Value="True">
+                                                <Setter Property="Tag" Value="Online"/>
+                                                <Setter Property="Content" Value="SIGNED"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </DataGrid.Resources>
+                                <DataGrid.Columns>
+                                    <DataGridTextColumn Header="TIME (UTC)" Binding="{Binding Timestamp}" Width="150"/>
+                                    <DataGridTextColumn Header="MACHINE" Binding="{Binding MachineName}" Width="130"/>
+                                    <DataGridTextColumn Header="PROCESS" Binding="{Binding ProcessPath}" Width="220"/>
+                                    <DataGridTextColumn Header="PUBLISHER" Binding="{Binding DetectedPublisher}" Width="160"/>
+                                    <DataGridTemplateColumn Header="SIGNED" Width="90" SortMemberPath="WasSignedMatch">
+                                        <DataGridTemplateColumn.CellTemplate>
+                                            <DataTemplate>
+                                                <ContentControl Style="{StaticResource LogSignedBadge}"/>
+                                            </DataTemplate>
+                                        </DataGridTemplateColumn.CellTemplate>
+                                    </DataGridTemplateColumn>
+                                    <DataGridTextColumn Header="RULE" Binding="{Binding MatchedRuleName}" Width="120"/>
+                                    <DataGridTextColumn Header="ACTION TAKEN" Binding="{Binding ActionTaken}" Width="150"/>
+                                </DataGrid.Columns>
+                            </DataGrid>
+                            </Border>
+                            <TextBlock x:Name="LogsEmptyText"
+                                    Text="ยังไม่มี log" Style="{StaticResource Caption}" TextAlignment="Center"
+                                    VerticalAlignment="Center" Visibility="Collapsed" IsHitTestVisible="False"/>
+                        </Grid>
+                    </Grid>
+                </TabItem>
+
                 <!-- ========== Rules tab ========== -->
-                <TabItem Header="RULES">
+                <TabItem Header="Rules" controls:Nav.Icon="shield" controls:Nav.Group="กฎและการบังคับใช้">
                     <Grid Margin="0,12,0,0">
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto"/>
@@ -414,72 +656,6 @@
                     </Grid>
                 </TabItem>
 
-                <!-- ========== Logs tab ========== -->
-                <TabItem Header="LOGS">
-                    <Grid Margin="0,12,0,0">
-                        <Grid.RowDefinitions>
-                            <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="*"/>
-                        </Grid.RowDefinitions>
-
-                        <TextBlock Grid.Row="0" Text="Activity Logs" Style="{StaticResource Heading2}"/>
-
-                        <TextBox Grid.Row="1" x:Name="LogsSearchBox" Width="250" Height="35" HorizontalAlignment="Left" Margin="0,10,0,0"
-                                Style="{StaticResource RoundedTextBox}"
-                                Tag="ค้นหา machine/process/publisher..." TextChanged="LogsSearchBox_TextChanged"/>
-
-                        <Grid Grid.Row="2" Margin="0,10,0,0">
-                            <Border CornerRadius="12" ClipToBounds="True"
-                                    Background="{DynamicResource Brush.Background.Card}"
-                                    BorderBrush="{DynamicResource Brush.Border.Default}" BorderThickness="1">
-                            <DataGrid x:Name="LogsGrid" AutoGenerateColumns="False" IsReadOnly="True"
-                                    Background="Transparent"
-                                    BorderThickness="0"
-                                    RowBackground="{DynamicResource Brush.Background.Card}"
-                                    AlternatingRowBackground="{DynamicResource Brush.Background.Card}"
-                                    HorizontalGridLinesBrush="{DynamicResource Brush.Border.Default}"
-                                    VerticalGridLinesBrush="{DynamicResource Brush.Border.Default}"
-                                    RowHeight="40" CanUserAddRows="False"
-                                    ColumnHeaderStyle="{StaticResource ConsoleGridColumnHeaderStyle}"
-                                    RowStyle="{StaticResource ConsoleGridRowStyle}"
-                                    CellStyle="{StaticResource ConsoleGridCellStyle}">
-                                <DataGrid.Resources>
-                                    <Style x:Key="LogSignedBadge" TargetType="ContentControl" BasedOn="{StaticResource StatusBadge}">
-                                        <Setter Property="Tag" Value="Danger"/>
-                                        <Setter Property="Content" Value="UNSIGNED"/>
-                                        <Style.Triggers>
-                                            <DataTrigger Binding="{Binding WasSignedMatch}" Value="True">
-                                                <Setter Property="Tag" Value="Online"/>
-                                                <Setter Property="Content" Value="SIGNED"/>
-                                            </DataTrigger>
-                                        </Style.Triggers>
-                                    </Style>
-                                </DataGrid.Resources>
-                                <DataGrid.Columns>
-                                    <DataGridTextColumn Header="TIME (UTC)" Binding="{Binding Timestamp}" Width="150"/>
-                                    <DataGridTextColumn Header="MACHINE" Binding="{Binding MachineName}" Width="130"/>
-                                    <DataGridTextColumn Header="PROCESS" Binding="{Binding ProcessPath}" Width="220"/>
-                                    <DataGridTextColumn Header="PUBLISHER" Binding="{Binding DetectedPublisher}" Width="160"/>
-                                    <DataGridTemplateColumn Header="SIGNED" Width="90" SortMemberPath="WasSignedMatch">
-                                        <DataGridTemplateColumn.CellTemplate>
-                                            <DataTemplate>
-                                                <ContentControl Style="{StaticResource LogSignedBadge}"/>
-                                            </DataTemplate>
-                                        </DataGridTemplateColumn.CellTemplate>
-                                    </DataGridTemplateColumn>
-                                    <DataGridTextColumn Header="RULE" Binding="{Binding MatchedRuleName}" Width="120"/>
-                                    <DataGridTextColumn Header="ACTION TAKEN" Binding="{Binding ActionTaken}" Width="150"/>
-                                </DataGrid.Columns>
-                            </DataGrid>
-                            </Border>
-                            <TextBlock x:Name="LogsEmptyText"
-                                    Text="ยังไม่มี log" Style="{StaticResource Caption}" TextAlignment="Center"
-                                    VerticalAlignment="Center" Visibility="Collapsed" IsHitTestVisible="False"/>
-                        </Grid>
-                    </Grid>
-                </TabItem>
-
                 <!-- ========== Audit Log tab ==========
                      ตั้งชื่อ "AUDIT LOG" (ไม่ใช้ "Activity Logs" ซ้ำกับหัวข้อในแท็บ LOGS ข้างบน - แท็บนั้น
                      คือ log การตรวจจับ process ที่ agent ส่งเข้ามา คนละเรื่องกับแท็บนี้ที่เป็น audit การกระทำ
@@ -487,7 +663,7 @@
                      ไม่ผูกกับ auto-refresh ทุก tick แบบแท็บอื่น (ดู DashboardWindow.xaml.cs
                      LoadActivityLogPageAsync) - โหลดเฉพาะตอนแท็บนี้ active เท่านั้น กัน volume สูงไม่ให้
                      โหลดทั้งหมดฝั่ง client ทุก 10 วิ -->
-                <TabItem x:Name="AuditLogTabItem" Header="AUDIT LOG">
+                <TabItem x:Name="AuditLogTabItem" Header="Audit Log" controls:Nav.Icon="clock" controls:Nav.Group="ระบบ">
                     <Grid Margin="0,12,0,0">
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto"/>
@@ -598,7 +774,7 @@
                 </TabItem>
 
                 <!-- ========== Users tab ========== -->
-                <TabItem Header="USERS">
+                <TabItem Header="Users" controls:Nav.Icon="users" controls:Nav.Group="">
                     <Grid Margin="0,12,0,0">
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto"/>
@@ -698,123 +874,7 @@
                     </Grid>
                 </TabItem>
 
-                <!-- ========== Screen View tab (Step 4d) ========== -->
-                <TabItem x:Name="ScreenViewTabItem" Header="SCREEN VIEW">
-                    <Grid Margin="0,12,0,0">
-                        <Grid.RowDefinitions>
-                            <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="*"/>
-                        </Grid.RowDefinitions>
-
-                        <Grid Grid.Row="0">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="Auto"/>
-                            </Grid.ColumnDefinitions>
-                            <TextBlock Grid.Column="0" x:Name="VncHeaderText"
-                                    Text="ยังไม่ได้เลือกเครื่อง - กด VIEW SCREEN จากรายการ Clients" Style="{StaticResource Heading2}"
-                                    TextWrapping="Wrap" VerticalAlignment="Center" Margin="0,0,10,0"/>
-                            <Button Grid.Column="1" Width="100" Content="DISCONNECT" Style="{StaticResource ButtonSecondary}"
-                                    Padding="10,5" FontSize="11" Click="VncDisconnectButton_Click" VerticalAlignment="Center"/>
-                        </Grid>
-
-                        <TextBlock Grid.Row="1" x:Name="VncStatusText" Style="{StaticResource Body}" TextWrapping="Wrap" Margin="0,10,0,0"/>
-
-                        <Border Grid.Row="2" CornerRadius="10" Background="Black" Margin="0,10,0,0"
-                                BorderBrush="{DynamicResource Brush.Border.Default}" BorderThickness="1">
-                            <Image x:Name="VncScreenImage" Stretch="Uniform" Margin="3"/>
-                        </Border>
-                    </Grid>
-                </TabItem>
-
-                <!-- ========== Live View tab (Step 4f) - CCTV-wall grid ========== -->
-                <TabItem x:Name="LiveViewTabItem" Header="LIVE VIEW">
-                    <Grid Margin="0,12,0,0">
-                        <Grid.RowDefinitions>
-                            <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="*"/>
-                        </Grid.RowDefinitions>
-
-                        <TextBlock Grid.Row="0" Text="Live View" Style="{StaticResource Heading2}"/>
-
-                        <Grid Grid.Row="1" Margin="0,10,0,0">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="200"/>
-                                <ColumnDefinition Width="16"/>
-                                <ColumnDefinition Width="*"/>
-                            </Grid.ColumnDefinitions>
-
-                            <!-- เลือกเครื่อง - reuse _allClients เดิม ไม่ query ใหม่ (ดู ApplyLiveViewClientList ใน .xaml.cs) -->
-                            <Border Grid.Column="0" CornerRadius="10" Padding="10"
-                                    Background="{DynamicResource Brush.Background.Primary}"
-                                    BorderBrush="{DynamicResource Brush.Border.Default}" BorderThickness="1">
-                                <Grid>
-                                    <Grid.RowDefinitions>
-                                        <RowDefinition Height="Auto"/>
-                                        <RowDefinition Height="*"/>
-                                        <RowDefinition Height="Auto"/>
-                                        <RowDefinition Height="Auto"/>
-                                    </Grid.RowDefinitions>
-
-                                    <TextBlock Grid.Row="0" Text="เลือกเครื่อง"
-                                               Style="{StaticResource Caption}" TextWrapping="Wrap" Margin="0,0,0,6"/>
-
-                                    <ListBox Grid.Row="1" x:Name="LiveViewClientListBox" SelectionMode="Extended"
-                                             Background="Transparent" BorderThickness="0">
-                                        <ListBox.ItemTemplate>
-                                            <DataTemplate>
-                                                <TextBlock Text="{Binding MachineName}" Padding="4,3" TextTrimming="CharacterEllipsis"/>
-                                            </DataTemplate>
-                                        </ListBox.ItemTemplate>
-                                    </ListBox>
-
-                                    <!-- Rebuilt 2026-09-03 - AddSelectedToGridButton/LiveViewStatusText used to both sit in
-                                         Grid.Row="1" (the same row as the ListBox above) with Grid.RowSpan="2" and a
-                                         Margin="0,306,0,10" magic offset trying to push the status text below the button
-                                         by guessing a fixed pixel position - broke as soon as the panel's actual height
-                                         differed from what that guess assumed (confirmed: it grows and covers the
-                                         ListBox). Each now has its own dedicated Auto row below the list instead. -->
-                                    <Button Grid.Row="2" x:Name="AddSelectedToGridButton" Content="ADD SELECTED TO GRID"
-                                            Style="{StaticResource ButtonPrimary}" Margin="0,10,0,4"
-                                            Click="AddSelectedToGridButton_Click"/>
-
-                                    <TextBlock Grid.Row="3" x:Name="LiveViewStatusText" Style="{StaticResource Caption}"
-                                               TextWrapping="Wrap"/>
-                                </Grid>
-                            </Border>
-
-                            <!-- Grid area - ช่องขนาดปรับอัตโนมัติตามจำนวนเครื่องผ่าน UniformGrid (auto-compute แถว/คอลัมน์ในตัว) -->
-                            <Border Grid.Column="2" CornerRadius="10"
-                                    Background="Black" BorderBrush="{DynamicResource Brush.Border.Default}" BorderThickness="1">
-                                <UniformGrid x:Name="LiveViewGrid"/>
-                            </Border>
-                        </Grid>
-                    </Grid>
-                </TabItem>
-
             </TabControl>
-        </Border>
-
-        <!-- ==================== Footer status bar ==================== -->
-        <Border Grid.Row="2" Height="52" CornerRadius="12"
-                Background="{DynamicResource Brush.Background.Card}"
-                BorderBrush="{DynamicResource Brush.Border.Default}"
-                BorderThickness="1" Padding="16,10">
-            <Grid VerticalAlignment="Center">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="Auto"/>
-                    <ColumnDefinition Width="Auto"/>
-                    <ColumnDefinition Width="20"/>
-                    <ColumnDefinition Width="Auto"/>
-                    <ColumnDefinition Width="Auto"/>
-                </Grid.ColumnDefinitions>
-                <TextBlock Grid.Column="0" Text="Server:" Style="{StaticResource Label}"/>
-                <TextBlock Grid.Column="1" Width="300" x:Name="FooterServerText" Style="{StaticResource Caption}" Margin="6,0,0,0"/>
-                <TextBlock Grid.Column="3" Text="User:" Style="{StaticResource Label}"/>
-                <TextBlock Grid.Column="4" Width="200" x:Name="FooterUserText" Style="{StaticResource Caption}" Margin="6,0,0,0"/>
-            </Grid>
-        </Border>
 
         <!-- ==================== Live View full-screen overlay (Step 4f) ====================
              sibling ของ Toolbar/Main content/Footer ที่ root Grid เดียวกัน แต่ต้องเป็น element
@@ -834,7 +894,7 @@
              แก้ logic นั้นเลย ตราบใดที่ FullscreenImage ยังอยู่ใน container ที่ stretch จริง (Border Grid.Row="1"
              ด้านล่างนี้ stretch เต็ม Grid.Row="*" ของ overlay เอง) - verify ด้วยการ resize จริงระหว่างเปิด
              full-screen แล้วดูว่าพิกัดคลิกยังตรงตำแหน่งเป้าหมาย ไม่ใช่แค่เชื่อ logic เฉยๆ -->
-        <Border x:Name="LiveViewFullscreenOverlay" Grid.Row="0" Grid.RowSpan="3"
+        <Border x:Name="LiveViewFullscreenOverlay"
                 Background="{DynamicResource Brush.Background.Primary}" Visibility="Collapsed"
                 Focusable="True" FocusVisualStyle="{x:Null}"
                 PreviewKeyDown="LiveViewFullscreenOverlay_PreviewKeyDown"

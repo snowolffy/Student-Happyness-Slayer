@@ -77,6 +77,80 @@ public partial class DashboardWindow : Window
         public VncSessionHandle? Handle { get; set; }
     }
 
+    // ==================== Sidebar / ธีม (2026-09-09) ====================
+
+    /// <summary>
+    /// ปุ่มสองตัวนี้อยู่ใน ControlTemplate ของ MainTabControl จึง **ไม่มี field ที่ x:Name สร้างให้**
+    /// (element ใน template อยู่คนละ namescope กับหน้าต่าง) ต้องดึงออกมาเองด้วย Template.FindName
+    /// หลัง template ถูก apply แล้วเท่านั้น - ทำใน Loaded ซึ่งการันตีว่าเลยจุดนั้นไปแล้ว
+    ///
+    /// ที่ต้องถือ reference ไว้เพราะต้องตั้ง "สถานะเริ่มต้น" ของทั้งสองปุ่มให้ตรงกับค่าที่จำไว้ตอน
+    /// เปิดหน้าต่าง (ไอคอนลูกศรชี้ถูกด้าน / ไอคอนพระอาทิตย์-พระจันทร์ตรงกับธีมปัจจุบัน) - ถ้าอัพเดต
+    /// จาก sender ใน Click อย่างเดียวจะถูกก็ต่อเมื่อผู้ใช้กดแล้วเท่านั้น
+    /// </summary>
+    private Button? _sidebarCollapseButton;
+    private Button? _themeToggleButton;
+
+    private void ApplySidebarAndThemeState()
+    {
+        _sidebarCollapseButton = MainTabControl.Template.FindName("SidebarCollapseButton", MainTabControl) as Button;
+        _themeToggleButton = MainTabControl.Template.FindName("ThemeToggleButton", MainTabControl) as Button;
+
+        SetSidebarCollapsed(SettingsService.Current.Ui.SidebarCollapsed, persist: false);
+        UpdateThemeToggleButton();
+
+        // ธีมเปลี่ยนได้จากทางอื่นด้วย (ผู้ใช้สลับธีมของ Windows ทั้งเครื่องขณะที่ตั้งไว้เป็น "ตามระบบ")
+        // ไม่ใช่แค่จากปุ่มนี้ จึงต้องฟัง event แทนที่จะอัพเดตเฉพาะตอนกดปุ่ม
+        ThemeService.ThemeChanged += UpdateThemeToggleButton;
+        Closed += (_, _) => ThemeService.ThemeChanged -= UpdateThemeToggleButton;
+    }
+
+    private void SetSidebarCollapsed(bool collapsed, bool persist)
+    {
+        // ตั้งที่ TabControl ตัวเดียว - Nav.IsCollapsed ประกาศเป็น Inherits จึงไหลลงไปถึงแถวเมนูทุกแถว
+        // หัวข้อกลุ่ม ปุ่มท้าย sidebar และ trigger ที่ย่อความกว้างของ sidebar เองพร้อมกันทั้งหมด
+        Controls.Nav.SetIsCollapsed(MainTabControl, collapsed);
+
+        if (_sidebarCollapseButton is not null)
+        {
+            Controls.Nav.SetIcon(_sidebarCollapseButton, collapsed ? "chevron-right" : "chevron-left");
+            _sidebarCollapseButton.Content = collapsed ? string.Empty : "ย่อเมนู";
+            _sidebarCollapseButton.ToolTip = collapsed ? "ขยายเมนู" : "ย่อเมนู";
+        }
+
+        if (!persist)
+        {
+            return;
+        }
+
+        var settings = SettingsService.Current;
+        settings.Ui.SidebarCollapsed = collapsed;
+        var (success, error) = SettingsService.Save(settings);
+        if (!success)
+        {
+            // จำไม่ได้ก็ไม่เป็นไร sidebar ในรอบนี้ย่อ/ขยายไปแล้วตามที่กด
+            ConsoleDiagnostics.WriteLine($"DashboardWindow: จำสถานะ sidebar ไม่สำเร็จ ({error})");
+        }
+    }
+
+    private void UpdateThemeToggleButton()
+    {
+        if (_themeToggleButton is null)
+        {
+            return;
+        }
+
+        // ไอคอนบอก "สิ่งที่จะได้ถ้ากด" ไม่ใช่ "สถานะตอนนี้" - ตอนอยู่ธีมสว่างจึงเป็นพระจันทร์ (กดแล้วมืด)
+        var dark = ThemeService.IsDarkActive;
+        Controls.Nav.SetIcon(_themeToggleButton, dark ? "sun" : "moon");
+        _themeToggleButton.Content = dark ? "ธีมสว่าง" : "ธีมมืด";
+    }
+
+    private void SidebarCollapseButton_Click(object sender, RoutedEventArgs e) =>
+        SetSidebarCollapsed(!Controls.Nav.GetIsCollapsed(MainTabControl), persist: true);
+
+    private void ThemeToggleButton_Click(object sender, RoutedEventArgs e) => ThemeService.Toggle();
+
     public DashboardWindow(ApiClient apiClient)
     {
         InitializeComponent();
@@ -84,7 +158,11 @@ public partial class DashboardWindow : Window
         ServerLabel.Text = $"connected to {_apiClient.BaseUrl}";
         FooterServerText.Text = _apiClient.BaseUrl ?? "-";
         FooterUserText.Text = _apiClient.Username ?? "-";
-        Loaded += async (_, _) => await LoadAllDataAsync();
+        Loaded += async (_, _) =>
+        {
+            ApplySidebarAndThemeState();
+            await LoadAllDataAsync();
+        };
 
         _liveViewPool = new VncSessionPool(_apiClient, _labHubClient);
 

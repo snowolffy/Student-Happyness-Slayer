@@ -1,4 +1,4 @@
-using System.Windows;
+﻿using System.Windows;
 using OnionProcOparetor.Console.Services;
 
 namespace OnionProcOparetor.Console;
@@ -53,5 +53,31 @@ public partial class App : Application
             // (หน้าต่างที่กำลังเปิดอยู่ตอนเกิด exception อาจอยู่ในสถานะไม่สมบูรณ์ แต่ดีกว่าทั้งแอปหายไปเงียบๆ)
             args.Handled = true;
         };
+
+#if DEBUG
+        // เครื่องมือสำหรับตรวจงาน UI เท่านั้น และมีเฉพาะใน build แบบ Debug (installer/publish-all.ps1
+        // publish ด้วย -c Release เสมอ ปุ่มนี้จึงไม่มีอยู่จริงในของที่ส่งขึ้นเครื่องครู)
+        //
+        // มีไว้เพราะเครื่อง dev เครื่องนี้รัน Server ตัวจริงอยู่ด้วย การจะดู Dashboard สักทีจึงต้อง
+        // login เข้าเซิร์ฟเวอร์ของจริง ซึ่งไม่ควรทำแค่เพื่อดูว่าปุ่มจัดตำแหน่งตรงไหม - ทางนี้เปิด
+        // Dashboard ด้วย ApiClient ที่ยังไม่ได้ login ทุก API call จึงล้มเหลวหมด (ตั้งใจ) เห็นแต่โครง UI
+        if (e.Args.Contains("--ui-preview"))
+        {
+            new DashboardWindow(new Services.ApiClient()).Show();
+            // StartupUri ถูกประมวลผลหลัง OnStartup คืนค่า (และ set เป็น null จะ throw) เลยต้องปิด
+            // หน้าต่าง login ที่มันเปิดให้ ทีหลังแทน - BeginInvoke จึงจำเป็น ไม่ใช่แค่สไตล์
+            Dispatcher.BeginInvoke(() =>
+            {
+                foreach (Window window in Windows)
+                {
+                    if (window is MainWindow login)
+                    {
+                        login.Close();
+                        break;
+                    }
+                }
+            });
+        }
+#endif
     }
 }
