@@ -1,0 +1,123 @@
+@using Microsoft.AspNetCore.Components.Web
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="utf-8" />
+    @* width=device-width + initial-scale=1 is what makes the mobile CSS in theme.css actually apply -
+       without it, phones render the page at a fake ~980px "desktop" viewport and zoom out, which
+       defeats every @@media breakpoint in the stylesheet. viewport-fit=cover is what lets the page
+       draw into the notch/home-indicator area at all; without it the env(safe-area-inset-*) padding
+       in theme.css always resolves to 0 and iOS just letterboxes the app in black bars instead. *@
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+
+    @* ---- Installable web app -------------------------------------------------------------------
+       This console is checked from a phone, over Tailscale, usually in a hurry ("is COM-25 still
+       playing games?"). A manifest + these Apple meta tags mean it can be added to the home screen
+       and opened as a standalone app: its own icon, no browser URL bar eating 15% of a small screen,
+       and it lands directly on the Clients page. No service worker on purpose - every byte on this
+       page is live lab state that must never be served from a cache, and an offline shell for an app
+       that is useless without the tailnet would only produce convincing-looking stale screens. *@
+    <link rel="manifest" href="manifest.webmanifest" />
+    <meta name="theme-color" content="#241E1A" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="OnionConsole" />
+    <link rel="apple-touch-icon" href="img/logo-256.png" />
+    <link rel="icon" href="img/logo-128.png" />
+
+    <base href="/" />
+    <link rel="stylesheet" href="css/theme.css" />
+
+    @* Applies the saved theme BEFORE the first paint. This has to be an inline, synchronous script in
+       <head>: a Blazor Server circuit doesn't exist yet this early, so doing it in C# would flash the
+       light theme on every load before switching. Kept to the smallest possible body - the real logic
+       lives in js/theme.js, which the toggle imports later. *@
+    <script>
+        (function () {
+            try {
+                var m = localStorage.getItem('onion.theme');
+                if (m === 'dark' || m === 'light') { document.documentElement.setAttribute('data-theme', m); }
+                var dark = m === 'dark' || (m !== 'light' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+                document.querySelector('meta[name="theme-color"]').setAttribute('content', dark ? '#0F0D0C' : '#241E1A');
+            } catch (e) { /* private mode: fall through to the OS preference, which theme.css handles on its own */ }
+        })();
+    </script>
+
+    <HeadOutlet />
+</head>
+<body>
+    @* Thin navigation progress bar. Sits outside the Blazor render tree on purpose - app.js shows and
+       hides it, so it can appear the instant a nav link is tapped rather than after the server has
+       re-rendered (which is the very thing being waited for). *@
+    <div class="nav-progress" aria-hidden="true"></div>
+
+    @* ---- Reconnect overlay -------------------------------------------------------------------
+       Blazor injects its own "Rejoining the server..." dialog when the circuit drops - a hard-coded
+       white card with an English string, which on a dark-themed Thai console looks like a different
+       application briefly took over the screen. Defining an element with this exact id switches Blazor
+       to its user-dialog code path, where it only toggles classes on our markup instead of building
+       its own.
+
+       The exact state machine, read out of blazor.web.js rather than guessed (class `Go`):
+         show()      -> clears all, adds -show
+         update()    -> adds -retrying ON TOP of -show, and fills the attempt/seconds spans by id
+         pause()     -> REMOVES -show and -retrying, adds -paused
+         failed()    -> adds -failed, or -resume-failed if it was resuming rather than reconnecting
+         rejected()  -> adds -rejected
+         hide()      -> clears all, adds -hide
+       The two removal cases are why -paused and -resume-failed must be styled: a first version handled
+       only show/failed/rejected, so a paused circuit would have hidden the overlay completely and left
+       the user staring at a frozen page with nothing to explain it. *@
+    <div id="components-reconnect-modal" class="reconnect-overlay">
+        <div class="reconnect-card">
+            <div class="reconnect-spinner" aria-hidden="true"></div>
+
+            <div class="reconnect-body reconnect-when-show">
+                <div class="reconnect-title">กำลังเชื่อมต่อใหม่...</div>
+                <div class="reconnect-detail">
+                    การเชื่อมต่อกับเซิร์ฟเวอร์หลุดไป กำลังลองใหม่
+                    (ครั้งที่ <span id="components-reconnect-current-attempt">1</span>
+                    จาก <span id="components-reconnect-max-retries">30</span>)
+                </div>
+                @* Blazor fills this in only while it is counting down between attempts. *@
+                <div class="reconnect-detail reconnect-countdown">
+                    ลองใหม่อีกครั้งในอีก <span id="components-seconds-to-next-attempt">0</span> วินาที
+                </div>
+                <div class="reconnect-detail">ถ้าเพิ่งสลับ WiFi หรือออกนอกวง Tailscale ให้ต่อกลับเข้าไปก่อน</div>
+            </div>
+
+            <div class="reconnect-body reconnect-when-paused">
+                <div class="reconnect-title">พักการเชื่อมต่อไว้ก่อน</div>
+                <div class="reconnect-detail">หยุดลองเชื่อมต่อใหม่ชั่วคราว กดปุ่มด้านล่างเพื่อต่อเดี๋ยวนี้</div>
+                <button class="btn btn-primary" onclick="window.Blazor.reconnect()">เชื่อมต่อเดี๋ยวนี้</button>
+            </div>
+
+            <div class="reconnect-body reconnect-when-failed">
+                <div class="reconnect-title">เชื่อมต่อใหม่ไม่สำเร็จ</div>
+                <div class="reconnect-detail">เช็คว่าอุปกรณ์นี้ยังต่อ Tailscale อยู่ แล้วลองอีกครั้ง</div>
+                <button class="btn btn-primary" onclick="window.Blazor.reconnect()">ลองเชื่อมต่ออีกครั้ง</button>
+            </div>
+
+            <div class="reconnect-body reconnect-when-resume-failed">
+                <div class="reconnect-title">กลับเข้าเซสชันเดิมไม่ได้</div>
+                <div class="reconnect-detail">เซสชันบนเซิร์ฟเวอร์หายไปแล้ว ต้องโหลดหน้าใหม่เพื่อเริ่มใหม่</div>
+                <button class="btn btn-primary" onclick="location.reload()">โหลดหน้าใหม่</button>
+            </div>
+
+            <div class="reconnect-body reconnect-when-rejected">
+                <div class="reconnect-title">เซสชันหมดอายุ</div>
+                <div class="reconnect-detail">เซิร์ฟเวอร์ปิดการเชื่อมต่อเดิมไปแล้ว ต้องโหลดหน้าใหม่</div>
+                <button class="btn btn-primary" onclick="location.reload()">โหลดหน้าใหม่</button>
+            </div>
+        </div>
+    </div>
+
+    <Routes />
+    <script src="_framework/blazor.web.js"></script>
+    @* App-shell behaviour (nav drawer + theme switching) lives in plain JS on purpose - the layout
+       that hosts those controls is rendered statically under this app's per-page interactivity model,
+       so C# @@onclick handlers in it can never fire. Full reasoning at the top of app.js. Loaded after
+       blazor.web.js and bound with delegated document listeners, so it survives enhanced navigation. *@
+    <script src="js/app.js"></script>
+</body>
+</html>

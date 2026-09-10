@@ -36,8 +36,25 @@ public class ConnectionSettings
     public int DashboardPollIntervalSeconds { get; set; } = 10;
 }
 
-/// <summary>เผื่อขยาย (เช่น theme) ในอนาคต - ยังไม่มี UI ให้แก้ตอนนี้ โดยเจตนา</summary>
 public class UiSettings
 {
+    /// <summary>"Light" / "Dark" / "System" - null = ยังไม่เคยเลือก ซึ่ง ThemeService ตีความเป็น System</summary>
     public string? Theme { get; set; }
+
+    /// <summary>
+    /// sidebar ของ Dashboard ถูกย่อไว้หรือไม่ - จำต่อเครื่อง ไม่ผูกกับบัญชี เพราะมันเป็นเรื่อง
+    /// "จอนี้กว้างแค่ไหน" ไม่ใช่ "คนนี้ชอบแบบไหน" (ครูคนเดียวกันใช้ทั้งเครื่องจอใหญ่และโน้ตบุ๊ก)
+    /// </summary>
+    public bool SidebarCollapsed { get; set; }
+
+    /// <summary>
+    /// โชว์ปุ่ม Tailscale (LOCK / UNLOCK / STATUS / LOGIN) ในแผงคำสั่งไหม - **ค่าเริ่มต้นคือไม่โชว์**
+    ///
+    /// สี่ปุ่มนี้เป็นงานดูแลระบบเครือข่าย ไม่ใช่งานคุมห้องเรียน ครูแทบไม่แตะเลย แต่มันนั่งปนอยู่กับ
+    /// LOCK WORKSTATION / SHUTDOWN ซึ่งเป็นปุ่มที่กดจริงทุกวัน ทำให้แผงยาวขึ้นโดยเปล่าประโยชน์และ
+    /// เพิ่มโอกาสกดพลาด - ใครที่ต้องใช้จริงเปิดได้จากหน้า Settings
+    ///
+    /// เป็นค่าต่อเครื่อง Console ไม่ผูกกับบัญชี เหมือนค่าอื่นในกลุ่มนี้
+    /// </summary>
+    public bool ShowTailscaleActions { get; set; }
 }

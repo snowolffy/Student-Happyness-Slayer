@@ -1,4 +1,4 @@
-<Window x:Class="OnionProcOparetor.Console.MainWindow"
+﻿<Window x:Class="OnionProcOparetor.Console.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Onion ProcOparetor Console"
@@ -6,7 +6,7 @@
         WindowStartupLocation="CenterScreen"
         ResizeMode="NoResize"
         Icon="/Theme/icon.ico"
-        Style="{StaticResource AppWindowStyle}">
+        Style="{StaticResource AppDialogWindow}">
     <!-- Rebuilt 2026-09-03 (Fluent-adoption redesign) - Button/TextBox/PasswordBox now render through
          Fluent's own templates (see Theme/Controls.xaml). Replaced the old absolute
          Margin="Left,Top,0,0" positioning (a Canvas-in-disguise left over from the original
@@ -20,9 +20,9 @@
         </Grid.RowDefinitions>
 
         <!-- ==================== Header ==================== -->
-        <Border Grid.Row="0" Background="{StaticResource Brush.Accent.Default}" Padding="20,18">
+        <Border Grid.Row="0" Background="{DynamicResource Brush.Accent.Default}" Padding="20,18">
             <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                <Border Width="48" Height="48" CornerRadius="12" Background="{StaticResource Brush.Accent.Dark}">
+                <Border Width="48" Height="48" CornerRadius="12" Background="{DynamicResource Brush.Accent.Dark}">
                     <Border.Clip>
                         <RectangleGeometry RadiusX="12" RadiusY="12" Rect="0,0,48,48"/>
                     </Border.Clip>
@@ -81,7 +81,7 @@
                     <PasswordBox x:Name="PasswordBox" Style="{StaticResource RoundedPasswordBox}"/>
                 </StackPanel>
 
-                <Button Grid.Row="8" x:Name="ConnectButton" Content="CONNECT"
+                <Button Grid.Row="8" x:Name="ConnectButton" Content="เชื่อมต่อ"
                         Style="{StaticResource ButtonPrimary}" Click="ConnectButton_Click"/>
 
                 <TextBlock Grid.Row="10" x:Name="StatusText" TextWrapping="Wrap" TextAlignment="Center" FontSize="12"/>

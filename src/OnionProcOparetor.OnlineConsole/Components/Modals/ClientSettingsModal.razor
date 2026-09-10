@@ -1,0 +1,61 @@
+@* Ported from ClientSettingsWindow (WPF) - per-client poll interval override *@
+@inject ApiClient Api
+
+<ModalShell Title="@($"Settings - {Client.MachineName}")" OnClose="OnClose">
+    <div class="form-row">
+        <label>Poll interval override (วินาที)</label>
+        <input type="number" min="1" @bind="_seconds" placeholder="เว้นว่าง = ใช้ค่า default ของ agent" />
+    </div>
+
+    @if (!string.IsNullOrEmpty(_status))
+    {
+        <div class="status-text">@_status</div>
+    }
+
+    <div class="toolbar">
+        <button class="btn btn-secondary" @onclick="ClearOverrideAsync" disabled="@_busy">CLEAR OVERRIDE</button>
+        <span class="spacer"></span>
+        <button class="btn btn-secondary" @onclick="OnClose" disabled="@_busy">CANCEL</button>
+        <button class="btn btn-primary" @onclick="SaveAsync" disabled="@_busy">SAVE</button>
+    </div>
+</ModalShell>
+
+@code {
+    [Parameter, EditorRequired] public ClientMachineDto Client { get; set; } = null!;
+    [Parameter] public EventCallback OnClose { get; set; }
+    [Parameter] public EventCallback OnSaved { get; set; }
+
+    private int? _seconds;
+    private bool _busy;
+    private string? _status;
+
+    protected override void OnInitialized() => _seconds = Client.PollIntervalOverrideSeconds;
+
+    private async Task SaveAsync() => await ApplyAsync(_seconds);
+
+    private async Task ClearOverrideAsync() => await ApplyAsync(null);
+
+    private async Task ApplyAsync(int? seconds)
+    {
+        _busy = true;
+        _status = "กำลังบันทึก...";
+        StateHasChanged();
+
+        // Push immediately if the agent is connected (fast path), and always persist to the DB too so
+        // it sticks even if the agent picks it up on its next poll instead - same two-step ApiClient
+        // already does for this in the WPF Console (see ApiClient.SendCommandAsync + UpdateClientSettingsAsync).
+        await Api.SendCommandAsync(Client.ClientGuid, "UpdateSettings", new { pollIntervalOverrideSeconds = seconds });
+        var ok = await Api.UpdateClientSettingsAsync(Client.Id, seconds);
+
+        _busy = false;
+        if (ok)
+        {
+            await OnSaved.InvokeAsync();
+            await OnClose.InvokeAsync();
+        }
+        else
+        {
+            _status = "บันทึกไม่สำเร็จ";
+        }
+    }
+}

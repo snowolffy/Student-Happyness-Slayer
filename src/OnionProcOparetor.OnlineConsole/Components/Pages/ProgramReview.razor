@@ -1,0 +1,221 @@
+@page "/program-review"
+@rendermode InteractiveServer
+@inherits AuthenticatedPageBase
+@inject ToastService Toasts
+
+<PageTitle>Program Review - OnionProcOparetor Online Console</PageTitle>
+
+<div class="page-head">
+    <div>
+        <h2 class="heading2" style="margin:0">Program Review</h2>
+        <div class="page-subtitle">โปรแกรมที่ระบบเจอบนเครื่องนักเรียน รอให้ครูตัดสินว่าอนุญาตหรือบล็อก</div>
+    </div>
+</div>
+
+@* Status is a chip row, category stays a select. The status filter is the one that gets switched on
+   every visit ("มีอะไรรอตรวจอีก"), so it earns permanent screen space; category is a long,
+   count-labelled list where a dropdown is genuinely the right control. *@
+<div class="chip-row">
+    @foreach (var (value, label) in Filters)
+    {
+        <button class="chip @(_filter == value ? "active" : "")" @onclick="() => SetFilterAsync(value)">@label</button>
+    }
+</div>
+
+<div class="toolbar">
+    <select @bind="_category" @bind:after="LoadVerdictsAsync" style="max-width:230px" aria-label="กรองตามหมวด">
+        <option value="">ทุกหมวด (@_summary.Total)</option>
+        @foreach (var c in _summary.Categories)
+        {
+            <option value="@c.Category">@ProgramVerdictDto.CategoryLabel(c.Category) (@c.Count)</option>
+        }
+    </select>
+</div>
+
+@if (_loading)
+{
+    @for (var i = 0; i < 5; i++) { <div class="skeleton skeleton-card"></div> }
+}
+else if (_verdicts.Count == 0)
+{
+    @* "ไม่มีอะไรรอตรวจ" is a genuinely good outcome on this page, so it's phrased as good news rather
+       than as an error - an empty flagged queue means the lab is currently clean. *@
+    <div class="card">
+        <EmptyState IconName="check-circle" Title="ไม่มีโปรแกรมในคิวนี้"
+                    Detail="ยังไม่มีโปรแกรมที่เข้าเงื่อนไขตัวกรองนี้ - ลองเปลี่ยนสถานะหรือหมวดด้านบน" />
+    </div>
+}
+else
+{
+    @* Phone rendering. ALLOW / BLOCK are the whole point of the page, so on a card they are two
+       full-width buttons rather than two 60px targets crammed into a scrolling table cell - deciding a
+       queue of flagged programs from a phone is exactly the workflow this page exists for. *@
+    <div class="card-list narrow-only">
+        @foreach (var v in _verdicts)
+        {
+            <div class="data-card" @key="v.Id" style="--data-card-accent: @ActionColor(v.Action)">
+                <div class="data-card-head">
+                    <div style="flex:1; min-width:0">
+                        <div class="data-card-title">@v.FileName</div>
+                        <div class="data-card-sub">@(string.IsNullOrWhiteSpace(v.ProductName) ? v.Publisher : v.ProductName)</div>
+                    </div>
+                    <span class="badge @ActionBadge(v.Action)">@v.ActionText</span>
+                </div>
+
+                <dl class="data-card-rows">
+                    <dt>หมวด</dt><dd>@v.CategoryText</dd>
+                    <dt>คะแนนเสี่ยง</dt><dd>@v.Score</dd>
+                    <dt>พบแล้ว</dt><dd>@v.SightingCount ครั้ง</dd>
+                    <dt>เครื่องล่าสุด</dt><dd>@(v.LastSeenOnMachine ?? "-")</dd>
+                    <dt>ที่มา</dt><dd>@v.SourceText</dd>
+                </dl>
+
+                <div class="data-card-actions">
+                    <button class="btn btn-secondary btn-sm" @onclick="() => _selected = v">เหตุผล</button>
+                    <button class="btn btn-secondary btn-sm" @onclick="() => DecideAsync(v, 0)">อนุญาต</button>
+                    <button class="btn btn-danger btn-sm" @onclick="() => DecideAsync(v, 2)">บล็อก</button>
+                </div>
+            </div>
+        }
+    </div>
+
+    <div class="table-scroll wide-only">
+        <table>
+            <thead><tr><th>โปรแกรม</th><th>หมวด</th><th>คะแนน</th><th>สถานะ</th><th>ที่มา</th><th>พบ (ครั้ง)</th><th>เครื่องล่าสุด</th><th></th></tr></thead>
+            <tbody>
+                @foreach (var v in _verdicts)
+                {
+                    <tr @key="v.Id" @onclick="() => _selected = v" style="cursor:pointer">
+                        <td>@v.DisplayName</td>
+                        <td>@v.CategoryText</td>
+                        <td>@v.Score</td>
+                        <td><span class="badge @ActionBadge(v.Action)">@v.ActionText</span></td>
+                        <td>@v.SourceText</td>
+                        <td>@v.SightingCount</td>
+                        <td>@v.LastSeenOnMachine</td>
+                        <td>
+                            <div style="display:flex; gap:.3rem">
+                                <button class="btn btn-secondary btn-sm" @onclick:stopPropagation="true" @onclick="() => DecideAsync(v, 0)">ALLOW</button>
+                                <button class="btn btn-danger btn-sm" @onclick:stopPropagation="true" @onclick="() => DecideAsync(v, 2)">BLOCK</button>
+                            </div>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+}
+
+@* The reasons panel is a modal now instead of a card appended below the table. On a phone the old
+   version rendered underneath a full screen of rows, so tapping a row appeared to do nothing at all -
+   the detail it opened was a scroll away, off-screen. *@
+@if (_selected is not null)
+{
+    <ModalShell Title="@_selected.FileName" OnClose="() => _selected = null">
+        <div class="field-label">สัญญาณที่ทำให้ได้คะแนนนี้</div>
+        <pre style="white-space:pre-wrap; font-family:inherit; margin:.5rem 0 1rem">@_selected.ReasonsText</pre>
+
+        <dl class="data-card-rows" style="margin-bottom:1rem">
+            <dt>SHA-256</dt><dd class="mono truncate">@_selected.Sha256</dd>
+            <dt>ผู้เผยแพร่</dt><dd>@(string.IsNullOrWhiteSpace(_selected.Publisher) ? "ไม่มีลายเซ็น" : _selected.Publisher)</dd>
+            <dt>พบครั้งแรก</dt><dd><TimeAgo Value="_selected.FirstSeenAt" /></dd>
+            <dt>พบล่าสุด</dt><dd><TimeAgo Value="_selected.LastSeenAt" /></dd>
+        </dl>
+
+        <div class="toolbar" style="margin-bottom:0">
+            <button class="btn btn-secondary" @onclick="() => DecideAsync(_selected!, 0)">อนุญาต</button>
+            <span class="spacer"></span>
+            <button class="btn btn-danger" @onclick="() => DecideAsync(_selected!, 2)">บล็อก</button>
+        </div>
+    </ModalShell>
+}
+
+@code {
+    private string _filter = "flagged";
+    private string _category = string.Empty;
+    private List<ProgramVerdictDto> _verdicts = new();
+    private ProgramVerdictSummaryDto _summary = new();
+    private ProgramVerdictDto? _selected;
+    private bool _loading = true;
+
+    private static readonly (string Value, string Label)[] Filters =
+    {
+        ("flagged", "รอตรวจ"),
+        ("blocked", "บล็อกแล้ว"),
+        ("allowed", "อนุญาตแล้ว"),
+        ("manual", "ครูตัดสินเอง"),
+        ("all", "ทั้งหมด")
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        await base.OnInitializedAsync();
+        await LoadAsync();
+        _loading = false;
+    }
+
+    private async Task SetFilterAsync(string filter)
+    {
+        _filter = filter;
+        // Category counts are per-status, so switching status has to reload the summary too, or the
+        // dropdown keeps showing counts belonging to the previous filter.
+        _category = string.Empty;
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _summary = await Api.GetProgramVerdictSummaryAsync(_filter);
+        await LoadVerdictsAsync();
+    }
+
+    private async Task LoadVerdictsAsync()
+    {
+        int? category = string.IsNullOrEmpty(_category) ? null : int.Parse(_category);
+        _verdicts = await Api.GetProgramVerdictsAsync(_filter, category);
+    }
+
+    /// <summary>
+    /// Optimistic, for the same reason as the rule toggle: deciding a queue is a rhythm - tap, tap, tap -
+    /// and waiting two round-trips per tap for the row to disappear breaks it completely. The row leaves
+    /// immediately and comes back if the server refuses.
+    /// </summary>
+    private async Task DecideAsync(ProgramVerdictDto verdict, int action)
+    {
+        var index = _verdicts.IndexOf(verdict);
+        if (index >= 0) _verdicts.RemoveAt(index);
+        _selected = null;
+        StateHasChanged();
+
+        var ok = await Api.DecideProgramVerdictAsync(verdict.Id, action);
+        if (!ok)
+        {
+            // Back where it was, not appended to the end - a row that reappears somewhere else in the
+            // list looks like a different row.
+            if (index >= 0) _verdicts.Insert(Math.Min(index, _verdicts.Count), verdict);
+            Toasts.Error("บันทึกการตัดสินไม่สำเร็จ", $"{verdict.FileName} ยังอยู่ในคิวเหมือนเดิม");
+            StateHasChanged();
+            return;
+        }
+
+        Toasts.Success(action == 0 ? $"อนุญาต {verdict.FileName} แล้ว" : $"บล็อก {verdict.FileName} แล้ว");
+
+        // Only the counts need re-fetching now, and they are not what the user is looking at, so this
+        // runs after the row has already gone rather than gating it.
+        _summary = await Api.GetProgramVerdictSummaryAsync(_filter);
+    }
+
+    private static string ActionBadge(int action) => action switch
+    {
+        0 => "badge-online",
+        2 => "badge-danger",
+        _ => "badge-warning"
+    };
+
+    private static string ActionColor(int action) => action switch
+    {
+        0 => "var(--online)",
+        2 => "var(--danger)",
+        _ => "var(--warning)"
+    };
+}

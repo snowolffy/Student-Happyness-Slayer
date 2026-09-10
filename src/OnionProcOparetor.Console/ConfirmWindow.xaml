@@ -1,17 +1,18 @@
-<Window x:Class="OnionProcOparetor.Console.ConfirmWindow"
+﻿<Window x:Class="OnionProcOparetor.Console.ConfirmWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Confirm"
         Width="420"
         SizeToContent="Height"
         MinHeight="180"
-        WindowStartupLocation="Manual"
+        WindowStartupLocation="CenterOwner"
         ResizeMode="NoResize"
         Icon="/Theme/icon.ico"
-        Style="{StaticResource AppWindowStyle}">
-    <!-- WindowStartupLocation="Manual" + WindowCenteringHelper (ดู code-behind): CenterOwner คำนวณ
-         ตำแหน่งผิดเมื่อใช้ร่วมกับ SizeToContent (หน้าต่างเลื่อนไปทางขวา/ล่างจากจุดกึ่งกลางจริง) เลย
-         คำนวณเองใน Loaded event แทนที่ตอนขนาดจริง resolve เสร็จแล้ว -->
+        Style="{StaticResource AppDialogWindow}">
+    <!-- WindowStartupLocation="CenterOwner" (กลับมาใช้ของ WPF เอง 2026-09-10 ตามที่ผู้ใช้ขอ)
+         เดิมเคยคำนวณตำแหน่งเองใน Loaded ผ่าน WindowCenteringHelper เพราะเชื่อว่า CenterOwner เพี้ยน
+         เมื่อใช้กับ SizeToContent แต่พอใช้จริงแล้วรู้สึกว่าตัวคำนวณเองมีอาการแปลกกว่า จึงกลับมาใช้
+         ของมาตรฐาน - ถ้าเจอว่าเยื้องอีก วัดด้วยสวิตช์ center-test ได้ (ดู docs/console-ui-notes.md §6) -->
     <!-- Themed แทน MessageBox.Show เดิม (native OS dialog ที่ดูไม่เข้าธีมของแอพเลย) - drop-in
          replacement ผ่าน static ConfirmWindow.Show(message, title, owner) ดู ConfirmWindow.xaml.cs
 
@@ -26,13 +27,28 @@
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
-        <TextBlock Grid.Row="0" x:Name="MessageText" Width="380"
-                   Style="{StaticResource Caption}" FontSize="13" TextWrapping="Wrap" HorizontalAlignment="Left"/>
+        <StackPanel Grid.Row="0">
+            <TextBlock x:Name="MessageText" Width="380"
+                       Style="{StaticResource Caption}" FontSize="13" TextWrapping="Wrap" HorizontalAlignment="Left"/>
+
+            <!-- ยืนยันด้วยการพิมพ์ชื่อ - ซ่อนไว้เสมอ นอกจากจะเรียกผ่าน ShowWithTypeToConfirm
+                 ใช้เฉพาะปุ่มลบ ซึ่งเป็นอย่างเดียวในแอปนี้ที่กดแล้วเอาคืนไม่ได้ -->
+            <StackPanel x:Name="TypeToConfirmPanel" Visibility="Collapsed" Margin="0,14,0,0">
+                <TextBlock x:Name="TypeToConfirmPrompt" Style="{StaticResource Label}" Margin="0,0,0,6"/>
+                <TextBox x:Name="TypeToConfirmBox" Width="380" HorizontalAlignment="Left"
+                         Style="{StaticResource RoundedTextBox}"
+                         TextChanged="TypeToConfirmBox_TextChanged"/>
+            </StackPanel>
+        </StackPanel>
 
         <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right">
-            <Button Width="80" Content="NO" Style="{StaticResource ButtonSecondary}"
-                    Padding="10,5" FontSize="11" Height="35" Click="CancelButton_Click" Margin="0,0,10,0"/>
-            <Button Width="80" x:Name="ConfirmButton" Content="YES"
+            <!-- ปุ่มยืนยันบอก "การกระทำ" ไม่ใช่คำว่า YES - ตอนกำลังจะสั่งปิด 40 เครื่อง ปุ่มที่เขียนว่า
+                 YES บังคับให้ต้องย้อนกลับไปอ่านข้อความอีกรอบเพื่อรู้ว่ากำลังตอบตกลงกับอะไร
+                 ความกว้างเป็น MinWidth ไม่ใช่ Width ตายตัว เพราะข้อความยาวไม่เท่ากันในแต่ละที่ -->
+            <Button x:Name="CancelButton" MinWidth="90" Content="ยกเลิก" Style="{StaticResource ButtonSecondary}"
+                    Padding="14,5" FontSize="12" Height="35" Click="CancelButton_Click" Margin="0,0,10,0"/>
+            <Button x:Name="ConfirmButton" MinWidth="90" Content="ยืนยัน"
+                    Padding="14,5" FontSize="12" Height="35"
                     Style="{StaticResource ButtonDanger}" Click="ConfirmButton_Click"/>
         </StackPanel>
     </Grid>

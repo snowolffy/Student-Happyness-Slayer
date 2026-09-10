@@ -1,0 +1,45 @@
+@page "/login"
+@attribute [AllowAnonymous]
+@layout OnionProcOparetor.OnlineConsole.Components.Layout.AuthLayout
+
+<PageTitle>Login - OnionProcOparetor Online Console</PageTitle>
+
+<div class="auth-page">
+    <div class="card auth-card">
+        <div class="auth-brand">
+            <img src="img/logo-128.png" alt="OnionProcOparetor" />
+            <div>
+                <h1 class="heading1">OnionProcOparetor</h1>
+                <div class="caption">Online Console · via Tailscale</div>
+            </div>
+        </div>
+
+        @if (!string.IsNullOrEmpty(Error))
+        {
+            <div class="error-text">@Error</div>
+        }
+
+        <form method="post" action="/auth/login">
+            <AntiforgeryToken />
+            <div class="form-row">
+                <label for="username">Username</label>
+                <input type="text" id="username" name="username" autocomplete="username" required autofocus />
+            </div>
+            <div class="form-row">
+                <label for="password">Password</label>
+                <input type="password" id="password" name="password" autocomplete="current-password" required />
+            </div>
+            <button type="submit" class="btn btn-primary" style="width:100%">LOGIN</button>
+        </form>
+
+        <div class="caption" style="margin-top:1rem">
+            หน้านี้เข้าถึงได้เฉพาะตอนต่อ Tailscale tailnet อยู่เท่านั้น - ถ้าเห็นหน้านี้ แปลว่าต่อ tailnet สำเร็จแล้ว
+        </div>
+    </div>
+</div>
+
+@code {
+    [SupplyParameterFromQuery]
+    [Parameter]
+    public string? Error { get; set; }
+}

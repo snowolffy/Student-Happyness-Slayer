@@ -1,4 +1,4 @@
-using System.Collections.Concurrent;
+﻿using System.Collections.Concurrent;
 using OnionProcOparetor.Console.Models;
 
 namespace OnionProcOparetor.Console.Services;
@@ -218,10 +218,23 @@ public sealed class VncSessionHandle : IAsyncDisposable
                 return (false, 0, null, "ส่ง command StartVncSession ไปยัง Server ไม่สำเร็จ (HTTP)");
             }
 
-            var completed = await Task.WhenAny(tcs.Task, Task.Delay(timeout, ct));
+            var delay = Task.Delay(timeout, ct);
+            var completed = await Task.WhenAny(tcs.Task, delay);
             if (completed != tcs.Task)
             {
-                return (false, 0, null, $"รอ Agent ตอบกลับเกิน {timeout.TotalSeconds} วิ (Agent อาจ offline หรือ SignalR ไม่ connected)");
+                // แยก "ถูกยกเลิก" ออกจาก "หมดเวลา" ให้ได้ - Task.Delay(timeout, ct) พอ ct ถูกยกเลิกจะจบ
+                // ในสถานะ Canceled และ Task.WhenAny คืนมันกลับมาเหมือนกับตอนหมดเวลาเป๊ะ ๆ โค้ดเดิมจึงแยก
+                // ไม่ออกและกล่าวหา Agent ว่า offline ทั้งที่จริงคือฝั่งเราเองปิด session ทิ้งระหว่างรอ
+                // (เช่นเอา cell ออกจาก grid หรือออกจากหน้า Live View ตอน Agent กำลังเปิด VNC server อยู่)
+                if (ct.IsCancellationRequested)
+                {
+                    return (false, 0, null, "ยกเลิกระหว่างรอ Agent เปิด session (ปิด session ไปก่อนที่จะพร้อม)");
+                }
+
+                var path = Client.UsingFallback ? "Tailscale" : "LAN";
+                return (false, 0, null,
+                    $"รอ Agent ตอบกลับเกิน {timeout.TotalSeconds} วิ ผ่านเส้นทาง {path} "
+                    + "(Agent อาจ offline, SignalR ไม่ connected, หรือเปิดหลายเครื่องพร้อมกันจนช้า)");
             }
 
             return await tcs.Task;
@@ -267,7 +280,20 @@ public sealed class VncSessionPool
     /// </summary>
     public static int MaxConcurrentSessions { get; set; } = 24;
 
-    private static readonly TimeSpan SessionReadyTimeout = TimeSpan.FromSeconds(15);
+    /// <summary>เวลารอ Agent เปิด VNC server ให้เสร็จ สำหรับเครื่องที่ต่อผ่าน LAN</summary>
+    private static readonly TimeSpan LanSessionReadyTimeout = TimeSpan.FromSeconds(15);
+
+    /// <summary>
+    /// เครื่องที่ต่อผ่าน Tailscale fallback ได้เวลานานกว่า - 15 วิเป็นค่าที่วัดจากเส้นทาง LAN และพอดี
+    /// สำหรับการเปิดทีละเครื่อง (หน้า Screen View) แต่เส้นทาง Tailscale ช้ากว่าและ Agent ยังต้องใช้เวลา
+    /// เปิด VNC server เองอีก พอเปิดหลายเครื่องพร้อมกันจาก Live View จึงเลย 15 วิได้ง่าย ๆ
+    ///
+    /// ตรงกับอาการที่ผู้ใช้รายงาน (2026-09-10): เครื่องเดียวกันเปิดจากหน้าดูจอปกติได้ แต่เปิดใน Live View
+    /// แล้ว failed - **ยังไม่ได้ยืนยันในห้องแล็บจริง** เพราะที่นี่ไม่มีเครื่องที่ต่อผ่าน Tailscale ให้ทดสอบ
+    /// การยืดเวลารอเป็นการแก้ที่ปลอดภัยที่สุด: ถ้าเดาผิด ผลเสียคือรอนานขึ้นก่อนขึ้น error เท่านั้น
+    /// ไม่ได้เปลี่ยนพฤติกรรมอะไรของ session ที่เปิดสำเร็จ
+    /// </summary>
+    private static readonly TimeSpan FallbackSessionReadyTimeout = TimeSpan.FromSeconds(35);
 
     private readonly ApiClient _apiClient;
     private readonly LabHubClient _labHubClient;
@@ -322,7 +348,11 @@ public sealed class VncSessionPool
             _reservationLock.Release();
         }
 
-        await handle.StartAsync(_apiClient, _labHubClient, SessionReadyTimeout);
+        var readyTimeout = client.UsingFallback ? FallbackSessionReadyTimeout : LanSessionReadyTimeout;
+        ConsoleDiagnostics.WriteLine(
+            $"[VncSessionPool] เปิด session {client.MachineName} ผ่าน {(client.UsingFallback ? "Tailscale" : "LAN")} "
+            + $"timeout={readyTimeout.TotalSeconds}s sessionsOpen={_sessions.Count}");
+        await handle.StartAsync(_apiClient, _labHubClient, readyTimeout);
         return (true, handle, null);
     }
 

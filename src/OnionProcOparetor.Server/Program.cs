@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.SignalR;
+using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using OnionProcOparetor.Server.Data;
 using OnionProcOparetor.Server.Hubs;
@@ -35,6 +35,16 @@ StartupDiagnostics.WriteLine($"ILogger ทั้งหมดจะถูกเ�
 
 // ---- ตั้งค่า Kestrel ให้ฟัง port ตามที่กำหนดใน appsettings.json ----
 var serverPort = builder.Configuration.GetValue<int>("Server:Port", 8787);
+
+// อายุของคำสั่งประเภท "เหตุการณ์" (Shutdown/Restart/Lock/...) - ดู CommandExpiry สำหรับเหตุผลเต็ม
+// ค่าที่ตั้งผิด (0 หรือติดลบ) จะทำให้ทุกคำสั่งหมดอายุทันทีที่สร้าง = สั่งอะไรไม่ได้เลยทั้งห้อง
+// จึงตกกลับไปใช้ค่า default แทนที่จะเชื่อ config ดื้อ ๆ (pattern เดียวกับ CommandResultTimeoutService)
+var configuredCommandLifetime = builder.Configuration.GetValue<int>(
+    "CommandTracking:EventCommandLifetimeSeconds",
+    (int)CommandExpiry.EventCommandLifetime.TotalSeconds);
+var eventCommandLifetime = configuredCommandLifetime > 0
+    ? TimeSpan.FromSeconds(configuredCommandLifetime)
+    : CommandExpiry.EventCommandLifetime;
 builder.WebHost.ConfigureKestrel(options =>
 {
     options.ListenAnyIP(serverPort); // ฟังทุก network interface เพื่อให้ client/console เครื่องอื่นต่อเข้ามาได้
@@ -367,7 +377,64 @@ app.MapDelete("/api/clients/{id:int}", async (int id, HttpRequest request, AppDb
     return Results.Ok(new { message = "Client deleted." });
 });
 
-// toggle ทั้งห้อง (global)
+// ---- สถานะ enforcement ระดับ global (ทั้งห้อง) ----
+//
+// บั๊กจริงที่เจอ (2026-09-04, field test): GlobalState.IsEnabled เป็น AND gate คร่อม enforcement
+// ของ "ทุกเครื่อง" อยู่ (ดู /api/poll: enabled = globalEnabled && client.IsEnabled) แต่ไม่มี
+// endpoint ไหนให้ "อ่าน" ค่านี้ได้เลยตั้งแต่แรก - มีแต่ POST /toggle ที่พลิกค่าแบบมองไม่เห็น
+// ผลคือพอค่านี้กลายเป็น false (กดปุ่มสลับทั้งระบบไปโดยไม่รู้ตัว) อาการที่เห็นคือ Console โชว์
+// เครื่องเป็น ENABLED ตามปกติทุกเครื่อง แต่ Agent ทุกตัวรายงาน "Disabled" ค้างอยู่อย่างนั้น
+// ตลอดไป และการ toggle รายเครื่องกี่รอบก็ไม่มีอะไรเปลี่ยน (คำสั่ง lock/shutdown ยังทำงานปกติ
+// เพราะไม่ได้ผ่าน gate ตัวนี้) = อาการที่หาสาเหตุไม่เจอเลยเพราะไม่มี UI ไหนมองเห็นค่านี้ได้
+//
+// GET นี้คือ "ตาที่หายไป" - Console ทั้งสองตัวอ่านค่าไปแสดงเป็น banner ได้แล้ว
+app.MapGet("/api/global", async (HttpRequest request, AppDbContext db) =>
+{
+    var admin = await GetAuthorizedAdmin(request, db);
+    if (admin is null)
+        return Results.Unauthorized();
+    if (admin.HasDefaultPassword)
+        return Results.Json(new { error = "Password change required before continuing." }, statusCode: 403);
+
+    // ไม่ SaveChangesAsync() โดยตั้งใจ - GET ต้องไม่เขียนอะไรลง DB ถ้าแถวหายจริง (ไม่ควรเกิด)
+    // ค่าที่ helper สร้างให้จะถูกทิ้งไปพร้อม scoped DbContext ของ request นี้ และคำตอบที่ได้
+    // ("เปิดอยู่") ก็ตรงกับที่ /api/poll ตีความในกรณีเดียวกันพอดี
+    return Results.Ok(await GetOrCreateGlobalStateAsync(db));
+});
+
+// ตั้งค่าตรงๆ ว่าจะเปิดหรือปิด (idempotent) - ต่างจาก /toggle ที่พลิกค่าจากของเดิม
+//
+// ทำไมต้องมีทั้งสองแบบ: /toggle ต้องรู้ค่าปัจจุบันก่อนถึงจะรู้ว่ากดแล้วจะได้อะไร ซึ่งเป็นต้นตอ
+// ของบั๊กด้านบน และยังแพ้ lost-update ถ้าครูสองคนกดพร้อมกัน (กดคนละครั้ง = กลับมาที่เดิม)
+// Console ทั้งสองตัวใช้ /set นี้แทนแล้ว ส่วน /toggle เก็บไว้เพื่อ Console เวอร์ชันเก่าที่ deploy
+// ไปแล้วยังใช้ได้ต่อ (ดู endpoint ถัดไป)
+app.MapPost("/api/global/set", async (GlobalStateRequest req, HttpRequest request, AppDbContext db, IActivityLogService activityLog) =>
+{
+    var admin = await GetAuthorizedAdmin(request, db);
+    if (admin is null)
+        return Results.Unauthorized();
+    if (admin.HasDefaultPassword)
+        return Results.Json(new { error = "Password change required before continuing." }, statusCode: 403);
+
+    var state = await GetOrCreateGlobalStateAsync(db);
+    var changed = state.IsEnabled != req.Enabled;
+
+    state.IsEnabled = req.Enabled;
+    state.UpdatedAt = DateTime.UtcNow;
+    await db.SaveChangesAsync();
+
+    // เขียน Activity Log เฉพาะตอนที่ค่าเปลี่ยนจริง - การกด "เปิด" ซ้ำบนสิ่งที่เปิดอยู่แล้ว
+    // ไม่ใช่เหตุการณ์ที่ต้องบันทึก และจะกลบเหตุการณ์จริงในหน้า log เปล่าๆ
+    if (changed)
+    {
+        await activityLog.LogAdminActionAsync(admin, "GlobalEnforcementToggled",
+            $"{admin.Username} {(state.IsEnabled ? "เปิด" : "ปิด")} enforcement ทั้งห้อง");
+    }
+
+    return Results.Ok(state);
+});
+
+// toggle ทั้งห้อง (global) - คงไว้เพื่อ Console เวอร์ชันเก่า ตัวใหม่ใช้ POST /api/global/set แทน
 app.MapPost("/api/global/toggle", async (HttpRequest request, AppDbContext db, IActivityLogService activityLog) =>
 {
     var admin = await GetAuthorizedAdmin(request, db);
@@ -376,12 +443,7 @@ app.MapPost("/api/global/toggle", async (HttpRequest request, AppDbContext db, I
     if (admin.HasDefaultPassword)
         return Results.Json(new { error = "Password change required before continuing." }, statusCode: 403);
 
-    var state = await db.GlobalStates.FirstOrDefaultAsync(g => g.Id == 1);
-    if (state is null)
-    {
-        state = new GlobalState { Id = 1, IsEnabled = true };
-        db.GlobalStates.Add(state);
-    }
+    var state = await GetOrCreateGlobalStateAsync(db);
 
     state.IsEnabled = !state.IsEnabled;
     state.UpdatedAt = DateTime.UtcNow;
@@ -681,6 +743,9 @@ app.MapGet("/api/poll/{clientGuid}", async (string clientGuid, string machineNam
 
     var globalState = await db.GlobalStates.FirstOrDefaultAsync(g => g.Id == 1);
     var globalEnabled = globalState?.IsEnabled ?? true;
+    // หมายเหตุ: ตรงนี้จงใจไม่เรียก GetOrCreateGlobalStateAsync - poll เป็นเส้นทางที่ agent 40 เครื่อง
+    // วิ่งเข้ามาพร้อมกัน ไม่ควรมีการ INSERT แข่งกัน ถ้าแถวหาย (ไม่ควรเกิด - มี seed ใน migration)
+    // ให้ถือว่า "เปิด" ไว้ก่อน = fail-open เฉพาะ gate ตัวนี้ ซึ่งถูกกว่าการปิดทั้งห้องเพราะแถวหาย
 
     // Effective rule list เฉพาะเครื่องนี้: เริ่มจาก global IsEnabled ของแต่ละกฎ แล้วให้ RuleOverride
     // ของ clientGuid นี้ (ถ้ามี) ชนะเสมอ 100% ไม่มี merge/priority ซับซ้อน - เครื่องอื่นไม่เห็นผลอะไรเลย
@@ -696,8 +761,40 @@ app.MapGet("/api/poll/{clientGuid}", async (string clientGuid, string machineNam
 
     // fallback path สำหรับ command ที่ยังไม่ถึง Agent ผ่าน SignalR (เช่น เครื่อง disconnect อยู่ตอนที่ถูกสั่ง)
     // Agent จะเห็น command เหล่านี้ผ่าน poll รอบถัดไปเสมอ ไม่ว่า SignalR จะต่อติดอยู่หรือไม่ก็ตาม
+    //
+    // ==================== ตัวกันคำสั่งเก่าเด้งตอนบูต (2026-09-10) ====================
+    // นี่คือด่านสำคัญที่สุดของเรื่องอายุคำสั่ง เพราะเป็นทางเดียวที่เครื่องซึ่งเพิ่งเปิดจะได้รับคำสั่งค้าง
+    //
+    // บั๊กจริง: ครูสั่ง Shutdown ทั้งห้อง เครื่องที่เปิดอยู่ดับปกติ ส่วนเครื่องที่ปิดอยู่ตอนนั้นได้
+    // command ค้างเป็น Pending ไว้ พอถูกเปิดวันหลัง poll ครั้งแรกได้คำสั่งเดิมไปรัน = ดับเองทันที
+    // ที่บูตเสร็จ โดยไม่มีใครสั่งอะไรในตอนนั้นเลย
+    //
+    // ปิดสถานะเป็น Expired ก่อน "แล้วค่อย" query - ไม่ใช่แค่กรองออกจากผลลัพธ์: ถ้าแค่กรอง แถวจะยัง
+    // เป็น Pending ค้างใน DB ตลอดไป ทำให้หน้า PENDING COMMANDS ของครูโชว์คำสั่งที่ไม่มีวันทำงาน
+    // และไม่มีใครรู้ว่าเกิดอะไรขึ้นกับคำสั่งนั้น
+    var nowUtc = DateTime.UtcNow;
+    var expiredCommands = await db.ClientCommands
+        .Where(c => c.ClientGuid == clientGuid
+                    && c.Status == ClientCommandStatus.Pending
+                    && c.ExpiresAt != null
+                    && c.ExpiresAt < nowUtc)
+        .ToListAsync();
+
+    foreach (var expired in expiredCommands)
+    {
+        expired.Status = ClientCommandStatus.Expired;
+        if (expired.ExecutionStatus == CommandExecutionStatus.Pending)
+        {
+            expired.ExecutionStatus = CommandExecutionStatus.Expired;
+            expired.ExecutionMessage =
+                "หมดอายุก่อนถึงเครื่อง (เครื่องน่าจะปิดอยู่ตอนที่สั่ง) - ไม่ได้รันและจะไม่รันย้อนหลัง";
+        }
+    }
+
     var pendingCommands = await db.ClientCommands
-        .Where(c => c.ClientGuid == clientGuid && c.Status == ClientCommandStatus.Pending)
+        .Where(c => c.ClientGuid == clientGuid
+                    && c.Status == ClientCommandStatus.Pending
+                    && (c.ExpiresAt == null || c.ExpiresAt >= nowUtc))
         .OrderBy(c => c.CreatedAt)
         .Select(c => new { c.Id, c.CommandType, c.PayloadJson, c.CreatedAt })
         .ToListAsync();
@@ -754,13 +851,17 @@ app.MapPost("/api/commands/{clientGuid}", async (string clientGuid, CommandReque
     if (admin.HasDefaultPassword)
         return Results.Json(new { error = "Password change required before continuing." }, statusCode: 403);
 
+    var commandCreatedAt = DateTime.UtcNow;
     var command = new ClientCommand
     {
         ClientGuid = clientGuid,
         CommandType = req.CommandType,
         PayloadJson = req.Payload,
-        CreatedAt = DateTime.UtcNow,
+        CreatedAt = commandCreatedAt,
         Status = ClientCommandStatus.Pending,
+        // อายุคำสั่ง - คำสั่งประเภท "เหตุการณ์" (Shutdown/Restart/Lock/...) หมดอายุใน 3 นาที ส่วน
+        // คำสั่งประเภท "สถานะ" (UpdateSettings/...) ไม่หมดอายุ ดูเหตุผลเต็มใน CommandExpiry
+        ExpiresAt = CommandExpiry.ComputeExpiry(req.CommandType, commandCreatedAt, eventCommandLifetime),
         // BatchId ผูกคำสั่งทุกเครื่องที่ครูกดพร้อมกันครั้งเดียวไว้ด้วยกัน - Console สร้างค่านี้เอง
         // แล้วส่งมาให้เหมือนกันทุก request ในชุดนั้น (null ได้ถ้ายิง API ตรงโดยไม่ผ่าน Console)
         BatchId = string.IsNullOrWhiteSpace(req.BatchId) ? null : req.BatchId,
@@ -890,8 +991,13 @@ app.MapGet("/api/commands/pending/{clientGuid}", async (string clientGuid, HttpR
     if (admin is null)
         return Results.Unauthorized();
 
+    // กรองด้วยอายุเหมือน /api/poll เป๊ะ ๆ - ถ้าไม่กรอง หน้านี้จะโชว์คำสั่งที่ Server ไม่มีวันส่งให้
+    // เครื่องอีกแล้วว่า "ค้างอยู่" ซึ่งหลอกครูให้ไปกดยกเลิกของที่ตายไปแล้ว
+    var pendingNowUtc = DateTime.UtcNow;
     var pending = await db.ClientCommands
-        .Where(c => c.ClientGuid == clientGuid && c.Status == ClientCommandStatus.Pending)
+        .Where(c => c.ClientGuid == clientGuid
+                    && c.Status == ClientCommandStatus.Pending
+                    && (c.ExpiresAt == null || c.ExpiresAt >= pendingNowUtc))
         .OrderBy(c => c.CreatedAt)
         .ToListAsync();
 
@@ -1593,10 +1699,30 @@ static async Task<bool> OwnsCommandAsync(AppDbContext db, int commandId, string 
     return owner is null || owner == clientGuid;
 }
 
+/// <summary>
+/// อ่านแถว GlobalState (Id = 1) - สร้างให้ถ้ายังไม่มี ผู้เรียกต้อง SaveChangesAsync() เอง
+/// แถวนี้ถูก seed ไว้ใน migration อยู่แล้ว (ดู AppDbContext.OnModelCreating) การสร้างตรงนี้จึงเป็น
+/// safety net สำหรับ DB ที่ถูกสร้างมาก่อน seed เท่านั้น ไม่ใช่ทางปกติ
+/// </summary>
+static async Task<GlobalState> GetOrCreateGlobalStateAsync(AppDbContext db)
+{
+    var state = await db.GlobalStates.FirstOrDefaultAsync(g => g.Id == 1);
+    if (state is null)
+    {
+        state = new GlobalState { Id = 1, IsEnabled = true };
+        db.GlobalStates.Add(state);
+    }
+
+    return state;
+}
+
 // ---- Request DTOs ----
 record CreateUserRequest(string Username, string Password);
 record ChangePasswordRequest(string NewPassword);
 record RuleOverrideRequest(bool IsEnabled);
+
+/// <summary>ตั้งค่า enforcement ทั้งห้องแบบระบุค่าตรงๆ (POST /api/global/set)</summary>
+record GlobalStateRequest(bool Enabled);
 
 /// <summary>BatchId เป็น optional - Console เวอร์ชันเก่าที่ไม่ส่งมาก็ยังใช้งานได้ตามปกติ (เป็น null)</summary>
 record CommandRequest(string CommandType, string? Payload, string? BatchId = null);

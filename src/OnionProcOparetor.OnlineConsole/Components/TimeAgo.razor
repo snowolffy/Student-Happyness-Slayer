@@ -1,0 +1,41 @@
+@* Relative timestamp ("2 นาทีที่แล้ว") with the exact time kept in the tooltip.
+
+   "04/09/2026 14:32" forces the reader to look up the current time and do subtraction before they can
+   answer the only question they actually asked: is this machine still alive? On a status screen the
+   answer is the elapsed time, not the wall-clock time - so that is what gets rendered, and the precise
+   value stays one hover/long-press away in title= for the times you genuinely need it (writing an
+   incident up, comparing against a log line).
+
+   Anything older than a day falls back to the absolute date, because "43200 นาทีที่แล้ว" is worse than
+   useless and "เมื่อ 30 วันก่อน" is no longer precise enough to act on. *@
+<span title="@Local().ToString("dd/MM/yyyy HH:mm:ss")">@Text()</span>
+
+@code {
+    [Parameter, EditorRequired] public DateTime Value { get; set; }
+
+    /// <summary>Server timestamps arrive as UTC; some serialize with Kind=Unspecified, which
+    /// ToUniversalTime() would then wrongly shift by the local offset (7h off, in this timezone -
+    /// every machine would look like it went quiet this morning). Pinning Unspecified to UTC first is
+    /// what keeps a phone in Bangkok and a server in UTC agreeing on "2 นาทีที่แล้ว".</summary>
+    private DateTime Utc() => Value.Kind switch
+    {
+        DateTimeKind.Utc => Value,
+        DateTimeKind.Local => Value.ToUniversalTime(),
+        _ => DateTime.SpecifyKind(Value, DateTimeKind.Utc)
+    };
+
+    private DateTime Local() => Utc().ToLocalTime();
+
+    private string Text()
+    {
+        var delta = DateTime.UtcNow - Utc();
+
+        // Small negative skews are normal (server clock a second or two ahead) and should read as "now",
+        // not as a time in the future.
+        if (delta < TimeSpan.FromSeconds(45)) return "เมื่อครู่";
+        if (delta < TimeSpan.FromMinutes(60)) return $"{(int)delta.TotalMinutes} นาทีที่แล้ว";
+        if (delta < TimeSpan.FromHours(24)) return $"{(int)delta.TotalHours} ชม.ที่แล้ว";
+
+        return Local().ToString("dd/MM/yy HH:mm");
+    }
+}

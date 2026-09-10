@@ -1,4 +1,4 @@
-using System.Windows;
+﻿using System.Windows;
 using OnionProcOparetor.Console.Models;
 using OnionProcOparetor.Console.Services;
 
@@ -62,11 +62,16 @@ public partial class ActionPanelWindow : Window
     /// </summary>
     public ActionReportRequest? PendingReport { get; private set; }
 
-    /// <summary>Single-client mode - เปิดจากปุ่ม ACTIONS ต่อแถว</summary>
-    public ActionPanelWindow(ApiClient apiClient, ClientMachineDto client)
+    /// <summary>
+    /// Single-client mode - เปิดจากปุ่มคำสั่งของเครื่องนั้น
+    ///
+    /// <paramref name="alreadyViewingScreen"/> = เปิดมาจากหน้าดูจอเต็มจอ จึงซ่อนปุ่ม "ดูหน้าจอ" ทิ้ง
+    /// เพราะครูกำลังดูจอเครื่องนั้นอยู่แล้ว และถ้ากดจริงมันจะสลับไปแท็บ Screen View ทั้งที่ overlay
+    /// เต็มจอยังคลุมอยู่ = จอค้างงง
+    /// </summary>
+    public ActionPanelWindow(ApiClient apiClient, ClientMachineDto client, bool alreadyViewingScreen = false)
     {
         InitializeComponent();
-        Loaded += (_, _) => WindowCenteringHelper.CenterOverOwnerOrScreen(this);
         _apiClient = apiClient;
         _isBulk = false;
         _singleClient = client;
@@ -79,20 +84,33 @@ public partial class ActionPanelWindow : Window
         SettingsButton.Visibility = Visibility.Visible;
         ConfigRuleButton.Visibility = Visibility.Visible;
         DeleteButton.Visibility = Visibility.Visible;
-        ViewScreenButton.Visibility = Visibility.Visible;
+        ViewScreenButton.Visibility = alreadyViewingScreen ? Visibility.Collapsed : Visibility.Visible;
         ViewProcessesButton.Visibility = Visibility.Visible;
         PendingCommandsButton.Visibility = Visibility.Visible;
-        ToggleButton.Content = client.IsEnabled ? "DISABLE ENFORCEMENT" : "ENABLE ENFORCEMENT";
+        ToggleButton.Content = client.IsEnabled
+            ? "ปิดการบังคับใช้กฎ (เครื่องนี้)"
+            : "เปิดการบังคับใช้กฎ (เครื่องนี้)";
+        ApplyTailscaleVisibility();
     }
 
     /// <summary>
-    /// Bulk mode - เปิดจากปุ่ม ACTIONS บน header (multi-select) selectedClients ต้องมีอย่างน้อย 1 เครื่อง
-    /// (caller เช็คมาก่อนแล้ว) allClients ใช้ตอนเลือก "ทุกเครื่อง" แทน "เครื่องที่เลือกไว้"
+    /// Bulk mode - เปิดจากปุ่ม ACTIONS บนแถบคำสั่ง
+    ///
+    /// <paramref name="selectedClients"/> **ว่างได้** (2026-09-10): เดิม caller บังคับให้เลือกอย่างน้อย
+    /// หนึ่งเครื่องก่อน ซึ่งแปลว่าจะสั่ง "ทุกเครื่อง" ต้องไปเลือกเครื่องที่ไม่ได้ตั้งใจจะสั่งก่อนหนึ่งเครื่อง
+    /// ตอนนี้ถ้าไม่ได้เลือกอะไรเลย ตัวเลือก "เครื่องที่เลือกไว้" จะถูกปิดและบังคับเป็น "ทุกเครื่อง"
+    /// (ไม่ปล่อยให้เลือกเป้าที่มี 0 เครื่องได้ ไม่งั้นกดสั่งแล้วเงียบ ไม่มีอะไรเกิดขึ้น)
+    ///
+    /// <paramref name="defaultToAll"/> เลือกว่าจะตั้งเป้าเริ่มต้นเป็นทุกเครื่องหรือเฉพาะที่เลือก -
+    /// ปุ่ม "ACTIONS (ทุกเครื่อง)" กับ "ACTIONS (ที่เลือก)" เป็นแผงเดียวกัน ต่างกันแค่ตรงนี้
     /// </summary>
-    public ActionPanelWindow(ApiClient apiClient, List<ClientMachineDto> selectedClients, List<ClientMachineDto> allClients)
+    public ActionPanelWindow(
+        ApiClient apiClient,
+        List<ClientMachineDto> selectedClients,
+        List<ClientMachineDto> allClients,
+        bool defaultToAll = false)
     {
         InitializeComponent();
-        Loaded += (_, _) => WindowCenteringHelper.CenterOverOwnerOrScreen(this);
         _apiClient = apiClient;
         _isBulk = true;
         _selectedClients = selectedClients;
@@ -102,11 +120,17 @@ public partial class ActionPanelWindow : Window
         TargetPanel.Visibility = Visibility.Visible;
         ApplyToSelectedRadio.Content = $"เครื่องที่เลือกไว้ ({selectedClients.Count} เครื่อง)";
         ApplyToAllRadio.Content = $"ทุกเครื่อง ({allClients.Count} เครื่อง)";
-        ApplyToSelectedRadio.IsChecked = true;
+
+        var targetAll = defaultToAll || selectedClients.Count == 0;
+        ApplyToSelectedRadio.IsEnabled = selectedClients.Count > 0;
+        ApplyToAllRadio.IsChecked = targetAll;
+        ApplyToSelectedRadio.IsChecked = !targetAll;
 
         ApplyToSelectedRadio.Checked += (_, _) => HeaderText.Text = $"Applying to {_selectedClients.Count} selected machines";
         ApplyToAllRadio.Checked += (_, _) => HeaderText.Text = $"Applying to all {_allClients.Count} machines";
-        HeaderText.Text = $"Applying to {selectedClients.Count} selected machines";
+        HeaderText.Text = targetAll
+            ? $"Applying to all {allClients.Count} machines"
+            : $"Applying to {selectedClients.Count} selected machines";
 
         SettingsButton.Visibility = Visibility.Collapsed;
         ConfigRuleButton.Visibility = Visibility.Collapsed;
@@ -114,13 +138,36 @@ public partial class ActionPanelWindow : Window
         ViewScreenButton.Visibility = Visibility.Collapsed;
         ViewProcessesButton.Visibility = Visibility.Collapsed;
         PendingCommandsButton.Visibility = Visibility.Collapsed;
-        ToggleButton.Content = "TOGGLE ENFORCEMENT";
+        // โหมดหมู่กลับสถานะของ "แต่ละเครื่อง" ตามค่าเดิมของเครื่องนั้น ๆ จึงบอกผลลัพธ์เดียวไม่ได้จริง ๆ
+        // เขียนตามความจริงว่ามันสลับ แล้วอธิบายรายละเอียดใน ToolTip แทนที่จะตั้งชื่อที่ฟังดูชัดแต่ผิด
+        ToggleButton.Content = "สลับเปิด/ปิดการบังคับใช้กฎ";
+        ToggleButton.ToolTip = "กลับสถานะของแต่ละเครื่องจากค่าเดิมของเครื่องนั้น - "
+            + "เครื่องที่เปิดอยู่จะถูกปิด เครื่องที่ปิดอยู่จะถูกเปิด";
+        ApplyTailscaleVisibility();
+    }
+
+    /// <summary>
+    /// ซ่อนปุ่ม Tailscale ทั้งสี่ตัวถ้าผู้ใช้ไม่ได้เปิดไว้ใน Settings (ค่าเริ่มต้นคือซ่อน)
+    ///
+    /// เรียกจาก constructor **ทุกตัว** ไม่ว่าจะโหมด single-client หรือ bulk - โจทย์คือ "ถ้าปิดไว้
+    /// ต้องไม่โผล่ในหน้า actions ทุกหน้า" ถ้าเรียกแค่ตัวใดตัวหนึ่งจะหลุดทันทีในอีกโหมด
+    /// </summary>
+    private void ApplyTailscaleVisibility()
+    {
+        var visibility = SettingsService.Current.Ui.ShowTailscaleActions
+            ? Visibility.Visible
+            : Visibility.Collapsed;
+
+        // ซ่อนทั้ง Grid ที่ครอบอยู่ ไม่ใช่ซ่อนแค่ปุ่ม - ไม่งั้นจะเหลือช่องว่างสองแถวค้างไว้
+        TailscaleLockRow.Visibility = visibility;
+        TailscaleStatusRow.Visibility = visibility;
     }
 
     private List<ClientMachineDto> CurrentTargets =>
         _isBulk && ApplyToAllRadio.IsChecked == true ? _allClients : _selectedClients;
 
-    private bool Confirm(string message, string title) => ConfirmWindow.Show(message, title, this);
+    private bool Confirm(string message, string title, string? confirmText = null) =>
+        ConfirmWindow.Show(message, title, this, confirmText);
 
     /// <summary>
     /// Toggle enforcement - เป็น action เดียวที่ใช้หน้า report แบบ "immediate" (BatchId = null)
@@ -132,7 +179,10 @@ public partial class ActionPanelWindow : Window
     {
         var targets = CurrentTargets;
 
-        if (_isBulk && !Confirm($"ยืนยัน toggle สถานะของ {targets.Count} เครื่องที่เลือกไว้?", "ยืนยัน Toggle"))
+        if (_isBulk && !Confirm(
+                $"จะกลับสถานะการบังคับใช้กฎของ {targets.Count} เครื่อง - เครื่องที่เปิดอยู่จะถูกปิด "
+                + "และเครื่องที่ปิดอยู่จะถูกเปิด",
+                "สลับการบังคับใช้กฎ", "สลับสถานะ"))
         {
             return;
         }

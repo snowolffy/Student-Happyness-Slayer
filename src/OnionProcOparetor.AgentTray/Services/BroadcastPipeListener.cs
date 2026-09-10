@@ -33,13 +33,40 @@ namespace OnionProcOparetor.AgentTray.Services;
 /// เรียงลำดับทีละอันเหมือนเดิม (single consumer) เพื่อคงพฤติกรรมเดิมที่ handler บางตัวไม่ idempotent
 /// (เช่น ShutdownNotify ที่ต้อง "ทับด้วยคำสั่งล่าสุดเสมอ" - ดู OnShutdownNotifyRequested ฝั่ง App.xaml.cs)
 /// ต้องมาถึง UI ตามลำดับที่ Agent ส่งจริง
+///
+/// รอบที่สอง (2026-09-10): การแยก accept ออกจาก handler ยังไม่พอ เพราะตัว accept-loop เองก็ค้างได้
+/// ที่ ReadLineAsync - ดู ReadTimeout กับ RestartAccept() ข้างล่าง
 /// </summary>
 public class BroadcastPipeListener
 {
     /// <summary>ต้องตรงกับ AgentTrayNotifier.PipeName ฝั่ง Agent เป๊ะๆ</summary>
     public const string PipeName = "OnionProcOparetor.AgentTray.Broadcast";
 
+    /// <summary>
+    /// เวลารอ "หนึ่งบรรทัด" หลัง client ต่อเข้ามาแล้ว - ต้องมี ไม่ใช่มีก็ดี
+    ///
+    /// ฝั่ง Agent (AgentTrayNotifier.SendOnceAsync) เขียน JSON + "\n" ทันทีหลัง ConnectAsync สำเร็จ
+    /// ปกติจึงถึงภายในไม่กี่ ms - 10 วิเผื่อไว้เหลือเฟือ แต่ถ้า connection ไหน "ต่อเข้ามาแล้วไม่ส่งอะไรเลย"
+    /// (client ถูกแช่แข็งกลางคันตอนเครื่อง sleep, ถูก kill ระหว่างเขียน, หรือ handle ค้างจนไม่เห็น EOF)
+    /// ของเดิมจะรอตรงนั้น "ตลอดไป" เพราะใช้ ct อายุเท่าโปรแกรม และ maxNumberOfServerInstances=1
+    /// แปลว่าไม่มีทางสร้าง server instance ใหม่มารับ connection อื่นได้เลย = Tray หูหนวกถาวร
+    /// ทุกคำสั่งจาก Console หลังจากนั้นเงียบหมด (lock/unlock/broadcast/shutdown/VNC) ทั้งที่ process
+    /// ยังรันอยู่ tray icon ยังกดได้ปกติ - ตรงกับอาการที่ผู้ใช้รายงาน
+    ///
+    /// ที่แย่กว่านั้นคือกู้เองไม่ได้: Agent ส่งไม่สำเร็จ -> สตาร์ท AgentTray ใหม่ (AgentTrayRecoveryService)
+    /// -> ตัวใหม่เจอ SingleInstanceGuard ว่ามีตัวเก่าถืออยู่ -> ปิดตัวเองทันที safety net ฝั่ง Agent จึง
+    /// แก้ได้เฉพาะเคส "Tray ตาย" ไม่ใช่เคส "Tray ค้าง" ต้องไป kill process เองที่เครื่องเท่านั้น
+    /// </summary>
+    private static readonly TimeSpan ReadTimeout = TimeSpan.FromSeconds(10);
+
     private readonly Channel<string> _messageQueue = Channel.CreateUnbounded<string>();
+
+    /// <summary>
+    /// token ของ "การรับ connection รอบปัจจุบัน" (linked กับ token อายุเท่าโปรแกรมที่ Start() รับมา)
+    /// มีไว้ให้ RestartAccept() ยกเลิกรอบที่ค้างอยู่ได้โดยไม่ฆ่าทั้ง listener - เขียน/อ่านข้าม thread
+    /// (accept-loop กับ SystemEvents thread) จึงต้อง volatile
+    /// </summary>
+    private volatile CancellationTokenSource? _acceptCycleCts;
 
     /// <summary>เรียกทุกครั้งที่ได้ broadcast message ใหม่ - เรียกจาก background thread ไม่ใช่ UI thread</summary>
     public event Action<BroadcastMessageDto>? MessageReceived;
@@ -79,6 +106,34 @@ public class BroadcastPipeListener
     }
 
     /// <summary>
+    /// ทิ้ง server instance ของรอบปัจจุบันแล้วเปิดใหม่ - ปลอดภัยเรียกจาก thread ไหนก็ได้ และเรียกตอน
+    /// ไม่มีอะไรค้างอยู่ก็ไม่เสียหาย (แค่เสีย connection ที่กำลังอ่านค้างอยู่พอดี ซึ่งฝั่ง Agent retry
+    /// ให้อยู่แล้ว)
+    ///
+    /// เรียกจาก App.xaml.cs ตอนเครื่องตื่นจาก sleep (PowerModeChanged.Resume) - named pipe เป็น
+    /// kernel object ที่ข้ามการ suspend/resume มาแล้ว "ไม่การันตี" ว่ายังใช้ได้เหมือนเดิม ทั้ง server
+    /// handle เองและ overlapped I/O ที่ค้างอยู่ตอนเครื่องหลับ การเปิดใหม่ทั้งชุดตอนตื่นเป็นวิธีเดียวที่
+    /// รับประกันได้ว่ากลับมารับคำสั่งได้จริง โดยไม่ต้องรู้ว่ามันพังตรงไหนกันแน่
+    /// </summary>
+    public void RestartAccept()
+    {
+        var cts = _acceptCycleCts;
+        if (cts is null)
+        {
+            return;
+        }
+
+        try
+        {
+            cts.Cancel();
+        }
+        catch (ObjectDisposedException)
+        {
+            // accept-loop เพิ่ง dispose มันไปพอดีระหว่างนี้ - แปลว่ามันเดินหน้าต่อเองอยู่แล้ว ไม่ต้องทำอะไร
+        }
+    }
+
+    /// <summary>
     /// รับ connection ทีละอัน - แค่อ่านบรรทัดเดียวแล้วส่งเข้า queue ทันที ไม่เรียก handler ตรงๆ ที่นี่
     /// (ดู doc comment บนสุดของ class ว่าทำไม) ทำให้วนกลับไปรับ connection ถัดไปได้เสมอไม่ว่า message
     /// ก่อนหน้าจะถูกประมวลผลเสร็จหรือยัง
@@ -113,30 +168,66 @@ public class BroadcastPipeListener
                 AccessControlType.Allow));
         }
 
+        TrayDiagnostics.Log($"[pipe] accept-loop เริ่มทำงาน (readTimeout={ReadTimeout.TotalSeconds}s)");
+
         while (!ct.IsCancellationRequested)
         {
+            var cycleCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            _acceptCycleCts = cycleCts;
+            var cycleCt = cycleCts.Token;
+
             try
             {
                 using var server = NamedPipeServerStreamAcl.Create(
                     PipeName, PipeDirection.In, 1, PipeTransmissionMode.Byte, PipeOptions.Asynchronous, 0, 0, pipeSecurity);
 
-                await server.WaitForConnectionAsync(ct);
+                await server.WaitForConnectionAsync(cycleCt);
 
                 using var reader = new StreamReader(server);
-                var line = await reader.ReadLineAsync(ct);
+
+                // อ่านแบบมี timeout ผ่าน WhenAny ไม่ใช่แค่ส่ง token เข้า ReadLineAsync เฉยๆ - ถ้าการยกเลิก
+                // overlapped read ของ pipe ไม่เป็นผลด้วยเหตุผลใดก็ตาม (ซึ่งเป็นสิ่งที่เราไม่มีทางพิสูจน์ได้
+                // จากเครื่อง dev) เส้นทางนี้ยังหลุดออกมาได้เสมอ แล้วปล่อยให้ using dispose ตัว server ทิ้ง
+                // ซึ่งเป็นสิ่งที่ทำให้ read ที่ค้างอยู่ตายจริงๆ - กันไม่ให้ "loop ค้าง" เป็นไปได้เลยไม่ว่ากรณีใด
+                var readTask = reader.ReadLineAsync(cycleCt).AsTask();
+                var completed = await Task.WhenAny(readTask, Task.Delay(ReadTimeout, cycleCt));
+
+                if (completed != readTask)
+                {
+                    // ครบ ReadTimeout แล้วยังไม่ได้บรรทัด (หรือรอบนี้ถูกสั่งยกเลิก) - ทิ้ง connection นี้ไป
+                    // แล้วเปิด server ใหม่ ไม่รอต่อ ฝั่ง Agent retry ให้อยู่แล้วถ้ามันยังมีอะไรจะส่งจริง
+                    if (!cycleCt.IsCancellationRequested)
+                    {
+                        TrayDiagnostics.Log(
+                            $"[pipe] client ต่อเข้ามาแล้วไม่ส่งข้อมูลภายใน {ReadTimeout.TotalSeconds} วิ - ตัดทิ้งแล้วเปิด server ใหม่");
+                    }
+
+                    // ไม่ await readTask ต่อ แต่ต้อง observe exception ของมันไม่ให้กลายเป็น unobserved
+                    _ = readTask.ContinueWith(static t => _ = t.Exception, TaskScheduler.Default);
+                    continue;
+                }
+
+                var line = await readTask;
 
                 if (!string.IsNullOrWhiteSpace(line))
                 {
+                    TrayDiagnostics.Log($"[pipe] รับ message: {line}");
                     await _messageQueue.Writer.WriteAsync(line, ct);
                 }
             }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested)
+            {
+                TrayDiagnostics.Log("[pipe] accept-loop หยุด (โปรแกรมกำลังปิด)");
+                return;
+            }
             catch (OperationCanceledException)
             {
-                return;
+                // เฉพาะรอบนี้ถูกยกเลิก (RestartAccept - เช่นตอนเครื่องตื่นจาก sleep) ไม่ใช่ทั้ง listener
+                TrayDiagnostics.Log("[pipe] รอบรับ connection ถูกยกเลิก - เปิด server ใหม่");
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"[BroadcastPipeListener] รับ connection ไม่สำเร็จ: {ex.Message}");
+                TrayDiagnostics.Log($"[pipe] รับ connection ไม่สำเร็จ: {ex.GetType().Name}: {ex.Message}");
 
                 try
                 {
@@ -146,6 +237,11 @@ public class BroadcastPipeListener
                 {
                     return;
                 }
+            }
+            finally
+            {
+                _acceptCycleCts = null;
+                cycleCts.Dispose();
             }
         }
     }
@@ -236,13 +332,13 @@ public class BroadcastPipeListener
                     break;
 
                 default:
-                    System.Diagnostics.Debug.WriteLine($"[BroadcastPipeListener] ไม่รู้จัก message type: '{envelope.Type}'");
+                    TrayDiagnostics.Log($"[pipe] ไม่รู้จัก message type: '{envelope.Type}'");
                     break;
             }
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"[BroadcastPipeListener] แปลง message ไม่สำเร็จ: {ex.Message}");
+            TrayDiagnostics.Log($"[pipe] แปลง message ไม่สำเร็จ: {ex.Message}");
         }
     }
 }

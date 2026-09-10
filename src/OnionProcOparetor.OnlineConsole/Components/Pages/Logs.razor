@@ -1,0 +1,167 @@
+@page "/logs"
+@rendermode InteractiveServer
+@inherits AuthenticatedPageBase
+
+<PageTitle>Logs - OnionProcOparetor Online Console</PageTitle>
+
+<div class="page-head">
+    <div>
+        <h2 class="heading2" style="margin:0">Logs</h2>
+        <div class="page-subtitle">โปรแกรมที่ถูกตรวจจับล่าสุด และสิ่งที่ Agent ทำกับมัน</div>
+    </div>
+</div>
+
+<div class="toolbar">
+    <SearchBox Value="@_filter" ValueChanged="@(v => { _filter = v; StateHasChanged(); })"
+               Placeholder="ค้นหาเครื่อง / โปรแกรม / ผู้เผยแพร่..." AriaLabel="ค้นหาในบันทึก" />
+    @* Quick chips for the question this page is nearly always opened to answer: "อะไรโดนบล็อกไปบ้าง".
+       Cheaper than a filter dropdown and it shows the count without being opened - and, unlike the
+       search box, it survives not knowing what the action strings are called. *@
+    <span class="spacer"></span>
+    <button class="btn btn-secondary @(_refreshing ? "is-busy" : "")" @onclick="RefreshAsync">
+        <Icon Name="refresh-cw" Size="15" /> รีเฟรช
+    </button>
+</div>
+
+<div class="chip-row">
+    <button class="chip @(_actionFilter is null ? "active" : "")" @onclick="() => _actionFilter = null">
+        ทั้งหมด <span class="chip-count">@_logs.Count</span>
+    </button>
+    @foreach (var action in ActionKinds())
+    {
+        <button class="chip @(_actionFilter == action ? "active" : "")" @onclick="() => _actionFilter = action">
+            @action <span class="chip-count">@_logs.Count(l => l.ActionTaken == action)</span>
+        </button>
+    }
+</div>
+
+@if (_loading)
+{
+    @for (var i = 0; i < 6; i++) { <div class="skeleton skeleton-card"></div> }
+}
+else if (!Filtered().Any())
+{
+    <div class="card">
+        <EmptyState IconName="file-text"
+                    Title="@(_logs.Count == 0 ? "ยังไม่มีบันทึก" : "ไม่มีบันทึกที่ตรงกับตัวกรอง")"
+                    Detail="@(_logs.Count == 0 ? "บันทึกจะขึ้นที่นี่เมื่อ Agent เจอโปรแกรมที่ตรงกับกฎ" : "ลองล้างคำค้นหา หรือเลือกหมวดอื่น")" />
+    </div>
+}
+else
+{
+    @* Phone rendering. A log line's identity is the process, so that leads; the machine and the time
+       are the two things you check next, and the rest (publisher, signature, matched rule) drops to
+       the detail rows. The full path goes in .mono because that string is read character by character
+       when it's read at all. *@
+    <div class="card-list narrow-only">
+        @foreach (var log in Filtered())
+        {
+            <div class="data-card" @key="log.Id" style="--data-card-accent: @ActionColor(log.ActionTaken)">
+                <div class="data-card-head">
+                    <div style="flex:1; min-width:0">
+                        <div class="data-card-title">@FileName(log.ProcessPath)</div>
+                        <div class="data-card-sub mono">@log.ProcessPath</div>
+                    </div>
+                    <span class="badge @ActionBadge(log.ActionTaken)">@log.ActionTaken</span>
+                </div>
+                <dl class="data-card-rows">
+                    <dt>เครื่อง</dt><dd>@log.MachineName</dd>
+                    <dt>เวลา</dt><dd><TimeAgo Value="log.Timestamp" /></dd>
+                    <dt>ผู้เผยแพร่</dt><dd class="truncate">@(string.IsNullOrWhiteSpace(log.DetectedPublisher) ? "-" : log.DetectedPublisher)@(log.WasSignedMatch ? " ✓" : "")</dd>
+                    <dt>กฎที่ตรง</dt><dd>@(log.MatchedRuleName ?? "-")</dd>
+                </dl>
+            </div>
+        }
+    </div>
+
+    <div class="table-scroll wide-only">
+        <table>
+            <thead><tr><th>Time</th><th>Machine</th><th>Process</th><th>Publisher</th><th>Signed</th><th>Rule</th><th>Action Taken</th></tr></thead>
+            <tbody>
+                @foreach (var log in Filtered())
+                {
+                    <tr @key="log.Id">
+                        <td><TimeAgo Value="log.Timestamp" /></td>
+                        <td>@log.MachineName</td>
+                        <td class="mono">@log.ProcessPath</td>
+                        <td>@log.DetectedPublisher</td>
+                        <td>@(log.WasSignedMatch ? "Yes" : "No")</td>
+                        <td>@log.MatchedRuleName</td>
+                        <td><span class="badge @ActionBadge(log.ActionTaken)">@log.ActionTaken</span></td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+}
+
+@code {
+    private List<LogEntryDto> _logs = new();
+    private string _filter = string.Empty;
+    private string? _actionFilter;
+    private bool _loading = true;
+    private bool _refreshing;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await base.OnInitializedAsync();
+        await LoadAsync();
+        _loading = false;
+    }
+
+    private async Task LoadAsync() => _logs = await Api.GetLogsAsync();
+
+    private async Task RefreshAsync()
+    {
+        _refreshing = true;
+        await LoadAsync();
+        _refreshing = false;
+    }
+
+    /// <summary>The action values actually present in the loaded page of logs, rather than a hard-coded
+    /// list: the Server decides those strings, and a chip for a value that never appears is just noise,
+    /// while a hard-coded list silently hides any new action type the Server starts emitting.</summary>
+    private IEnumerable<string> ActionKinds() =>
+        _logs.Select(l => l.ActionTaken).Where(a => !string.IsNullOrWhiteSpace(a)).Distinct().OrderBy(a => a);
+
+    private IEnumerable<LogEntryDto> Filtered()
+    {
+        IEnumerable<LogEntryDto> query = _logs;
+
+        if (_actionFilter is not null)
+        {
+            query = query.Where(l => l.ActionTaken == _actionFilter);
+        }
+
+        if (!string.IsNullOrWhiteSpace(_filter))
+        {
+            query = query.Where(l =>
+                (l.MachineName?.Contains(_filter, StringComparison.OrdinalIgnoreCase) ?? false) ||
+                (l.ProcessPath?.Contains(_filter, StringComparison.OrdinalIgnoreCase) ?? false) ||
+                (l.DetectedPublisher?.Contains(_filter, StringComparison.OrdinalIgnoreCase) ?? false) ||
+                (l.ActionTaken?.Contains(_filter, StringComparison.OrdinalIgnoreCase) ?? false));
+        }
+
+        return query;
+    }
+
+    /// <summary>Last path segment. A phone card has room for one strong line, and "roblox.exe" is the
+    /// part anyone actually recognises - the full path stays right underneath it.</summary>
+    private static string FileName(string? path) =>
+        string.IsNullOrWhiteSpace(path) ? "(ไม่ทราบไฟล์)" : path.Split('\\', '/').Last();
+
+    // Matched loosely (Contains, case-insensitive) on purpose: these strings come from the Server and
+    // an exact-match switch would silently fall through to grey the moment one is reworded.
+    private static string ActionBadge(string? action) =>
+        action is null ? "badge-offline"
+        : action.Contains("kill", StringComparison.OrdinalIgnoreCase) || action.Contains("block", StringComparison.OrdinalIgnoreCase) ? "badge-danger"
+        : action.Contains("warn", StringComparison.OrdinalIgnoreCase) || action.Contains("flag", StringComparison.OrdinalIgnoreCase) ? "badge-warning"
+        : "badge-offline";
+
+    private static string ActionColor(string? action) => ActionBadge(action) switch
+    {
+        "badge-danger" => "var(--danger)",
+        "badge-warning" => "var(--warning)",
+        _ => "var(--border)"
+    };
+}

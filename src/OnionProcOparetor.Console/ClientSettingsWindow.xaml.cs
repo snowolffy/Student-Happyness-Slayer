@@ -1,4 +1,4 @@
-using System.Windows;
+﻿using System.Windows;
 using OnionProcOparetor.Console.Models;
 using OnionProcOparetor.Console.Services;
 
@@ -12,7 +12,6 @@ public partial class ClientSettingsWindow : Window
     public ClientSettingsWindow(ApiClient apiClient, ClientMachineDto client)
     {
         InitializeComponent();
-        Loaded += (_, _) => WindowCenteringHelper.CenterOverOwnerOrScreen(this);
         _apiClient = apiClient;
         _client = client;
 
@@ -36,7 +35,8 @@ public partial class ClientSettingsWindow : Window
         else
         {
             StatusText.Text = "กรุณากรอกตัวเลขจำนวนเต็มบวก หรือเว้นว่างไว้เพื่อใช้ค่า default";
-            StatusText.Foreground = (System.Windows.Media.Brush)FindResource("Brush.Danger.Default");
+            // SetResourceReference ไม่ใช่ FindResource: FindResource คืน "ค่า ณ ตอนนั้น" ครั้งเดียว ซึ่งจะค้างอยู่กับธีมเดิมตลอดไปเมื่อผู้ใช้สลับธีม - SetResourceReference ผูกเป็น DynamicResource จริงเหมือนที่เขียนใน XAML จึงตามธีมใหม่ให้เอง
+            StatusText.SetResourceReference(System.Windows.Controls.TextBlock.ForegroundProperty, "Brush.Danger.Default");
             return;
         }
 
@@ -61,7 +61,7 @@ public partial class ClientSettingsWindow : Window
     private async Task ApplySettingAsync(int? overrideSeconds)
     {
         StatusText.Text = "กำลังส่งคำสั่ง...";
-        StatusText.Foreground = (System.Windows.Media.Brush)FindResource("Brush.Status.Offline");
+        StatusText.SetResourceReference(System.Windows.Controls.TextBlock.ForegroundProperty, "Brush.Status.Offline");
 
         var payload = new { pollIntervalOverrideSeconds = overrideSeconds };
         var commandSent = await _apiClient.SendCommandAsync(_client.ClientGuid, "UpdateSettings", payload);
@@ -83,7 +83,7 @@ public partial class ClientSettingsWindow : Window
         else
         {
             StatusText.Text = "บันทึกไม่สำเร็จ ลองใหม่อีกครั้ง";
-            StatusText.Foreground = (System.Windows.Media.Brush)FindResource("Brush.Danger.Default");
+            StatusText.SetResourceReference(System.Windows.Controls.TextBlock.ForegroundProperty, "Brush.Danger.Default");
         }
     }
 

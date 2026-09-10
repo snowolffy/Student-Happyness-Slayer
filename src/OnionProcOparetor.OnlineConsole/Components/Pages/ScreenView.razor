@@ -1,0 +1,170 @@
+@page "/screen-view/{ClientGuid}"
+@rendermode InteractiveServer
+@inherits AuthenticatedPageBase
+@inject NavigationManager Navigation
+@inject IJSRuntime JS
+
+<PageTitle>Screen View - OnionProcOparetor Online Console</PageTitle>
+
+<div class="page-head">
+    <div>
+        <h2 class="heading2" style="margin:0">@(_client?.MachineName ?? "Screen View")</h2>
+        <div class="page-subtitle">
+            @if (_client is not null)
+            {
+                @($"{(_client.IsOnline ? "ออนไลน์" : "ออฟไลน์")} · {(_client.UsingFallback ? "ผ่าน Tailscale" : "ผ่าน LAN")}")
+            }
+        </div>
+    </div>
+    <span class="spacer"></span>
+    @* Explicit back link. Reached by tapping a machine from Clients, and on a phone in standalone
+       (installed) mode there is no browser back button at all - so the way out has to be on the page. *@
+    <button class="btn btn-secondary" @onclick='() => Navigation.NavigateTo("/")'>
+        <Icon Name="chevron-left" Size="15" /> กลับไป Clients
+    </button>
+</div>
+
+@if (_loading)
+{
+    <div class="skeleton" style="height:60vh; border-radius:var(--radius-lg)"></div>
+}
+else if (_client is null)
+{
+    <div class="card">
+        <EmptyState IconName="alert-triangle" Title="ไม่พบเครื่องนี้"
+                    Detail="เครื่องอาจถูกลบออกจากระบบไปแล้ว หรือลิงก์ที่เปิดมาไม่ถูกต้อง" />
+    </div>
+}
+else
+{
+    @* Height adapts instead of being a flat 70vh. The canvas scales to the container's WIDTH and keeps
+       its own aspect ratio (see .vnc-canvas-wrap), so a fixed 70vh on a portrait phone just reserves a
+       tall black box with a small strip of screen at the top of it. 56.25vw is exactly the 16:9 height
+       of a full-width image, so on a phone the box matches the picture, while on desktop 70vh is the
+       smaller of the two and wins.
+
+       @key forces a fresh VncView (and so a fresh session + a clean disconnect of the old one) whenever
+       the walk-the-room buttons below change which machine this page is pointed at. Without it, Blazor
+       would reuse the component, keep the previous machine's RFB connection open, and show the wrong
+       desktop under the new title. *@
+    <div class="toolbar" style="margin-bottom:.6rem">
+        @* The single most useful control on this page from a phone. A 1920x1080 desktop scaled into a
+           360px portrait column is unreadable; fullscreen + landscape turns the whole handset into the
+           screen. See app.js for why this is JS (three different levels of browser support). *@
+        <button class="btn btn-primary" @onclick="EnterFullscreenAsync">
+            <Icon Name="monitor" Size="15" /> เต็มจอ (แนวนอน)
+        </button>
+        <span class="caption">แตะเต็มจอแล้วหมุนเครื่อง - บน iPhone ต้องหมุนเอง</span>
+    </div>
+
+    <div id="screen-stage" class="screen-stage">
+        <VncView @key="_client.ClientGuid" ClientGuid="@_client.ClientGuid" MachineName="@_client.MachineName" Height="@CanvasHeight" />
+
+        @* Lives inside the stage because in fullscreen nothing outside it can be reached - and on the
+           iPhone fallback path the browser provides no exit affordance of its own at all. *@
+        <button class="btn btn-secondary btn-sm stage-exit" @onclick="ExitFullscreenAsync">
+            <Icon Name="x" Size="15" /> ออกจากเต็มจอ
+        </button>
+    </div>
+
+    @* Walk-the-room controls: what the removed Live View grid was actually FOR was "let me sweep the
+       lab". This does the same survey one machine at a time - which is the only shape that fits a
+       phone's link, since each open view is a full-resolution stream (see the note in VncView.razor).
+       Offline machines are skipped: there is nothing to connect to on them. *@
+    @if (_walk.Count > 1)
+    {
+        <div class="toolbar" style="margin-top:.6rem">
+            <button class="btn btn-secondary" disabled="@(_walkIndex <= 0)" @onclick="PrevAsync">
+                <Icon Name="chevron-left" Size="15" /> เครื่องก่อนหน้า
+            </button>
+            <span class="spacer"></span>
+            <span class="caption">เครื่องออนไลน์ที่ @(_walkIndex + 1) จาก @_walk.Count</span>
+            <span class="spacer"></span>
+            <button class="btn btn-secondary" disabled="@(_walkIndex < 0 || _walkIndex >= _walk.Count - 1)" @onclick="NextAsync">
+                เครื่องถัดไป <Icon Name="chevron-right" Size="15" />
+            </button>
+        </div>
+    }
+
+    <div class="caption" style="margin-top:.5rem">
+        ลากนิ้วบนภาพเพื่อขยับเมาส์ - แตะเพื่อคลิก (ดู wwwroot/js/vncInterop.js) ·
+        ดูได้ทีละเครื่องเท่านั้น เพราะภาพที่ส่งมาเป็นความละเอียดเต็มของจอปลายทาง
+    </div>
+}
+
+@code {
+    [Parameter] public string ClientGuid { get; set; } = string.Empty;
+
+    private List<ClientMachineDto> _clients = new();
+    private List<ClientMachineDto> _walk = new();
+    private ClientMachineDto? _client;
+    private int _walkIndex = -1;
+    private bool _loading = true;
+
+    /// <summary>CSS length handed to VncView. Kept as a single named value so the reasoning above sits
+    /// with the number instead of being buried in the markup.</summary>
+    private const string CanvasHeight = "min(70vh, 56.25vw)";
+
+    protected override async Task OnInitializedAsync()
+    {
+        await base.OnInitializedAsync();
+        _clients = await Api.GetClientsAsync();
+        _loading = false;
+    }
+
+    /// <summary>
+    /// Resolving the machine lives here, not in OnInitializedAsync, because the prev/next buttons change
+    /// the route parameter on a component instance Blazor keeps alive - OnInitializedAsync would not run
+    /// again, so the page would keep showing the machine it was first opened with.
+    /// </summary>
+    protected override void OnParametersSet()
+    {
+        _client = _clients.FirstOrDefault(c => c.ClientGuid == ClientGuid);
+
+        // Ordered the same way the Clients list is (COM-2 before COM-10), so "next" walks the room in
+        // the order the machines are actually numbered rather than in whatever order the API returned.
+        _walk = _clients.Where(c => c.IsOnline).OrderBy(c => c.MachineName, NaturalOrder).ToList();
+        _walkIndex = _walk.FindIndex(c => c.ClientGuid == ClientGuid);
+    }
+
+    private async Task EnterFullscreenAsync() => await JS.InvokeVoidAsync("onionScreen.enter");
+    private async Task ExitFullscreenAsync() => await JS.InvokeVoidAsync("onionScreen.exit");
+
+    private Task PrevAsync() => GoAsync(_walkIndex - 1);
+    private Task NextAsync() => GoAsync(_walkIndex + 1);
+
+    private Task GoAsync(int index)
+    {
+        if (index < 0 || index >= _walk.Count) return Task.CompletedTask;
+        Navigation.NavigateTo($"screen-view/{_walk[index].ClientGuid}");
+        return Task.CompletedTask;
+    }
+
+    /// <summary>Same human-order comparer as the Clients page - COM-2 before COM-10. Duplicated rather
+    /// than shared because it is six lines and the two pages have no other reason to know about each
+    /// other; if a third caller ever needs it, that is the moment to lift it into a helper.</summary>
+    private static readonly IComparer<string> NaturalOrder = Comparer<string>.Create(static (a, b) =>
+    {
+        int i = 0, j = 0;
+        while (i < a.Length && j < b.Length)
+        {
+            if (char.IsDigit(a[i]) && char.IsDigit(b[j]))
+            {
+                var si = i; var sj = j;
+                while (i < a.Length && char.IsDigit(a[i])) i++;
+                while (j < b.Length && char.IsDigit(b[j])) j++;
+
+                var okA = long.TryParse(a.AsSpan(si, i - si), out var na);
+                var okB = long.TryParse(b.AsSpan(sj, j - sj), out var nb);
+                if (okA && okB && na != nb) return na.CompareTo(nb);
+                continue;
+            }
+
+            var cmp = char.ToUpperInvariant(a[i]).CompareTo(char.ToUpperInvariant(b[j]));
+            if (cmp != 0) return cmp;
+            i++; j++;
+        }
+
+        return (a.Length - i).CompareTo(b.Length - j);
+    });
+}

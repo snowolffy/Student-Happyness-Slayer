@@ -1,4 +1,4 @@
-using System.Windows;
+﻿using System.Windows;
 using OnionProcOparetor.Console.Services;
 
 namespace OnionProcOparetor.Console;
@@ -10,7 +10,6 @@ public partial class ResetPasswordWindow : Window
     public ResetPasswordWindow(string username)
     {
         InitializeComponent();
-        Loaded += (_, _) => WindowCenteringHelper.CenterOverOwnerOrScreen(this);
         TitleText.Text = $"Reset Password - {username}";
     }
 
@@ -21,7 +20,8 @@ public partial class ResetPasswordWindow : Window
         if (string.IsNullOrEmpty(password) || password.Length < 8)
         {
             StatusText.Text = "Password ต้องมีความยาวอย่างน้อย 8 ตัวอักษร";
-            StatusText.Foreground = (System.Windows.Media.Brush)FindResource("Brush.Danger.Default");
+            // SetResourceReference ไม่ใช่ FindResource: FindResource คืน "ค่า ณ ตอนนั้น" ครั้งเดียว ซึ่งจะค้างอยู่กับธีมเดิมตลอดไปเมื่อผู้ใช้สลับธีม - SetResourceReference ผูกเป็น DynamicResource จริงเหมือนที่เขียนใน XAML จึงตามธีมใหม่ให้เอง
+            StatusText.SetResourceReference(System.Windows.Controls.TextBlock.ForegroundProperty, "Brush.Danger.Default");
             return;
         }
 

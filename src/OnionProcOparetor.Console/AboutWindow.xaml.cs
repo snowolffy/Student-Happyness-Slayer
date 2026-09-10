@@ -1,6 +1,8 @@
-using System.IO;
+﻿using System.IO;
 using System.Reflection;
 using System.Windows;
+
+using OnionProcOparetor.Console.Services;
 
 namespace OnionProcOparetor.Console;
 

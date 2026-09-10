@@ -1,4 +1,4 @@
-using System.Windows;
+﻿using System.Windows;
 using System.Windows.Controls;
 using OnionProcOparetor.Console.Models;
 using OnionProcOparetor.Console.Services;

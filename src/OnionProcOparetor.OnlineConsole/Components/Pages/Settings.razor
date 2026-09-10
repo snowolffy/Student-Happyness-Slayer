@@ -1,0 +1,123 @@
+@page "/settings"
+@rendermode InteractiveServer
+@inherits AuthenticatedPageBase
+@inject IJSRuntime JS
+@inject ToastService Toasts
+
+<PageTitle>Settings - OnionProcOparetor Online Console</PageTitle>
+
+<div class="page-head">
+    <div>
+        <h2 class="heading2" style="margin:0">Settings</h2>
+        <div class="page-subtitle">ตั้งค่าบัญชีของคุณ และการแสดงผลบนอุปกรณ์เครื่องนี้</div>
+    </div>
+</div>
+
+<div class="card">
+    <h3 class="heading2" style="font-size:15px">ธีมการแสดงผล</h3>
+    <div class="caption" style="margin-bottom:.75rem">
+        ตั้งค่านี้เก็บไว้ในเบราว์เซอร์ของอุปกรณ์เครื่องนี้เท่านั้น ไม่ได้ผูกกับบัญชี - มือถือกับคอมตั้งคนละแบบได้
+    </div>
+
+    @* The header button cycles through the three modes for speed; this is the explicit version, where
+       you can see all three states and pick one directly instead of guessing the cycle order. Both
+       drive the same window.onionTheme in app.js, so they can never disagree.
+       Three options, not a switch: "ตามระบบ" (follow the OS) is the one most people actually want, and
+       a two-state toggle cannot express it. *@
+    <div class="chip-row" style="margin-bottom:0">
+        @foreach (var (value, label, icon) in ThemeOptions)
+        {
+            <button class="chip @(_theme == value ? "active" : "")" @onclick="() => SetThemeAsync(value)">
+                <Icon Name="@icon" Size="14" /> @label
+            </button>
+        }
+    </div>
+</div>
+
+<div class="card">
+    <h3 class="heading2" style="font-size:15px">เปลี่ยนรหัสผ่านของฉัน</h3>
+    <div class="form-row"><label>รหัสผ่านใหม่</label><input type="password" @bind="_newPassword" autocomplete="new-password" /></div>
+    <div class="form-row"><label>ยืนยันรหัสผ่านใหม่</label><input type="password" @bind="_confirmPassword" autocomplete="new-password" /></div>
+
+    @* Errors stay inline next to the fields they belong to (a toast that says "รหัสผ่านไม่ตรงกัน" over
+       a form the user is still looking at is worse than a message under the fields), while the success
+       case becomes a toast, because on success the form clears itself and there is nothing left to
+       attach the message to. *@
+    @if (!string.IsNullOrEmpty(_error))
+    {
+        <div class="error-text">@_error</div>
+    }
+
+    <button class="btn btn-primary @(_saving ? "is-busy" : "")" @onclick="ChangePasswordAsync">เปลี่ยนรหัสผ่าน</button>
+</div>
+
+<div class="card">
+    <h3 class="heading2" style="font-size:15px">เกี่ยวกับ</h3>
+    <dl class="data-card-rows" style="max-width:420px">
+        <dt>เข้าใช้ในชื่อ</dt><dd>@Api.Username</dd>
+        <dt>เชื่อมต่อผ่าน</dt><dd>Tailscale tailnet</dd>
+    </dl>
+    <div class="caption" style="margin-top:.75rem">
+        หน้านี้เข้าถึงได้เฉพาะตอนต่อ Tailscale อยู่เท่านั้น - การออกจากระบบที่นี่จะไม่ตัดการเชื่อมต่อ Tailscale ของอุปกรณ์นี้
+    </div>
+</div>
+
+@code {
+    private string _newPassword = string.Empty;
+    private string _confirmPassword = string.Empty;
+    private string? _error;
+    private bool _saving;
+
+    private string _theme = "system";
+
+    private static readonly (string Value, string Label, string Icon)[] ThemeOptions =
+    {
+        ("system", "ตามระบบ", "settings"),
+        ("light", "สว่าง", "sun"),
+        ("dark", "มืด", "moon")
+    };
+
+    // No data to load here, but this page could be the very first (and only) page in a circuit - a
+    // bookmark or a refresh while sitting on /settings - so it still needs the token restore itself,
+    // same as every other AuthenticatedPageBase page, rather than assuming some other page did it first.
+    protected override async Task OnInitializedAsync() => await base.OnInitializedAsync();
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+
+        // JS interop is impossible during prerendering (there is no browser attached yet) and Blazor
+        // throws rather than no-op'ing, so the current theme can only be read once the real interactive
+        // render has happened - same reason VncView and Home.razor do their browser work here.
+        _theme = await JS.InvokeAsync<string>("onionTheme.get");
+        StateHasChanged();
+    }
+
+    private async Task SetThemeAsync(string theme)
+    {
+        _theme = theme;
+        await JS.InvokeVoidAsync("onionTheme.set", theme);
+    }
+
+    private async Task ChangePasswordAsync()
+    {
+        _error = null;
+
+        if (_newPassword.Length < 8) { _error = "Password ต้องยาวอย่างน้อย 8 ตัวอักษร"; return; }
+        if (_newPassword != _confirmPassword) { _error = "Password ที่กรอกไม่ตรงกัน"; return; }
+
+        _saving = true;
+        var (ok, message) = await Api.ChangePasswordAsync(_newPassword);
+        _saving = false;
+
+        if (ok)
+        {
+            _newPassword = _confirmPassword = string.Empty;
+            Toasts.Success("เปลี่ยนรหัสผ่านแล้ว");
+        }
+        else
+        {
+            _error = message;
+        }
+    }
+}

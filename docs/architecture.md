@@ -1,4 +1,4 @@
-# Architecture Decisions
+﻿# Architecture Decisions
 
 บันทึกการตัดสินใจทั้งหมดจากการวางแผน เพื่อไม่ให้ต้องย้อนคิดใหม่ตอนเริ่มโค้ดจริง
 
@@ -77,6 +77,21 @@ feature-selection สองรอบจากดีไซน์นี้ (ADDLOC
 - **Fail-safe**: เลือก **fail-secure** — ถ้า client ติดต่อ server ไม่ได้เกิน X นาที
   ให้ยังคง enforce กฎล่าสุดที่มีต่อไป (ไม่ fallback เป็นปิดระบบ)
 - **Toggle**: มี 2 ระดับ — Global (ทั้งห้อง) และ Per-machine (เครื่องเดียว)
+  - ทั้งสองระดับต่อกันแบบ **AND** ไม่ใช่ OR: Agent บังคับใช้กฎก็ต่อเมื่อเปิดทั้งคู่
+    (`enabled = globalEnabled && client.IsEnabled` ใน `GET /api/poll`) — Global จึงเป็น
+    **kill switch คร่อมทุกเครื่อง** ไม่ใช่แค่ "ทางลัดสำหรับกดทีเดียวทั้งห้อง"
+  - บั๊กจริงที่เจอ (2026-09-04, field test): ค่านี้ไม่มี endpoint ให้ "อ่าน" เลยตั้งแต่แรก มีแต่
+    `POST /api/global/toggle` ที่พลิกค่าแบบมองไม่เห็น และปุ่มใน WPF Console ก็เคยถูกลบทิ้งด้วย
+    ความเข้าใจผิดว่า "ACTIONS > ทุกเครื่อง > TOGGLE ENFORCEMENT ให้ผลเหมือนกัน" (ไม่จริง —
+    อันนั้นแก้ `IsEnabled` ราย *เครื่อง* ไม่ได้แตะ gate ตัวนี้) ผลคือพอ gate ถูกปิดค้างไว้
+    Console โชว์ทุกเครื่องเป็น ENABLED ตามปกติ ส่วน Agent ทุกตัวขึ้น Disabled ค้าง toggle
+    รายเครื่องกี่รอบก็ไม่เปลี่ยน ส่วนคำสั่ง lock/shutdown ยังทำงานปกติ (ไม่ผ่าน gate นี้) =
+    อาการที่หาสาเหตุไม่เจอ เพราะค่าเดียวที่อธิบายมันได้มองไม่เห็นจากทุก UI ที่มี
+  - แก้แล้ว: `GET /api/global` (อ่านค่า) + `POST /api/global/set` (ตั้งค่าตรงๆ idempotent
+    ไม่ใช่พลิกค่า — กัน lost-update ตอนครู 2 คนกดพร้อมกันด้วย) ส่วน `/toggle` เก็บไว้เพื่อ
+    Console เวอร์ชันเก่าที่ deploy ไปแล้ว ฝั่ง UI ทั้ง WPF Console และ Online Console แสดง
+    แถบเตือนตลอดเวลาที่ gate ปิดอยู่ พร้อมปุ่มเปิดกลับในแถบนั้นเอง และคอลัมน์ ENFORCEMENT
+    ขึ้น `OFF (GLOBAL)` แทน `ENABLED` สำหรับเครื่องที่เปิดไว้เองแต่ถูก gate กดทับ
 
 ## Auth
 
@@ -202,6 +217,35 @@ SignalR อยู่) ประมวลผลที่ `CommandProcessor` เ�
 เดิมมีแค่ ack ที่ปิด `Status` ให้ พอ ack หลุด (Agent ก็ไม่เคยเช็ค status code ของมันด้วย) คำสั่งจะ
 ค้าง Pending ตลอดไปทั้งที่ครูเห็นว่า "สำเร็จ" แล้ว และถูกส่งซ้ำทุกรอบ poll ไม่จบ — ตอนนี้การรายงาน
 ผลจริงกลับมาปิด `Status` ให้ด้วย (ผลกลับมา = พิสูจน์แล้วว่าถึงเครื่อง) ดู `CommandResultRecorder`
+
+### คำสั่งมีอายุ (2026-09-10) — บั๊กจริงที่อันตรายที่สุดที่เจอในหมวดนี้
+
+**อาการ:** ครูสั่ง Shutdown ทั้งห้อง เครื่องที่เปิดอยู่ 30 เครื่องดับปกติ ส่วนอีก 10 เครื่องที่ปิดอยู่
+ตอนนั้น พอถูกเปิดวันหลัง **ดับเองทันทีที่บูตเสร็จ** โดยไม่มีใครสั่งอะไรในตอนนั้นเลย
+
+**สาเหตุ:** คำสั่งที่ยังไม่ถึงเครื่องค้างเป็น `Pending` ตลอดกาล และ `/api/poll` ส่งให้ทุกคำสั่งที่ยัง
+Pending อยู่ โดยไม่สนว่าสั่งไว้เมื่อไหร่ — รากของปัญหาคือความหมายของคำสั่ง: "ปิดเครื่องทั้งห้อง"
+หมายถึงเครื่องที่เปิดอยู่ *ตอนนี้* ไม่ใช่ "ปิดทันทีที่บูตครั้งหน้า"
+
+**วิธีแก้:** `ClientCommand.ExpiresAt` + `CommandExpiry` (ดู `Models/ClientCommand.cs`)
+
+- คำสั่งประเภท **เหตุการณ์** (Shutdown / Restart / Lock / Broadcast / VNC / ...) หมดอายุใน **3 นาที**
+  (ตั้งได้ที่ `CommandTracking:EventCommandLifetimeSeconds`) — รอบ poll จริงคือ 30 วิ ดังนั้นเครื่องที่
+  เปิดอยู่จริงได้รับภายในรอบเดียว 3 นาที = 6 รอบ เผื่อเน็ตกระตุกได้สบาย
+- คำสั่งประเภท **สถานะ** (`UpdateSettings` / `SetTailscaleLockdown` / `RefreshRules`) **ไม่หมดอายุ** —
+  ส่งถึงช้าก็ยังถูกต้องและควรถึง เป็น **allow-list ไม่ใช่ deny-list** โดยเจตนา: CommandType ใหม่ที่
+  ยังไม่ขึ้นทะเบียนจะถูกถือว่าเป็นเหตุการณ์และหมดอายุ (เดาผิดทางนี้แค่คำสั่งไม่ถึงเครื่องที่ปิดอยู่
+  เดาผิดอีกทางคือเครื่องดับเองตอนบูต)
+- `/api/poll` เป็นด่านบังคับใช้จริง: mark เป็น `Expired` **แล้วค่อย** query (ถ้าแค่กรองออก แถวจะค้าง
+  Pending ใน DB ตลอดไป แล้วหน้า PENDING COMMANDS จะโชว์คำสั่งที่ไม่มีวันทำงาน)
+- **แก้ฝั่ง Server อย่างเดียว ไม่แตะ Agent เลย** — Agent 40 ตัวที่ deploy ไปแล้วได้รับการป้องกัน
+  ทันทีที่ Server รีสตาร์ท ไม่ต้องไล่อัปเดต MSI ทีละเครื่อง
+- migration `AddClientCommandExpiry` **ปลดชนวนคิวที่ค้างอยู่แล้วในฐานข้อมูลจริงด้วย** ไม่ใช่แค่เพิ่ม
+  คอลัมน์ — ถ้าไม่ทำ แถวเก่าทุกแถวจะได้ `ExpiresAt = NULL` ซึ่งกติกาใหม่แปลว่า "ไม่มีวันหมดอายุ"
+  = บั๊กเดิมทั้งดุ้น
+
+ทดสอบแล้วแบบ end-to-end (Server จริง + DB จริง แยก port/ไฟล์ ไม่แตะ production): คำสั่ง Shutdown
+ที่เลยอายุไม่ถูกส่งให้ Agent และหายจากรายการค้าง ส่วน `UpdateSettings` ยังถูกส่งตามปกติ
 
 ## Agent Bypass Toggle
 
@@ -350,8 +394,53 @@ thaw → สร้าง user → **login เป็น user นั้น** → *
 **ยังไม่เคยรัน tray ภายใต้ standard user จริง** — จุดที่ยังไม่ยืนยัน: `PhysicalInputBlocker`
 (low-level keyboard hook) และ `createpassword.exe` ของ UltraVNC
 
+## AgentTray หูหนวกได้จาก connection เดียว (2026-09-10)
+
+**อาการที่ผู้ใช้รายงาน:** เครื่องเข้า sleep ทั้งที่ tray ทำงานอยู่ พอตื่นขึ้นมา tray "ค้างไปเลย
+ไม่ตอบสนอง" — กด tray icon ยังเปิดหน้าต่างได้ แต่คำสั่งจาก Console ไม่เข้าเลยสักคำสั่ง
+
+**สิ่งที่พิสูจน์ได้จริง (ทำซ้ำสำเร็จบนเครื่อง dev กับ build เก่า):** accept-loop ของ
+`BroadcastPipeListener` ถูกทำให้หูหนวกได้ด้วย client เพียงตัวเดียวที่ "ต่อติดแล้วไม่ส่งอะไรเลย"
+เพราะ `ReadLineAsync` เดิมไม่มี timeout (ใช้ token อายุเท่าโปรแกรม) และ pipe เปิดด้วย
+`maxNumberOfServerInstances=1` — ระหว่างที่มันรออยู่ ไม่มีทางสร้าง server instance ใหม่มารับใครได้เลย
+ทุกคำสั่ง (lock/unlock/broadcast/shutdown notify/VNC/process scan) เงียบหมด ทั้งที่ process ยังรันปกติ
+
+การทดสอบ: ต่อ client แล้วไม่ส่งอะไร ค้างไว้ → ยิง Broadcast จริงด้วย timeout 3 วิเท่า
+`AgentTrayNotifier` ของจริง
+
+| | t+1.5s | t+12.5s |
+|---|---|---|
+| build เก่า | CONNECT FAILED | CONNECT FAILED (หูหนวกตราบเท่าที่ connection นั้นยังเปิดอยู่) |
+| build ใหม่ | CONNECT FAILED (server instance เดียวยังถูกจองอยู่ ปกติ) | **SENT ok** — popup เด้งจริง |
+
+**ที่แย่กว่าคือกู้เองไม่ได้:** Agent ส่งไม่สำเร็จ → `AgentTrayRecoveryService` สตาร์ท AgentTray ใหม่
+→ ตัวใหม่เจอ `SingleInstanceGuard` ว่ามีตัวเก่าถือ mutex อยู่ → ปิดตัวเองทันที safety net ฝั่ง Agent
+แก้ได้เฉพาะเคส **"tray ตาย"** ไม่ใช่ **"tray ค้าง"** — ต้องไป kill process เองที่เครื่องเท่านั้น
+(ยังเป็นแบบนี้อยู่ ไม่ได้แก้ — ดู Known limitations)
+
+**แก้ไปแล้ว:**
+1. `BroadcastPipeListener.ReadTimeout` = 10 วิ ต่อ connection ผ่าน `Task.WhenAny` (ไม่ใช่แค่ส่ง token
+   เข้า `ReadLineAsync` เฉยๆ — ถ้าการยกเลิก overlapped read ไม่เป็นผล เส้นทางนี้ยังหลุดออกมาแล้วปล่อยให้
+   `using` dispose ตัว server ทิ้ง ซึ่งเป็นสิ่งที่ทำให้ read ที่ค้างอยู่ตายจริง) → loop ค้างถาวรไม่ได้อีก
+2. `BroadcastPipeListener.RestartAccept()` + `App.OnPowerModeChanged` — ตอนเครื่องตื่นจาก sleep
+   เปิด pipe server ใหม่ทั้งชุด ไม่ว่าของเดิมจะพังหรือไม่ ราคาตอนไม่มีอะไรพังคือศูนย์
+3. `App.EnsureOnScreen()` — resume เปลี่ยน display topology ได้ (จอหาย/ความละเอียดเปลี่ยน)
+   หน้าต่างที่เหลือพิกัดบนจอที่ไม่มีแล้วจะ `Show()`+`Activate()` สำเร็จทั้งคู่แต่ผู้ใช้ไม่เห็นอะไรเลย
+4. `TrayDiagnostics` → `%LocalAppData%\OnionProcOparetor\AgentTray\logs\tray.log` — เดิม AgentTray
+   ใช้ `Debug.WriteLine` ซึ่งมองไม่เห็นถ้าไม่มี debugger attach ทำให้ทุกอย่างที่เกิดใน field
+   หายไปหมด ตอนนี้มี log ของ pipe / power event / การเปิดหน้าต่าง
+
+**ยังไม่ยืนยัน:** ยังพิสูจน์ไม่ได้ว่า "การหลับ" ทำให้เกิดสภาพนั้นด้วยกลไกไหนกันแน่ (ที่นี่ไม่มีเครื่อง
+แล็บให้ทำ sleep/resume จริง) ที่ทำไปคือปิดช่องให้มันค้างถาวรไม่ได้ + ทิ้ง log ไว้ให้ครั้งหน้ามีหลักฐาน
+**เครื่องแล็บทั้ง 40 เครื่องใช้ Reboot Restore Rx — `tray.log` หายทุก reboot ต้องเก็บ log ตอนอาการ
+ยังค้างอยู่ก่อนรีสตาร์ทเสมอ** และการแก้นี้ไม่มีผลจนกว่าจะ rollout MSI ตัวใหม่ลงเครื่องจริง
+
 ## Known limitations / ยังไม่ได้ทำ
 
+- `AgentTrayRecoveryService` กู้ได้เฉพาะ tray ที่ **ตาย** ไม่ใช่ tray ที่ **ค้าง** — `SingleInstanceGuard`
+  ทำให้ instance ใหม่ปิดตัวเองทันทีถ้าตัวเก่ายังถือ mutex อยู่ ไม่ได้แก้เพราะการยอมให้มี tray สองตัว
+  แปลว่ามี pipe listener สองตัวแย่งกันรับ message และ lock screen ซ้อนกัน — อันตรายกว่าปัญหาที่จะแก้
+  ทางที่ถูกคือให้ instance ใหม่ probe pipe ของตัวเก่าก่อนแล้วค่อยตัดสินใจ ซึ่งยังไม่ได้ทำ
 - Windows Firewall/hosts-based website blocking, "ปิดเน็ตทั้งหมด" — ออกแบบ+implement ไปรอบหนึ่งแล้ว
   (Phase 5) แต่ถูก revert พร้อมงานอื่นตอน stabilization — ยังไม่มีในระบบตอนนี้
 - `ResizeMode="NoResize"` + pixel-fixed `Canvas` layout ทุกหน้าจอ Console — ใช้งานได้ดีในสภาพแวดล้อมปกติ

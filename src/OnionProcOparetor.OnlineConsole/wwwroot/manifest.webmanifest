@@ -1,0 +1,21 @@
+{
+  "name": "OnionProcOparetor Online Console",
+  "short_name": "OnionConsole",
+  "description": "ควบคุมและดูสถานะเครื่องในห้องแล็บผ่าน Tailscale",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#F1F2F5",
+  "theme_color": "#241E1A",
+  "lang": "th",
+  "dir": "ltr",
+  "icons": [
+    { "src": "img/logo-128.png", "sizes": "128x128", "type": "image/png", "purpose": "any" },
+    { "src": "img/logo-256.png", "sizes": "256x256", "type": "image/png", "purpose": "any" }
+  ],
+  "shortcuts": [
+    { "name": "Program Review", "url": "/program-review", "description": "คิวโปรแกรมที่รอตรวจ" },
+    { "name": "Rules", "url": "/rules", "description": "กฎที่บังคับใช้กับทุกเครื่อง" }
+  ]
+}

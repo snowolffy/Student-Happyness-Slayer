@@ -1,0 +1,40 @@
+@* Grouped into three labelled sections instead of one flat list of eight links. Eight items of equal
+   weight force the eye to read all eight every time; three groups named for what you came to do let it
+   jump to the right neighbourhood first. The grouping matches how the job actually splits: watching the
+   lab right now, deciding the rules that govern it, and administering the console itself.
+
+   No drawer-closing handler here any more - closing on navigation is done by the delegated listener in
+   app.js, because this component is rendered inside a statically-rendered layout and its @@onclick would
+   never fire. See the comment at the top of MainLayout.razor for the full story. *@
+
+<nav class="sidebar-nav">
+    <div class="sidebar-section">ตรวจตรา</div>
+    <NavLink class="sidebar-link" href="" Match="NavLinkMatch.All">
+        <Icon Name="monitor" /> <span>Clients</span>
+    </NavLink>
+    @* No Live View here any more - the 12-tile grid was removed on 2026-09-04; watching a screen is
+       now always one machine at a time, reached from the Clients list. See docs/onlineconsole-ui-notes.md
+       for the bandwidth reasoning. *@
+    <NavLink class="sidebar-link" href="program-review">
+        <Icon Name="search" /> <span>Program Review</span>
+    </NavLink>
+    <NavLink class="sidebar-link" href="logs">
+        <Icon Name="file-text" /> <span>Logs</span>
+    </NavLink>
+
+    <div class="sidebar-section">กฎและการบังคับใช้</div>
+    <NavLink class="sidebar-link" href="rules">
+        <Icon Name="shield" /> <span>Rules</span>
+    </NavLink>
+
+    <div class="sidebar-section">ระบบ</div>
+    <NavLink class="sidebar-link" href="audit-log">
+        <Icon Name="clock" /> <span>Audit Log</span>
+    </NavLink>
+    <NavLink class="sidebar-link" href="users">
+        <Icon Name="users" /> <span>Users</span>
+    </NavLink>
+    <NavLink class="sidebar-link" href="settings">
+        <Icon Name="settings" /> <span>Settings</span>
+    </NavLink>
+</nav>

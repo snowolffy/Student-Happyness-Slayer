@@ -114,6 +114,9 @@ namespace OnionProcOparetor.Server.Migrations
                     b.Property<int>("ExecutionStatus")
                         .HasColumnType("INTEGER");
 
+                    b.Property<DateTime?>("ExpiresAt")
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("PayloadJson")
                         .HasColumnType("TEXT");
 

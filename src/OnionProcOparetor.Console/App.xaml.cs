@@ -1,4 +1,5 @@
-using System.Windows;
+﻿using System.Windows;
+using System.Windows.Input;
 using OnionProcOparetor.Console.Services;
 
 namespace OnionProcOparetor.Console;
@@ -25,6 +26,10 @@ public partial class App : Application
         // โหลด console-settings.json (หรือ default ถ้ายังไม่มี) แล้ว apply ค่า VNC limit ให้ทันก่อนหน้าต่างไหนเปิดขึ้นมา
         SettingsService.EnsureLoaded();
 
+        // ต้องอยู่ *หลัง* EnsureLoaded (อ่านค่าธีมที่ผู้ใช้เลือกไว้จาก settings) และ *ก่อน* หน้าต่างแรกถูกสร้าง
+        // (StartupUri ทำงานหลัง OnStartup) ไม่งั้น MainWindow จะวาดด้วยธีมสว่างแล้วค่อยกระพริบเปลี่ยนเป็นมืด
+        ThemeService.Initialize();
+
         // บั๊กจริงที่เจอซ้ำ 2 ครั้ง (2026-08-25): "VIEW RUNNING PROCESSES..." ทำให้ทั้ง Console หายไปเงียบๆ
         // ทันทีที่กด - รอบแรกเข้าใจผิดว่าอยู่ใน RunningProcessesWindow เอง (ครอบ try/catch ไปแล้ว) แต่ crash
         // จริงอยู่ที่ตอน "เปิด" หน้าต่าง (DashboardWindow.RunActionPanelAsync ที่เรียกจาก
@@ -49,5 +54,244 @@ public partial class App : Application
             // (หน้าต่างที่กำลังเปิดอยู่ตอนเกิด exception อาจอยู่ในสถานะไม่สมบูรณ์ แต่ดีกว่าทั้งแอปหายไปเงียบๆ)
             args.Handled = true;
         };
+
+#if DEBUG
+        // เครื่องมือสำหรับตรวจงาน UI เท่านั้น และมีเฉพาะใน build แบบ Debug (installer/publish-all.ps1
+        // publish ด้วย -c Release เสมอ ปุ่มนี้จึงไม่มีอยู่จริงในของที่ส่งขึ้นเครื่องครู)
+        //
+        // มีไว้เพราะเครื่อง dev เครื่องนี้รัน Server ตัวจริงอยู่ด้วย การจะดู Dashboard สักทีจึงต้อง
+        // login เข้าเซิร์ฟเวอร์ของจริง ซึ่งไม่ควรทำแค่เพื่อดูว่าปุ่มจัดตำแหน่งตรงไหม - ทางนี้เปิด
+        // Dashboard ด้วย ApiClient ที่ยังไม่ได้ login ทุก API call จึงล้มเหลวหมด (ตั้งใจ) เห็นแต่โครง UI
+        // --center-test พิสูจน์ว่าหน้าต่างย่อยวางกึ่งกลางหน้าต่างหลักจริง - เป็นสิ่งเดียวที่ภาพนิ่งพิสูจน์
+        // ไม่ได้ เพราะ RenderTargetBitmap วาด visual tree ของหน้าต่างเดียว ไม่เห็นตำแหน่งสัมพัทธ์ของสองบาน
+        // จึงวัดเป็นตัวเลขแล้วเขียนลง console.log แทน
+        if (e.Args.Contains("--center-test"))
+        {
+            var owner = new DashboardWindow(new Services.ApiClient()) { PreviewMode = true };
+            owner.Show();
+
+            owner.Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.ApplicationIdle, () =>
+            {
+                var child = ConfirmWindow.CreatePreview(typeToConfirm: false);
+                child.Owner = owner;
+                child.Show();
+
+                child.Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.ApplicationIdle, () =>
+                {
+                    var ownerCentreX = owner.Left + owner.ActualWidth / 2;
+                    var ownerCentreY = owner.Top + owner.ActualHeight / 2;
+                    var childCentreX = child.Left + child.ActualWidth / 2;
+                    var childCentreY = child.Top + child.ActualHeight / 2;
+
+                    ConsoleDiagnostics.WriteLine(
+                        "CENTER-TEST "
+                        + $"owner=({owner.Left:F0},{owner.Top:F0} {owner.ActualWidth:F0}x{owner.ActualHeight:F0}) "
+                        + $"child=({child.Left:F0},{child.Top:F0} {child.ActualWidth:F0}x{child.ActualHeight:F0}) "
+                        + $"offset=({childCentreX - ownerCentreX:F1},{childCentreY - ownerCentreY:F1})");
+
+                    Shutdown();
+                });
+            });
+            return;
+        }
+
+        // --focus-test เข้าโหมดดูจอเต็มจอ แล้วเปิดหน้าต่างทับ เพื่อพิสูจน์ว่าหน้าต่างนั้น "ใช้งานได้จริง"
+        // overlay เต็มจอเคยดึง keyboard focus กลับมาหาตัวเองทุกครั้งที่ focus หลุด ทำให้หน้าต่างที่เปิดทับ
+        // กดปิดไม่ได้ - เช็คด้วยตาไม่ได้ ต้องอ่านว่าใครถือ focus อยู่จริง
+        if (e.Args.Contains("--focus-test"))
+        {
+            var owner = new DashboardWindow(new Services.ApiClient())
+            {
+                PreviewMode = true,
+                PreviewFullscreen = true
+            };
+            owner.Show();
+
+            owner.Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.ApplicationIdle, () =>
+            {
+                var child = ConfirmWindow.CreatePreview(typeToConfirm: false);
+                child.Owner = owner;
+                child.Show();
+                child.Activate();
+
+                child.Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.ApplicationIdle, () =>
+                {
+                    var focused = Keyboard.FocusedElement?.GetType().Name ?? "(none)";
+                    ConsoleDiagnostics.WriteLine(
+                        $"FOCUS-TEST childIsActive={child.IsActive} ownerIsActive={owner.IsActive} "
+                        + $"focusedElement={focused}");
+                    Shutdown();
+                });
+            });
+            return;
+        }
+
+        // --dialog=<ชื่อ> เปิดหน้าต่างย่อยขึ้นมาถ่ายภาพตรวจ chrome ที่เราวาดเอง (แถบหัว/ปุ่มปิด/
+        // การคำนวณความสูงแบบ SizeToContent ซึ่งเป็นจุดที่ Window template ของตัวเองพังได้ง่ายสุด)
+        var dialogArg = e.Args.FirstOrDefault(a => a.StartsWith("--dialog=", StringComparison.Ordinal));
+        if (dialogArg is not null)
+        {
+            var api = new Services.ApiClient();
+            var sampleClient = new Models.ClientMachineDto
+            {
+                Id = 1,
+                ClientGuid = "a1b2c3d4-preview",
+                MachineName = "LAB-PC-01",
+                LastKnownIp = "192.168.1.11",
+                IsOnline = true,
+                IsEnabled = true,
+                LastSeenAt = DateTime.UtcNow
+            };
+
+            Window? dialog = dialogArg["--dialog=".Length..] switch
+            {
+                // หน้า login เป็นหน้าต่างแรกที่ครูเห็น จึงต้องตรวจเหมือนหน้าต่างอื่น - StartupUri จะ
+                // เปิดอีกบานตามมาหลัง OnStartup คืนค่า แต่ไม่เป็นไรเพราะเราถ่ายภาพบานที่สร้างเองแล้วปิด
+                // โปรแกรมทันที
+                "login" => new MainWindow(),
+                "confirm" => ConfirmWindow.CreatePreview(typeToConfirm: false),
+                "confirm-type" => ConfirmWindow.CreatePreview(typeToConfirm: true),
+                "about" => new AboutWindow(),
+                "settings" => new SettingsWindow(api),
+                "broadcast" => new BroadcastMessageWindow(3),
+                "add-rule" => new AddEditRuleWindow(api),
+                "change-password" => new ChangeMyPasswordWindow(api),
+                "force-password" => new ForceChangePasswordWindow(api),
+                "reset-password" => new ResetPasswordWindow("teacher01"),
+                "tailscale" => new TailscaleLoginWindow(),
+                "program-review" => new ProgramReviewWindow(api),
+                "client-settings" => new ClientSettingsWindow(api, sampleClient),
+                "rule-overrides" => new RuleOverridesWindow(api, sampleClient),
+                "pending-commands" => new PendingCommandsWindow(api, sampleClient),
+                "running-processes" => new RunningProcessesWindow(api, new Services.LabHubClient(), sampleClient),
+                "action-panel" => new ActionPanelWindow(api, sampleClient),
+                // โหมด bulk โดย "ไม่ได้เลือกเครื่องเลย" - เคสที่เพิ่งแก้ (2026-09-10) ต้องเห็นว่า
+                // ตัวเลือก "เครื่องที่เลือกไว้ (0 เครื่อง)" ถูกปิด และ "ทุกเครื่อง" ถูกเลือกไว้ให้แล้ว
+                "action-panel-room" => new ActionPanelWindow(
+                    api, [], [sampleClient, sampleClient, sampleClient], defaultToAll: true),
+                _ => null
+            };
+
+            // ชื่อ dialog ผิดต้อง "จบเงียบ ๆ" ไม่ใช่ throw - เพราะ throw จะไปโดน global handler ที่เด้ง
+            // MessageBox ค้างรอให้คนมากดปิด ซึ่งสำหรับเครื่องมือที่สคริปต์เรียกวนเป็นสิบรอบ แปลว่ามี
+            // หน้าต่างค้างเต็มจอผู้ใช้ (เจอมาแล้วจริง ๆ ตอนสคริปต์ส่ง argument ติดกันจนชื่อเพี้ยน)
+            if (dialog is null)
+            {
+                ConsoleDiagnostics.WriteLine($"--dialog: ไม่รู้จักชื่อ '{dialogArg}' - ปิดโปรแกรม");
+                Shutdown(2);
+                return;
+            }
+
+            // ถ่ายภาพอย่างเดียว: อย่าแย่ง focus และอย่าโผล่กลางจอที่ผู้ใช้กำลังทำงานอยู่
+            // RenderTargetBitmap ต้องการหน้าต่างที่ realize แล้วก็จริง แต่ไม่ต้องให้คนเห็นด้วยตา
+            if (e.Args.Any(a => a.StartsWith("--shot=", StringComparison.Ordinal)))
+            {
+                dialog.ShowActivated = false;
+                dialog.WindowStartupLocation = WindowStartupLocation.Manual;
+                dialog.Left = -32000;
+                dialog.Top = -32000;
+            }
+            else
+            {
+                dialog.WindowStartupLocation = WindowStartupLocation.CenterScreen;
+            }
+
+            dialog.Show();
+            CapturePreview(dialog, e.Args);
+            return;
+        }
+
+        if (e.Args.Contains("--ui-preview"))
+        {
+            var preview = new DashboardWindow(new Services.ApiClient())
+            {
+                PreviewMode = true,
+                PreviewSelectFirst = e.Args.Contains("--select"),
+                PreviewGlobalOff = e.Args.Contains("--global-off"),
+                PreviewFullscreen = e.Args.Contains("--fullscreen")
+            };
+
+            // --tab=<ชื่อแท็บ> เลือกแท็บก่อนถ่ายภาพ ใช้ไล่ตรวจทุกหน้าจอในโหมดมืดรอบเดียว
+            var tab = e.Args.FirstOrDefault(a => a.StartsWith("--tab=", StringComparison.Ordinal));
+            if (tab is not null)
+            {
+                preview.PreviewTab = tab["--tab=".Length..];
+            }
+
+            // ถ่ายภาพอย่างเดียว: อย่าไปแย่ง focus และอย่าโผล่กลางจอที่ผู้ใช้กำลังทำงานอยู่
+            if (e.Args.Any(a => a.StartsWith("--shot=", StringComparison.Ordinal)))
+            {
+                preview.ShowActivated = false;
+                preview.WindowStartupLocation = WindowStartupLocation.Manual;
+                preview.Left = -32000;
+                preview.Top = -32000;
+            }
+
+            preview.Show();
+
+            // --shot=<path> เรนเดอร์หน้าต่างเป็น PNG แล้วปิดโปรแกรม
+            //
+            // ที่ต้องเรนเดอร์เองในแอปแทนที่จะให้สคริปต์ข้างนอกจับภาพหน้าจอ: ทั้ง CopyFromScreen และ
+            // PrintWindow พึ่งสิ่งที่อยู่บนจอจริงและ DWM ต้องมี redirection surface ให้ - พอหน้าต่าง
+            // ถูกเบราว์เซอร์บังอยู่ CopyFromScreen จะจับภาพเบราว์เซอร์มาแทน (เจอมาแล้ว) ส่วน
+            // PrintWindow จะคืนเฟรมขาวเปล่า ๆ (เจอมาแล้วเหมือนกัน) และ Windows ไม่ยอมให้ process
+            // เบื้องหลังแย่ง foreground มาแก้ RenderTargetBitmap วาดจาก visual tree ตรง ๆ จึงได้ภาพ
+            // ที่ถูกต้องเสมอไม่ว่าหน้าต่างจะถูกบัง ย่อ หรือมีอะไรทับอยู่
+            CapturePreview(preview, e.Args);
+            // StartupUri ถูกประมวลผลหลัง OnStartup คืนค่า (และ set เป็น null จะ throw) เลยต้องปิด
+            // หน้าต่าง login ที่มันเปิดให้ ทีหลังแทน - BeginInvoke จึงจำเป็น ไม่ใช่แค่สไตล์
+            Dispatcher.BeginInvoke(() =>
+            {
+                foreach (Window window in Windows)
+                {
+                    if (window is MainWindow login)
+                    {
+                        login.Close();
+                        break;
+                    }
+                }
+            });
+        }
+#endif
     }
+
+#if DEBUG
+    /// <summary>
+    /// --shot=&lt;path&gt; เรนเดอร์หน้าต่างเป็น PNG แล้วปิดโปรแกรม (โหมดตรวจ UI เท่านั้น)
+    ///
+    /// ที่ต้องเรนเดอร์เองในแอปแทนที่จะให้สคริปต์ข้างนอกจับภาพหน้าจอ: ทั้ง CopyFromScreen และ
+    /// PrintWindow พึ่งสิ่งที่อยู่บนจอจริงและ DWM ต้องมี redirection surface ให้ - พอหน้าต่างถูก
+    /// เบราว์เซอร์บังอยู่ CopyFromScreen จะจับภาพเบราว์เซอร์มาแทน (เจอมาแล้ว) ส่วน PrintWindow จะคืน
+    /// เฟรมขาวเปล่า ๆ (เจอมาแล้วเหมือนกัน) และ Windows ไม่ยอมให้ process เบื้องหลังแย่ง foreground
+    /// มาแก้ RenderTargetBitmap วาดจาก visual tree ตรง ๆ จึงได้ภาพที่ถูกต้องเสมอไม่ว่าจะถูกอะไรบัง
+    /// </summary>
+    private void CapturePreview(Window window, string[] args)
+    {
+        var shot = args.FirstOrDefault(a => a.StartsWith("--shot=", StringComparison.Ordinal));
+        if (shot is null)
+        {
+            return;
+        }
+
+        var path = shot["--shot=".Length..];
+        window.Dispatcher.BeginInvoke(
+            System.Windows.Threading.DispatcherPriority.ApplicationIdle,
+            () =>
+            {
+                var bitmap = new System.Windows.Media.Imaging.RenderTargetBitmap(
+                    (int)window.ActualWidth, (int)window.ActualHeight, 96, 96,
+                    System.Windows.Media.PixelFormats.Pbgra32);
+                bitmap.Render(window);
+
+                var encoder = new System.Windows.Media.Imaging.PngBitmapEncoder();
+                encoder.Frames.Add(System.Windows.Media.Imaging.BitmapFrame.Create(bitmap));
+                using (var stream = System.IO.File.Create(path))
+                {
+                    encoder.Save(stream);
+                }
+
+                Shutdown();
+            });
+    }
+#endif
 }

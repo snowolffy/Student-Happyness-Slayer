@@ -1,0 +1,83 @@
+@* Ported from RuleOverridesWindow (WPF) - per-client rule override editor. Every toggle/reset is
+   immediate (no batch Save), same as the WPF version. *@
+@inject ApiClient Api
+
+<ModalShell Title="@($"Config Rule - {Client.MachineName}")" OnClose="OnClose">
+    <div class="caption" style="margin-bottom:.75rem">Override เฉพาะเครื่องนี้ - ชนะค่า global เสมอ 100%</div>
+
+    @if (_loading)
+    {
+        <div class="status-text">กำลังโหลด...</div>
+    }
+    else if (_rules.Count == 0)
+    {
+        <div class="status-text">ยังไม่มีกฎในระบบ</div>
+    }
+    else
+    {
+        @foreach (var rule in _rules)
+        {
+            var hasOverride = _overrides.TryGetValue(rule.Id, out var overrideEnabled);
+            <div class="card" style="padding:.6rem .75rem; margin-bottom:.5rem; display:flex; align-items:center; gap:.75rem; flex-wrap:wrap">
+                <div style="flex:1; min-width:160px">
+                    <div style="font-weight:600">@rule.Name</div>
+                    <div class="caption">
+                        Override: @(hasOverride ? (overrideEnabled ? "เปิด" : "ปิด") : "ไม่มี") (global: @(rule.IsEnabled ? "เปิด" : "ปิด"))
+                    </div>
+                </div>
+                <label style="display:flex; align-items:center; gap:.4rem; min-height:auto">
+                    <input type="checkbox"
+                           checked="@(hasOverride ? overrideEnabled : rule.IsEnabled)"
+                           @onchange="e => ToggleAsync(rule.Id, (bool)e.Value!)" />
+                    เปิดใช้งาน
+                </label>
+                @if (hasOverride)
+                {
+                    <button class="btn btn-secondary btn-sm" @onclick="() => ResetAsync(rule.Id)">RESET</button>
+                }
+            </div>
+        }
+    }
+
+    @if (!string.IsNullOrEmpty(_status))
+    {
+        <div class="status-text">@_status</div>
+    }
+</ModalShell>
+
+@code {
+    [Parameter, EditorRequired] public ClientMachineDto Client { get; set; } = null!;
+    [Parameter] public EventCallback OnClose { get; set; }
+
+    private List<RuleDto> _rules = new();
+    private Dictionary<int, bool> _overrides = new();
+    private bool _loading = true;
+    private string? _status;
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        _rules = await Api.GetRulesAsync();
+        var overrides = await Api.GetRuleOverridesAsync(Client.ClientGuid);
+        _overrides = overrides.ToDictionary(o => o.RuleId, o => o.IsEnabled);
+        _loading = false;
+    }
+
+    private async Task ToggleAsync(int ruleId, bool isEnabled)
+    {
+        _status = "กำลังบันทึก...";
+        var ok = await Api.SetRuleOverrideAsync(Client.ClientGuid, ruleId, isEnabled);
+        _status = ok ? null : "บันทึกไม่สำเร็จ";
+        if (ok) _overrides[ruleId] = isEnabled;
+    }
+
+    private async Task ResetAsync(int ruleId)
+    {
+        _status = "กำลังล้าง override...";
+        var ok = await Api.ClearRuleOverrideAsync(Client.ClientGuid, ruleId);
+        _status = ok ? null : "ล้างไม่สำเร็จ";
+        if (ok) _overrides.Remove(ruleId);
+    }
+}

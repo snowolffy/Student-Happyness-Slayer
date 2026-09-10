@@ -1,5 +1,6 @@
 using System.Windows;
 using Hardcodet.Wpf.TaskbarNotification;
+using Microsoft.Win32;
 using OnionProcOparetor.AgentTray.Models;
 using OnionProcOparetor.AgentTray.Services;
 
@@ -56,6 +57,9 @@ public partial class App : System.Windows.Application
         _broadcastListener.GetRunningProcessesRequested += OnGetRunningProcessesRequested;
         _broadcastListener.Start(_broadcastListenerCts.Token);
 
+        // ฟังเหตุการณ์ sleep/resume ของเครื่อง - ดู OnPowerModeChanged ว่าทำไมถึงจำเป็น
+        SystemEvents.PowerModeChanged += OnPowerModeChanged;
+
         // Failsafe path 1 (ดู PhysicalInputBlocker doc comment): winvnc.exe หยุดไม่ว่าเพราะอะไร ต้องคืน
         // สิทธิ์ physical input ทันที - Stopped ยิงจาก background thread เสมอ (ไม่ใช่ UI thread) ต้อง
         // marshal เองตรงนี้ก่อนเรียก Unblock() (DispatcherTimer ข้างในต้อง stop จาก thread ที่สร้างเท่านั้น)
@@ -89,12 +93,47 @@ public partial class App : System.Windows.Application
 
             // double-click ที่ icon ก็เปิดหน้า login เหมือนกัน
             _trayIcon.TrayMouseDoubleClick += (_, _) => OpenLoginWindow();
+
+            TrayDiagnostics.Log("[app] AgentTray เริ่มทำงาน - tray icon พร้อมใช้งาน");
         }
         catch (Exception ex)
         {
             MessageBox.Show($"Startup error: {ex}", "Onion ProcOparetor Tray Error");
             Shutdown();
         }
+    }
+
+    /// <summary>
+    /// เครื่องหลับ/ตื่น - จำเป็นเพราะผู้ใช้รายงาน (2026-09-10) ว่าหลังเครื่องตื่นจาก sleep แล้ว Tray
+    /// "ค้างไปเลย ไม่ตอบสนอง": tray icon ยังกดได้ แต่คำสั่งจาก Console ไม่เข้าเลย
+    ///
+    /// ตัวการที่พิสูจน์ได้จากโค้ดคือ accept-loop ของ named pipe ที่ค้างได้ถาวร (ดู
+    /// BroadcastPipeListener.ReadTimeout) ซึ่งแก้ไปแล้วด้วย timeout - แต่ยังพิสูจน์ไม่ได้ว่า "การหลับ"
+    /// ทำให้มันค้างด้วยกลไกไหนกันแน่ (ที่นี่ไม่มีเครื่องแล็บให้ทำซ้ำ) เลยเพิ่มการเปิด pipe ใหม่ทั้งชุด
+    /// ตอนตื่นเป็นชั้นที่สอง: ไม่ว่า handle เดิมจะพังหรือไม่ ตื่นมาแล้วได้ของใหม่เสมอ ราคาของการทำแบบนี้
+    /// ตอนที่ไม่มีอะไรพังเลยคือศูนย์ (แค่เปิด server instance ใหม่หนึ่งครั้ง)
+    ///
+    /// เรียกจาก thread ของ SystemEvents ไม่ใช่ UI thread - RestartAccept() ปลอดภัยข้าม thread อยู่แล้ว
+    /// ส่วนอะไรที่แตะ WPF ต้อง marshal เอง
+    /// </summary>
+    private void OnPowerModeChanged(object sender, PowerModeChangedEventArgs e)
+    {
+        TrayDiagnostics.Log($"[power] PowerModeChanged: {e.Mode}");
+
+        if (e.Mode != PowerModes.Resume)
+        {
+            return;
+        }
+
+        _broadcastListener.RestartAccept();
+
+        // บันทึกสถานะที่ "ค้างข้ามการหลับ" มาได้ไว้ด้วย - ถ้าเครื่องหลับตอนครูกำลังคุมอยู่ ตื่นมาแล้ว
+        // นักเรียนอาจยังโดนบล็อกคีย์บอร์ด/เมาส์ค้างอยู่โดยไม่มีใครคุมแล้ว บรรทัดนี้ทำให้รู้ได้จาก log
+        // ว่าเกิดขึ้นจริงไหม (ยังไม่ปลดให้อัตโนมัติตรงนี้ - failsafe เดิมสองชั้นควรจัดการได้เอง
+        // ดู PhysicalInputBlocker และถ้า log บอกว่าไม่ได้ผลจริงค่อยเพิ่มการปลดตรงนี้)
+        Dispatcher.BeginInvoke(() => TrayDiagnostics.Log(
+            $"[power] สถานะหลังตื่น: inputBlocked={_physicalInputBlocker.IsBlocking} "
+            + $"lockScreens={_lockScreenWindows.Count} windows={Windows.Count}"));
     }
 
     /// <summary>
@@ -158,10 +197,12 @@ public partial class App : System.Windows.Application
 
         if (existing is not null)
         {
+            TrayDiagnostics.Log($"[ui] เปิดหน้าต่างเดิมที่มีอยู่แล้ว: {existing.GetType().Name}");
             RestoreAndActivate(existing);
             return;
         }
 
+        TrayDiagnostics.Log("[ui] เปิดหน้า login ใหม่");
         var loginWindow = new LoginWindow(_apiClient);
         loginWindow.Show();
     }
@@ -183,7 +224,48 @@ public partial class App : System.Windows.Application
             window.WindowState = WindowState.Normal;
         }
 
+        EnsureOnScreen(window);
         window.Activate();
+    }
+
+    /// <summary>
+    /// ลากหน้าต่างกลับเข้ามาในจอถ้ามันไปอยู่นอกพื้นที่ที่มองเห็นได้
+    ///
+    /// จำเป็นเพราะเครื่องที่ตื่นจาก sleep เปลี่ยน display topology ได้ (จอดับ/ต่อกลับ, ความละเอียด
+    /// เปลี่ยน, จอที่สองหายไป) หน้าต่างที่เคยอยู่บนจอที่หายไปจะเหลือพิกัดที่ไม่มีจอรองรับแล้ว - Show()
+    /// กับ Activate() จะ "สำเร็จ" ทั้งคู่แต่ผู้ใช้ไม่เห็นอะไรเลย ตรงกับที่รายงานว่า "กด tray ui แล้ว
+    /// ไม่มีอะไรเกิดขึ้น" ทั้งที่โปรแกรมไม่ได้ค้างจริง (ยังไม่ยืนยันว่าเป็นสาเหตุจริงของเคสนั้น -
+    /// แต่เป็นบั๊กที่มีอยู่จริงในตัวเองไม่ว่าจะใช่หรือไม่)
+    ///
+    /// VirtualScreen* ครอบคลุมทุกจอรวมกัน (ไม่ใช่แค่จอหลักแบบ WorkArea) - ต้องใช้ตัวนี้ ไม่งั้น
+    /// หน้าต่างที่อยู่บนจอที่สองอย่างถูกต้องจะโดนลากกลับมาจอหลักโดยไม่จำเป็น
+    /// </summary>
+    private static void EnsureOnScreen(Window window)
+    {
+        var virtualScreen = new Rect(
+            SystemParameters.VirtualScreenLeft,
+            SystemParameters.VirtualScreenTop,
+            SystemParameters.VirtualScreenWidth,
+            SystemParameters.VirtualScreenHeight);
+
+        var width = window.ActualWidth > 0 ? window.ActualWidth : window.Width;
+        var height = window.ActualHeight > 0 ? window.ActualHeight : window.Height;
+        if (double.IsNaN(width) || double.IsNaN(height))
+        {
+            return; // ยังไม่รู้ขนาดจริง - ตัดสินไม่ได้ว่าอยู่นอกจอไหม อย่าไปขยับมั่ว
+        }
+
+        var bounds = new Rect(window.Left, window.Top, width, height);
+        if (virtualScreen.IntersectsWith(bounds))
+        {
+            return; // ยังเห็นได้อยู่อย่างน้อยบางส่วน - ไม่ต้องยุ่ง
+        }
+
+        var area = SystemParameters.WorkArea;
+        window.Left = area.Left + (area.Width - width) / 2;
+        window.Top = area.Top + (area.Height - height) / 2;
+        TrayDiagnostics.Log(
+            $"[ui] {window.GetType().Name} อยู่นอกจอ ({bounds}) - ย้ายกลับมากึ่งกลางจอหลัก");
     }
 
     private void OnBroadcastMessageReceived(BroadcastMessageDto message)
@@ -358,6 +440,7 @@ public partial class App : System.Windows.Application
 
     protected override void OnExit(ExitEventArgs e)
     {
+        SystemEvents.PowerModeChanged -= OnPowerModeChanged;
         _broadcastListenerCts.Cancel();
         HideAllLockScreens();
         _physicalInputBlocker.Unblock();

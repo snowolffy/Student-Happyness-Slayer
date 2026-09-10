@@ -1,4 +1,4 @@
-using System.Windows;
+﻿using System.Windows;
 using OnionProcOparetor.Console.Services;
 
 namespace OnionProcOparetor.Console;
@@ -12,7 +12,6 @@ public partial class BroadcastMessageWindow : Window
     public BroadcastMessageWindow(int selectedCount)
     {
         InitializeComponent();
-        Loaded += (_, _) => WindowCenteringHelper.CenterOverOwnerOrScreen(this);
 
         if (selectedCount > 0)
         {
@@ -22,7 +21,7 @@ public partial class BroadcastMessageWindow : Window
         else
         {
             SendToSelectedRadio.IsEnabled = false;
-            SendToSelectedRadio.Content = "ส่งไปเครื่องที่เลือกไว้ (ยังไม่ได้เลือกเครื่อง)";
+            SendToSelectedRadio.Content = "ส่งไปเครื่องที่เลือกไว้ (ยังไม่ได้เลือกเครื่องไหน)";
             SendToAllRadio.IsChecked = true;
         }
     }
@@ -33,7 +32,8 @@ public partial class BroadcastMessageWindow : Window
         if (string.IsNullOrEmpty(message))
         {
             StatusText.Text = "กรุณากรอกข้อความ";
-            StatusText.Foreground = (System.Windows.Media.Brush)FindResource("Brush.Danger.Default");
+            // SetResourceReference ไม่ใช่ FindResource: FindResource คืน "ค่า ณ ตอนนั้น" ครั้งเดียว ซึ่งจะค้างอยู่กับธีมเดิมตลอดไปเมื่อผู้ใช้สลับธีม - SetResourceReference ผูกเป็น DynamicResource จริงเหมือนที่เขียนใน XAML จึงตามธีมใหม่ให้เอง
+            StatusText.SetResourceReference(System.Windows.Controls.TextBlock.ForegroundProperty, "Brush.Danger.Default");
             return;
         }
 

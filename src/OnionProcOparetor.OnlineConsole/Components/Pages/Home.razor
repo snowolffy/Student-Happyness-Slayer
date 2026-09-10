@@ -1,0 +1,656 @@
+﻿@page "/"
+@rendermode InteractiveServer
+@inherits AuthenticatedPageBase
+@inject LabHubClient LabHub
+@inject ToastService Toasts
+@implements IAsyncDisposable
+
+<PageTitle>Clients - OnionProcOparetor Online Console</PageTitle>
+
+@* ---------------------------------------------------------------------------------------------
+   The landing page is the whole product for most visits: someone opens this on a phone to answer
+   one question ("is anything wrong in the lab right now?") and closes it again. It used to open
+   straight onto a 7-column table, which makes the reader do the counting themselves. Now it leads
+   with four numbers, and each number is also the fastest route to the rows behind it.
+   --------------------------------------------------------------------------------------------- *@
+
+<div class="page-head">
+    <div>
+        <h2 class="heading2" style="margin:0">Clients</h2>
+        <div class="page-subtitle">เครื่องทั้งหมดในห้องแล็บ และสถานะล่าสุดของแต่ละเครื่อง</div>
+    </div>
+    <span class="spacer"></span>
+    @* Honest liveness indicator. "อัปเดตสด" = the SignalR push channel is up. "อัปเดตทุก 10 วิ" = it
+       isn't, and the page is coasting on the REST poll. A dashboard that has quietly lost its live
+       feed while looking identical to one that hasn't is the most dangerous state this page can be
+       in: "ไม่มีเครื่อง offline" means very different things in each case. *@
+    <span class="live-pill @(LabHub.IsConnected ? "is-live" : "is-degraded")"
+          title="@(LabHub.IsConnected ? "เชื่อมต่อ LabHub อยู่ - ข้อมูลอัปเดตทันทีที่มีการเปลี่ยนแปลง" : "LabHub หลุด - หน้านี้อาศัยการดึงข้อมูลซ้ำทุก 10 วินาทีแทน")">
+        <span class="dot"></span>
+        @(LabHub.IsConnected ? "อัปเดตสด" : "อัปเดตทุก 10 วิ")
+    </span>
+</div>
+
+@if (_loading)
+{
+    @* Skeletons, not a spinner: the shapes tell you what is coming and stop the layout jumping when
+       it lands. Over Tailscale on cellular this is a real wait, not a theoretical one. *@
+    <div class="stat-grid">
+        @for (var i = 0; i < 4; i++) { <div class="skeleton skeleton-stat"></div> }
+    </div>
+    <div>
+        @for (var i = 0; i < 5; i++) { <div class="skeleton skeleton-card"></div> }
+    </div>
+}
+else
+{
+@* ---------------------------------------------------------------------------------------------
+   The global enforcement gate, made visible. This banner exists because of a real field bug
+   (2026-09-04): GlobalState.IsEnabled is an AND gate over EVERY machine's own IsEnabled (the
+   Agent enforces only when both are on - see /api/poll), but nothing anywhere displayed it. With
+   it off, this table happily showed all 40 machines as ENABLED while every Agent reported
+   "Disabled", and toggling a machine changed nothing at all - an unfalsifiable symptom, because
+   the one value that explained it was invisible in every UI we had. Commands kept working, which
+   made it look like the connection was fine (it was).
+
+   So it gets the loudest treatment on the page: full width, above the numbers, with the way out
+   in the banner itself. Nobody should have to know this state exists to get out of it.
+   --------------------------------------------------------------------------------------------- *@
+@if (_globalState is { IsEnabled: false })
+{
+    <div class="global-off-banner" role="alert">
+        <Icon Name="shield-off" Size="20" />
+        <div style="flex:1; min-width:0">
+            <strong>ปิดการบังคับใช้ทั้งระบบอยู่</strong>
+            <div class="caption">กฎทั้งหมดหยุดทำงานบนทุกเครื่อง ไม่ว่าเครื่องนั้นจะขึ้น ENABLED ในตารางหรือไม่ก็ตาม</div>
+        </div>
+        <button class="btn btn-primary" @onclick="() => SetGlobalAsync(true)">เปิดกลับ</button>
+    </div>
+}
+
+<div class="stat-grid">
+    @* Every tile is also a filter. The number that worries you is the number you want to drill into,
+       so making it the tap target removes an entire step ("see 3 offline" -> "which 3?"). Tapping the
+       active tile again clears the filter, so there is no dead end. *@
+    <StatCard Label="ออนไลน์" IconName="monitor"
+              Value="_clients.Count(c => c.IsOnline)" Total="_clients.Count"
+              Color="var(--online)" Hint="เครื่องที่ Agent ยัง poll เข้ามา"
+              Selected="_filter == ClientFilter.Online"
+              OnClick="() => SetFilter(ClientFilter.Online)" />
+
+    <StatCard Label="ออฟไลน์" IconName="alert-triangle"
+              Value="_clients.Count(c => !c.IsOnline)"
+              Color="var(--danger)" Hint="ปิดเครื่อง หรือ Agent ไม่ทำงาน"
+              Selected="_filter == ClientFilter.Offline"
+              OnClick="() => SetFilter(ClientFilter.Offline)" />
+
+    @* Counts the EFFECTIVE state, not the per-machine flag: with the global gate off the honest
+       answer to "how many machines are not enforcing?" is "all of them". *@
+    <StatCard Label="ปิดการบังคับใช้" IconName="shield-off"
+              Value="_clients.Count(c => !EffectiveEnabled(c))"
+              Color="var(--warning)" Hint="กฎไม่ถูกบังคับใช้บนเครื่องนี้"
+              Selected="_filter == ClientFilter.Disabled"
+              OnClick="() => SetFilter(ClientFilter.Disabled)" />
+
+    <StatCard Label="ผ่าน Tailscale" IconName="wifi"
+              Value="_clients.Count(c => c.UsingFallback)"
+              Color="var(--accent)" Hint="ต่อ LAN ไม่ได้ ใช้เส้นทางสำรอง"
+              Selected="_filter == ClientFilter.Fallback"
+              OnClick="() => SetFilter(ClientFilter.Fallback)" />
+</div>
+
+<div class="toolbar">
+    @* Debounced (see SearchBox.razor): typing used to cost one server round-trip AND a full re-render
+       of both the table and the card list per character. *@
+    <SearchBox Value="@_search" ValueChanged="OnSearchChanged"
+               Placeholder="ค้นหาชื่อเครื่อง / IP..." AriaLabel="ค้นหาเครื่อง" />
+    <span class="spacer"></span>
+    <button class="btn btn-secondary @(_refreshing ? "is-busy" : "")" @onclick="RefreshAsync">
+        <Icon Name="refresh-cw" Size="15" /> รีเฟรช
+    </button>
+    @* Says what it will DO, not that it will "สลับ" something. The old blind-flip label was half of
+       the field bug above: pressing it told you nothing about which state you had just left the
+       whole lab in, and nothing on the page told you either. Turning the gate OFF is confirmed
+       (it reaches all 40 machines); turning it back ON is one tap, because that is the recovery. *@
+    <button class="btn @(_globalState is { IsEnabled: false } ? "btn-primary" : "btn-secondary")"
+            disabled="@(_globalState is null)"
+            title="@(_globalState is null ? "อ่านสถานะการบังคับใช้ทั้งระบบจาก Server ไม่ได้" : null)"
+            @onclick="OnGlobalButtonClick">
+        <Icon Name="power" Size="15" />
+        @(_globalState is { IsEnabled: false } ? "เปิดการบังคับใช้ทั้งระบบ" : "ปิดการบังคับใช้ทั้งระบบ")
+    </button>
+</div>
+
+@if (_filter != ClientFilter.All || !string.IsNullOrWhiteSpace(_search))
+{
+    @* A filtered list that doesn't say it is filtered is how someone concludes half the lab has
+       vanished. Always show what is being hidden, and always give a one-tap way out. *@
+    <div class="toolbar" style="margin-top:-.4rem">
+        <span class="caption">แสดง @Visible().Count จาก @_clients.Count เครื่อง</span>
+        <button class="btn btn-ghost btn-sm" @onclick="ClearFilters">
+            <Icon Name="x" Size="14" /> ล้างตัวกรอง
+        </button>
+    </div>
+}
+
+@if (_clients.Count == 0)
+{
+    <div class="card">
+        <EmptyState IconName="monitor" Title="ยังไม่มีเครื่องลงทะเบียน"
+                    Detail="เครื่องจะปรากฏที่นี่เองเมื่อ Agent เริ่ม poll เข้ามาที่ Server ครั้งแรก" />
+    </div>
+}
+else if (Visible().Count == 0)
+{
+    @* Deliberately a different message from "no machines at all": the cause and the fix are
+       different, and a generic "ไม่พบข้อมูล" would send someone hunting for a server fault when they
+       have simply typed a filter that matches nothing. *@
+    <div class="card">
+        <EmptyState IconName="search" Title="ไม่มีเครื่องที่ตรงกับตัวกรอง"
+                    Detail="ลองล้างตัวกรอง หรือแก้คำค้นหา แล้วดูใหม่อีกครั้ง" />
+    </div>
+}
+else
+{
+    @* ---- Phone rendering: one card per machine ------------------------------------------------
+       Same data as the table below, laid out for a thumb instead of a mouse: identity on top,
+       fields as label/value pairs, actions as full-width buttons. See .card-list in theme.css for
+       why stacking is the right call for THIS app specifically. *@
+    <div class="card-list narrow-only">
+        @foreach (var client in Visible())
+        {
+            <div class="data-card" @key="client.Id"
+                 style="--data-card-accent: @(client.IsOnline ? "var(--online)" : "var(--danger)")">
+                <div class="data-card-head">
+                    <input type="checkbox" checked="@_selected.Contains(client.Id)"
+                           @onchange="e => ToggleSelect(client.Id, (bool)e.Value!)"
+                           aria-label="@($"เลือก {client.MachineName}")" />
+                    <div style="flex:1; min-width:0">
+                        <div class="data-card-title">@client.MachineName</div>
+                        <div class="data-card-sub">@(client.LastKnownIp ?? "ไม่ทราบ IP") · @(client.UsingFallback ? "Tailscale" : "LAN")</div>
+                    </div>
+                    <span class="badge @(client.IsOnline ? "badge-online" : "badge-offline")">@(client.IsOnline ? "ONLINE" : "OFFLINE")</span>
+                </div>
+
+                <dl class="data-card-rows">
+                    <dt>การบังคับใช้</dt>
+                    <dd>
+                        <span class="badge @EnforcementBadgeClass(client)" title="@EnforcementBadgeHint(client)">@EnforcementLabelTh(client)</span>
+                    </dd>
+                    <dt>เห็นล่าสุด</dt>
+                    <dd><TimeAgo Value="client.LastSeenAt" /></dd>
+                </dl>
+
+                <div class="data-card-actions">
+                    <button class="btn btn-secondary btn-sm" @onclick="() => _actionPanelClient = client">
+                        <Icon Name="list" Size="14" /> คำสั่ง
+                    </button>
+                    @* Straight to the screen, without going through the action sheet first: "ดูจอ" is
+                       overwhelmingly the most common thing anyone wants from a single machine. *@
+                    <button class="btn btn-secondary btn-sm" disabled="@(!client.IsOnline)"
+                            @onclick="() => NavigateToScreenView(client)">
+                        <Icon Name="video" Size="14" /> ดูจอ
+                    </button>
+                </div>
+            </div>
+        }
+    </div>
+
+    @* ---- Wide rendering: the table, unchanged in substance ---------------------------------- *@
+    <div class="table-scroll wide-only">
+        <table>
+            <thead>
+                <tr>
+                    <th style="width:1%"><input type="checkbox" checked="@AllVisibleSelected" @onchange="ToggleSelectAll" aria-label="เลือกทั้งหมด" /></th>
+                    <th class="sortable @SortClass(SortKey.Machine)" @onclick="() => Sort(SortKey.Machine)">Machine <span class="sort-caret">@Caret(SortKey.Machine)</span></th>
+                    <th class="sortable @SortClass(SortKey.Status)" @onclick="() => Sort(SortKey.Status)">Status <span class="sort-caret">@Caret(SortKey.Status)</span></th>
+                    <th>Enforcement</th>
+                    <th>Connection</th>
+                    <th class="sortable @SortClass(SortKey.LastSeen)" @onclick="() => Sort(SortKey.LastSeen)">Last Seen <span class="sort-caret">@Caret(SortKey.LastSeen)</span></th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var client in Visible())
+                {
+                    @* row-attention tints offline machines: the point of the page is spotting the
+                       exceptions, and they shouldn't need a column-by-column read to find. *@
+                    <tr @key="client.Id" class="@(client.IsOnline ? "" : "row-attention")">
+                        <td><input type="checkbox" checked="@_selected.Contains(client.Id)" @onchange="e => ToggleSelect(client.Id, (bool)e.Value!)" aria-label="@($"เลือก {client.MachineName}")" /></td>
+                        <td>
+                            <strong>@client.MachineName</strong>
+                            @if (client.LastKnownIp is not null) { <span class="caption mono"> @client.LastKnownIp</span> }
+                        </td>
+                        <td><span class="badge @(client.IsOnline ? "badge-online" : "badge-offline")">@(client.IsOnline ? "ONLINE" : "OFFLINE")</span></td>
+                        <td><span class="badge @EnforcementBadgeClass(client)" title="@EnforcementBadgeHint(client)">@EnforcementLabelEn(client)</span></td>
+                        <td>@(client.UsingFallback ? "Tailscale" : "LAN")</td>
+                        <td><TimeAgo Value="client.LastSeenAt" /></td>
+                        <td>
+                            <div style="display:flex; gap:.3rem">
+                                <button class="btn btn-secondary btn-sm" @onclick="() => _actionPanelClient = client">ACTIONS</button>
+                                <button class="btn btn-secondary btn-sm" disabled="@(!client.IsOnline)" @onclick="() => NavigateToScreenView(client)">
+                                    <Icon Name="video" Size="14" />
+                                    <span class="sr-only">ดูจอ @client.MachineName</span>
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+}
+}
+
+@* Bulk actions ride down to the thumb once anything is selected, instead of living in a toolbar that
+   has scrolled off the top by the time you finish ticking boxes. The count is in the bar so an
+   accidental "select all" is impossible to miss before a broadcast goes to 40 machines. *@
+@if (_selected.Count > 0)
+{
+    <div class="selection-bar">
+        <span class="selection-count">เลือก @_selected.Count เครื่อง</span>
+        <button class="btn btn-secondary btn-sm" @onclick="() => _broadcastOpen = true">
+            <Icon Name="send" Size="14" /> ส่งข้อความ
+        </button>
+        <button class="btn btn-primary btn-sm" @onclick="() => _bulkActionPanelOpen = true">
+            <Icon Name="list" Size="14" /> คำสั่ง
+        </button>
+        <button class="icon-btn" style="width:34px;height:34px;color:inherit" @onclick="() => _selected.Clear()" aria-label="ยกเลิกการเลือก">
+            <Icon Name="x" Size="16" />
+        </button>
+    </div>
+}
+
+@if (_confirmGlobalOff)
+{
+    <ConfirmDialog Title="ปิดการบังคับใช้ทั้งระบบ?"
+                   Message="กฎทั้งหมดจะหยุดทำงานบนทุกเครื่องในห้องแล็บพร้อมกัน จนกว่าจะเปิดกลับจากปุ่มเดิม - การเปิด/ปิด enforcement รายเครื่องจะไม่มีผลใดๆ ตลอดช่วงที่ปิดอยู่"
+                   ConfirmText="ปิดทั้งระบบ" Danger="true"
+                   OnCancel="() => _confirmGlobalOff = false"
+                   OnConfirm="() => SetGlobalAsync(false)" />
+}
+
+@if (_actionPanelClient is not null)
+{
+    <ActionPanelModal
+        SingleClient="_actionPanelClient"
+        AllClients="_clients"
+        OnClose="() => _actionPanelClient = null"
+        OnDataChanged="LoadClientsAsync"
+        OnReportReady="ShowReport"
+        OnOpenScreenView="NavigateToScreenView"
+        OnOpenRunningProcesses="OpenRunningProcesses"
+        OnOpenPendingCommands="OpenPendingCommands" />
+}
+
+@if (_bulkActionPanelOpen)
+{
+    <ActionPanelModal
+        BulkClients="SelectedClients()"
+        AllClients="_clients"
+        OnClose="() => _bulkActionPanelOpen = false"
+        OnDataChanged="LoadClientsAsync"
+        OnReportReady="ShowReport" />
+}
+
+@if (_broadcastOpen)
+{
+    <BroadcastMessageModal SelectedCount="_selected.Count" OnClose="() => _broadcastOpen = false" OnSend="SendBroadcastAsync" />
+}
+
+@if (_runningProcessesClient is not null)
+{
+    <RunningProcessesModal Client="_runningProcessesClient" OnClose="() => _runningProcessesClient = null" />
+}
+
+@if (_pendingCommandsClient is not null)
+{
+    <PendingCommandsModal Client="_pendingCommandsClient" OnClose="() => _pendingCommandsClient = null" />
+}
+
+@if (_report is not null)
+{
+    <ActionReportModal Request="_report" OnClose="() => _report = null" />
+}
+
+@code {
+    [Inject] private NavigationManager Navigation { get; set; } = null!;
+
+    private enum ClientFilter { All, Online, Offline, Disabled, Fallback }
+    private enum SortKey { Machine, Status, LastSeen }
+
+    private List<ClientMachineDto> _clients = new();
+    private HashSet<int> _selected = new();
+
+    private bool _loading = true;
+    private bool _refreshing;
+    private ClientFilter _filter = ClientFilter.All;
+    private string _search = string.Empty;
+    private SortKey _sortKey = SortKey.Machine;
+    private bool _sortDescending;
+
+    private ClientMachineDto? _actionPanelClient;
+    private bool _bulkActionPanelOpen;
+    private bool _broadcastOpen;
+    private bool _confirmGlobalOff;
+
+    /// <summary>
+    /// null = ยังอ่านค่าไม่ได้ (Server ตอบไม่สำเร็จ) ซึ่งต้องต่างจาก "รู้ว่าเปิดอยู่" เสมอ - การ
+    /// สมมติว่าเปิดอยู่เวลาที่ไม่รู้ คือการทำให้ค่านี้มองไม่เห็นอีกครั้ง ซึ่งเป็นตัวบั๊กเอง
+    /// </summary>
+    private GlobalStateDto? _globalState;
+    private ClientMachineDto? _runningProcessesClient;
+    private ClientMachineDto? _pendingCommandsClient;
+    private ActionReportRequest? _report;
+
+    private CancellationTokenSource _pollCts = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await base.OnInitializedAsync(); // restores the login token onto Api first - see AuthenticatedPageBase
+
+        // Just the REST call here, so the prerendered HTML already shows real data instead of an empty
+        // table for a flash.
+        await LoadClientsAsync();
+        _loading = false;
+    }
+
+    protected override Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return Task.CompletedTask;
+
+        // Deliberately NOT in OnInitializedAsync, discovered live: Blazor Server prerenders a page once
+        // (its own short-lived DI scope) before the real interactive circuit takes over with its own,
+        // longer-lived scope - starting the SignalR connection in OnInitializedAsync opened a real hub
+        // connection during prerendering, then immediately killed it when that throwaway scope got
+        // disposed a moment later ("LabHub connected" instantly followed by "connection closed" in the
+        // logs, on every single page load). OnAfterRenderAsync is never called during prerendering at
+        // all (that's the documented way to detect "this is the real interactive render"), so this only
+        // ever runs once, for the circuit that's actually going to stick around.
+        LabHub.ClientStatusChanged += OnClientStatusChanged;
+        LabHub.ConnectionStateChanged += OnConnectionStateChanged; // drives the live/degraded pill in the header
+        _ = LabHub.StartAsync(Api.ServerBaseUrl, _pollCts.Token); // fire-and-forget: has its own retry loop, dashboard still works via polling below if this never connects
+        _ = PollLoopAsync(_pollCts.Token);
+
+        return Task.CompletedTask;
+    }
+
+    private async Task PollLoopAsync(CancellationToken ct)
+    {
+        // Fail-secure fallback alongside the SignalR push above (same dual-channel approach the WPF
+        // Console uses) - if the hub connection is down for any reason, the dashboard still refreshes.
+        while (!ct.IsCancellationRequested)
+        {
+            try { await Task.Delay(TimeSpan.FromSeconds(10), ct); }
+            catch (OperationCanceledException) { return; }
+
+            await LoadClientsAsync();
+        }
+    }
+
+    private async Task LoadClientsAsync()
+    {
+        _clients = await Api.GetClientsAsync();
+
+        // ดึงมาพร้อมกันทุกครั้ง (รวมถึงรอบ poll ทุก 10 วิ) - ครูอีกคนอาจปิดทั้งระบบจากอีกเครื่องหนึ่ง
+        // และหน้านี้ต้องไม่ใช่หน้าที่แสดงว่าทุกอย่างปกติทั้งที่ทั้งห้องหยุดบังคับใช้ไปแล้ว
+        _globalState = await Api.GetGlobalStateAsync();
+
+        await InvokeAsync(StateHasChanged);
+    }
+
+    /// <summary>Manual refresh. Separate from LoadClientsAsync purely so the button can show a busy
+    /// state - a button that fires a network call and then looks identical for two seconds gets
+    /// pressed again, and the second press is the one that produces a duplicate command.</summary>
+    private async Task RefreshAsync()
+    {
+        _refreshing = true;
+        await LoadClientsAsync();
+        _refreshing = false;
+    }
+
+    private void OnClientStatusChanged(ClientMachineDto updated)
+    {
+        var index = _clients.FindIndex(c => c.ClientGuid == updated.ClientGuid);
+        if (index >= 0) _clients[index] = updated; else _clients.Add(updated);
+        InvokeAsync(StateHasChanged);
+    }
+
+    private void OnConnectionStateChanged() => InvokeAsync(StateHasChanged);
+
+    // ---- Filtering / sorting -------------------------------------------------------------------
+
+    /// <summary>
+    /// The one list every rendering below reads from. Kept as a method rather than a cached field on
+    /// purpose: the source data is replaced wholesale every 10 seconds and on every SignalR push, and a
+    /// cache would have to be invalidated in all of those places - 40 rows is nothing to re-filter.
+    /// </summary>
+    private List<ClientMachineDto> Visible()
+    {
+        IEnumerable<ClientMachineDto> query = _clients;
+
+        query = _filter switch
+        {
+            ClientFilter.Online => query.Where(c => c.IsOnline),
+            ClientFilter.Offline => query.Where(c => !c.IsOnline),
+            ClientFilter.Disabled => query.Where(c => !EffectiveEnabled(c)),
+            ClientFilter.Fallback => query.Where(c => c.UsingFallback),
+            _ => query
+        };
+
+        if (!string.IsNullOrWhiteSpace(_search))
+        {
+            var needle = _search.Trim();
+            query = query.Where(c =>
+                c.MachineName.Contains(needle, StringComparison.OrdinalIgnoreCase) ||
+                (c.LastKnownIp?.Contains(needle, StringComparison.OrdinalIgnoreCase) ?? false));
+        }
+
+        query = _sortKey switch
+        {
+            SortKey.Status => _sortDescending
+                ? query.OrderByDescending(c => c.IsOnline).ThenBy(c => c.MachineName, NaturalOrder)
+                : query.OrderBy(c => c.IsOnline).ThenBy(c => c.MachineName, NaturalOrder),
+            SortKey.LastSeen => _sortDescending
+                ? query.OrderByDescending(c => c.LastSeenAt)
+                : query.OrderBy(c => c.LastSeenAt),
+            _ => _sortDescending
+                ? query.OrderByDescending(c => c.MachineName, NaturalOrder)
+                : query.OrderBy(c => c.MachineName, NaturalOrder)
+        };
+
+        return query.ToList();
+    }
+
+    /// <summary>
+    /// Natural (human) ordering for machine names, so COM-2 sorts before COM-10 instead of after it.
+    /// Plain string ordering puts the lab in the order COM-1, COM-10, COM-11, ... COM-2 - which does
+    /// not match the numbers painted on the actual machines, so scanning the list against the room
+    /// stops working. StringComparer.Ordinal with digit-aware comparison is what Explorer does, and
+    /// it's what anyone reading a list of COM-nn expects.
+    /// </summary>
+    private static readonly IComparer<string> NaturalOrder = Comparer<string>.Create(static (a, b) =>
+    {
+        int i = 0, j = 0;
+        while (i < a.Length && j < b.Length)
+        {
+            if (char.IsDigit(a[i]) && char.IsDigit(b[j]))
+            {
+                var si = i; var sj = j;
+                while (i < a.Length && char.IsDigit(a[i])) i++;
+                while (j < b.Length && char.IsDigit(b[j])) j++;
+
+                // Compared as numbers, not as text, and long.TryParse guards absurdly long digit runs
+                // rather than throwing on them.
+                var okA = long.TryParse(a.AsSpan(si, i - si), out var na);
+                var okB = long.TryParse(b.AsSpan(sj, j - sj), out var nb);
+                if (okA && okB && na != nb) return na.CompareTo(nb);
+                continue;
+            }
+
+            var cmp = char.ToUpperInvariant(a[i]).CompareTo(char.ToUpperInvariant(b[j]));
+            if (cmp != 0) return cmp;
+            i++; j++;
+        }
+
+        return (a.Length - i).CompareTo(b.Length - j);
+    });
+
+    private void Sort(SortKey key)
+    {
+        // Same column twice = flip direction; a new column starts ascending. That is the behaviour
+        // every table in every OS has, so it needs no explanation in the UI.
+        if (_sortKey == key) { _sortDescending = !_sortDescending; }
+        else { _sortKey = key; _sortDescending = false; }
+    }
+
+    private string SortClass(SortKey key) => _sortKey == key ? "sorted" : string.Empty;
+    private string Caret(SortKey key) => _sortKey != key ? "▴▾" : (_sortDescending ? "▾" : "▴");
+
+    private void SetFilter(ClientFilter filter)
+    {
+        // Tapping the active tile clears it, so a filter is never a dead end you have to hunt for the
+        // exit from.
+        _filter = _filter == filter ? ClientFilter.All : filter;
+    }
+
+    private void OnSearchChanged(string value)
+    {
+        _search = value;
+        StateHasChanged();
+    }
+
+    private void ClearFilters()
+    {
+        _filter = ClientFilter.All;
+        _search = string.Empty;
+    }
+
+    // ---- Selection -----------------------------------------------------------------------------
+
+    private bool AllVisibleSelected
+    {
+        get
+        {
+            var visible = Visible();
+            return visible.Count > 0 && visible.All(c => _selected.Contains(c.Id));
+        }
+    }
+
+    private List<ClientMachineDto> SelectedClients() => _clients.Where(c => _selected.Contains(c.Id)).ToList();
+
+    private void ToggleSelect(int id, bool isSelected)
+    {
+        if (isSelected) _selected.Add(id); else _selected.Remove(id);
+    }
+
+    private void ToggleSelectAll(ChangeEventArgs e)
+    {
+        // Select-all applies to what is VISIBLE, not to everything loaded. Filtering to "offline" and
+        // ticking the header box has to mean "these three", or the box becomes a way to accidentally
+        // send a command to all 40 machines while looking at 3.
+        var check = (bool)e.Value!;
+        var visible = Visible();
+        if (check) { foreach (var c in visible) _selected.Add(c.Id); }
+        else { foreach (var c in visible) _selected.Remove(c.Id); }
+    }
+
+    // ---- Actions -------------------------------------------------------------------------------
+
+    /// <summary>ปิด = ต้องยืนยันก่อน (มีผลทั้งห้อง) / เปิดกลับ = ทำเลย นั่นคือทางออกจากปัญหา</summary>
+    private async Task OnGlobalButtonClick()
+    {
+        if (_globalState is null) return;
+
+        if (_globalState.IsEnabled) _confirmGlobalOff = true;
+        else await SetGlobalAsync(true);
+    }
+
+    private async Task SetGlobalAsync(bool enabled)
+    {
+        _confirmGlobalOff = false;
+        var ok = await Api.SetGlobalEnabledAsync(enabled);
+
+        // Toast instead of the old inline status line: on a phone, by the time you have scrolled to a
+        // button the top of the page (where that line lived) is long gone, so both the confirmation and
+        // - much worse - the failure were being written somewhere nobody would ever see them. It also
+        // names the resulting state now: "สลับแล้ว" left the reader exactly as uninformed as before.
+        Toasts.Result(ok,
+            enabled ? "เปิดการบังคับใช้ทั้งระบบแล้ว" : "ปิดการบังคับใช้ทั้งระบบแล้ว",
+            "เปลี่ยนไม่สำเร็จ", "Server ปฏิเสธคำสั่ง - ลองใหม่อีกครั้ง");
+
+        await LoadClientsAsync();
+    }
+
+    // ---- Enforcement badges --------------------------------------------------------------------
+
+    /// <summary>สิ่งที่ Agent ทำอยู่จริง - ตรงกับ `enabled` ที่ Server คำนวณให้ตอน poll เป๊ะๆ</summary>
+    private bool EffectiveEnabled(ClientMachineDto client) =>
+        client.IsEnabled && _globalState?.IsEnabled != false;
+
+    /// <summary>true = เครื่องนี้เปิดอยู่ของมันเอง แต่ถูก gate ทั้งห้องกดทับไว้</summary>
+    private bool MaskedByGlobal(ClientMachineDto client) =>
+        client.IsEnabled && _globalState is { IsEnabled: false };
+
+    private string EnforcementBadgeClass(ClientMachineDto client) =>
+        EffectiveEnabled(client) ? "badge-online" : "badge-warning";
+
+    private string EnforcementLabelTh(ClientMachineDto client) =>
+        MaskedByGlobal(client) ? "ปิด (ทั้งระบบ)" : client.IsEnabled ? "เปิด" : "ปิด";
+
+    private string EnforcementLabelEn(ClientMachineDto client) =>
+        MaskedByGlobal(client) ? "OFF (GLOBAL)" : client.IsEnabled ? "ENABLED" : "DISABLED";
+
+    private string? EnforcementBadgeHint(ClientMachineDto client) =>
+        MaskedByGlobal(client)
+            ? "เครื่องนี้เปิด enforcement ไว้ แต่การบังคับใช้ทั้งระบบถูกปิดอยู่ กฎจึงไม่ทำงาน"
+            : null;
+
+    private void ShowReport(ActionReportRequest request) => _report = request;
+
+    private void NavigateToScreenView(ClientMachineDto client) => Navigation.NavigateTo($"screen-view/{client.ClientGuid}");
+
+    private void OpenRunningProcesses(ClientMachineDto client)
+    {
+        _actionPanelClient = null;
+        _runningProcessesClient = client;
+    }
+
+    private void OpenPendingCommands(ClientMachineDto client)
+    {
+        _actionPanelClient = null;
+        _pendingCommandsClient = client;
+    }
+
+    private async Task SendBroadcastAsync((string? Title, string Text, bool SendToAll) message)
+    {
+        _broadcastOpen = false;
+        var targets = message.SendToAll ? _clients : SelectedClients();
+
+        var rows = targets.Select(c => new ActionReportRow { ClientGuid = c.ClientGuid, MachineName = c.MachineName }).ToList();
+        var batchId = Guid.NewGuid().ToString();
+
+        _report = new ActionReportRequest
+        {
+            ActionLabel = "Broadcast Message",
+            Rows = rows,
+            BatchId = batchId,
+            SendAsync = async row =>
+            {
+                var (commandId, error) = await Api.SendCommandTrackedAsync(
+                    row.ClientGuid, "BroadcastMessage", new { title = message.Title, message = message.Text }, batchId);
+                row.CommandId = commandId;
+                return commandId is not null ? (true, null) : (false, error);
+            }
+        };
+    }
+
+    public ValueTask DisposeAsync()
+    {
+        LabHub.ClientStatusChanged -= OnClientStatusChanged;
+        LabHub.ConnectionStateChanged -= OnConnectionStateChanged;
+        _pollCts.Cancel();
+        _pollCts.Dispose();
+        return ValueTask.CompletedTask;
+    }
+}

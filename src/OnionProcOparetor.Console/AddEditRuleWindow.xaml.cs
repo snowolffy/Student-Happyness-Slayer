@@ -1,4 +1,4 @@
-using System.Windows;
+﻿using System.Windows;
 using OnionProcOparetor.Console.Models;
 using OnionProcOparetor.Console.Services;
 
@@ -50,7 +50,6 @@ public partial class AddEditRuleWindow : Window
     private AddEditRuleWindow(ApiClient apiClient, RuleDto? existingRule, string? titleSuffix)
     {
         InitializeComponent();
-        Loaded += (_, _) => WindowCenteringHelper.CenterOverOwnerOrScreen(this);
         _apiClient = apiClient;
         _ruleId = existingRule?.Id ?? 0;
 

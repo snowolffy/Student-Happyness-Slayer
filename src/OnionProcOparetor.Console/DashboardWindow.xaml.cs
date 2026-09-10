@@ -77,6 +77,159 @@ public partial class DashboardWindow : Window
         public VncSessionHandle? Handle { get; set; }
     }
 
+#if DEBUG
+    /// <summary>
+    /// โหมดตรวจงาน UI (App.OnStartup, --ui-preview) มีเฉพาะ build แบบ Debug - publish-all.ps1 ใช้
+    /// -c Release เสมอ จึงไม่มีอยู่จริงในของที่ส่งขึ้นเครื่องครู
+    /// </summary>
+    public bool PreviewMode { get; set; }
+
+    /// <summary>ชื่อแท็บที่จะเลือกไว้ตอนเปิดในโหมดตรวจ UI (ตรงกับ TabItem.Header เช่น "Rules")</summary>
+    public string? PreviewTab { get; set; }
+
+    /// <summary>เลือกแถวแรกไว้ไหมตอนเปิดในโหมดตรวจ UI - ใช้เทียบภาพ "เลือก/ไม่เลือก" ว่าตารางขยับไหม</summary>
+    public bool PreviewSelectFirst { get; set; }
+
+    /// <summary>ตั้ง gate ทั้งห้องเป็นปิดในโหมดตรวจ UI เพื่อให้แถบเตือนโผล่ขึ้นมาให้ดู</summary>
+    public bool PreviewGlobalOff { get; set; }
+
+    /// <summary>เปิด overlay ดูจอเต็มจอค้างไว้ในโหมดตรวจ UI - ปกติเข้าถึงได้เฉพาะตอนมี VNC session จริง</summary>
+    public bool PreviewFullscreen { get; set; }
+
+    /// <summary>
+    /// ใส่ข้อมูลปลอมลงตารางเพื่อให้เห็น badge / การ์ดตัวเลข / แถบเลือก ตอนตรวจงาน UI โดยไม่ต้อง
+    /// login เข้า Server ตัวจริงที่รันอยู่บนเครื่อง dev เครื่องนี้ - ค่าถูกเลือกให้ครบทุกสถานะที่
+    /// UI ต้องรับมือ (ออนไลน์/ออฟไลน์, กฎทำงาน/ไม่ทำงาน, ต่อผ่าน LAN/Tailscale) ไม่ใช่แค่แถวสวย ๆ
+    /// </summary>
+    private void SeedPreviewData()
+    {
+        var now = DateTime.UtcNow;
+        _globalState = new GlobalStateDto { IsEnabled = !PreviewGlobalOff };
+        _allClients =
+        [
+            new() { Id = 1, ClientGuid = "a1", MachineName = "LAB-PC-01", LastKnownIp = "192.168.1.11", IsOnline = true,  IsEnabled = true,  LastSeenAt = now },
+            new() { Id = 2, ClientGuid = "b2", MachineName = "LAB-PC-02", LastKnownIp = "192.168.1.12", IsOnline = true,  IsEnabled = false, LastSeenAt = now },
+            new() { Id = 3, ClientGuid = "c3", MachineName = "LAB-PC-03", LastKnownIp = "100.84.2.7",   IsOnline = true,  IsEnabled = true,  UsingFallback = true, LastSeenAt = now },
+            new() { Id = 4, ClientGuid = "d4", MachineName = "LAB-PC-04", LastKnownIp = "192.168.1.14", IsOnline = false, IsEnabled = true,  LastSeenAt = now.AddHours(-3) },
+            new() { Id = 5, ClientGuid = "e5", MachineName = "LAB-PC-05", LastKnownIp = null,           IsOnline = false, IsEnabled = false, LastSeenAt = now.AddDays(-2) },
+        ];
+
+        RefreshGlobalStateUi();
+        ApplyClientsFilter();
+        ApplyLiveViewClientList();
+
+        // แท็บอื่นตั้งใจปล่อยว่าง เพื่อให้เห็น empty state ของจริงตอนไล่ตรวจ
+        RulesEmptyText.Visibility = Visibility.Visible;
+        LogsEmptyText.Visibility = Visibility.Visible;
+        AuditLogEmptyText.Visibility = Visibility.Visible;
+        UsersEmptyText.Visibility = Visibility.Visible;
+
+        // เลือกแถวแรกเฉพาะเมื่อสั่ง (--select) - ต้องถ่ายได้ทั้งสองแบบเพื่อเทียบว่าตารางขยับไหม
+        // ตอนแถบ "ที่เลือก" โผล่ขึ้นมา
+        if (PreviewSelectFirst && ClientsGrid.Items.Count > 0)
+        {
+            ClientsGrid.SelectedIndex = 0;
+        }
+
+        if (!string.IsNullOrEmpty(PreviewTab))
+        {
+            foreach (TabItem item in MainTabControl.Items)
+            {
+                if (string.Equals(item.Header as string, PreviewTab, StringComparison.OrdinalIgnoreCase))
+                {
+                    MainTabControl.SelectedItem = item;
+                    break;
+                }
+            }
+        }
+
+        if (PreviewFullscreen)
+        {
+            _liveViewFullscreenClientGuid = _allClients[0].ClientGuid;
+            FullscreenHeaderText.Text = $"Live View - {_allClients[0].MachineName}";
+            FullscreenStatusText.Text = string.Empty;
+            SetToggleTargetInputButtonVisual(blocked: false);
+            LiveViewFullscreenOverlay.Visibility = Visibility.Visible;
+        }
+
+        StatusText.Text = "โหมดตรวจ UI (ข้อมูลปลอม)";
+    }
+#endif
+
+    // ==================== Sidebar / ธีม (2026-09-09) ====================
+
+    /// <summary>
+    /// ปุ่มสองตัวนี้อยู่ใน ControlTemplate ของ MainTabControl จึง **ไม่มี field ที่ x:Name สร้างให้**
+    /// (element ใน template อยู่คนละ namescope กับหน้าต่าง) ต้องดึงออกมาเองด้วย Template.FindName
+    /// หลัง template ถูก apply แล้วเท่านั้น - ทำใน Loaded ซึ่งการันตีว่าเลยจุดนั้นไปแล้ว
+    ///
+    /// ที่ต้องถือ reference ไว้เพราะต้องตั้ง "สถานะเริ่มต้น" ของทั้งสองปุ่มให้ตรงกับค่าที่จำไว้ตอน
+    /// เปิดหน้าต่าง (ไอคอนลูกศรชี้ถูกด้าน / ไอคอนพระอาทิตย์-พระจันทร์ตรงกับธีมปัจจุบัน) - ถ้าอัพเดต
+    /// จาก sender ใน Click อย่างเดียวจะถูกก็ต่อเมื่อผู้ใช้กดแล้วเท่านั้น
+    /// </summary>
+    private Button? _sidebarCollapseButton;
+    private Button? _themeToggleButton;
+
+    private void ApplySidebarAndThemeState()
+    {
+        _sidebarCollapseButton = MainTabControl.Template.FindName("SidebarCollapseButton", MainTabControl) as Button;
+        _themeToggleButton = MainTabControl.Template.FindName("ThemeToggleButton", MainTabControl) as Button;
+
+        SetSidebarCollapsed(SettingsService.Current.Ui.SidebarCollapsed, persist: false);
+        UpdateThemeToggleButton();
+
+        // ธีมเปลี่ยนได้จากทางอื่นด้วย (ผู้ใช้สลับธีมของ Windows ทั้งเครื่องขณะที่ตั้งไว้เป็น "ตามระบบ")
+        // ไม่ใช่แค่จากปุ่มนี้ จึงต้องฟัง event แทนที่จะอัพเดตเฉพาะตอนกดปุ่ม
+        ThemeService.ThemeChanged += UpdateThemeToggleButton;
+        Closed += (_, _) => ThemeService.ThemeChanged -= UpdateThemeToggleButton;
+    }
+
+    private void SetSidebarCollapsed(bool collapsed, bool persist)
+    {
+        // ตั้งที่ TabControl ตัวเดียว - Nav.IsCollapsed ประกาศเป็น Inherits จึงไหลลงไปถึงแถวเมนูทุกแถว
+        // หัวข้อกลุ่ม ปุ่มท้าย sidebar และ trigger ที่ย่อความกว้างของ sidebar เองพร้อมกันทั้งหมด
+        Controls.Nav.SetIsCollapsed(MainTabControl, collapsed);
+
+        if (_sidebarCollapseButton is not null)
+        {
+            Controls.Nav.SetIcon(_sidebarCollapseButton, collapsed ? "chevron-right" : "chevron-left");
+            _sidebarCollapseButton.Content = collapsed ? string.Empty : "ย่อเมนู";
+            _sidebarCollapseButton.ToolTip = collapsed ? "ขยายเมนู" : "ย่อเมนู";
+        }
+
+        if (!persist)
+        {
+            return;
+        }
+
+        var settings = SettingsService.Current;
+        settings.Ui.SidebarCollapsed = collapsed;
+        var (success, error) = SettingsService.Save(settings);
+        if (!success)
+        {
+            // จำไม่ได้ก็ไม่เป็นไร sidebar ในรอบนี้ย่อ/ขยายไปแล้วตามที่กด
+            ConsoleDiagnostics.WriteLine($"DashboardWindow: จำสถานะ sidebar ไม่สำเร็จ ({error})");
+        }
+    }
+
+    private void UpdateThemeToggleButton()
+    {
+        if (_themeToggleButton is null)
+        {
+            return;
+        }
+
+        // ไอคอนบอก "สิ่งที่จะได้ถ้ากด" ไม่ใช่ "สถานะตอนนี้" - ตอนอยู่ธีมสว่างจึงเป็นพระจันทร์ (กดแล้วมืด)
+        var dark = ThemeService.IsDarkActive;
+        Controls.Nav.SetIcon(_themeToggleButton, dark ? "sun" : "moon");
+        _themeToggleButton.Content = dark ? "ธีมสว่าง" : "ธีมมืด";
+    }
+
+    private void SidebarCollapseButton_Click(object sender, RoutedEventArgs e) =>
+        SetSidebarCollapsed(!Controls.Nav.GetIsCollapsed(MainTabControl), persist: true);
+
+    private void ThemeToggleButton_Click(object sender, RoutedEventArgs e) => ThemeService.Toggle();
+
     public DashboardWindow(ApiClient apiClient)
     {
         InitializeComponent();
@@ -84,7 +237,18 @@ public partial class DashboardWindow : Window
         ServerLabel.Text = $"connected to {_apiClient.BaseUrl}";
         FooterServerText.Text = _apiClient.BaseUrl ?? "-";
         FooterUserText.Text = _apiClient.Username ?? "-";
-        Loaded += async (_, _) => await LoadAllDataAsync();
+        Loaded += async (_, _) =>
+        {
+            ApplySidebarAndThemeState();
+#if DEBUG
+            if (PreviewMode)
+            {
+                SeedPreviewData();
+                return;
+            }
+#endif
+            await LoadAllDataAsync();
+        };
 
         _liveViewPool = new VncSessionPool(_apiClient, _labHubClient);
 
@@ -136,7 +300,7 @@ public partial class DashboardWindow : Window
             if (_liveViewFullscreenClientGuid is not null)
             {
                 e.Cancel = true;
-                StatusText.Text = "กด \"← BACK TO GRID\" ก่อนปิดโปรแกรม (กำลังควบคุมเครื่อง target แบบเต็มจออยู่)";
+                StatusText.Text = "กด \"กลับไปจอรวม\" ก่อนปิดโปรแกรม (กำลังควบคุมเครื่อง target แบบเต็มจออยู่)";
             }
         };
 
@@ -186,11 +350,22 @@ public partial class DashboardWindow : Window
         });
     }
 
+    /// <summary>
+    /// สถานะ enforcement ทั้งห้อง - null = ยังอ่านค่าไม่ได้ ซึ่งต้องต่างจาก "รู้ว่าเปิดอยู่" เสมอ
+    /// (ดู RefreshGlobalStateUi) โหลดใหม่ทุกครั้งที่ LoadAllDataAsync ทำงาน เพราะครูอีกคนอาจปิด
+    /// ทั้งระบบจาก Online Console อยู่คนละเครื่องกัน
+    /// </summary>
+    private GlobalStateDto? _globalState;
+
     private async Task LoadAllDataAsync()
     {
         StatusText.Text = "กำลังโหลดข้อมูล...";
         try
         {
+            // อ่านก่อน _allClients เสมอ - ApplyClientsFilter ต้องใช้ค่านี้เติมลง DTO แต่ละตัว
+            _globalState = await _apiClient.GetGlobalStateAsync();
+            RefreshGlobalStateUi();
+
             _allClients = await _apiClient.GetClientsAsync();
             ApplyClientsFilter();
             ApplyLiveViewClientList();
@@ -237,16 +412,109 @@ public partial class DashboardWindow : Window
         await LoadAllDataAsync();
     }
 
+    /// <summary>ปุ่ม "เปิดกลับ" บนแถบเตือน - ทางออกอยู่ตรงที่เห็นปัญหา ไม่ต้องไปหาในเมนู</summary>
+    private async void GlobalTurnOnButton_Click(object sender, RoutedEventArgs e)
+    {
+        await SetGlobalEnforcementAsync(true);
+    }
+
     /// <summary>
-    /// ปุ่มเกียร์บน toolbar (แทนที่ TOGGLE GLOBAL เดิม - ลบออกเพราะ effect เดียวกัน (ปิด/เปิดทุกเครื่อง
-    /// พร้อมกัน) ทำได้อยู่แล้วผ่านปุ่ม ACTIONS > เลือก "ทุกเครื่อง" > TOGGLE ENFORCEMENT ใน
-    /// ActionPanelWindow - ดู BulkActionsButton_Click ไม่ได้ลบ ApiClient.ToggleGlobalAsync()/Server
-    /// endpoint ออก เพราะยังเป็น mechanism จริงที่ผูกกับ GlobalState ฝั่ง Server อยู่) เปิด ContextMenu
-    /// ให้เลือก Settings/About แทนที่จะแยกปุ่มคนละจุด
+    /// ตั้งค่า gate ทั้งห้องแบบระบุค่าตรงๆ - การปิดต้องยืนยันก่อน (มีผลทุกเครื่องพร้อมกัน)
+    /// ส่วนการเปิดกลับไม่ต้องถาม เพราะนั่นคือการกู้คืนจากสถานะที่ทำให้ทั้งห้องไม่บังคับใช้กฎ
+    /// </summary>
+    private async Task SetGlobalEnforcementAsync(bool enabled)
+    {
+        if (!enabled && !ConfirmWindow.Show(
+                "กฎทั้งหมดจะหยุดทำงานบนทุกเครื่องในห้องแล็บพร้อมกัน จนกว่าจะเปิดกลับ - "
+                    + "การเปิด/ปิด enforcement รายเครื่องจะไม่มีผลใดๆ ตลอดช่วงที่ปิดอยู่",
+                "ปิดการบังคับใช้ทั้งระบบ?", this, "ปิดทั้งระบบ"))
+        {
+            return;
+        }
+
+        var success = await _apiClient.SetGlobalEnabledAsync(enabled);
+        StatusText.Text = success
+            ? enabled ? "เปิดการบังคับใช้ทั้งระบบแล้ว" : "ปิดการบังคับใช้ทั้งระบบแล้ว"
+            : "เปลี่ยนการบังคับใช้ทั้งระบบไม่สำเร็จ";
+
+        // โหลดใหม่ทั้งชุดเสมอ ไม่ใช่แค่เดาค่าใหม่ลง _globalState เอง - แถบเตือนกับคอลัมน์
+        // ENFORCEMENT ต้องสะท้อนสิ่งที่ Server ตอบจริง ไม่ใช่สิ่งที่ Console เพิ่งกดไป
+        await LoadAllDataAsync();
+    }
+
+    /// <summary>
+    /// แสดง/ซ่อนแถบเตือน "ปิดการบังคับใช้ทั้งระบบ" ตาม _globalState
+    ///
+    /// _globalState เป็น null (อ่านค่าไม่ได้ เช่น Server เวอร์ชันเก่าที่ยังไม่มี GET /api/global)
+    /// ให้ซ่อนแถบไว้ - ขึ้นเตือนว่า "ปิดอยู่" ทั้งที่ยังไม่รู้ว่าปิดจริงไหม แย่กว่าไม่ขึ้นเลย
+    /// (เมนูเกียร์จะขึ้นว่า "อ่านค่าไม่ได้" ให้เห็นแทน)
+    /// </summary>
+    private void RefreshGlobalStateUi()
+    {
+        GlobalOffBanner.Visibility = _globalState is { IsEnabled: false }
+            ? Visibility.Visible
+            : Visibility.Collapsed;
+
+        // ปุ่มบอก "สิ่งที่จะเกิดถ้ากด" ไม่ใช่ "สถานะตอนนี้" - ปุ่มที่เขียนว่า Toggle เฉย ๆ คือครึ่งหนึ่ง
+        // ของบั๊กเดิมปี 2026-09-04 ที่ครูไม่รู้ว่า gate เปิดหรือปิดอยู่
+        //
+        // ระหว่างที่ยังอ่านค่าไม่ได้ (_globalState == null เช่น ตอน Server ล่ม) ปุ่มถูกปิดไว้ ไม่ใช่เดา
+        // ว่าเปิดอยู่ - เดาผิดแล้วครูกดหนึ่งครั้งอาจกลายเป็นปิดกฎทั้งห้องโดยไม่ได้ตั้งใจ
+        if (_globalState is null)
+        {
+            GlobalEnforcementButton.Content = "การบังคับใช้ทั้งระบบ: อ่านค่าไม่ได้";
+            GlobalEnforcementButton.IsEnabled = false;
+            return;
+        }
+
+        GlobalEnforcementButton.IsEnabled = true;
+        GlobalEnforcementButton.Content = _globalState.IsEnabled
+            ? "ปิดการบังคับใช้ทั้งระบบ"
+            : "เปิดการบังคับใช้ทั้งระบบ";
+        GlobalEnforcementButton.ToolTip = _globalState.IsEnabled
+            ? "ตอนนี้บังคับใช้กฎอยู่ทั้งห้อง - กดเพื่อปิดทั้งระบบ (จะถามยืนยันก่อน)"
+            : "ตอนนี้ปิดการบังคับใช้อยู่ทั้งห้อง กฎไม่ทำงานเลยแม้เครื่องจะขึ้น ENABLED - กดเพื่อเปิดกลับ";
+        GlobalEnforcementButton.Style = (Style)FindResource(
+            _globalState.IsEnabled ? "ButtonSecondary" : "ButtonPrimary");
+    }
+
+    /// <summary>
+    /// สวิตช์ gate ทั้งห้องบนแถบคำสั่งของแท็บ Clients - อยู่คู่กับ BROADCAST เพราะทั้งคู่คือ
+    /// "สิ่งที่ทำกับทั้งห้อง" และทำได้โดยไม่ต้องเลือกเครื่องก่อน
+    ///
+    /// ยังคงปุ่ม "เปิดกลับ" บนแบนเนอร์เตือนไว้ด้วย ไม่ใช่ของซ้ำซ้อน: แบนเนอร์อยู่บนแถบบนซึ่งเห็นจาก
+    /// ทุกแท็บ ส่วนปุ่มนี้อยู่เฉพาะแท็บ Clients - ถ้ามีแต่ปุ่มนี้ คนที่ค้างอยู่แท็บอื่นจะเห็นคำเตือน
+    /// แต่กดแก้ไม่ได้ ซึ่งเป็นบั๊กเดิมเป๊ะ ๆ (12d774a "visible and reachable") แบนเนอร์เปิดได้ทางเดียว
+    /// (เปิดกลับ) ส่วนปุ่มนี้สลับได้สองทาง
+    /// </summary>
+    private async void GlobalEnforcementButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_globalState is not { } state)
+        {
+            return;
+        }
+
+        await SetGlobalEnforcementAsync(!state.IsEnabled);
+    }
+
+    /// <summary>
+    /// ปุ่มเกียร์บน toolbar - เปิด ContextMenu ให้เลือก Settings/About แทนที่จะแยกปุ่มคนละจุด
+    ///
+    /// รวมสวิตช์ "การบังคับใช้ทั้งระบบ" กลับเข้ามาที่นี่ด้วย (2026-09-04): ปุ่ม TOGGLE GLOBAL เดิม
+    /// เคยถูกลบทิ้งด้วยเหตุผลที่ผิด - เข้าใจว่า "ACTIONS > ทุกเครื่อง > TOGGLE ENFORCEMENT ให้ผล
+    /// เหมือนกัน" ซึ่งไม่จริงเลย: อันนั้นพลิก IsEnabled ราย "เครื่อง" ส่วนอันนี้คือ GlobalState ที่เป็น
+    /// AND gate คร่อมทุกเครื่องอีกชั้น (ดู /api/poll) พอลบไปโดยที่ gate ยังอยู่ Console ตัวนี้จึงไม่มี
+    /// ทางทั้ง "เห็น" และ "แก้" ค่านั้นได้อีกเลย = ถ้ามันถูกปิดไว้ ทั้งห้องหยุดบังคับใช้กฎถาวรโดยที่
+    /// ครูหาสาเหตุไม่เจอ (เจอจริงตอน field test)
     /// </summary>
     private void SettingsMenuButton_Click(object sender, RoutedEventArgs e)
     {
         var menu = new ContextMenu();
+
+        // สวิตช์ "การบังคับใช้ทั้งระบบ" ถูกย้ายออกจากเมนูนี้แล้ว (2026-09-10) ไปเป็นปุ่มที่มีป้ายกำกับ
+        // อยู่บนแถบคำสั่งของแท็บ Clients คู่กับ BROADCAST บวกกับปุ่ม "เปิดกลับ" บนแถบเตือนซึ่งเห็นจาก
+        // ทุกแท็บ - ทั้งสองทางนั้นมองเห็นได้โดยไม่ต้องเปิดเมนูก่อน ซึ่งเป็นหัวใจของบั๊กเดิม
+        // (12d774a "visible and reachable") การเก็บไว้ในเมนูนี้ด้วยมีแต่จะทำให้มีสามที่ที่ทำสิ่งเดียวกัน
 
         var settingsItem = new MenuItem { Header = "Settings..." };
         settingsItem.Click += (_, _) => new SettingsWindow(_apiClient) { Owner = this }.ShowDialog();
@@ -333,7 +601,15 @@ public partial class DashboardWindow : Window
     {
         if (sender is Button { Tag: int ruleId })
         {
-            var confirmed = ConfirmWindow.Show("ยืนยันการลบกฎนี้? การกระทำนี้ย้อนกลับไม่ได้", "ยืนยันการลบ", this);
+            // ต้องพิมพ์ชื่อกฎให้ตรงก่อนถึงจะลบได้ - ลบกฎเป็นหนึ่งในสองอย่างในแอปนี้ที่เอาคืนไม่ได้จริง ๆ
+            // (อีกอย่างคือลบผู้ใช้) และแถวในตารางกฎหน้าตาคล้ายกันมากจนกดผิดแถวได้ง่าย การพิมพ์ชื่อบังคับ
+            // ให้ต้องอ่านก่อนว่ากำลังลบตัวไหนอยู่ ไม่ใช่แค่กดผ่านกล่องยืนยันอีกกล่อง
+            var ruleName = _allRules.FirstOrDefault(r => r.Id == ruleId)?.Name;
+            var confirmed = string.IsNullOrWhiteSpace(ruleName)
+                ? ConfirmWindow.Show("ยืนยันการลบกฎนี้? การกระทำนี้ย้อนกลับไม่ได้", "ยืนยันการลบ", this)
+                : ConfirmWindow.ShowWithTypeToConfirm(
+                    $"กำลังจะลบกฎ \"{ruleName}\" ออกจากระบบถาวร การกระทำนี้ย้อนกลับไม่ได้",
+                    "ยืนยันการลบกฎ", ruleName, this, "ลบกฎนี้");
             if (!confirmed)
             {
                 return;
@@ -401,7 +677,13 @@ public partial class DashboardWindow : Window
     {
         if (sender is Button { Tag: int userId })
         {
-            var confirmed = ConfirmWindow.Show("ยืนยันการลบ user นี้? การกระทำนี้ย้อนกลับไม่ได้", "ยืนยันการลบ", this);
+            // เหตุผลเดียวกับการลบกฎ - ชื่อผู้ใช้ที่ต้องพิมพ์ดึงมาจากแถวที่กด ไม่ใช่จากที่อื่น
+            var userName = (UsersGrid.ItemsSource as IEnumerable<UserDto>)?.FirstOrDefault(u => u.Id == userId)?.Username;
+            var confirmed = string.IsNullOrWhiteSpace(userName)
+                ? ConfirmWindow.Show("ยืนยันการลบ user นี้? การกระทำนี้ย้อนกลับไม่ได้", "ยืนยันการลบ", this)
+                : ConfirmWindow.ShowWithTypeToConfirm(
+                    $"กำลังจะลบผู้ใช้ \"{userName}\" ออกจากระบบถาวร การกระทำนี้ย้อนกลับไม่ได้",
+                    "ยืนยันการลบผู้ใช้", userName, this, "ลบผู้ใช้นี้");
             if (!confirmed)
             {
                 return;
@@ -416,7 +698,117 @@ public partial class DashboardWindow : Window
     private void ClientsGrid_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
         var count = ClientsGrid.SelectedItems.Count;
-        SelectedClientsCountText.Text = count > 0 ? $"เลือกไว้ {count} เครื่อง" : "";
+        SelectedClientsCountText.Text = $"เลือก {count} เครื่อง";
+
+        // แถบจะโผล่มาเมื่อมีเครื่องถูกเลือกเท่านั้น - เป็นตัวที่ทำให้ "เลือกหลายเครื่องแล้วสั่งทีเดียว"
+        // มองเห็นได้จริง แทนที่จะซ่อนอยู่หลังปุ่ม ACTIONS ที่นิ่งอยู่ตลอดเวลาแบบเดิม
+        // Hidden ไม่ใช่ Collapsed - Hidden ยังกินที่เท่าเดิม ตารางข้างล่างจึงไม่ขยับตอนเลือกเครื่อง
+        // ของเดิมใช้ Collapsed ทำให้แถบนี้แทรกเข้ามาแล้วดันตารางลง คลิกถัดไปเลยไปโดนเครื่องคนละตัว
+        ClientsSelectionBar.Visibility = count > 0 ? Visibility.Visible : Visibility.Hidden;
+        UpdateClientInspector();
+    }
+
+    private void ClearClientSelectionButton_Click(object sender, RoutedEventArgs e) => ClientsGrid.UnselectAll();
+
+    // ==================== แผงรายละเอียดเครื่องฝั่งขวา (2026-09-09) ====================
+
+    /// <summary>
+    /// เครื่องที่แผงขวากำลังแสดงอยู่ - เก็บไว้เองแทนที่จะอ่าน ClientsGrid.SelectedItem ตอนกดปุ่ม
+    /// เพราะ auto-refresh ทุก 2 วิสร้าง DTO ชุดใหม่แล้วผูกเข้าตารางใหม่ทั้งหมด ระหว่างที่แผงยังเปิดค้าง
+    /// อยู่ ถ้าอ่านสด ๆ ตอนกดอาจได้ instance คนละตัวกับที่ผู้ใช้เห็นอยู่ตรงหน้า
+    /// </summary>
+    private ClientMachineDto? _inspectedClient;
+
+    /// <summary>
+    /// แผงขวาแสดงเมื่อเลือก "เครื่องเดียว" เท่านั้น - เลือกหลายเครื่องคือคนละโหมด (สั่งงานหมู่)
+    /// ซึ่งมีแถบเลือกด้านบนรับหน้าที่อยู่แล้ว การโชว์รายละเอียดของเครื่องใดเครื่องหนึ่งตอนเลือก 7 เครื่อง
+    /// จะทำให้เข้าใจผิดว่าคำสั่งจะไปลงที่เครื่องนั้นเครื่องเดียว
+    /// </summary>
+    private void UpdateClientInspector()
+    {
+        var selected = ClientsGrid.SelectedItems.Cast<ClientMachineDto>().ToList();
+        if (selected.Count != 1)
+        {
+            _inspectedClient = null;
+            ClientInspector.Visibility = Visibility.Collapsed;
+            return;
+        }
+
+        var client = selected[0];
+        _inspectedClient = client;
+        ClientInspector.Visibility = Visibility.Visible;
+
+        InspectorMachineName.Text = client.MachineName;
+
+        InspectorStatusBadge.Content = client.IsOnline ? "ONLINE" : "OFFLINE";
+        InspectorStatusBadge.Tag = client.IsOnline ? "Online" : "Offline";
+
+        InspectorEnforcementBadge.Content = client.EnforcementBadgeText;
+        InspectorEnforcementBadge.Tag = client.EnforcementBadgeTag;
+
+        InspectorConnectionBadge.Content = client.UsingFallback ? "TAILSCALE" : "LAN";
+        InspectorConnectionBadge.Tag = client.UsingFallback ? "Warning" : "Online";
+
+        InspectorIp.Text = string.IsNullOrWhiteSpace(client.LastKnownIp) ? "-" : client.LastKnownIp;
+        InspectorLastSeen.Text = client.LastSeenAt.ToString("yyyy-MM-dd HH:mm:ss");
+        InspectorGuid.Text = client.ClientGuid;
+        InspectorPollInterval.Text = client.PollIntervalOverrideSeconds is { } seconds
+            ? $"{seconds} วินาที (ตั้งเฉพาะเครื่องนี้)"
+            : "ตามค่าเริ่มต้นของระบบ";
+    }
+
+    private async void InspectorViewScreenButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_inspectedClient is { } client)
+        {
+            await ShowVncViewAsync(client);
+        }
+    }
+
+    private void InspectorProcessesButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_inspectedClient is { } client)
+        {
+            new RunningProcessesWindow(_apiClient, _labHubClient, client) { Owner = this }.Show();
+        }
+    }
+
+    private void InspectorPendingCommandsButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_inspectedClient is { } client)
+        {
+            new PendingCommandsWindow(_apiClient, client) { Owner = this }.Show();
+        }
+    }
+
+    private async void InspectorClientSettingsButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_inspectedClient is not { } client)
+        {
+            return;
+        }
+
+        new ClientSettingsWindow(_apiClient, client) { Owner = this }.ShowDialog();
+        await LoadAllDataAsync();
+    }
+
+    private async void InspectorRuleOverridesButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_inspectedClient is not { } client)
+        {
+            return;
+        }
+
+        new RuleOverridesWindow(_apiClient, client) { Owner = this }.ShowDialog();
+        await LoadAllDataAsync();
+    }
+
+    private async void InspectorActionsButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_inspectedClient is { } client)
+        {
+            await RunActionPanelAsync(new ActionPanelWindow(_apiClient, client) { Owner = this });
+        }
     }
 
     private async void BroadcastMessageButton_Click(object sender, RoutedEventArgs e)
@@ -465,14 +857,22 @@ public partial class DashboardWindow : Window
     private async void BulkActionsButton_Click(object sender, RoutedEventArgs e)
     {
         var selected = ClientsGrid.SelectedItems.Cast<ClientMachineDto>().ToList();
+        var panel = new ActionPanelWindow(_apiClient, selected, _allClients, defaultToAll: false) { Owner = this };
+        await RunActionPanelAsync(panel);
+    }
 
-        if (selected.Count == 0)
-        {
-            StatusText.Text = "กรุณาเลือกเครื่องอย่างน้อย 1 เครื่อง (Ctrl+คลิก หรือ Shift+คลิก เพื่อเลือกหลายเครื่อง)";
-            return;
-        }
-
-        var panel = new ActionPanelWindow(_apiClient, selected, _allClients) { Owner = this };
+    /// <summary>
+    /// ปุ่ม ACTIONS (ทุกเครื่อง) บนแถบคำสั่งระดับห้อง - แผงเดียวกับปุ่มในแถบเลือก ต่างกันแค่ตั้งเป้า
+    /// เริ่มต้นเป็น "ทุกเครื่อง" และ **เปิดได้โดยไม่ต้องเลือกเครื่องก่อน**
+    ///
+    /// เดิมทางเข้าเดียวคือปุ่มในแถบเลือก ซึ่งโผล่เมื่อมี selection เท่านั้น และตัว handler ก็ปฏิเสธถ้า
+    /// เลือก 0 เครื่อง - แปลว่าจะสั่งทั้งห้องต้องไปเลือกเครื่องที่ไม่ได้ตั้งใจจะสั่งก่อนหนึ่งเครื่อง
+    /// แล้วค่อยสลับเป็น "ทุกเครื่อง" ในแผง
+    /// </summary>
+    private async void RoomActionsButton_Click(object sender, RoutedEventArgs e)
+    {
+        var selected = ClientsGrid.SelectedItems.Cast<ClientMachineDto>().ToList();
+        var panel = new ActionPanelWindow(_apiClient, selected, _allClients, defaultToAll: true) { Owner = this };
         await RunActionPanelAsync(panel);
     }
 
@@ -517,18 +917,97 @@ public partial class DashboardWindow : Window
         // เช่นตอน auto-refresh ทุก 10 วิ หรือตอนพิมพ์ค้นหา) แล้วเลือกคืนให้ตาม Id หลังโหลดเสร็จ
         var selectedIds = ClientsGrid.SelectedItems.Cast<ClientMachineDto>().Select(c => c.Id).ToHashSet();
 
+        // เติม gate ทั้งห้องลงทุกแถวก่อนผูกเข้าตาราง - คอลัมน์ ENFORCEMENT แสดง "ผลจริง" ที่ Agent
+        // ทำอยู่ ไม่ใช่แค่ค่ารายเครื่อง (ดู ClientMachineDto.EnforcementBadgeText) ถ้าอ่านค่า global
+        // ไม่ได้เลย ให้ถือว่าเปิด = แสดงผลแบบเดิมทุกประการ ไม่ใช่ขึ้น OFF (GLOBAL) ผิดๆ ทั้งตาราง
+        var globalEnforcementEnabled = _globalState?.IsEnabled ?? true;
+        foreach (var client in _allClients)
+        {
+            client.GlobalEnforcementEnabled = globalEnforcementEnabled;
+        }
+
+        // ตัวเลขบนการ์ดคิดจาก _allClients เสมอ ไม่ใช่จากผลที่กรองแล้ว - ไม่งั้นพอกด "ออนไลน์" การ์ด
+        // "ออฟไลน์" จะกลายเป็น 0 ทันที ซึ่งอ่านแล้วเหมือนเครื่องหายไปจากระบบจริง ๆ การ์ดต้องบอก
+        // "ห้องนี้มีอะไรอยู่บ้าง" คงที่ ส่วนตารางข้างล่างต่างหากที่เป็นตัวตอบ "ตอนนี้กำลังดูอะไรอยู่"
+        ClientStatAll.Tag = _allClients.Count.ToString();
+        ClientStatOnline.Tag = _allClients.Count(c => c.IsOnline).ToString();
+        ClientStatOffline.Tag = _allClients.Count(c => !c.IsOnline).ToString();
+        ClientStatNotEnforcing.Tag = _allClients.Count(c => !c.EffectiveEnabled).ToString();
+
         var keyword = ClientsSearchBox.Text.Trim();
-        var filtered = string.IsNullOrEmpty(keyword)
-            ? _allClients
-            : _allClients.Where(c => c.MachineName.Contains(keyword, StringComparison.OrdinalIgnoreCase)).ToList();
+        var byStatus = _clientStatusFilter switch
+        {
+            ClientStatusFilter.Online => _allClients.Where(c => c.IsOnline),
+            ClientStatusFilter.Offline => _allClients.Where(c => !c.IsOnline),
+            ClientStatusFilter.NotEnforcing => _allClients.Where(c => !c.EffectiveEnabled),
+            _ => _allClients
+        };
+
+        var filtered = (string.IsNullOrEmpty(keyword)
+            ? byStatus
+            : byStatus.Where(c => c.MachineName.Contains(keyword, StringComparison.OrdinalIgnoreCase))).ToList();
 
         ClientsGrid.ItemsSource = filtered;
-        ClientsEmptyText.Visibility = filtered.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+
+        // แยก "ยังไม่มีเครื่องเลย" ออกจาก "กรองแล้วไม่เจอ" - คนละสถานการณ์ และทางออกคนละอย่าง
+        // (อันแรกคือไปติดตั้ง Agent อันหลังคือล้างตัวกรอง) ของเดิมขึ้นข้อความเดียวกันทั้งสองกรณี
+        var filteringSomething = !string.IsNullOrEmpty(keyword) || _clientStatusFilter != ClientStatusFilter.All;
+        if (filtered.Count > 0)
+        {
+            ClientsEmptyText.Visibility = Visibility.Collapsed;
+        }
+        else
+        {
+            ClientsEmptyText.Visibility = Visibility.Visible;
+            if (filteringSomething)
+            {
+                ClientsEmptyText.Content = "ไม่มีเครื่องที่ตรงกับตัวกรอง";
+                ClientsEmptyText.Tag = _allClients.Count > 0
+                    ? $"ในระบบมีทั้งหมด {_allClients.Count} เครื่อง - ลองล้างคำค้นหรือกดการ์ด \"ทั้งหมด\""
+                    : null;
+            }
+            else
+            {
+                ClientsEmptyText.Content = "ยังไม่มีเครื่องในระบบ";
+                ClientsEmptyText.Tag = "เครื่องจะขึ้นมาเองเมื่อ Agent ติดตั้งแล้ว poll เข้ามาครั้งแรก";
+            }
+        }
 
         foreach (var client in filtered.Where(c => selectedIds.Contains(c.Id)))
         {
             ClientsGrid.SelectedItems.Add(client);
         }
+    }
+
+    /// <summary>ตัวกรองสถานะที่การ์ดตัวเลขด้านบนตาราง Clients เลือกอยู่</summary>
+    private enum ClientStatusFilter
+    {
+        All,
+        Online,
+        Offline,
+        NotEnforcing
+    }
+
+    private ClientStatusFilter _clientStatusFilter = ClientStatusFilter.All;
+
+    private void ClientStatFilter_Checked(object sender, RoutedEventArgs e)
+    {
+        // ยิงตั้งแต่ตอน InitializeComponent จาก IsChecked="True" ที่ตั้งไว้ใน XAML ซึ่งเป็นจังหวะที่
+        // ClientsGrid/ClientsSearchBox ยังไม่พร้อม - เช็คก่อนเสมอ (pattern เดียวกับ AuditLog filter
+        // ที่มี comment เรื่องนี้อยู่แล้ว)
+        if (!IsLoaded)
+        {
+            _clientStatusFilter = ClientStatusFilter.All;
+            return;
+        }
+
+        _clientStatusFilter =
+            ReferenceEquals(sender, ClientStatOnline) ? ClientStatusFilter.Online :
+            ReferenceEquals(sender, ClientStatOffline) ? ClientStatusFilter.Offline :
+            ReferenceEquals(sender, ClientStatNotEnforcing) ? ClientStatusFilter.NotEnforcing :
+            ClientStatusFilter.All;
+
+        ApplyClientsFilter();
     }
 
     private void ApplyRulesFilter()
@@ -747,7 +1226,7 @@ public partial class DashboardWindow : Window
     private void VncDisconnectButton_Click(object sender, RoutedEventArgs e)
     {
         DisconnectVncView();
-        VncHeaderText.Text = "ยังไม่ได้เลือกเครื่อง - กด VIEW SCREEN จากรายการ Clients";
+        VncHeaderText.Text = "ยังไม่ได้เลือกเครื่อง - เลือกเครื่องในแท็บ Clients แล้วกด \"ดูหน้าจอเครื่องนี้\"";
         VncStatusText.Text = "ตัดการเชื่อมต่อแล้ว";
     }
 
@@ -766,7 +1245,7 @@ public partial class DashboardWindow : Window
         if (e.RemovedItems.Contains(ScreenViewTabItem))
         {
             DisconnectVncView();
-            VncHeaderText.Text = "ยังไม่ได้เลือกเครื่อง - กด VIEW SCREEN จากรายการ Clients";
+            VncHeaderText.Text = "ยังไม่ได้เลือกเครื่อง - เลือกเครื่องในแท็บ Clients แล้วกด \"ดูหน้าจอเครื่องนี้\"";
             VncStatusText.Text = "";
         }
 
@@ -876,7 +1355,10 @@ public partial class DashboardWindow : Window
             var completed = await Task.WhenAny(tcs.Task, Task.Delay(VncSessionReadyTimeout));
             if (completed != tcs.Task)
             {
-                return (false, 0, null, $"รอ Agent ตอบกลับเกิน {VncSessionReadyTimeout.TotalSeconds} วิ (Agent อาจ offline หรือ SignalR ไม่ connected)");
+                var path = client.UsingFallback ? "Tailscale" : "LAN";
+                return (false, 0, null,
+                    $"รอ Agent ตอบกลับเกิน {VncSessionReadyTimeout.TotalSeconds} วิ ผ่านเส้นทาง {path} "
+                    + "(Agent อาจ offline หรือ SignalR ไม่ connected)");
             }
 
             return await tcs.Task;
@@ -1081,7 +1563,9 @@ public partial class DashboardWindow : Window
 
         var removeButton = new Button
         {
-            Content = "✕",
+            // IconPresenter ไม่ใช่ตัวอักษร "✕": ตัวอักษรจะขึ้นกับ font ที่ระบบ fallback มาให้ ซึ่ง
+            // ขนาดและน้ำหนักเส้นไม่ตรงกับไอคอนตัวอื่นในแอปเลย - ชุดเดียวกันทั้งหมดดีกว่า
+            Content = new Controls.IconPresenter { Icon = "x", IconSize = 12 },
             Width = 22,
             Height = 22,
             Padding = new Thickness(0),
@@ -1101,13 +1585,16 @@ public partial class DashboardWindow : Window
 
         var border = new Border
         {
+            // Black คงไว้เป็นค่าตายตัวโดยเจตนา ไม่ใช่ token: นี่คือพื้นหลังของ "จอวิดีโอ" ที่ภาพ VNC letterbox
+            // อยู่ข้างใน เหมือนขอบดำของจอทีวี - มันไม่ใช่ surface ของแอปและไม่ควรเปลี่ยนตามธีม เช่นเดียวกับ
+            // ข้อความสีขาวที่ทับอยู่บนภาพด้านบน มีแต่ "ขอบ" เท่านั้นที่เป็นส่วนของ UI จริงจึงผูกกับธีม
             Background = Brushes.Black,
-            BorderBrush = (Brush)FindResource("Brush.Border.Default"),
             BorderThickness = new Thickness(1),
             Margin = new Thickness(3),
             Child = overlayGrid,
             Cursor = Cursors.Hand
         };
+        border.SetResourceReference(Border.BorderBrushProperty, "Brush.Border.Default");
 
         // Button.Click กิน MouseLeftButtonUp ที่ trigger มันไปแล้ว (ButtonBase mark e.Handled ให้เอง) เลย
         // ไม่ bubble มาถึง handler นี้ตอนกดปุ่ม X - คลิกที่ไหนอื่นใน cell จะ trigger ขยายเต็มจอ
@@ -1214,9 +1701,37 @@ public partial class DashboardWindow : Window
         SetToggleTargetInputButtonVisual(_targetInputBlocked);
     }
 
+    /// <summary>
+    /// ปุ่ม "คำสั่ง..." บนแถบเครื่องมือของหน้าดูจอเต็มจอ - สั่งงานเครื่องที่กำลังดูอยู่ได้เลย
+    /// ไม่ต้องกลับไปจอรวมแล้ววนหาเครื่องเดิมในแท็บ Clients ใหม่
+    ///
+    /// อ่านเครื่องจาก _allClients ด้วย guid ที่กำลังเปิดเต็มจออยู่ ไม่ได้เก็บ DTO ไว้เอง เพราะ
+    /// auto-refresh สร้าง DTO ชุดใหม่ทุกไม่กี่วินาที - อ่านสดจึงได้สถานะล่าสุดเสมอ
+    /// </summary>
+    private async void FullscreenActionsButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_liveViewFullscreenClientGuid is not { } guid)
+        {
+            return;
+        }
+
+        var client = _allClients.FirstOrDefault(c => c.ClientGuid == guid);
+        if (client is null)
+        {
+            FullscreenStatusText.Text = "ไม่พบเครื่องนี้ในรายการแล้ว - ลองกลับไปจอรวมแล้วรีเฟรช";
+            return;
+        }
+
+        var panel = new ActionPanelWindow(_apiClient, client, alreadyViewingScreen: true) { Owner = this };
+        await RunActionPanelAsync(panel);
+    }
+
     private void SetToggleTargetInputButtonVisual(bool blocked)
     {
-        ToggleTargetInputButton.Content = blocked ? "UNBLOCK STUDENT INPUT" : "BLOCK STUDENT INPUT";
+        // ป้ายบอกสิ่งที่จะเกิดถ้ากด ไม่ใช่สถานะปัจจุบัน - ตอนกำลังบล็อกอยู่ ปุ่มจึงเขียนว่า "คืน..."
+        ToggleTargetInputButton.Content = blocked
+            ? "คืนเมาส์/คีย์บอร์ดให้นักเรียน"
+            : "บล็อกเมาส์/คีย์บอร์ดนักเรียน";
         ToggleTargetInputButton.Style = (Style)FindResource(blocked ? "ButtonDanger" : "ButtonSecondary");
     }
 
@@ -1530,10 +2045,25 @@ public partial class DashboardWindow : Window
     /// </summary>
     private void LiveViewFullscreenOverlay_IsKeyboardFocusWithinChanged(object sender, DependencyPropertyChangedEventArgs e)
     {
-        if (_liveViewFullscreenClientGuid is not null && !LiveViewFullscreenOverlay.IsKeyboardFocusWithin)
+        if (_liveViewFullscreenClientGuid is null || LiveViewFullscreenOverlay.IsKeyboardFocusWithin)
         {
-            Dispatcher.InvokeAsync(() => Keyboard.Focus(LiveViewFullscreenOverlay), DispatcherPriority.Input);
+            return;
         }
+
+        // บั๊กจริงที่ผู้ใช้เจอ (2026-09-10): หน้าต่างที่เปิดทับตอนอยู่เต็มจอ (เช่นหน้ารายงานผลการทำงาน)
+        // "กดปิดไม่ได้" - เพราะเงื่อนไขเดิมดึง focus กลับมาที่ overlay ทุกครั้งที่ focus หลุด ไม่ว่าจะ
+        // หลุดไปไหน พอหน้าต่างใหม่เปิดขึ้นมาและได้ focus บรรทัดนี้ก็ยึดกลับทันที หน้าต่างนั้นเลยใช้งาน
+        // ไม่ได้เลย
+        //
+        // สิ่งที่ตั้งใจกันไว้แต่แรกคือ popup/ContextMenu **ภายในหน้าต่าง Dashboard เอง** ที่แวบมาแย่ง
+        // focus ไม่ใช่หน้าต่างอื่นที่ผู้ใช้ตั้งใจเปิด - เช็ค IsActive จึงแยกสองกรณีนี้ออกจากกันได้ตรง ๆ
+        // ถ้า Dashboard ไม่ได้เป็นหน้าต่างที่ active อยู่ แปลว่าผู้ใช้กำลังคุยกับหน้าต่างอื่น อย่าไปแย่ง
+        if (!IsActive)
+        {
+            return;
+        }
+
+        Dispatcher.InvokeAsync(() => Keyboard.Focus(LiveViewFullscreenOverlay), DispatcherPriority.Input);
     }
 
     private void LiveViewFullscreenOverlay_PreviewKeyDown(object sender, KeyEventArgs e) => ForwardFullscreenKeyEvent(e, isDown: true);
