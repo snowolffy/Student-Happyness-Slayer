@@ -5,13 +5,14 @@
         Width="420"
         SizeToContent="Height"
         MinHeight="180"
-        WindowStartupLocation="Manual"
+        WindowStartupLocation="CenterOwner"
         ResizeMode="NoResize"
         Icon="/Theme/icon.ico"
         Style="{StaticResource AppDialogWindow}">
-    <!-- WindowStartupLocation="Manual" + WindowCenteringHelper (ดู code-behind): CenterOwner คำนวณ
-         ตำแหน่งผิดเมื่อใช้ร่วมกับ SizeToContent (หน้าต่างเลื่อนไปทางขวา/ล่างจากจุดกึ่งกลางจริง) เลย
-         คำนวณเองใน Loaded event แทนที่ตอนขนาดจริง resolve เสร็จแล้ว -->
+    <!-- WindowStartupLocation="CenterOwner" (กลับมาใช้ของ WPF เอง 2026-09-10 ตามที่ผู้ใช้ขอ)
+         เดิมเคยคำนวณตำแหน่งเองใน Loaded ผ่าน WindowCenteringHelper เพราะเชื่อว่า CenterOwner เพี้ยน
+         เมื่อใช้กับ SizeToContent แต่พอใช้จริงแล้วรู้สึกว่าตัวคำนวณเองมีอาการแปลกกว่า จึงกลับมาใช้
+         ของมาตรฐาน - ถ้าเจอว่าเยื้องอีก วัดด้วยสวิตช์ center-test ได้ (ดู docs/console-ui-notes.md §6) -->
     <!-- Themed แทน MessageBox.Show เดิม (native OS dialog ที่ดูไม่เข้าธีมของแอพเลย) - drop-in
          replacement ผ่าน static ConfirmWindow.Show(message, title, owner) ดู ConfirmWindow.xaml.cs
 

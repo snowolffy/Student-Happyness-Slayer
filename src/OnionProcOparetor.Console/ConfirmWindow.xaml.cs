@@ -13,7 +13,6 @@ public partial class ConfirmWindow : Window
     private ConfirmWindow(string message, string title, string? requiredPhrase, string? confirmText)
     {
         InitializeComponent();
-        Loaded += (_, _) => WindowCenteringHelper.CenterOverOwnerOrScreen(this);
         Title = title;
         MessageText.Text = message;
         _requiredPhrase = requiredPhrase;

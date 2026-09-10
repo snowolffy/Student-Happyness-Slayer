@@ -1,4 +1,4 @@
-using System.Windows;
+﻿using System.Windows;
 using OnionProcOparetor.Console.Services;
 
 namespace OnionProcOparetor.Console;
@@ -17,7 +17,6 @@ public partial class ChangeMyPasswordWindow : Window
     public ChangeMyPasswordWindow(ApiClient apiClient)
     {
         InitializeComponent();
-        Loaded += (_, _) => WindowCenteringHelper.CenterOverOwnerOrScreen(this);
         _apiClient = apiClient;
     }
 

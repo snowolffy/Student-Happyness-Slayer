@@ -3,7 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Pending Commands"
         Height="420" Width="640"
-        WindowStartupLocation="Manual"
+        WindowStartupLocation="CenterOwner"
         Icon="/Theme/icon.ico"
         Style="{StaticResource AppDialogWindow}">
     <!-- Rebuilt 2026-09-03 - spacing polish only; this window's Auto/Auto/* Grid shape was already

@@ -4,7 +4,7 @@
         Title="Settings"
         Width="440"
         SizeToContent="Height"
-        WindowStartupLocation="Manual"
+        WindowStartupLocation="CenterOwner"
         ResizeMode="NoResize"
         Icon="/Theme/icon.ico"
         Style="{StaticResource AppDialogWindow}">

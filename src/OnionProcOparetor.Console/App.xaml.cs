@@ -1,4 +1,5 @@
 ﻿using System.Windows;
+using System.Windows.Input;
 using OnionProcOparetor.Console.Services;
 
 namespace OnionProcOparetor.Console;
@@ -88,6 +89,37 @@ public partial class App : Application
                         + $"child=({child.Left:F0},{child.Top:F0} {child.ActualWidth:F0}x{child.ActualHeight:F0}) "
                         + $"offset=({childCentreX - ownerCentreX:F1},{childCentreY - ownerCentreY:F1})");
 
+                    Shutdown();
+                });
+            });
+            return;
+        }
+
+        // --focus-test เข้าโหมดดูจอเต็มจอ แล้วเปิดหน้าต่างทับ เพื่อพิสูจน์ว่าหน้าต่างนั้น "ใช้งานได้จริง"
+        // overlay เต็มจอเคยดึง keyboard focus กลับมาหาตัวเองทุกครั้งที่ focus หลุด ทำให้หน้าต่างที่เปิดทับ
+        // กดปิดไม่ได้ - เช็คด้วยตาไม่ได้ ต้องอ่านว่าใครถือ focus อยู่จริง
+        if (e.Args.Contains("--focus-test"))
+        {
+            var owner = new DashboardWindow(new Services.ApiClient())
+            {
+                PreviewMode = true,
+                PreviewFullscreen = true
+            };
+            owner.Show();
+
+            owner.Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.ApplicationIdle, () =>
+            {
+                var child = ConfirmWindow.CreatePreview(typeToConfirm: false);
+                child.Owner = owner;
+                child.Show();
+                child.Activate();
+
+                child.Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.ApplicationIdle, () =>
+                {
+                    var focused = Keyboard.FocusedElement?.GetType().Name ?? "(none)";
+                    ConsoleDiagnostics.WriteLine(
+                        $"FOCUS-TEST childIsActive={child.IsActive} ownerIsActive={owner.IsActive} "
+                        + $"focusedElement={focused}");
                     Shutdown();
                 });
             });

@@ -1,4 +1,4 @@
-using System.Windows;
+﻿using System.Windows;
 using OnionProcOparetor.Console.Services;
 
 namespace OnionProcOparetor.Console;
@@ -11,7 +11,6 @@ public partial class TailscaleLoginWindow : Window
     public TailscaleLoginWindow()
     {
         InitializeComponent();
-        Loaded += (_, _) => WindowCenteringHelper.CenterOverOwnerOrScreen(this);
     }
 
     private void LoginButton_Click(object sender, RoutedEventArgs e)

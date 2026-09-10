@@ -1355,7 +1355,10 @@ public partial class DashboardWindow : Window
             var completed = await Task.WhenAny(tcs.Task, Task.Delay(VncSessionReadyTimeout));
             if (completed != tcs.Task)
             {
-                return (false, 0, null, $"รอ Agent ตอบกลับเกิน {VncSessionReadyTimeout.TotalSeconds} วิ (Agent อาจ offline หรือ SignalR ไม่ connected)");
+                var path = client.UsingFallback ? "Tailscale" : "LAN";
+                return (false, 0, null,
+                    $"รอ Agent ตอบกลับเกิน {VncSessionReadyTimeout.TotalSeconds} วิ ผ่านเส้นทาง {path} "
+                    + "(Agent อาจ offline หรือ SignalR ไม่ connected)");
             }
 
             return await tcs.Task;
@@ -2042,10 +2045,25 @@ public partial class DashboardWindow : Window
     /// </summary>
     private void LiveViewFullscreenOverlay_IsKeyboardFocusWithinChanged(object sender, DependencyPropertyChangedEventArgs e)
     {
-        if (_liveViewFullscreenClientGuid is not null && !LiveViewFullscreenOverlay.IsKeyboardFocusWithin)
+        if (_liveViewFullscreenClientGuid is null || LiveViewFullscreenOverlay.IsKeyboardFocusWithin)
         {
-            Dispatcher.InvokeAsync(() => Keyboard.Focus(LiveViewFullscreenOverlay), DispatcherPriority.Input);
+            return;
         }
+
+        // บั๊กจริงที่ผู้ใช้เจอ (2026-09-10): หน้าต่างที่เปิดทับตอนอยู่เต็มจอ (เช่นหน้ารายงานผลการทำงาน)
+        // "กดปิดไม่ได้" - เพราะเงื่อนไขเดิมดึง focus กลับมาที่ overlay ทุกครั้งที่ focus หลุด ไม่ว่าจะ
+        // หลุดไปไหน พอหน้าต่างใหม่เปิดขึ้นมาและได้ focus บรรทัดนี้ก็ยึดกลับทันที หน้าต่างนั้นเลยใช้งาน
+        // ไม่ได้เลย
+        //
+        // สิ่งที่ตั้งใจกันไว้แต่แรกคือ popup/ContextMenu **ภายในหน้าต่าง Dashboard เอง** ที่แวบมาแย่ง
+        // focus ไม่ใช่หน้าต่างอื่นที่ผู้ใช้ตั้งใจเปิด - เช็ค IsActive จึงแยกสองกรณีนี้ออกจากกันได้ตรง ๆ
+        // ถ้า Dashboard ไม่ได้เป็นหน้าต่างที่ active อยู่ แปลว่าผู้ใช้กำลังคุยกับหน้าต่างอื่น อย่าไปแย่ง
+        if (!IsActive)
+        {
+            return;
+        }
+
+        Dispatcher.InvokeAsync(() => Keyboard.Focus(LiveViewFullscreenOverlay), DispatcherPriority.Input);
     }
 
     private void LiveViewFullscreenOverlay_PreviewKeyDown(object sender, KeyEventArgs e) => ForwardFullscreenKeyEvent(e, isDown: true);

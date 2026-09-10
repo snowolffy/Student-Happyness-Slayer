@@ -4,12 +4,12 @@
         Title="Broadcast Message"
         Width="440"
         SizeToContent="Height"
-        WindowStartupLocation="Manual"
+        WindowStartupLocation="CenterOwner"
         ResizeMode="NoResize"
         Icon="/Theme/icon.ico"
         Style="{StaticResource AppDialogWindow}">
     <!-- Rebuilt 2026-09-03 - StackPanel replaces the old fixed-pixel RowDefinitions. WindowStartupLocation
-         stays Manual + WindowCenteringHelper (code-behind), same SizeToContent+CenterOwner reasoning
+         uses WindowStartupLocation="CenterOwner" like every other sub-window (2026-09-10)
          as the other dialogs in this app. -->
     <StackPanel Margin="20">
         <TextBlock Text="Broadcast Message" Style="{StaticResource Heading2}" Margin="0,0,0,16"/>
