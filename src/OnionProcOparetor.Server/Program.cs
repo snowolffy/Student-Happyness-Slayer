@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.SignalR;
+using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using OnionProcOparetor.Server.Data;
 using OnionProcOparetor.Server.Hubs;
@@ -35,6 +35,16 @@ StartupDiagnostics.WriteLine($"ILogger ทั้งหมดจะถูกเ�
 
 // ---- ตั้งค่า Kestrel ให้ฟัง port ตามที่กำหนดใน appsettings.json ----
 var serverPort = builder.Configuration.GetValue<int>("Server:Port", 8787);
+
+// อายุของคำสั่งประเภท "เหตุการณ์" (Shutdown/Restart/Lock/...) - ดู CommandExpiry สำหรับเหตุผลเต็ม
+// ค่าที่ตั้งผิด (0 หรือติดลบ) จะทำให้ทุกคำสั่งหมดอายุทันทีที่สร้าง = สั่งอะไรไม่ได้เลยทั้งห้อง
+// จึงตกกลับไปใช้ค่า default แทนที่จะเชื่อ config ดื้อ ๆ (pattern เดียวกับ CommandResultTimeoutService)
+var configuredCommandLifetime = builder.Configuration.GetValue<int>(
+    "CommandTracking:EventCommandLifetimeSeconds",
+    (int)CommandExpiry.EventCommandLifetime.TotalSeconds);
+var eventCommandLifetime = configuredCommandLifetime > 0
+    ? TimeSpan.FromSeconds(configuredCommandLifetime)
+    : CommandExpiry.EventCommandLifetime;
 builder.WebHost.ConfigureKestrel(options =>
 {
     options.ListenAnyIP(serverPort); // ฟังทุก network interface เพื่อให้ client/console เครื่องอื่นต่อเข้ามาได้
@@ -751,8 +761,40 @@ app.MapGet("/api/poll/{clientGuid}", async (string clientGuid, string machineNam
 
     // fallback path สำหรับ command ที่ยังไม่ถึง Agent ผ่าน SignalR (เช่น เครื่อง disconnect อยู่ตอนที่ถูกสั่ง)
     // Agent จะเห็น command เหล่านี้ผ่าน poll รอบถัดไปเสมอ ไม่ว่า SignalR จะต่อติดอยู่หรือไม่ก็ตาม
+    //
+    // ==================== ตัวกันคำสั่งเก่าเด้งตอนบูต (2026-09-10) ====================
+    // นี่คือด่านสำคัญที่สุดของเรื่องอายุคำสั่ง เพราะเป็นทางเดียวที่เครื่องซึ่งเพิ่งเปิดจะได้รับคำสั่งค้าง
+    //
+    // บั๊กจริง: ครูสั่ง Shutdown ทั้งห้อง เครื่องที่เปิดอยู่ดับปกติ ส่วนเครื่องที่ปิดอยู่ตอนนั้นได้
+    // command ค้างเป็น Pending ไว้ พอถูกเปิดวันหลัง poll ครั้งแรกได้คำสั่งเดิมไปรัน = ดับเองทันที
+    // ที่บูตเสร็จ โดยไม่มีใครสั่งอะไรในตอนนั้นเลย
+    //
+    // ปิดสถานะเป็น Expired ก่อน "แล้วค่อย" query - ไม่ใช่แค่กรองออกจากผลลัพธ์: ถ้าแค่กรอง แถวจะยัง
+    // เป็น Pending ค้างใน DB ตลอดไป ทำให้หน้า PENDING COMMANDS ของครูโชว์คำสั่งที่ไม่มีวันทำงาน
+    // และไม่มีใครรู้ว่าเกิดอะไรขึ้นกับคำสั่งนั้น
+    var nowUtc = DateTime.UtcNow;
+    var expiredCommands = await db.ClientCommands
+        .Where(c => c.ClientGuid == clientGuid
+                    && c.Status == ClientCommandStatus.Pending
+                    && c.ExpiresAt != null
+                    && c.ExpiresAt < nowUtc)
+        .ToListAsync();
+
+    foreach (var expired in expiredCommands)
+    {
+        expired.Status = ClientCommandStatus.Expired;
+        if (expired.ExecutionStatus == CommandExecutionStatus.Pending)
+        {
+            expired.ExecutionStatus = CommandExecutionStatus.Expired;
+            expired.ExecutionMessage =
+                "หมดอายุก่อนถึงเครื่อง (เครื่องน่าจะปิดอยู่ตอนที่สั่ง) - ไม่ได้รันและจะไม่รันย้อนหลัง";
+        }
+    }
+
     var pendingCommands = await db.ClientCommands
-        .Where(c => c.ClientGuid == clientGuid && c.Status == ClientCommandStatus.Pending)
+        .Where(c => c.ClientGuid == clientGuid
+                    && c.Status == ClientCommandStatus.Pending
+                    && (c.ExpiresAt == null || c.ExpiresAt >= nowUtc))
         .OrderBy(c => c.CreatedAt)
         .Select(c => new { c.Id, c.CommandType, c.PayloadJson, c.CreatedAt })
         .ToListAsync();
@@ -809,13 +851,17 @@ app.MapPost("/api/commands/{clientGuid}", async (string clientGuid, CommandReque
     if (admin.HasDefaultPassword)
         return Results.Json(new { error = "Password change required before continuing." }, statusCode: 403);
 
+    var commandCreatedAt = DateTime.UtcNow;
     var command = new ClientCommand
     {
         ClientGuid = clientGuid,
         CommandType = req.CommandType,
         PayloadJson = req.Payload,
-        CreatedAt = DateTime.UtcNow,
+        CreatedAt = commandCreatedAt,
         Status = ClientCommandStatus.Pending,
+        // อายุคำสั่ง - คำสั่งประเภท "เหตุการณ์" (Shutdown/Restart/Lock/...) หมดอายุใน 3 นาที ส่วน
+        // คำสั่งประเภท "สถานะ" (UpdateSettings/...) ไม่หมดอายุ ดูเหตุผลเต็มใน CommandExpiry
+        ExpiresAt = CommandExpiry.ComputeExpiry(req.CommandType, commandCreatedAt, eventCommandLifetime),
         // BatchId ผูกคำสั่งทุกเครื่องที่ครูกดพร้อมกันครั้งเดียวไว้ด้วยกัน - Console สร้างค่านี้เอง
         // แล้วส่งมาให้เหมือนกันทุก request ในชุดนั้น (null ได้ถ้ายิง API ตรงโดยไม่ผ่าน Console)
         BatchId = string.IsNullOrWhiteSpace(req.BatchId) ? null : req.BatchId,
@@ -945,8 +991,13 @@ app.MapGet("/api/commands/pending/{clientGuid}", async (string clientGuid, HttpR
     if (admin is null)
         return Results.Unauthorized();
 
+    // กรองด้วยอายุเหมือน /api/poll เป๊ะ ๆ - ถ้าไม่กรอง หน้านี้จะโชว์คำสั่งที่ Server ไม่มีวันส่งให้
+    // เครื่องอีกแล้วว่า "ค้างอยู่" ซึ่งหลอกครูให้ไปกดยกเลิกของที่ตายไปแล้ว
+    var pendingNowUtc = DateTime.UtcNow;
     var pending = await db.ClientCommands
-        .Where(c => c.ClientGuid == clientGuid && c.Status == ClientCommandStatus.Pending)
+        .Where(c => c.ClientGuid == clientGuid
+                    && c.Status == ClientCommandStatus.Pending
+                    && (c.ExpiresAt == null || c.ExpiresAt >= pendingNowUtc))
         .OrderBy(c => c.CreatedAt)
         .ToListAsync();
 
