@@ -100,6 +100,10 @@ public partial class App : Application
                 "pending-commands" => new PendingCommandsWindow(api, sampleClient),
                 "running-processes" => new RunningProcessesWindow(api, new Services.LabHubClient(), sampleClient),
                 "action-panel" => new ActionPanelWindow(api, sampleClient),
+                // โหมด bulk โดย "ไม่ได้เลือกเครื่องเลย" - เคสที่เพิ่งแก้ (2026-09-10) ต้องเห็นว่า
+                // ตัวเลือก "เครื่องที่เลือกไว้ (0 เครื่อง)" ถูกปิด และ "ทุกเครื่อง" ถูกเลือกไว้ให้แล้ว
+                "action-panel-room" => new ActionPanelWindow(
+                    api, [], [sampleClient, sampleClient, sampleClient], defaultToAll: true),
                 _ => throw new ArgumentException($"ไม่รู้จัก dialog: {dialogArg}")
             };
 
@@ -111,7 +115,12 @@ public partial class App : Application
 
         if (e.Args.Contains("--ui-preview"))
         {
-            var preview = new DashboardWindow(new Services.ApiClient()) { PreviewMode = true };
+            var preview = new DashboardWindow(new Services.ApiClient())
+            {
+                PreviewMode = true,
+                PreviewSelectFirst = e.Args.Contains("--select"),
+                PreviewGlobalOff = e.Args.Contains("--global-off")
+            };
 
             // --tab=<ชื่อแท็บ> เลือกแท็บก่อนถ่ายภาพ ใช้ไล่ตรวจทุกหน้าจอในโหมดมืดรอบเดียว
             var tab = e.Args.FirstOrDefault(a => a.StartsWith("--tab=", StringComparison.Ordinal));

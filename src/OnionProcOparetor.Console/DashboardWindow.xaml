@@ -48,6 +48,7 @@
                  ปลายทางที่ต่ออยู่ แบนเนอร์เตือน สถานะการโหลด และปุ่มรีเฟรช ส่วนปุ่ม PROGRAMS/SETTINGS
                  ย้ายลงไปท้าย sidebar เพราะเป็น "ที่ที่ไปได้" ไม่ใช่ "สิ่งที่เกิดขึ้นกับหน้านี้" -->
             <controls:Nav.TopBar>
+              <StackPanel>
                 <Border Height="60" CornerRadius="12" Margin="0,0,0,12"
                         Background="{DynamicResource Brush.Background.Card}"
                         BorderBrush="{DynamicResource Brush.Border.Default}"
@@ -59,6 +60,8 @@
                             <ColumnDefinition Width="Auto"/>
                             <ColumnDefinition Width="Auto"/>
                         </Grid.ColumnDefinitions>
+                        <!-- คอลัมน์ที่ 1 (Width="*") เว้นว่างไว้เป็นตัวดันให้สถานะกับปุ่มรีเฟรชชิดขวา -
+                             แบนเนอร์เตือนเคยอยู่ตรงนี้ ย้ายลงไปเป็นแถบเต็มความกว้างใต้แถบนี้แล้ว -->
 
                         <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
                             <controls:IconPresenter Icon="wifi" IconSize="16" VerticalAlignment="Center"
@@ -66,35 +69,6 @@
                             <TextBlock x:Name="ServerLabel" Text="" Style="{StaticResource Caption}"
                                        Margin="8,0,0,0" VerticalAlignment="Center"/>
                         </StackPanel>
-
-                        <!-- ==================== แถบเตือน "ปิดการบังคับใช้ทั้งระบบ" ====================
-                             วางในคอลัมน์ที่เป็นช่องว่าง (Width="*") ของแถบบน จึงได้ที่กลางจอซึ่งมองไม่พลาด
-
-                             ทำไมต้องมี (บั๊กจริง 2026-09-04): GlobalState.IsEnabled เป็น AND gate คร่อม
-                             enforcement ของทุกเครื่อง (ดู /api/poll: enabled = globalEnabled && client.IsEnabled)
-                             แต่ไม่เคยมี UI ไหนแสดงค่านี้เลย และปุ่ม TOGGLE GLOBAL เดิมก็ถูกลบออกไปด้วยความ
-                             เข้าใจผิดว่า "ACTIONS > ทุกเครื่อง > TOGGLE ENFORCEMENT ให้ผลเหมือนกัน" ซึ่งไม่จริง
-                             เพราะอันนั้นแก้ IsEnabled รายเครื่อง ไม่ได้แตะ gate ตัวนี้ ผลคือพอ gate ถูกปิดไว้
-                             Console จะโชว์ทุกเครื่องเป็น ENABLED ตามปกติ ส่วน Agent ทุกตัวขึ้น Disabled ค้าง
-                             ไม่ว่าจะ toggle รายเครื่องกี่รอบ และไม่มีทางรู้เลยว่าเพราะอะไร -->
-                        <Border Grid.Column="1" x:Name="GlobalOffBanner" Visibility="Collapsed"
-                                CornerRadius="10" Margin="16,0,16,0" Padding="12,6"
-                                Background="{DynamicResource Brush.Status.Warning}"
-                                VerticalAlignment="Center">
-                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                <controls:IconPresenter Icon="alert-triangle" IconSize="18" VerticalAlignment="Center"
-                                                        Foreground="{DynamicResource Brush.Text.Primary}"/>
-                                <StackPanel Margin="8,0,0,0" VerticalAlignment="Center">
-                                    <TextBlock Text="ปิดการบังคับใช้ทั้งระบบอยู่" FontWeight="SemiBold" FontSize="12"
-                                               Foreground="{DynamicResource Brush.Text.Primary}"/>
-                                    <TextBlock Text="กฎทั้งหมดหยุดทำงานบนทุกเครื่อง แม้เครื่องนั้นจะขึ้น ENABLED" FontSize="11"
-                                               Foreground="{DynamicResource Brush.Text.Primary}"/>
-                                </StackPanel>
-                                <Button x:Name="GlobalTurnOnButton" Content="เปิดกลับ" Margin="12,0,0,0"
-                                        Style="{StaticResource ButtonPrimary}" Padding="12,4"
-                                        Click="GlobalTurnOnButton_Click" VerticalAlignment="Center"/>
-                            </StackPanel>
-                        </Border>
 
                         <TextBlock Grid.Column="2" Width="170" x:Name="StatusText" Style="{StaticResource Caption}"
                                    TextAlignment="Right" TextTrimming="CharacterEllipsis"
@@ -105,6 +79,52 @@
                                 Click="RefreshButton_Click" VerticalAlignment="Center"/>
                     </Grid>
                 </Border>
+
+                <!-- ==================== แถบเตือน "ปิดการบังคับใช้ทั้งระบบ" ====================
+                     เป็นแถบเต็มความกว้างใต้แถบบน ไม่ใช่เม็ดสีที่ยัดอยู่ในแถบบน (แก้ 2026-09-10):
+                     แถบบนสูง 60px และมีข้อความสถานะกับปุ่ม REFRESH อยู่แล้ว ยัดคำเตือนสองบรรทัด
+                     ลงไปตรงกลางทำให้บรรทัดที่สองโดนตัดและทั้งแถบดูอัดแน่นไปหมด นี่คือคำเตือนระดับ
+                     "ทั้งหน้าจอ" ไม่ใช่ค่าสถานะตัวหนึ่ง จึงควรมีบรรทัดของตัวเอง
+
+                     ทำไมต้องมี (บั๊กจริง 2026-09-04): GlobalState.IsEnabled เป็น AND gate คร่อม
+                     enforcement ของทุกเครื่อง (ดู /api/poll: enabled = globalEnabled && client.IsEnabled)
+                     แต่ไม่เคยมี UI ไหนแสดงค่านี้เลย และปุ่ม TOGGLE GLOBAL เดิมก็ถูกลบออกไปด้วยความ
+                     เข้าใจผิดว่า "ACTIONS > ทุกเครื่อง > TOGGLE ENFORCEMENT ให้ผลเหมือนกัน" ซึ่งไม่จริง
+                     เพราะอันนั้นแก้ IsEnabled รายเครื่อง ไม่ได้แตะ gate ตัวนี้ ผลคือพอ gate ถูกปิดไว้
+                     Console จะโชว์ทุกเครื่องเป็น ENABLED ตามปกติ ส่วน Agent ทุกตัวขึ้น Disabled ค้าง
+                     ไม่ว่าจะ toggle รายเครื่องกี่รอบ และไม่มีทางรู้เลยว่าเพราะอะไร
+
+                     ปุ่ม "เปิดกลับ" ยังอยู่ที่นี่แม้แท็บ Clients จะมีสวิตช์ของตัวเองแล้ว เพราะแถบนี้
+                     เห็นได้จากทุกแท็บ ส่วนสวิตช์นั้นอยู่แค่แท็บเดียว - ถ้าเอาออก คนที่ค้างอยู่แท็บอื่น
+                     จะเห็นคำเตือนแต่กดแก้ไม่ได้ ซึ่งคือบั๊กเดิมเป๊ะ ๆ -->
+                <Border x:Name="GlobalOffBanner" Visibility="Collapsed"
+                        CornerRadius="10" Margin="0,0,0,12" Padding="14,8"
+                        Background="{DynamicResource Brush.Status.Warning}">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+
+                        <controls:IconPresenter Grid.Column="0" Icon="alert-triangle" IconSize="20"
+                                                VerticalAlignment="Center"
+                                                Foreground="{DynamicResource Brush.Text.Primary}"/>
+
+                        <StackPanel Grid.Column="1" Margin="10,0,12,0" VerticalAlignment="Center">
+                            <TextBlock Text="ปิดการบังคับใช้ทั้งระบบอยู่" FontWeight="Bold" FontSize="13"
+                                       Foreground="{DynamicResource Brush.Text.Primary}"/>
+                            <TextBlock Text="กฎทั้งหมดหยุดทำงานบนทุกเครื่องในห้อง แม้เครื่องนั้นจะขึ้น ENABLED ก็ตาม"
+                                       FontSize="12" TextWrapping="Wrap" Margin="0,1,0,0"
+                                       Foreground="{DynamicResource Brush.Text.Primary}"/>
+                        </StackPanel>
+
+                        <Button Grid.Column="2" x:Name="GlobalTurnOnButton" Content="เปิดกลับ"
+                                Style="{StaticResource ButtonPrimary}" Padding="16,7"
+                                Click="GlobalTurnOnButton_Click" VerticalAlignment="Center"/>
+                    </Grid>
+                </Border>
+              </StackPanel>
             </controls:Nav.TopBar>
 
             <controls:Nav.StatusBar>
@@ -245,10 +265,10 @@
                 <TabItem Header="Clients" controls:Nav.Icon="monitor" controls:Nav.Group="ตรวจตรา">
                     <Grid Margin="0,12,0,0">
                         <Grid.RowDefinitions>
-                            <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="*"/>
+                            <RowDefinition Height="Auto"/>   <!-- หัวข้อ + ช่องค้นหา -->
+                            <RowDefinition Height="Auto"/>   <!-- การ์ดตัวเลข = ตัวกรอง -->
+                            <RowDefinition Height="Auto"/>   <!-- แถบคำสั่ง: ทั้งห้อง (ซ้าย) + ที่เลือก (ขวา) -->
+                            <RowDefinition Height="*"/>      <!-- ตาราง + แผงรายละเอียด -->
                         </Grid.RowDefinitions>
 
                         <Grid Grid.Row="0">
@@ -256,16 +276,9 @@
                                 <ColumnDefinition Width="Auto"/>
                                 <ColumnDefinition Width="*"/>
                                 <ColumnDefinition Width="Auto"/>
-                                <ColumnDefinition Width="Auto"/>
                             </Grid.ColumnDefinitions>
                             <TextBlock Grid.Column="0" Text="Client Management" Style="{StaticResource Heading2}" VerticalAlignment="Center"/>
-                            <!-- BROADCAST อยู่ตรงนี้ ไม่ได้อยู่ในแถบเลือก เพราะมันส่งหาทุกเครื่องได้ด้วย
-                                 (BroadcastMessageWindow มีตัวเลือก "ส่งทุกเครื่อง") จึงไม่ได้ต้องการ selection
-                                 ต่างจาก ACTIONS ที่บังคับให้เลือกอย่างน้อยหนึ่งเครื่อง -->
-                            <Button Grid.Column="2" Content="BROADCAST MESSAGE" Style="{StaticResource ButtonSecondary}"
-                                    Padding="12,6" FontSize="11" Margin="10,0,10,0"
-                                    Click="BroadcastMessageButton_Click" VerticalAlignment="Center"/>
-                            <TextBox Grid.Column="3" x:Name="ClientsSearchBox" Width="240" Height="34"
+                            <TextBox Grid.Column="2" x:Name="ClientsSearchBox" Width="240" Height="34"
                                     Style="{StaticResource SearchTextBox}" VerticalAlignment="Center"
                                     Tag="ค้นหาชื่อเครื่อง..." TextChanged="ClientsSearchBox_TextChanged"/>
                         </Grid>
@@ -297,22 +310,65 @@
                                          Checked="ClientStatFilter_Checked"/>
                         </StackPanel>
 
-                        <Border Grid.Row="2" x:Name="ClientsSelectionBar" Style="{StaticResource SelectionBar}"
-                                Margin="0,12,0,0" Visibility="Collapsed">
-                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                <controls:IconPresenter Icon="check-circle" IconSize="18" VerticalAlignment="Center"
-                                                        Foreground="{DynamicResource Brush.Accent.Text}"/>
-                                <TextBlock x:Name="SelectedClientsCountText" Text="" Margin="8,0,16,0"
-                                           VerticalAlignment="Center" FontWeight="SemiBold" FontSize="12"
-                                           Foreground="{DynamicResource Brush.Accent.Text}"/>
-                                <Button Content="ACTIONS" Style="{StaticResource ButtonPrimary}"
-                                        Padding="14,5" FontSize="11"
-                                        Click="BulkActionsButton_Click" VerticalAlignment="Center"/>
-                                <Button Content="ล้างการเลือก" Style="{StaticResource ButtonSecondary}"
-                                        Padding="12,5" FontSize="11" Margin="8,0,0,0"
-                                        Click="ClearClientSelectionButton_Click" VerticalAlignment="Center"/>
+                        <!-- ==================== แถบคำสั่ง ====================
+                             ซ้าย = สิ่งที่ทำกับ "ทั้งห้อง" ทำได้เสมอโดยไม่ต้องเลือกเครื่องก่อน
+                             ขวา  = สิ่งที่ทำกับ "เครื่องที่เลือกไว้" โผล่เมื่อมี selection
+
+                             ทั้งสองกลุ่มอยู่ **แถวเดียวกัน** และกลุ่มขวาใช้ Visibility="Hidden" ไม่ใช่
+                             "Collapsed" - นี่คือแก้บั๊กจริง ไม่ใช่เรื่องจัดหน้า: ของเดิมแถบเลือกเป็นแถว
+                             แยกที่ Collapsed อยู่ พอคลิกเลือกเครื่องหนึ่ง แถวนั้นแทรกเข้ามาแล้ว
+                             **ดันตารางลงไปทั้งแถบ** คลิกครั้งถัดไปจึงไปโดนเครื่องคนละตัวกับที่เล็งไว้
+                             ในหน้าจอที่มีปุ่ม SHUTDOWN อยู่ด้วย นั่นไม่ใช่ปัญหาความสวยงาม
+
+                             Hidden กันที่ไว้เท่าเดิมทุกประการ ความสูงของแถวจึงคงที่ไม่ว่าจะเลือกหรือไม่
+                             และไม่ต้องไปตรึงความสูงเป็นตัวเลข ซึ่งจะพังเมื่อ DPI หรือขนาดฟอนต์ต่างไป -->
+                        <Grid Grid.Row="2" Margin="0,12,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+
+                            <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                                <!-- ไม่ตั้ง MinWidth: ข้อความสองสถานะยาวใกล้กันอยู่แล้ว การตรึงความกว้าง
+                                     มีแต่จะกินที่ของกลุ่มขวาจนโดนตัด -->
+                                <Button x:Name="GlobalEnforcementButton" Style="{StaticResource ButtonSecondary}"
+                                        Padding="12,6" FontSize="11"
+                                        Click="GlobalEnforcementButton_Click" VerticalAlignment="Center"/>
+                                <Button Content="ACTIONS ทั้งห้อง" Style="{StaticResource ButtonSecondary}"
+                                        Padding="12,6" FontSize="11" Margin="8,0,0,0"
+                                        ToolTip="เปิดแผงคำสั่งโดยตั้งเป้าเป็นทุกเครื่องไว้ให้ - เปลี่ยนเป้าในแผงได้"
+                                        Click="RoomActionsButton_Click" VerticalAlignment="Center"/>
+                                <Button Content="BROADCAST" Style="{StaticResource ButtonSecondary}"
+                                        Padding="12,6" FontSize="11" Margin="8,0,0,0"
+                                        ToolTip="ส่งข้อความขึ้นจอนักเรียน - เลือกได้ว่าทุกเครื่องหรือเฉพาะที่เลือกไว้"
+                                        Click="BroadcastMessageButton_Click" VerticalAlignment="Center"/>
                             </StackPanel>
-                        </Border>
+
+                            <Border Grid.Column="1" x:Name="ClientsSelectionBar" Style="{StaticResource SelectionBar}"
+                                    Padding="12,5" Margin="12,0,0,0" Visibility="Hidden"
+                                    HorizontalAlignment="Right" VerticalAlignment="Center">
+                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                    <controls:IconPresenter Icon="check-circle" IconSize="16" VerticalAlignment="Center"
+                                                            Foreground="{DynamicResource Brush.Accent.Text}"/>
+                                    <TextBlock x:Name="SelectedClientsCountText" Text="" Margin="7,0,10,0"
+                                               VerticalAlignment="Center" FontWeight="SemiBold" FontSize="12"
+                                               TextTrimming="CharacterEllipsis"
+                                               Foreground="{DynamicResource Brush.Accent.Text}"/>
+                                    <Button Content="ACTIONS" Style="{StaticResource ButtonPrimary}"
+                                            Padding="12,5" FontSize="11"
+                                            ToolTip="เปิดแผงคำสั่งกับเครื่องที่เลือกไว้"
+                                            Click="BulkActionsButton_Click" VerticalAlignment="Center"/>
+                                    <!-- ปุ่มล้างเป็นไอคอนอย่างเดียว: ข้อความ "ล้างการเลือก" ทำให้แถวยาวเกิน
+                                         ความกว้างต่ำสุดของหน้าต่างจนโดนตัดหายไปนอกจอ -->
+                                    <Button Style="{StaticResource ButtonSecondary}"
+                                            Padding="7,5" Margin="6,0,0,0"
+                                            ToolTip="ล้างการเลือก"
+                                            Click="ClearClientSelectionButton_Click" VerticalAlignment="Center">
+                                        <controls:IconPresenter Icon="x" IconSize="14"/>
+                                    </Button>
+                                </StackPanel>
+                            </Border>
+                        </Grid>
 
                         <!-- ==================== ตาราง + แผงรายละเอียดฝั่งขวา ====================
                              แผงขวาโผล่เมื่อเลือกเครื่อง "ตัวเดียว" (เลือกหลายตัวคือโหมดสั่งงานหมู่ ซึ่งมี

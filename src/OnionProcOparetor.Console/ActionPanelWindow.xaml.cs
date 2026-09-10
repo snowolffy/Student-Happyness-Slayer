@@ -86,10 +86,21 @@ public partial class ActionPanelWindow : Window
     }
 
     /// <summary>
-    /// Bulk mode - เปิดจากปุ่ม ACTIONS บน header (multi-select) selectedClients ต้องมีอย่างน้อย 1 เครื่อง
-    /// (caller เช็คมาก่อนแล้ว) allClients ใช้ตอนเลือก "ทุกเครื่อง" แทน "เครื่องที่เลือกไว้"
+    /// Bulk mode - เปิดจากปุ่ม ACTIONS บนแถบคำสั่ง
+    ///
+    /// <paramref name="selectedClients"/> **ว่างได้** (2026-09-10): เดิม caller บังคับให้เลือกอย่างน้อย
+    /// หนึ่งเครื่องก่อน ซึ่งแปลว่าจะสั่ง "ทุกเครื่อง" ต้องไปเลือกเครื่องที่ไม่ได้ตั้งใจจะสั่งก่อนหนึ่งเครื่อง
+    /// ตอนนี้ถ้าไม่ได้เลือกอะไรเลย ตัวเลือก "เครื่องที่เลือกไว้" จะถูกปิดและบังคับเป็น "ทุกเครื่อง"
+    /// (ไม่ปล่อยให้เลือกเป้าที่มี 0 เครื่องได้ ไม่งั้นกดสั่งแล้วเงียบ ไม่มีอะไรเกิดขึ้น)
+    ///
+    /// <paramref name="defaultToAll"/> เลือกว่าจะตั้งเป้าเริ่มต้นเป็นทุกเครื่องหรือเฉพาะที่เลือก -
+    /// ปุ่ม "ACTIONS (ทุกเครื่อง)" กับ "ACTIONS (ที่เลือก)" เป็นแผงเดียวกัน ต่างกันแค่ตรงนี้
     /// </summary>
-    public ActionPanelWindow(ApiClient apiClient, List<ClientMachineDto> selectedClients, List<ClientMachineDto> allClients)
+    public ActionPanelWindow(
+        ApiClient apiClient,
+        List<ClientMachineDto> selectedClients,
+        List<ClientMachineDto> allClients,
+        bool defaultToAll = false)
     {
         InitializeComponent();
         Loaded += (_, _) => WindowCenteringHelper.CenterOverOwnerOrScreen(this);
@@ -102,11 +113,17 @@ public partial class ActionPanelWindow : Window
         TargetPanel.Visibility = Visibility.Visible;
         ApplyToSelectedRadio.Content = $"เครื่องที่เลือกไว้ ({selectedClients.Count} เครื่อง)";
         ApplyToAllRadio.Content = $"ทุกเครื่อง ({allClients.Count} เครื่อง)";
-        ApplyToSelectedRadio.IsChecked = true;
+
+        var targetAll = defaultToAll || selectedClients.Count == 0;
+        ApplyToSelectedRadio.IsEnabled = selectedClients.Count > 0;
+        ApplyToAllRadio.IsChecked = targetAll;
+        ApplyToSelectedRadio.IsChecked = !targetAll;
 
         ApplyToSelectedRadio.Checked += (_, _) => HeaderText.Text = $"Applying to {_selectedClients.Count} selected machines";
         ApplyToAllRadio.Checked += (_, _) => HeaderText.Text = $"Applying to all {_allClients.Count} machines";
-        HeaderText.Text = $"Applying to {selectedClients.Count} selected machines";
+        HeaderText.Text = targetAll
+            ? $"Applying to all {allClients.Count} machines"
+            : $"Applying to {selectedClients.Count} selected machines";
 
         SettingsButton.Visibility = Visibility.Collapsed;
         ConfigRuleButton.Visibility = Visibility.Collapsed;

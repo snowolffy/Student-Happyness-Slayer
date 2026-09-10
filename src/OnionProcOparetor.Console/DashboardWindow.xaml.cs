@@ -87,6 +87,12 @@ public partial class DashboardWindow : Window
     /// <summary>ชื่อแท็บที่จะเลือกไว้ตอนเปิดในโหมดตรวจ UI (ตรงกับ TabItem.Header เช่น "Rules")</summary>
     public string? PreviewTab { get; set; }
 
+    /// <summary>เลือกแถวแรกไว้ไหมตอนเปิดในโหมดตรวจ UI - ใช้เทียบภาพ "เลือก/ไม่เลือก" ว่าตารางขยับไหม</summary>
+    public bool PreviewSelectFirst { get; set; }
+
+    /// <summary>ตั้ง gate ทั้งห้องเป็นปิดในโหมดตรวจ UI เพื่อให้แถบเตือนโผล่ขึ้นมาให้ดู</summary>
+    public bool PreviewGlobalOff { get; set; }
+
     /// <summary>
     /// ใส่ข้อมูลปลอมลงตารางเพื่อให้เห็น badge / การ์ดตัวเลข / แถบเลือก ตอนตรวจงาน UI โดยไม่ต้อง
     /// login เข้า Server ตัวจริงที่รันอยู่บนเครื่อง dev เครื่องนี้ - ค่าถูกเลือกให้ครบทุกสถานะที่
@@ -95,7 +101,7 @@ public partial class DashboardWindow : Window
     private void SeedPreviewData()
     {
         var now = DateTime.UtcNow;
-        _globalState = new GlobalStateDto { IsEnabled = true };
+        _globalState = new GlobalStateDto { IsEnabled = !PreviewGlobalOff };
         _allClients =
         [
             new() { Id = 1, ClientGuid = "a1", MachineName = "LAB-PC-01", LastKnownIp = "192.168.1.11", IsOnline = true,  IsEnabled = true,  LastSeenAt = now },
@@ -105,6 +111,7 @@ public partial class DashboardWindow : Window
             new() { Id = 5, ClientGuid = "e5", MachineName = "LAB-PC-05", LastKnownIp = null,           IsOnline = false, IsEnabled = false, LastSeenAt = now.AddDays(-2) },
         ];
 
+        RefreshGlobalStateUi();
         ApplyClientsFilter();
         ApplyLiveViewClientList();
 
@@ -114,9 +121,9 @@ public partial class DashboardWindow : Window
         AuditLogEmptyText.Visibility = Visibility.Visible;
         UsersEmptyText.Visibility = Visibility.Visible;
 
-        // เลือกแถวแรกไว้เลย เพื่อให้ภาพตรวจงานเห็นทั้งแถบเลือกและแผงรายละเอียดฝั่งขวาด้วย
-        // ไม่ใช่เห็นแค่ตารางเปล่า ๆ
-        if (ClientsGrid.Items.Count > 0)
+        // เลือกแถวแรกเฉพาะเมื่อสั่ง (--select) - ต้องถ่ายได้ทั้งสองแบบเพื่อเทียบว่าตารางขยับไหม
+        // ตอนแถบ "ที่เลือก" โผล่ขึ้นมา
+        if (PreviewSelectFirst && ClientsGrid.Items.Count > 0)
         {
             ClientsGrid.SelectedIndex = 0;
         }
@@ -435,6 +442,47 @@ public partial class DashboardWindow : Window
         GlobalOffBanner.Visibility = _globalState is { IsEnabled: false }
             ? Visibility.Visible
             : Visibility.Collapsed;
+
+        // ปุ่มบอก "สิ่งที่จะเกิดถ้ากด" ไม่ใช่ "สถานะตอนนี้" - ปุ่มที่เขียนว่า Toggle เฉย ๆ คือครึ่งหนึ่ง
+        // ของบั๊กเดิมปี 2026-09-04 ที่ครูไม่รู้ว่า gate เปิดหรือปิดอยู่
+        //
+        // ระหว่างที่ยังอ่านค่าไม่ได้ (_globalState == null เช่น ตอน Server ล่ม) ปุ่มถูกปิดไว้ ไม่ใช่เดา
+        // ว่าเปิดอยู่ - เดาผิดแล้วครูกดหนึ่งครั้งอาจกลายเป็นปิดกฎทั้งห้องโดยไม่ได้ตั้งใจ
+        if (_globalState is null)
+        {
+            GlobalEnforcementButton.Content = "การบังคับใช้ทั้งระบบ: อ่านค่าไม่ได้";
+            GlobalEnforcementButton.IsEnabled = false;
+            return;
+        }
+
+        GlobalEnforcementButton.IsEnabled = true;
+        GlobalEnforcementButton.Content = _globalState.IsEnabled
+            ? "ปิดการบังคับใช้ทั้งระบบ"
+            : "เปิดการบังคับใช้ทั้งระบบ";
+        GlobalEnforcementButton.ToolTip = _globalState.IsEnabled
+            ? "ตอนนี้บังคับใช้กฎอยู่ทั้งห้อง - กดเพื่อปิดทั้งระบบ (จะถามยืนยันก่อน)"
+            : "ตอนนี้ปิดการบังคับใช้อยู่ทั้งห้อง กฎไม่ทำงานเลยแม้เครื่องจะขึ้น ENABLED - กดเพื่อเปิดกลับ";
+        GlobalEnforcementButton.Style = (Style)FindResource(
+            _globalState.IsEnabled ? "ButtonSecondary" : "ButtonPrimary");
+    }
+
+    /// <summary>
+    /// สวิตช์ gate ทั้งห้องบนแถบคำสั่งของแท็บ Clients - อยู่คู่กับ BROADCAST เพราะทั้งคู่คือ
+    /// "สิ่งที่ทำกับทั้งห้อง" และทำได้โดยไม่ต้องเลือกเครื่องก่อน
+    ///
+    /// ยังคงปุ่ม "เปิดกลับ" บนแบนเนอร์เตือนไว้ด้วย ไม่ใช่ของซ้ำซ้อน: แบนเนอร์อยู่บนแถบบนซึ่งเห็นจาก
+    /// ทุกแท็บ ส่วนปุ่มนี้อยู่เฉพาะแท็บ Clients - ถ้ามีแต่ปุ่มนี้ คนที่ค้างอยู่แท็บอื่นจะเห็นคำเตือน
+    /// แต่กดแก้ไม่ได้ ซึ่งเป็นบั๊กเดิมเป๊ะ ๆ (12d774a "visible and reachable") แบนเนอร์เปิดได้ทางเดียว
+    /// (เปิดกลับ) ส่วนปุ่มนี้สลับได้สองทาง
+    /// </summary>
+    private async void GlobalEnforcementButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_globalState is not { } state)
+        {
+            return;
+        }
+
+        await SetGlobalEnforcementAsync(!state.IsEnabled);
     }
 
     /// <summary>
@@ -648,11 +696,13 @@ public partial class DashboardWindow : Window
     private void ClientsGrid_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
         var count = ClientsGrid.SelectedItems.Count;
-        SelectedClientsCountText.Text = count == 1 ? "เลือกไว้ 1 เครื่อง" : $"เลือกไว้ {count} เครื่อง";
+        SelectedClientsCountText.Text = $"เลือก {count} เครื่อง";
 
         // แถบจะโผล่มาเมื่อมีเครื่องถูกเลือกเท่านั้น - เป็นตัวที่ทำให้ "เลือกหลายเครื่องแล้วสั่งทีเดียว"
         // มองเห็นได้จริง แทนที่จะซ่อนอยู่หลังปุ่ม ACTIONS ที่นิ่งอยู่ตลอดเวลาแบบเดิม
-        ClientsSelectionBar.Visibility = count > 0 ? Visibility.Visible : Visibility.Collapsed;
+        // Hidden ไม่ใช่ Collapsed - Hidden ยังกินที่เท่าเดิม ตารางข้างล่างจึงไม่ขยับตอนเลือกเครื่อง
+        // ของเดิมใช้ Collapsed ทำให้แถบนี้แทรกเข้ามาแล้วดันตารางลง คลิกถัดไปเลยไปโดนเครื่องคนละตัว
+        ClientsSelectionBar.Visibility = count > 0 ? Visibility.Visible : Visibility.Hidden;
         UpdateClientInspector();
     }
 
@@ -805,14 +855,22 @@ public partial class DashboardWindow : Window
     private async void BulkActionsButton_Click(object sender, RoutedEventArgs e)
     {
         var selected = ClientsGrid.SelectedItems.Cast<ClientMachineDto>().ToList();
+        var panel = new ActionPanelWindow(_apiClient, selected, _allClients, defaultToAll: false) { Owner = this };
+        await RunActionPanelAsync(panel);
+    }
 
-        if (selected.Count == 0)
-        {
-            StatusText.Text = "กรุณาเลือกเครื่องอย่างน้อย 1 เครื่อง (Ctrl+คลิก หรือ Shift+คลิก เพื่อเลือกหลายเครื่อง)";
-            return;
-        }
-
-        var panel = new ActionPanelWindow(_apiClient, selected, _allClients) { Owner = this };
+    /// <summary>
+    /// ปุ่ม ACTIONS (ทุกเครื่อง) บนแถบคำสั่งระดับห้อง - แผงเดียวกับปุ่มในแถบเลือก ต่างกันแค่ตั้งเป้า
+    /// เริ่มต้นเป็น "ทุกเครื่อง" และ **เปิดได้โดยไม่ต้องเลือกเครื่องก่อน**
+    ///
+    /// เดิมทางเข้าเดียวคือปุ่มในแถบเลือก ซึ่งโผล่เมื่อมี selection เท่านั้น และตัว handler ก็ปฏิเสธถ้า
+    /// เลือก 0 เครื่อง - แปลว่าจะสั่งทั้งห้องต้องไปเลือกเครื่องที่ไม่ได้ตั้งใจจะสั่งก่อนหนึ่งเครื่อง
+    /// แล้วค่อยสลับเป็น "ทุกเครื่อง" ในแผง
+    /// </summary>
+    private async void RoomActionsButton_Click(object sender, RoutedEventArgs e)
+    {
+        var selected = ClientsGrid.SelectedItems.Cast<ClientMachineDto>().ToList();
+        var panel = new ActionPanelWindow(_apiClient, selected, _allClients, defaultToAll: true) { Owner = this };
         await RunActionPanelAsync(panel);
     }
 
