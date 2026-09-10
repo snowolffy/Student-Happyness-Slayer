@@ -394,8 +394,53 @@ thaw → สร้าง user → **login เป็น user นั้น** → *
 **ยังไม่เคยรัน tray ภายใต้ standard user จริง** — จุดที่ยังไม่ยืนยัน: `PhysicalInputBlocker`
 (low-level keyboard hook) และ `createpassword.exe` ของ UltraVNC
 
+## AgentTray หูหนวกได้จาก connection เดียว (2026-09-10)
+
+**อาการที่ผู้ใช้รายงาน:** เครื่องเข้า sleep ทั้งที่ tray ทำงานอยู่ พอตื่นขึ้นมา tray "ค้างไปเลย
+ไม่ตอบสนอง" — กด tray icon ยังเปิดหน้าต่างได้ แต่คำสั่งจาก Console ไม่เข้าเลยสักคำสั่ง
+
+**สิ่งที่พิสูจน์ได้จริง (ทำซ้ำสำเร็จบนเครื่อง dev กับ build เก่า):** accept-loop ของ
+`BroadcastPipeListener` ถูกทำให้หูหนวกได้ด้วย client เพียงตัวเดียวที่ "ต่อติดแล้วไม่ส่งอะไรเลย"
+เพราะ `ReadLineAsync` เดิมไม่มี timeout (ใช้ token อายุเท่าโปรแกรม) และ pipe เปิดด้วย
+`maxNumberOfServerInstances=1` — ระหว่างที่มันรออยู่ ไม่มีทางสร้าง server instance ใหม่มารับใครได้เลย
+ทุกคำสั่ง (lock/unlock/broadcast/shutdown notify/VNC/process scan) เงียบหมด ทั้งที่ process ยังรันปกติ
+
+การทดสอบ: ต่อ client แล้วไม่ส่งอะไร ค้างไว้ → ยิง Broadcast จริงด้วย timeout 3 วิเท่า
+`AgentTrayNotifier` ของจริง
+
+| | t+1.5s | t+12.5s |
+|---|---|---|
+| build เก่า | CONNECT FAILED | CONNECT FAILED (หูหนวกตราบเท่าที่ connection นั้นยังเปิดอยู่) |
+| build ใหม่ | CONNECT FAILED (server instance เดียวยังถูกจองอยู่ ปกติ) | **SENT ok** — popup เด้งจริง |
+
+**ที่แย่กว่าคือกู้เองไม่ได้:** Agent ส่งไม่สำเร็จ → `AgentTrayRecoveryService` สตาร์ท AgentTray ใหม่
+→ ตัวใหม่เจอ `SingleInstanceGuard` ว่ามีตัวเก่าถือ mutex อยู่ → ปิดตัวเองทันที safety net ฝั่ง Agent
+แก้ได้เฉพาะเคส **"tray ตาย"** ไม่ใช่ **"tray ค้าง"** — ต้องไป kill process เองที่เครื่องเท่านั้น
+(ยังเป็นแบบนี้อยู่ ไม่ได้แก้ — ดู Known limitations)
+
+**แก้ไปแล้ว:**
+1. `BroadcastPipeListener.ReadTimeout` = 10 วิ ต่อ connection ผ่าน `Task.WhenAny` (ไม่ใช่แค่ส่ง token
+   เข้า `ReadLineAsync` เฉยๆ — ถ้าการยกเลิก overlapped read ไม่เป็นผล เส้นทางนี้ยังหลุดออกมาแล้วปล่อยให้
+   `using` dispose ตัว server ทิ้ง ซึ่งเป็นสิ่งที่ทำให้ read ที่ค้างอยู่ตายจริง) → loop ค้างถาวรไม่ได้อีก
+2. `BroadcastPipeListener.RestartAccept()` + `App.OnPowerModeChanged` — ตอนเครื่องตื่นจาก sleep
+   เปิด pipe server ใหม่ทั้งชุด ไม่ว่าของเดิมจะพังหรือไม่ ราคาตอนไม่มีอะไรพังคือศูนย์
+3. `App.EnsureOnScreen()` — resume เปลี่ยน display topology ได้ (จอหาย/ความละเอียดเปลี่ยน)
+   หน้าต่างที่เหลือพิกัดบนจอที่ไม่มีแล้วจะ `Show()`+`Activate()` สำเร็จทั้งคู่แต่ผู้ใช้ไม่เห็นอะไรเลย
+4. `TrayDiagnostics` → `%LocalAppData%\OnionProcOparetor\AgentTray\logs\tray.log` — เดิม AgentTray
+   ใช้ `Debug.WriteLine` ซึ่งมองไม่เห็นถ้าไม่มี debugger attach ทำให้ทุกอย่างที่เกิดใน field
+   หายไปหมด ตอนนี้มี log ของ pipe / power event / การเปิดหน้าต่าง
+
+**ยังไม่ยืนยัน:** ยังพิสูจน์ไม่ได้ว่า "การหลับ" ทำให้เกิดสภาพนั้นด้วยกลไกไหนกันแน่ (ที่นี่ไม่มีเครื่อง
+แล็บให้ทำ sleep/resume จริง) ที่ทำไปคือปิดช่องให้มันค้างถาวรไม่ได้ + ทิ้ง log ไว้ให้ครั้งหน้ามีหลักฐาน
+**เครื่องแล็บทั้ง 40 เครื่องใช้ Reboot Restore Rx — `tray.log` หายทุก reboot ต้องเก็บ log ตอนอาการ
+ยังค้างอยู่ก่อนรีสตาร์ทเสมอ** และการแก้นี้ไม่มีผลจนกว่าจะ rollout MSI ตัวใหม่ลงเครื่องจริง
+
 ## Known limitations / ยังไม่ได้ทำ
 
+- `AgentTrayRecoveryService` กู้ได้เฉพาะ tray ที่ **ตาย** ไม่ใช่ tray ที่ **ค้าง** — `SingleInstanceGuard`
+  ทำให้ instance ใหม่ปิดตัวเองทันทีถ้าตัวเก่ายังถือ mutex อยู่ ไม่ได้แก้เพราะการยอมให้มี tray สองตัว
+  แปลว่ามี pipe listener สองตัวแย่งกันรับ message และ lock screen ซ้อนกัน — อันตรายกว่าปัญหาที่จะแก้
+  ทางที่ถูกคือให้ instance ใหม่ probe pipe ของตัวเก่าก่อนแล้วค่อยตัดสินใจ ซึ่งยังไม่ได้ทำ
 - Windows Firewall/hosts-based website blocking, "ปิดเน็ตทั้งหมด" — ออกแบบ+implement ไปรอบหนึ่งแล้ว
   (Phase 5) แต่ถูก revert พร้อมงานอื่นตอน stabilization — ยังไม่มีในระบบตอนนี้
 - `ResizeMode="NoResize"` + pixel-fixed `Canvas` layout ทุกหน้าจอ Console — ใช้งานได้ดีในสภาพแวดล้อมปกติ
