@@ -131,7 +131,7 @@
                 <DataGridTemplateColumn Header="" Width="90">
                     <DataGridTemplateColumn.CellTemplate>
                         <DataTemplate>
-                            <Button Content="ยกเลิก" Style="{StaticResource RowCancelButtonStyle}"
+                            <Button Content="ยกเลิกคำสั่งนี้" Style="{StaticResource RowCancelButtonStyle}"
                                     Padding="10,4" FontSize="11"
                                     Click="CancelButton_Click"/>
                         </DataTemplate>

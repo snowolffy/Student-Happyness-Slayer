@@ -1,4 +1,4 @@
-using System.Windows;
+﻿using System.Windows;
 using OnionProcOparetor.Console.Services;
 
 namespace OnionProcOparetor.Console;
@@ -22,7 +22,7 @@ public partial class BroadcastMessageWindow : Window
         else
         {
             SendToSelectedRadio.IsEnabled = false;
-            SendToSelectedRadio.Content = "ส่งไปเครื่องที่เลือกไว้ (ยังไม่ได้เลือกเครื่อง)";
+            SendToSelectedRadio.Content = "ส่งไปเครื่องที่เลือกไว้ (ยังไม่ได้เลือกเครื่องไหน)";
             SendToAllRadio.IsChecked = true;
         }
     }

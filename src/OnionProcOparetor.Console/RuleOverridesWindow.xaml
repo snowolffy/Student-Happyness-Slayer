@@ -33,7 +33,7 @@
         <Grid Grid.Row="3">
             <TextBlock x:Name="StatusText" Style="{StaticResource Caption}" TextWrapping="Wrap"
                        VerticalAlignment="Center" Margin="0,0,90,0"/>
-            <Button Content="CLOSE" Style="{StaticResource ButtonSecondary}"
+            <Button Content="ปิด" Style="{StaticResource ButtonSecondary}"
                     Padding="10,5" FontSize="11" HorizontalAlignment="Right" Click="CloseButton_Click"/>
         </Grid>
     </Grid>

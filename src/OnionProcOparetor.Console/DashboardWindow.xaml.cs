@@ -288,7 +288,7 @@ public partial class DashboardWindow : Window
             if (_liveViewFullscreenClientGuid is not null)
             {
                 e.Cancel = true;
-                StatusText.Text = "กด \"BACK TO GRID\" ก่อนปิดโปรแกรม (กำลังควบคุมเครื่อง target แบบเต็มจออยู่)";
+                StatusText.Text = "กด \"กลับไปจอรวม\" ก่อนปิดโปรแกรม (กำลังควบคุมเครื่อง target แบบเต็มจออยู่)";
             }
         };
 
@@ -415,7 +415,7 @@ public partial class DashboardWindow : Window
         if (!enabled && !ConfirmWindow.Show(
                 "กฎทั้งหมดจะหยุดทำงานบนทุกเครื่องในห้องแล็บพร้อมกัน จนกว่าจะเปิดกลับ - "
                     + "การเปิด/ปิด enforcement รายเครื่องจะไม่มีผลใดๆ ตลอดช่วงที่ปิดอยู่",
-                "ปิดการบังคับใช้ทั้งระบบ?", this))
+                "ปิดการบังคับใช้ทั้งระบบ?", this, "ปิดทั้งระบบ"))
         {
             return;
         }
@@ -597,7 +597,7 @@ public partial class DashboardWindow : Window
                 ? ConfirmWindow.Show("ยืนยันการลบกฎนี้? การกระทำนี้ย้อนกลับไม่ได้", "ยืนยันการลบ", this)
                 : ConfirmWindow.ShowWithTypeToConfirm(
                     $"กำลังจะลบกฎ \"{ruleName}\" ออกจากระบบถาวร การกระทำนี้ย้อนกลับไม่ได้",
-                    "ยืนยันการลบกฎ", ruleName, this);
+                    "ยืนยันการลบกฎ", ruleName, this, "ลบกฎนี้");
             if (!confirmed)
             {
                 return;
@@ -671,7 +671,7 @@ public partial class DashboardWindow : Window
                 ? ConfirmWindow.Show("ยืนยันการลบ user นี้? การกระทำนี้ย้อนกลับไม่ได้", "ยืนยันการลบ", this)
                 : ConfirmWindow.ShowWithTypeToConfirm(
                     $"กำลังจะลบผู้ใช้ \"{userName}\" ออกจากระบบถาวร การกระทำนี้ย้อนกลับไม่ได้",
-                    "ยืนยันการลบผู้ใช้", userName, this);
+                    "ยืนยันการลบผู้ใช้", userName, this, "ลบผู้ใช้นี้");
             if (!confirmed)
             {
                 return;
@@ -1214,7 +1214,7 @@ public partial class DashboardWindow : Window
     private void VncDisconnectButton_Click(object sender, RoutedEventArgs e)
     {
         DisconnectVncView();
-        VncHeaderText.Text = "ยังไม่ได้เลือกเครื่อง - กด VIEW SCREEN จากรายการ Clients";
+        VncHeaderText.Text = "ยังไม่ได้เลือกเครื่อง - เลือกเครื่องในแท็บ Clients แล้วกด \"ดูหน้าจอเครื่องนี้\"";
         VncStatusText.Text = "ตัดการเชื่อมต่อแล้ว";
     }
 
@@ -1233,7 +1233,7 @@ public partial class DashboardWindow : Window
         if (e.RemovedItems.Contains(ScreenViewTabItem))
         {
             DisconnectVncView();
-            VncHeaderText.Text = "ยังไม่ได้เลือกเครื่อง - กด VIEW SCREEN จากรายการ Clients";
+            VncHeaderText.Text = "ยังไม่ได้เลือกเครื่อง - เลือกเครื่องในแท็บ Clients แล้วกด \"ดูหน้าจอเครื่องนี้\"";
             VncStatusText.Text = "";
         }
 
@@ -1688,7 +1688,10 @@ public partial class DashboardWindow : Window
 
     private void SetToggleTargetInputButtonVisual(bool blocked)
     {
-        ToggleTargetInputButton.Content = blocked ? "UNBLOCK STUDENT INPUT" : "BLOCK STUDENT INPUT";
+        // ป้ายบอกสิ่งที่จะเกิดถ้ากด ไม่ใช่สถานะปัจจุบัน - ตอนกำลังบล็อกอยู่ ปุ่มจึงเขียนว่า "คืน..."
+        ToggleTargetInputButton.Content = blocked
+            ? "คืนเมาส์/คีย์บอร์ดให้นักเรียน"
+            : "บล็อกเมาส์/คีย์บอร์ดนักเรียน";
         ToggleTargetInputButton.Style = (Style)FindResource(blocked ? "ButtonDanger" : "ButtonSecondary");
     }
 

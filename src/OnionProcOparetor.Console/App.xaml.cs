@@ -104,10 +104,33 @@ public partial class App : Application
                 // ตัวเลือก "เครื่องที่เลือกไว้ (0 เครื่อง)" ถูกปิด และ "ทุกเครื่อง" ถูกเลือกไว้ให้แล้ว
                 "action-panel-room" => new ActionPanelWindow(
                     api, [], [sampleClient, sampleClient, sampleClient], defaultToAll: true),
-                _ => throw new ArgumentException($"ไม่รู้จัก dialog: {dialogArg}")
+                _ => null
             };
 
-            dialog.WindowStartupLocation = WindowStartupLocation.CenterScreen;
+            // ชื่อ dialog ผิดต้อง "จบเงียบ ๆ" ไม่ใช่ throw - เพราะ throw จะไปโดน global handler ที่เด้ง
+            // MessageBox ค้างรอให้คนมากดปิด ซึ่งสำหรับเครื่องมือที่สคริปต์เรียกวนเป็นสิบรอบ แปลว่ามี
+            // หน้าต่างค้างเต็มจอผู้ใช้ (เจอมาแล้วจริง ๆ ตอนสคริปต์ส่ง argument ติดกันจนชื่อเพี้ยน)
+            if (dialog is null)
+            {
+                ConsoleDiagnostics.WriteLine($"--dialog: ไม่รู้จักชื่อ '{dialogArg}' - ปิดโปรแกรม");
+                Shutdown(2);
+                return;
+            }
+
+            // ถ่ายภาพอย่างเดียว: อย่าแย่ง focus และอย่าโผล่กลางจอที่ผู้ใช้กำลังทำงานอยู่
+            // RenderTargetBitmap ต้องการหน้าต่างที่ realize แล้วก็จริง แต่ไม่ต้องให้คนเห็นด้วยตา
+            if (e.Args.Any(a => a.StartsWith("--shot=", StringComparison.Ordinal)))
+            {
+                dialog.ShowActivated = false;
+                dialog.WindowStartupLocation = WindowStartupLocation.Manual;
+                dialog.Left = -32000;
+                dialog.Top = -32000;
+            }
+            else
+            {
+                dialog.WindowStartupLocation = WindowStartupLocation.CenterScreen;
+            }
+
             dialog.Show();
             CapturePreview(dialog, e.Args);
             return;
@@ -127,6 +150,15 @@ public partial class App : Application
             if (tab is not null)
             {
                 preview.PreviewTab = tab["--tab=".Length..];
+            }
+
+            // ถ่ายภาพอย่างเดียว: อย่าไปแย่ง focus และอย่าโผล่กลางจอที่ผู้ใช้กำลังทำงานอยู่
+            if (e.Args.Any(a => a.StartsWith("--shot=", StringComparison.Ordinal)))
+            {
+                preview.ShowActivated = false;
+                preview.WindowStartupLocation = WindowStartupLocation.Manual;
+                preview.Left = -32000;
+                preview.Top = -32000;
             }
 
             preview.Show();

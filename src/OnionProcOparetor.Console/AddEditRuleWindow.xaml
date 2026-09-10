@@ -28,9 +28,9 @@
                 <TextBox x:Name="ProcessNameContainsBox" Style="{StaticResource RoundedTextBox}" Margin="0,0,0,12"
                          ToolTip="[OPTIONAL] narrow เพิ่มจากชื่อไฟล์ เช่น 'notepad' - เว้นว่างได้ถ้าไม่รู้ชื่อไฟล์ล่วงหน้า"/>
 
-                <CheckBox x:Name="RequireSignedMatchCheckBox" Content="Require signed match (Authenticode)"
+                <CheckBox x:Name="RequireSignedMatchCheckBox" Content="ต้องมีลายเซ็นดิจิทัลตรงกัน (Authenticode)"
                           Foreground="{DynamicResource Brush.Text.Primary}" Margin="0,0,0,8"/>
-                <CheckBox x:Name="KillProcessCheckBox" Content="Kill process ทันทีที่ match"
+                <CheckBox x:Name="KillProcessCheckBox" Content="ปิดโปรแกรมทันทีที่ตรงกับกฎ"
                           Foreground="{DynamicResource Brush.Text.Primary}" Margin="0,0,0,8"/>
                 <CheckBox x:Name="IsEnabledCheckBox" Content="เปิดใช้งานกฎนี้"
                           Foreground="{DynamicResource Brush.Text.Primary}" Margin="0,0,0,12"/>
@@ -48,9 +48,9 @@
         <TextBlock x:Name="StatusText" Style="{StaticResource Caption}" TextWrapping="Wrap" Margin="0,0,0,16"/>
 
         <Grid>
-            <Button Content="CANCEL" Style="{StaticResource ButtonSecondary}"
+            <Button Content="ยกเลิก" Style="{StaticResource ButtonSecondary}"
                     Padding="10,5" FontSize="11" HorizontalAlignment="Right" Margin="0,0,96,0" Click="CancelButton_Click"/>
-            <Button Content="SAVE" Style="{StaticResource ButtonPrimary}"
+            <Button Content="บันทึกกฎ" Style="{StaticResource ButtonPrimary}"
                     HorizontalAlignment="Right" Click="SaveButton_Click"/>
         </Grid>
     </StackPanel>

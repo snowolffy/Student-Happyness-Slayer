@@ -56,7 +56,7 @@
                     Text="© 2026 OnionProcOparetor. All rights reserved."
                     Style="{StaticResource Caption}" TextAlignment="Center" TextWrapping="Wrap"/>
 
-        <Button Grid.Row="8" Width="90" Content="CLOSE" Style="{StaticResource ButtonSecondary}"
+        <Button Grid.Row="8" Width="90" Content="ปิด" Style="{StaticResource ButtonSecondary}"
                 HorizontalAlignment="Center" VerticalAlignment="Top" Click="CloseButton_Click"/>
     </Grid>
 </Window>

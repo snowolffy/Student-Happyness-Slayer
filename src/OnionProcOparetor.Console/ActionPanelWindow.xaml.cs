@@ -1,4 +1,4 @@
-using System.Windows;
+﻿using System.Windows;
 using OnionProcOparetor.Console.Models;
 using OnionProcOparetor.Console.Services;
 
@@ -82,7 +82,9 @@ public partial class ActionPanelWindow : Window
         ViewScreenButton.Visibility = Visibility.Visible;
         ViewProcessesButton.Visibility = Visibility.Visible;
         PendingCommandsButton.Visibility = Visibility.Visible;
-        ToggleButton.Content = client.IsEnabled ? "DISABLE ENFORCEMENT" : "ENABLE ENFORCEMENT";
+        ToggleButton.Content = client.IsEnabled
+            ? "ปิดการบังคับใช้กฎ (เครื่องนี้)"
+            : "เปิดการบังคับใช้กฎ (เครื่องนี้)";
         ApplyTailscaleVisibility();
     }
 
@@ -132,7 +134,11 @@ public partial class ActionPanelWindow : Window
         ViewScreenButton.Visibility = Visibility.Collapsed;
         ViewProcessesButton.Visibility = Visibility.Collapsed;
         PendingCommandsButton.Visibility = Visibility.Collapsed;
-        ToggleButton.Content = "TOGGLE ENFORCEMENT";
+        // โหมดหมู่กลับสถานะของ "แต่ละเครื่อง" ตามค่าเดิมของเครื่องนั้น ๆ จึงบอกผลลัพธ์เดียวไม่ได้จริง ๆ
+        // เขียนตามความจริงว่ามันสลับ แล้วอธิบายรายละเอียดใน ToolTip แทนที่จะตั้งชื่อที่ฟังดูชัดแต่ผิด
+        ToggleButton.Content = "สลับเปิด/ปิดการบังคับใช้กฎ";
+        ToggleButton.ToolTip = "กลับสถานะของแต่ละเครื่องจากค่าเดิมของเครื่องนั้น - "
+            + "เครื่องที่เปิดอยู่จะถูกปิด เครื่องที่ปิดอยู่จะถูกเปิด";
         ApplyTailscaleVisibility();
     }
 
@@ -156,7 +162,8 @@ public partial class ActionPanelWindow : Window
     private List<ClientMachineDto> CurrentTargets =>
         _isBulk && ApplyToAllRadio.IsChecked == true ? _allClients : _selectedClients;
 
-    private bool Confirm(string message, string title) => ConfirmWindow.Show(message, title, this);
+    private bool Confirm(string message, string title, string? confirmText = null) =>
+        ConfirmWindow.Show(message, title, this, confirmText);
 
     /// <summary>
     /// Toggle enforcement - เป็น action เดียวที่ใช้หน้า report แบบ "immediate" (BatchId = null)
@@ -168,7 +175,10 @@ public partial class ActionPanelWindow : Window
     {
         var targets = CurrentTargets;
 
-        if (_isBulk && !Confirm($"ยืนยัน toggle สถานะของ {targets.Count} เครื่องที่เลือกไว้?", "ยืนยัน Toggle"))
+        if (_isBulk && !Confirm(
+                $"จะกลับสถานะการบังคับใช้กฎของ {targets.Count} เครื่อง - เครื่องที่เปิดอยู่จะถูกปิด "
+                + "และเครื่องที่ปิดอยู่จะถูกเปิด",
+                "สลับการบังคับใช้กฎ", "สลับสถานะ"))
         {
             return;
         }

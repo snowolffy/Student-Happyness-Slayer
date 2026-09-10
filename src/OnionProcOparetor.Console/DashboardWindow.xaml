@@ -74,7 +74,7 @@
                                    TextAlignment="Right" TextTrimming="CharacterEllipsis"
                                    VerticalAlignment="Center" Margin="0,0,12,0"/>
 
-                        <Button Grid.Column="3" x:Name="RefreshButton" Content="REFRESH"
+                        <Button Grid.Column="3" x:Name="RefreshButton" Content="รีเฟรช"
                                 Style="{StaticResource ButtonSecondary}" Padding="14,7"
                                 Click="RefreshButton_Click" VerticalAlignment="Center"/>
                     </Grid>
@@ -119,7 +119,7 @@
                                        Foreground="{DynamicResource Brush.Text.OnStatusFill}"/>
                         </StackPanel>
 
-                        <Button Grid.Column="2" x:Name="GlobalTurnOnButton" Content="เปิดกลับ"
+                        <Button Grid.Column="2" x:Name="GlobalTurnOnButton" Content="เปิดการบังคับใช้กลับ"
                                 Style="{StaticResource ButtonOnStatus}"
                                 Click="GlobalTurnOnButton_Click" VerticalAlignment="Center"/>
                     </Grid>
@@ -334,11 +334,11 @@
                                 <Button x:Name="GlobalEnforcementButton" Style="{StaticResource ButtonSecondary}"
                                         Padding="12,6" FontSize="11"
                                         Click="GlobalEnforcementButton_Click" VerticalAlignment="Center"/>
-                                <Button Content="ACTIONS ทั้งห้อง" Style="{StaticResource ButtonSecondary}"
+                                <Button Content="คำสั่ง (ทุกเครื่อง)" Style="{StaticResource ButtonSecondary}"
                                         Padding="12,6" FontSize="11" Margin="8,0,0,0"
                                         ToolTip="เปิดแผงคำสั่งโดยตั้งเป้าเป็นทุกเครื่องไว้ให้ - เปลี่ยนเป้าในแผงได้"
                                         Click="RoomActionsButton_Click" VerticalAlignment="Center"/>
-                                <Button Content="BROADCAST" Style="{StaticResource ButtonSecondary}"
+                                <Button Content="ส่งข้อความขึ้นจอ" Style="{StaticResource ButtonSecondary}"
                                         Padding="12,6" FontSize="11" Margin="8,0,0,0"
                                         ToolTip="ส่งข้อความขึ้นจอนักเรียน - เลือกได้ว่าทุกเครื่องหรือเฉพาะที่เลือกไว้"
                                         Click="BroadcastMessageButton_Click" VerticalAlignment="Center"/>
@@ -354,7 +354,7 @@
                                                VerticalAlignment="Center" FontWeight="SemiBold" FontSize="12"
                                                TextTrimming="CharacterEllipsis"
                                                Foreground="{DynamicResource Brush.Accent.Text}"/>
-                                    <Button Content="ACTIONS" Style="{StaticResource ButtonPrimary}"
+                                    <Button Content="คำสั่ง" Style="{StaticResource ButtonPrimary}"
                                             Padding="12,5" FontSize="11"
                                             ToolTip="เปิดแผงคำสั่งกับเครื่องที่เลือกไว้"
                                             Click="BulkActionsButton_Click" VerticalAlignment="Center"/>
@@ -458,7 +458,7 @@
                                     </Style>
                                 </DataGrid.Resources>
                                 <DataGrid.Columns>
-                                    <DataGridTemplateColumn Header="STATUS" Width="90" SortMemberPath="IsOnline">
+                                    <DataGridTemplateColumn Header="สถานะ" Width="90" SortMemberPath="IsOnline">
                                         <DataGridTemplateColumn.CellTemplate>
                                             <DataTemplate>
                                                 <ContentControl Style="{StaticResource ClientOnlineStatusBadge}"
@@ -466,14 +466,14 @@
                                             </DataTemplate>
                                         </DataGridTemplateColumn.CellTemplate>
                                     </DataGridTemplateColumn>
-                                    <DataGridTemplateColumn Header="ENFORCEMENT" Width="110" SortMemberPath="IsEnabled">
+                                    <DataGridTemplateColumn Header="บังคับใช้กฎ" Width="110" SortMemberPath="IsEnabled">
                                         <DataGridTemplateColumn.CellTemplate>
                                             <DataTemplate>
                                                 <ContentControl Style="{StaticResource ClientEnforcementBadge}"/>
                                             </DataTemplate>
                                         </DataGridTemplateColumn.CellTemplate>
                                     </DataGridTemplateColumn>
-                                    <DataGridTemplateColumn Header="CONNECTION" Width="100" SortMemberPath="UsingFallback">
+                                    <DataGridTemplateColumn Header="เชื่อมต่อผ่าน" Width="120" SortMemberPath="UsingFallback">
                                         <DataGridTemplateColumn.CellTemplate>
                                             <DataTemplate>
                                                 <ContentControl Style="{StaticResource ClientConnectionPathBadge}"
@@ -481,7 +481,7 @@
                                             </DataTemplate>
                                         </DataGridTemplateColumn.CellTemplate>
                                     </DataGridTemplateColumn>
-                                    <DataGridTemplateColumn Header="MACHINE NAME" Width="180">
+                                    <DataGridTemplateColumn Header="ชื่อเครื่อง" Width="180">
                                         <DataGridTemplateColumn.CellTemplate>
                                             <DataTemplate>
                                                 <TextBlock Text="{Binding MachineName}" TextTrimming="CharacterEllipsis"
@@ -489,7 +489,7 @@
                                             </DataTemplate>
                                         </DataGridTemplateColumn.CellTemplate>
                                     </DataGridTemplateColumn>
-                                    <DataGridTemplateColumn Header="CLIENT GUID" Width="240">
+                                    <DataGridTemplateColumn Header="Client GUID" Width="240">
                                         <DataGridTemplateColumn.CellTemplate>
                                             <DataTemplate>
                                                 <TextBlock Text="{Binding ClientGuid}" TextTrimming="CharacterEllipsis"
@@ -497,15 +497,15 @@
                                             </DataTemplate>
                                         </DataGridTemplateColumn.CellTemplate>
                                     </DataGridTemplateColumn>
-                                    <DataGridTextColumn Header="LAST SEEN (UTC)" Binding="{Binding LastSeenAt}" Width="170"/>
-                                    <DataGridTemplateColumn Header="ACTIONS" Width="120">
+                                    <DataGridTextColumn Header="เห็นล่าสุด (UTC)" Binding="{Binding LastSeenAt}" Width="170"/>
+                                    <DataGridTemplateColumn Header="จัดการ" Width="120">
                                         <DataGridTemplateColumn.CellTemplate>
                                             <DataTemplate>
                                                 <Button Style="{StaticResource ButtonSecondary}"
                                                         Padding="10,5" FontSize="11"
                                                         Click="ClientActionsButton_Click" Tag="{Binding}">
                                                     <StackPanel Orientation="Horizontal">
-                                                        <TextBlock Text="ACTIONS" VerticalAlignment="Center"/>
+                                                        <TextBlock Text="คำสั่ง" VerticalAlignment="Center"/>
                                                         <controls:IconPresenter Icon="more-horizontal" IconSize="14"
                                                                                 Margin="6,0,0,0" VerticalAlignment="Center"/>
                                                     </StackPanel>
@@ -548,13 +548,13 @@
                                         <!-- ปุ่มอยู่เหนือรายละเอียด ไม่ใช่ใต้: พอเลือกเครื่องแล้ว สิ่งที่ตั้งใจ
                                              จะทำไม่ควรอยู่ใต้เส้นที่ต้องเลื่อนลงไปหา ส่วนรายละเอียดเป็นของที่
                                              อ่านเมื่ออยากรู้ จึงอยู่ล่างได้ -->
-                                        <Button Content="ดูหน้าจอ" Style="{StaticResource ButtonPrimary}"
+                                        <Button Content="ดูหน้าจอเครื่องนี้" Style="{StaticResource ButtonPrimary}"
                                                 HorizontalAlignment="Stretch" Margin="0,0,0,6"
                                                 Click="InspectorViewScreenButton_Click"/>
-                                        <Button Content="โปรแกรมที่เปิดอยู่" Style="{StaticResource ButtonSecondary}"
+                                        <Button Content="ดูโปรแกรมที่เปิดอยู่" Style="{StaticResource ButtonSecondary}"
                                                 HorizontalAlignment="Stretch" Margin="0,0,0,6"
                                                 Click="InspectorProcessesButton_Click"/>
-                                        <Button Content="คำสั่งที่ค้างอยู่" Style="{StaticResource ButtonSecondary}"
+                                        <Button Content="ดูคำสั่งที่ค้างอยู่" Style="{StaticResource ButtonSecondary}"
                                                 HorizontalAlignment="Stretch" Margin="0,0,0,6"
                                                 Click="InspectorPendingCommandsButton_Click"/>
                                         <Button Content="ตั้งค่าเครื่องนี้" Style="{StaticResource ButtonSecondary}"
@@ -563,7 +563,7 @@
                                         <Button Content="ยกเว้นกฎเฉพาะเครื่องนี้" Style="{StaticResource ButtonSecondary}"
                                                 HorizontalAlignment="Stretch" Margin="0,0,0,6"
                                                 Click="InspectorRuleOverridesButton_Click"/>
-                                        <Button Content="คำสั่งทั้งหมด..." Style="{StaticResource ButtonSecondary}"
+                                        <Button Content="เปิดแผงคำสั่ง..." Style="{StaticResource ButtonSecondary}"
                                                 HorizontalAlignment="Stretch"
                                                 Click="InspectorActionsButton_Click"/>
 
@@ -606,9 +606,9 @@
                                 <ColumnDefinition Width="Auto"/>
                             </Grid.ColumnDefinitions>
                             <TextBlock Grid.Column="0" x:Name="VncHeaderText"
-                                    Text="ยังไม่ได้เลือกเครื่อง - กด VIEW SCREEN จากรายการ Clients" Style="{StaticResource Heading2}"
+                                    Text="ยังไม่ได้เลือกเครื่อง - เลือกเครื่องในแท็บ Clients แล้วกด &quot;ดูหน้าจอเครื่องนี้&quot;" Style="{StaticResource Heading2}"
                                     TextWrapping="Wrap" VerticalAlignment="Center" Margin="0,0,10,0"/>
-                            <Button Grid.Column="1" Width="100" Content="DISCONNECT" Style="{StaticResource ButtonSecondary}"
+                            <Button Grid.Column="1" Width="100" Content="หยุดดูหน้าจอ" Style="{StaticResource ButtonSecondary}"
                                     Padding="10,5" FontSize="11" Click="VncDisconnectButton_Click" VerticalAlignment="Center"/>
                         </Grid>
 
@@ -668,7 +668,7 @@
                                          by guessing a fixed pixel position - broke as soon as the panel's actual height
                                          differed from what that guess assumed (confirmed: it grows and covers the
                                          ListBox). Each now has its own dedicated Auto row below the list instead. -->
-                                    <Button Grid.Row="2" x:Name="AddSelectedToGridButton" Content="ADD SELECTED TO GRID"
+                                    <Button Grid.Row="2" x:Name="AddSelectedToGridButton" Content="เพิ่มเครื่องที่เลือกเข้าจอรวม"
                                             Style="{StaticResource ButtonPrimary}" Margin="0,10,0,4"
                                             Click="AddSelectedToGridButton_Click"/>
 
@@ -729,19 +729,19 @@
                                     </Style>
                                 </DataGrid.Resources>
                                 <DataGrid.Columns>
-                                    <DataGridTextColumn Header="TIME (UTC)" Binding="{Binding Timestamp}" Width="150"/>
-                                    <DataGridTextColumn Header="MACHINE" Binding="{Binding MachineName}" Width="130"/>
-                                    <DataGridTextColumn Header="PROCESS" Binding="{Binding ProcessPath}" Width="220"/>
-                                    <DataGridTextColumn Header="PUBLISHER" Binding="{Binding DetectedPublisher}" Width="160"/>
-                                    <DataGridTemplateColumn Header="SIGNED" Width="90" SortMemberPath="WasSignedMatch">
+                                    <DataGridTextColumn Header="เวลา (UTC)" Binding="{Binding Timestamp}" Width="150"/>
+                                    <DataGridTextColumn Header="เครื่อง" Binding="{Binding MachineName}" Width="130"/>
+                                    <DataGridTextColumn Header="ไฟล์โปรแกรม" Binding="{Binding ProcessPath}" Width="220"/>
+                                    <DataGridTextColumn Header="ผู้เผยแพร่" Binding="{Binding DetectedPublisher}" Width="160"/>
+                                    <DataGridTemplateColumn Header="มีลายเซ็น" Width="100" SortMemberPath="WasSignedMatch">
                                         <DataGridTemplateColumn.CellTemplate>
                                             <DataTemplate>
                                                 <ContentControl Style="{StaticResource LogSignedBadge}"/>
                                             </DataTemplate>
                                         </DataGridTemplateColumn.CellTemplate>
                                     </DataGridTemplateColumn>
-                                    <DataGridTextColumn Header="RULE" Binding="{Binding MatchedRuleName}" Width="120"/>
-                                    <DataGridTextColumn Header="ACTION TAKEN" Binding="{Binding ActionTaken}" Width="150"/>
+                                    <DataGridTextColumn Header="กฎที่ตรง" Binding="{Binding MatchedRuleName}" Width="120"/>
+                                    <DataGridTextColumn Header="สิ่งที่ทำ" Binding="{Binding ActionTaken}" Width="150"/>
                                 </DataGrid.Columns>
                             </DataGrid>
                             </Border>
@@ -769,7 +769,7 @@
                                 <ColumnDefinition Width="Auto"/>
                             </Grid.ColumnDefinitions>
                             <TextBlock Grid.Column="0" Text="Rule Management" Style="{StaticResource Heading2}"/>
-                            <Button Grid.Column="1" Content="ADD RULE..." Style="{StaticResource ButtonPrimary}"
+                            <Button Grid.Column="1" Content="เพิ่มกฎ..." Style="{StaticResource ButtonPrimary}"
                                     VerticalAlignment="Center" Click="AddRuleButton_Click"/>
                         </Grid>
 
@@ -805,30 +805,30 @@
                                     </Style>
                                 </DataGrid.Resources>
                                 <DataGrid.Columns>
-                                    <DataGridTemplateColumn Header="STATUS" Width="90" SortMemberPath="IsEnabled">
+                                    <DataGridTemplateColumn Header="สถานะ" Width="90" SortMemberPath="IsEnabled">
                                         <DataGridTemplateColumn.CellTemplate>
                                             <DataTemplate>
                                                 <ContentControl Style="{StaticResource RuleStatusBadge}"/>
                                             </DataTemplate>
                                         </DataGridTemplateColumn.CellTemplate>
                                     </DataGridTemplateColumn>
-                                    <DataGridTextColumn Header="NAME" Binding="{Binding Name}" Width="130"/>
-                                    <DataGridTextColumn Header="PUBLISHER" Binding="{Binding PublisherName}" Width="170"/>
-                                    <DataGridTextColumn Header="NAME CONTAINS" Binding="{Binding ProcessNameContains}" Width="110"/>
-                                    <DataGridTextColumn Header="SIGNED ONLY" Binding="{Binding RequireSignedMatch}" Width="90"/>
-                                    <DataGridTextColumn Header="KILL" Binding="{Binding KillProcess}" Width="50"/>
-                                    <DataGridTextColumn Header="ACTION COMMAND" Binding="{Binding ActionCommand}" Width="150"/>
-                                    <DataGridTemplateColumn Header="ACTIONS" Width="230">
+                                    <DataGridTextColumn Header="ชื่อกฎ" Binding="{Binding Name}" Width="130"/>
+                                    <DataGridTextColumn Header="ผู้เผยแพร่" Binding="{Binding PublisherName}" Width="170"/>
+                                    <DataGridTextColumn Header="ชื่อไฟล์มีคำว่า" Binding="{Binding ProcessNameContains}" Width="110"/>
+                                    <DataGridTextColumn Header="ต้องมีลายเซ็น" Binding="{Binding RequireSignedMatch}" Width="90"/>
+                                    <DataGridTextColumn Header="ปิดโปรแกรม" Binding="{Binding KillProcess}" Width="50"/>
+                                    <DataGridTextColumn Header="คำสั่งที่รัน" Binding="{Binding ActionCommand}" Width="150"/>
+                                    <DataGridTemplateColumn Header="จัดการ" Width="250">
                                         <DataGridTemplateColumn.CellTemplate>
                                             <DataTemplate>
                                                 <StackPanel Orientation="Horizontal">
-                                                    <Button Content="EDIT" Style="{StaticResource ButtonSecondary}"
+                                                    <Button Content="แก้ไข" Style="{StaticResource ButtonSecondary}"
                                                             Padding="10,5" FontSize="11"
                                                             Click="EditRuleButton_Click" Tag="{Binding}" Margin="0,0,4,0"/>
-                                                    <Button Content="TOGGLE" Style="{StaticResource ButtonSecondary}"
-                                                            Padding="10,5" FontSize="11"
+                                                    <Button Content="{Binding ToggleActionText}" Style="{StaticResource ButtonSecondary}"
+                                                            Padding="10,5" FontSize="11" MinWidth="66"
                                                             Click="ToggleRuleButton_Click" Tag="{Binding Id}" Margin="0,0,4,0"/>
-                                                    <Button Content="DELETE" Style="{StaticResource ButtonDanger}"
+                                                    <Button Content="ลบกฎ" Style="{StaticResource ButtonDanger}"
                                                             Padding="10,5" FontSize="11"
                                                             Click="DeleteRuleButton_Click" Tag="{Binding Id}"/>
                                                 </StackPanel>
@@ -840,7 +840,7 @@
                             </Border>
                             <ContentControl x:Name="RulesEmptyText"
                                             Style="{StaticResource EmptyState}" controls:Nav.Icon="shield"
-                                            Content="ยังไม่มีกฎ" Tag="กด ADD RULE เพื่อสร้างกฎแรก - ตราบใดที่ยังไม่มีกฎ จะไม่มีโปรแกรมไหนถูกปิด"
+                                            Content="ยังไม่มีกฎ" Tag="กด &quot;เพิ่มกฎ...&quot; เพื่อสร้างกฎแรก - ตราบใดที่ยังไม่มีกฎ จะไม่มีโปรแกรมไหนถูกปิด"
                                             Visibility="Collapsed"/>
                         </Grid>
                     </Grid>
@@ -903,13 +903,13 @@
                                     Padding="10,5" FontSize="11" Click="AuditLogPrevButton_Click">
                                 <StackPanel Orientation="Horizontal">
                                     <controls:IconPresenter Icon="chevron-left" IconSize="14" VerticalAlignment="Center"/>
-                                    <TextBlock Text="PREV" Margin="6,0,0,0" VerticalAlignment="Center"/>
+                                    <TextBlock Text="ก่อนหน้า" Margin="6,0,0,0" VerticalAlignment="Center"/>
                                 </StackPanel>
                             </Button>
                             <Button Grid.Column="2" Style="{StaticResource ButtonSecondary}"
                                     Padding="10,5" FontSize="11" Click="AuditLogNextButton_Click">
                                 <StackPanel Orientation="Horizontal">
-                                    <TextBlock Text="NEXT" Margin="0,0,6,0" VerticalAlignment="Center"/>
+                                    <TextBlock Text="ถัดไป" Margin="0,0,6,0" VerticalAlignment="Center"/>
                                     <controls:IconPresenter Icon="chevron-right" IconSize="14" VerticalAlignment="Center"/>
                                 </StackPanel>
                             </Button>
@@ -950,19 +950,19 @@
                                     </Style>
                                 </DataGrid.Resources>
                                 <DataGrid.Columns>
-                                    <DataGridTextColumn Header="TIME (UTC)" Binding="{Binding Timestamp}" Width="150"/>
-                                    <DataGridTextColumn Header="CATEGORY" Binding="{Binding Category}" Width="130"/>
-                                    <DataGridTemplateColumn Header="SEVERITY" Width="90" SortMemberPath="Severity">
+                                    <DataGridTextColumn Header="เวลา (UTC)" Binding="{Binding Timestamp}" Width="150"/>
+                                    <DataGridTextColumn Header="หมวด" Binding="{Binding Category}" Width="130"/>
+                                    <DataGridTemplateColumn Header="ระดับ" Width="90" SortMemberPath="Severity">
                                         <DataGridTemplateColumn.CellTemplate>
                                             <DataTemplate>
                                                 <ContentControl Style="{StaticResource AuditLogSeverityBadge}"/>
                                             </DataTemplate>
                                         </DataGridTemplateColumn.CellTemplate>
                                     </DataGridTemplateColumn>
-                                    <DataGridTextColumn Header="EVENT" Binding="{Binding EventType}" Width="150"/>
-                                    <DataGridTextColumn Header="DESCRIPTION" Binding="{Binding Description}" Width="*"/>
-                                    <DataGridTextColumn Header="MACHINE" Binding="{Binding TargetMachineName}" Width="130"/>
-                                    <DataGridTextColumn Header="ADMIN" Binding="{Binding ActorUsername}" Width="110"/>
+                                    <DataGridTextColumn Header="เหตุการณ์" Binding="{Binding EventType}" Width="150"/>
+                                    <DataGridTextColumn Header="รายละเอียด" Binding="{Binding Description}" Width="*"/>
+                                    <DataGridTextColumn Header="เครื่อง" Binding="{Binding TargetMachineName}" Width="130"/>
+                                    <DataGridTextColumn Header="ผู้ใช้ที่ทำ" Binding="{Binding ActorUsername}" Width="110"/>
                                 </DataGrid.Columns>
                             </DataGrid>
                             </Border>
@@ -1003,7 +1003,7 @@
                                 <PasswordBox Grid.Column="2" x:Name="NewUserPasswordBox" Width="200" Height="35" VerticalAlignment="Center"
                                              Style="{StaticResource PlaceholderPasswordBox}" Tag="Password (อย่างน้อย 8 ตัว)"
                                              ToolTip="Password (อย่างน้อย 8 ตัวอักษร)"/>
-                                <Button Grid.Column="4" Content="ADD USER" Style="{StaticResource ButtonPrimary}"
+                                <Button Grid.Column="4" Content="เพิ่มผู้ใช้" Style="{StaticResource ButtonPrimary}"
                                         VerticalAlignment="Center" Click="AddUserButton_Click"/>
                             </Grid>
                         </Border>
@@ -1024,12 +1024,12 @@
                                     RowStyle="{StaticResource ConsoleGridRowStyle}"
                                     CellStyle="{StaticResource ConsoleGridCellStyle}">
                                 <DataGrid.Columns>
-                                    <DataGridTextColumn Header="USERNAME" Binding="{Binding Username}" Width="150"/>
-                                    <DataGridTextColumn Header="BUILT-IN" Binding="{Binding IsBuiltIn}" Width="80"/>
-                                    <DataGridTextColumn Header="DEFAULT PASSWORD" Binding="{Binding HasDefaultPassword}" Width="130"/>
-                                    <DataGridTextColumn Header="CREATED (UTC)" Binding="{Binding CreatedAt}" Width="160"/>
-                                    <DataGridTextColumn Header="LAST LOGIN (UTC)" Binding="{Binding LastLoginAt}" Width="160"/>
-                                    <DataGridTemplateColumn Header="ACTIONS" Width="220">
+                                    <DataGridTextColumn Header="ชื่อผู้ใช้" Binding="{Binding Username}" Width="150"/>
+                                    <DataGridTextColumn Header="บัญชีระบบ" Binding="{Binding IsBuiltIn}" Width="80"/>
+                                    <DataGridTextColumn Header="ใช้รหัสผ่านเริ่มต้น" Binding="{Binding HasDefaultPassword}" Width="130"/>
+                                    <DataGridTextColumn Header="สร้างเมื่อ (UTC)" Binding="{Binding CreatedAt}" Width="160"/>
+                                    <DataGridTextColumn Header="ล็อกอินล่าสุด (UTC)" Binding="{Binding LastLoginAt}" Width="160"/>
+                                    <DataGridTemplateColumn Header="จัดการ" Width="220">
                                         <DataGridTemplateColumn.CellTemplate>
                                             <DataTemplate>
                                                 <StackPanel Orientation="Horizontal">
@@ -1037,7 +1037,7 @@
                                                         ปุ่ม RESET PW: ใช้ได้กับทุก account รวม built-in
                                                         (ต่างจาก DELETE ที่ต้องกันไว้เพราะลบ built-in ไม่ได้เลย)
                                                     -->
-                                                    <Button Content="RESET PW" Tag="{Binding}"
+                                                    <Button Content="รีเซ็ตรหัสผ่าน" Tag="{Binding}"
                                                             Click="ResetUserPasswordButton_Click"
                                                             Style="{StaticResource ButtonSecondary}"
                                                             Padding="10,5" FontSize="11"
@@ -1113,7 +1113,7 @@
                             Padding="14,8" Click="BackToGridButton_Click">
                         <StackPanel Orientation="Horizontal">
                             <controls:IconPresenter Icon="chevron-left" IconSize="16" VerticalAlignment="Center"/>
-                            <TextBlock Text="BACK TO GRID" Margin="6,0,0,0" VerticalAlignment="Center"/>
+                            <TextBlock Text="กลับไปจอรวม" Margin="6,0,0,0" VerticalAlignment="Center"/>
                         </StackPanel>
                     </Button>
                     <!-- Toggle target input: กันนักเรียนแย่งเมาส์/คีย์บอร์ดขณะครูควบคุมผ่าน full-screen VNC

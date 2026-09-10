@@ -43,7 +43,7 @@
                  ประกาศไว้ตายตัวใน XAML เพราะต้องมีจำนวนแถวต่อหมวดกำกับ และต้องซ่อนหมวดที่ไม่มีของ -->
             <ComboBox Grid.Column="3" x:Name="CategoryCombo" Width="200" VerticalAlignment="Center"
                       SelectionChanged="CategoryCombo_SelectionChanged"/>
-            <Button Grid.Column="5" Content="REFRESH" Style="{StaticResource ButtonSecondary}"
+            <Button Grid.Column="5" Content="รีเฟรช" Style="{StaticResource ButtonSecondary}"
                     Padding="10,5" FontSize="11" Click="RefreshButton_Click"/>
         </Grid>
 
@@ -92,7 +92,7 @@
         </Border>
 
         <StackPanel Grid.Row="4" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">
-            <Button x:Name="AllowButton" Content="อนุญาตถาวร" Style="{StaticResource ButtonSecondary}"
+            <Button x:Name="AllowButton" Content="อนุญาตถาวร (ทุกเครื่อง)" Style="{StaticResource ButtonSecondary}"
                     Padding="16,7" Margin="0,0,10,0" IsEnabled="False" Click="AllowButton_Click"/>
             <Button x:Name="BlockButton" Content="บล็อกถาวร (ทุกเครื่อง)" Style="{StaticResource ButtonPrimary}"
                     Padding="16,7" IsEnabled="False" Click="BlockButton_Click"/>

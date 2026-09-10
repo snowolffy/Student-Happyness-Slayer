@@ -81,7 +81,7 @@
                     <PasswordBox x:Name="PasswordBox" Style="{StaticResource RoundedPasswordBox}"/>
                 </StackPanel>
 
-                <Button Grid.Row="8" x:Name="ConnectButton" Content="CONNECT"
+                <Button Grid.Row="8" x:Name="ConnectButton" Content="เชื่อมต่อ"
                         Style="{StaticResource ButtonPrimary}" Click="ConnectButton_Click"/>
 
                 <TextBlock Grid.Row="10" x:Name="StatusText" TextWrapping="Wrap" TextAlignment="Center" FontSize="12"/>

@@ -30,11 +30,11 @@
                 <ColumnDefinition Width="Auto"/>
                 <ColumnDefinition Width="Auto"/>
             </Grid.ColumnDefinitions>
-            <Button Grid.Column="0" Content="CLEAR OVERRIDE" Style="{StaticResource ButtonSecondary}"
+            <Button Grid.Column="0" Content="ล้างค่าเฉพาะเครื่อง" Style="{StaticResource ButtonSecondary}"
                     Padding="10,5" FontSize="11" HorizontalAlignment="Left" Click="ClearOverrideButton_Click"/>
-            <Button Grid.Column="1" Content="CANCEL" Style="{StaticResource ButtonSecondary}"
+            <Button Grid.Column="1" Content="ยกเลิก" Style="{StaticResource ButtonSecondary}"
                     Padding="10,5" FontSize="11" Margin="0,0,10,0" Click="CancelButton_Click"/>
-            <Button Grid.Column="2" Content="SAVE" Style="{StaticResource ButtonPrimary}" Click="SaveButton_Click"/>
+            <Button Grid.Column="2" Content="บันทึก" Style="{StaticResource ButtonPrimary}" Click="SaveButton_Click"/>
         </Grid>
     </StackPanel>
 </Window>

@@ -29,9 +29,9 @@
         <TextBlock x:Name="StatusText" Style="{StaticResource Caption}" TextWrapping="Wrap" Margin="0,0,0,16"/>
 
         <Grid>
-            <Button Content="CANCEL" Style="{StaticResource ButtonSecondary}"
+            <Button Content="ยกเลิก" Style="{StaticResource ButtonSecondary}"
                     Padding="10,5" FontSize="11" HorizontalAlignment="Right" Margin="0,0,96,0" Click="CancelButton_Click"/>
-            <Button Content="SEND" Style="{StaticResource ButtonPrimary}"
+            <Button Content="ส่งข้อความ" Style="{StaticResource ButtonPrimary}"
                     HorizontalAlignment="Right" Click="SendButton_Click"/>
         </Grid>
     </StackPanel>

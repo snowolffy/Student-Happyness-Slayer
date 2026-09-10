@@ -21,7 +21,7 @@
                 <ColumnDefinition Width="Auto"/>
             </Grid.ColumnDefinitions>
             <TextBlock Grid.Column="0" x:Name="MachineNameText" Style="{StaticResource Heading2}" VerticalAlignment="Center"/>
-            <Button Grid.Column="1" Content="REFRESH" Style="{StaticResource ButtonSecondary}"
+            <Button Grid.Column="1" Content="รีเฟรช" Style="{StaticResource ButtonSecondary}"
                     Padding="10,5" FontSize="11" Click="RefreshButton_Click"/>
         </Grid>
 
@@ -57,12 +57,12 @@
                         <DataGridTemplateColumn.CellTemplate>
                             <DataTemplate>
                                 <StackPanel Orientation="Horizontal">
-                                    <Button Content="CREATE RULE" Style="{StaticResource ButtonSecondary}"
+                                    <Button Content="สร้างกฎจากโปรแกรมนี้" Style="{StaticResource ButtonSecondary}"
                                             Padding="10,5" FontSize="11" Margin="0,0,6,0"
                                             IsEnabled="{Binding HasPublisher}"
                                             ToolTip="สร้างกฎจาก publisher - ครอบคลุมทุกโปรแกรมของค่ายนี้ (ต้องมี publisher)"
                                             Click="CreateRuleButton_Click" Tag="{Binding}"/>
-                                    <Button Content="BLOCK" Style="{StaticResource ButtonPrimary}"
+                                    <Button Content="บล็อกโปรแกรมนี้" Style="{StaticResource ButtonPrimary}"
                                             Padding="12,5" FontSize="11"
                                             IsEnabled="{Binding CanBlockByHash}"
                                             ToolTip="บล็อกไฟล์นี้ถาวรทุกเครื่อง ผูกกับลายนิ้วมือของไฟล์ (ใช้ได้แม้ไม่มี publisher)"

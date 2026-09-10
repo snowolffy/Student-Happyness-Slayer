@@ -1,4 +1,4 @@
-using System.Windows;
+﻿using System.Windows;
 using OnionProcOparetor.Console.Services;
 
 namespace OnionProcOparetor.Console;
@@ -10,13 +10,20 @@ public partial class ConfirmWindow : Window
     /// </summary>
     private readonly string? _requiredPhrase;
 
-    private ConfirmWindow(string message, string title, string? requiredPhrase)
+    private ConfirmWindow(string message, string title, string? requiredPhrase, string? confirmText)
     {
         InitializeComponent();
         Loaded += (_, _) => WindowCenteringHelper.CenterOverOwnerOrScreen(this);
         Title = title;
         MessageText.Text = message;
         _requiredPhrase = requiredPhrase;
+
+        // ค่า default "ยืนยัน" ยังดีกว่า "YES" อยู่แล้ว แต่ทุกจุดที่ทำอะไรกับเครื่องจริงควรส่งกริยา
+        // ของตัวเองมา เช่น "ปิดเครื่อง" / "ลบกฎ" - ปุ่มจะได้ตอบคำถาม "กดแล้วเกิดอะไร" ได้ด้วยตัวเอง
+        if (!string.IsNullOrWhiteSpace(confirmText))
+        {
+            ConfirmButton.Content = confirmText;
+        }
 
         if (_requiredPhrase is null)
         {
@@ -62,9 +69,9 @@ public partial class ConfirmWindow : Window
     /// design system ของแอพ (Card/ButtonDanger/ButtonSecondary) แทนที่จะเป็น native OS dialog ที่ดูเป็น
     /// คนละแอพ ตรงจุดเดียวที่ครูต้องหยุดคิดก่อนทำ action ที่ทำคืนไม่ได้
     /// </summary>
-    public static bool Show(string message, string title, Window? owner = null)
+    public static bool Show(string message, string title, Window? owner = null, string? confirmText = null)
     {
-        var window = new ConfirmWindow(message, title, requiredPhrase: null) { Owner = owner };
+        var window = new ConfirmWindow(message, title, requiredPhrase: null, confirmText) { Owner = owner };
         return window.ShowDialog() == true;
     }
 
@@ -75,9 +82,10 @@ public partial class ConfirmWindow : Window
     /// ไว้แบบนี้โดยเจตนา เพราะการปิดเครื่องแม้จะกวนแต่ก็ทำใหม่ได้ ส่วนของที่ลบไปแล้วไม่มีทางเอากลับ
     /// แรงเสียดทานที่ใส่ไปทุกที่จนกลายเป็นพิธีกรรมจะถูกคนกดผ่านโดยไม่อ่าน ซึ่งแย่กว่าไม่มีเสียอีก
     /// </summary>
-    public static bool ShowWithTypeToConfirm(string message, string title, string requiredPhrase, Window? owner = null)
+    public static bool ShowWithTypeToConfirm(
+        string message, string title, string requiredPhrase, Window? owner = null, string? confirmText = null)
     {
-        var window = new ConfirmWindow(message, title, requiredPhrase) { Owner = owner };
+        var window = new ConfirmWindow(message, title, requiredPhrase, confirmText) { Owner = owner };
         return window.ShowDialog() == true;
     }
 
@@ -90,7 +98,9 @@ public partial class ConfirmWindow : Window
         typeToConfirm
             ? new ConfirmWindow(
                 "กำลังจะลบกฎ \"Block Roblox\" ออกจากระบบถาวร การกระทำนี้ย้อนกลับไม่ได้",
-                "ยืนยันการลบกฎ", "Block Roblox")
-            : new ConfirmWindow("ยืนยันการสั่งปิดเครื่องที่เลือกไว้ทั้งหมด?", "ยืนยัน", requiredPhrase: null);
+                "ยืนยันการลบกฎ", "Block Roblox", "ลบกฎนี้")
+            : new ConfirmWindow(
+                "จะสั่งปิดเครื่องที่เลือกไว้ทั้งหมด หน่วงเวลา 10 วินาทีก่อนดับจริง",
+                "ยืนยันการปิดเครื่อง", requiredPhrase: null, "ปิดเครื่อง");
 #endif
 }

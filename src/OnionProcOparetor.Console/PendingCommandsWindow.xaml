@@ -21,7 +21,7 @@
                 <ColumnDefinition Width="Auto"/>
             </Grid.ColumnDefinitions>
             <TextBlock Grid.Column="0" x:Name="MachineNameText" Style="{StaticResource Heading2}" VerticalAlignment="Center"/>
-            <Button Grid.Column="1" Content="REFRESH" Style="{StaticResource ButtonSecondary}"
+            <Button Grid.Column="1" Content="รีเฟรช" Style="{StaticResource ButtonSecondary}"
                     Padding="10,5" FontSize="11" Click="RefreshButton_Click"/>
         </Grid>
 

@@ -41,9 +41,13 @@
         </StackPanel>
 
         <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right">
-            <Button Width="80" Content="NO" Style="{StaticResource ButtonSecondary}"
-                    Padding="10,5" FontSize="11" Height="35" Click="CancelButton_Click" Margin="0,0,10,0"/>
-            <Button Width="80" x:Name="ConfirmButton" Content="YES"
+            <!-- ปุ่มยืนยันบอก "การกระทำ" ไม่ใช่คำว่า YES - ตอนกำลังจะสั่งปิด 40 เครื่อง ปุ่มที่เขียนว่า
+                 YES บังคับให้ต้องย้อนกลับไปอ่านข้อความอีกรอบเพื่อรู้ว่ากำลังตอบตกลงกับอะไร
+                 ความกว้างเป็น MinWidth ไม่ใช่ Width ตายตัว เพราะข้อความยาวไม่เท่ากันในแต่ละที่ -->
+            <Button x:Name="CancelButton" MinWidth="90" Content="ยกเลิก" Style="{StaticResource ButtonSecondary}"
+                    Padding="14,5" FontSize="12" Height="35" Click="CancelButton_Click" Margin="0,0,10,0"/>
+            <Button x:Name="ConfirmButton" MinWidth="90" Content="ยืนยัน"
+                    Padding="14,5" FontSize="12" Height="35"
                     Style="{StaticResource ButtonDanger}" Click="ConfirmButton_Click"/>
         </StackPanel>
     </Grid>
