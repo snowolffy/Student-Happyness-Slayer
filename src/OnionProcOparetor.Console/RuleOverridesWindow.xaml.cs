@@ -1,4 +1,4 @@
-using System.Windows;
+﻿using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
 using OnionProcOparetor.Console.Models;
@@ -26,6 +26,9 @@ public partial class RuleOverridesWindow : Window
     public RuleOverridesWindow(ApiClient apiClient, ClientMachineDto client)
     {
         InitializeComponent();
+        // WindowStartupLocation="Manual" + WindowCenteringHelper - กลไกเดียวกับหน้าต่างย่อยอื่น
+        // ทั้งหมด (2026-09-10) ของเดิมใช้ CenterOwner ของ WPF เอง ซึ่งวางเยื้องจากกึ่งกลางจริง
+        Loaded += (_, _) => WindowCenteringHelper.CenterOverOwnerOrScreen(this);
         _apiClient = apiClient;
         _client = client;
 

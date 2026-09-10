@@ -61,6 +61,39 @@ public partial class App : Application
         // มีไว้เพราะเครื่อง dev เครื่องนี้รัน Server ตัวจริงอยู่ด้วย การจะดู Dashboard สักทีจึงต้อง
         // login เข้าเซิร์ฟเวอร์ของจริง ซึ่งไม่ควรทำแค่เพื่อดูว่าปุ่มจัดตำแหน่งตรงไหม - ทางนี้เปิด
         // Dashboard ด้วย ApiClient ที่ยังไม่ได้ login ทุก API call จึงล้มเหลวหมด (ตั้งใจ) เห็นแต่โครง UI
+        // --center-test พิสูจน์ว่าหน้าต่างย่อยวางกึ่งกลางหน้าต่างหลักจริง - เป็นสิ่งเดียวที่ภาพนิ่งพิสูจน์
+        // ไม่ได้ เพราะ RenderTargetBitmap วาด visual tree ของหน้าต่างเดียว ไม่เห็นตำแหน่งสัมพัทธ์ของสองบาน
+        // จึงวัดเป็นตัวเลขแล้วเขียนลง console.log แทน
+        if (e.Args.Contains("--center-test"))
+        {
+            var owner = new DashboardWindow(new Services.ApiClient()) { PreviewMode = true };
+            owner.Show();
+
+            owner.Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.ApplicationIdle, () =>
+            {
+                var child = ConfirmWindow.CreatePreview(typeToConfirm: false);
+                child.Owner = owner;
+                child.Show();
+
+                child.Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.ApplicationIdle, () =>
+                {
+                    var ownerCentreX = owner.Left + owner.ActualWidth / 2;
+                    var ownerCentreY = owner.Top + owner.ActualHeight / 2;
+                    var childCentreX = child.Left + child.ActualWidth / 2;
+                    var childCentreY = child.Top + child.ActualHeight / 2;
+
+                    ConsoleDiagnostics.WriteLine(
+                        "CENTER-TEST "
+                        + $"owner=({owner.Left:F0},{owner.Top:F0} {owner.ActualWidth:F0}x{owner.ActualHeight:F0}) "
+                        + $"child=({child.Left:F0},{child.Top:F0} {child.ActualWidth:F0}x{child.ActualHeight:F0}) "
+                        + $"offset=({childCentreX - ownerCentreX:F1},{childCentreY - ownerCentreY:F1})");
+
+                    Shutdown();
+                });
+            });
+            return;
+        }
+
         // --dialog=<ชื่อ> เปิดหน้าต่างย่อยขึ้นมาถ่ายภาพตรวจ chrome ที่เราวาดเอง (แถบหัว/ปุ่มปิด/
         // การคำนวณความสูงแบบ SizeToContent ซึ่งเป็นจุดที่ Window template ของตัวเองพังได้ง่ายสุด)
         var dialogArg = e.Args.FirstOrDefault(a => a.StartsWith("--dialog=", StringComparison.Ordinal));
@@ -78,7 +111,7 @@ public partial class App : Application
                 LastSeenAt = DateTime.UtcNow
             };
 
-            Window dialog = dialogArg["--dialog=".Length..] switch
+            Window? dialog = dialogArg["--dialog=".Length..] switch
             {
                 // หน้า login เป็นหน้าต่างแรกที่ครูเห็น จึงต้องตรวจเหมือนหน้าต่างอื่น - StartupUri จะ
                 // เปิดอีกบานตามมาหลัง OnStartup คืนค่า แต่ไม่เป็นไรเพราะเราถ่ายภาพบานที่สร้างเองแล้วปิด
@@ -142,7 +175,8 @@ public partial class App : Application
             {
                 PreviewMode = true,
                 PreviewSelectFirst = e.Args.Contains("--select"),
-                PreviewGlobalOff = e.Args.Contains("--global-off")
+                PreviewGlobalOff = e.Args.Contains("--global-off"),
+                PreviewFullscreen = e.Args.Contains("--fullscreen")
             };
 
             // --tab=<ชื่อแท็บ> เลือกแท็บก่อนถ่ายภาพ ใช้ไล่ตรวจทุกหน้าจอในโหมดมืดรอบเดียว

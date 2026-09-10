@@ -4,7 +4,7 @@
         Title="ผลการทำงาน"
         Height="560" Width="720"
         MinHeight="360" MinWidth="520"
-        WindowStartupLocation="CenterOwner"
+        WindowStartupLocation="Manual"
         Style="{StaticResource AppDialogWindow}">
     <Window.Resources>
         <!-- ใช้สไตล์ตารางชุดเดียวกับ DashboardWindow เพื่อให้หน้าตาเป็นระบบเดียวกันทั้ง Console -->

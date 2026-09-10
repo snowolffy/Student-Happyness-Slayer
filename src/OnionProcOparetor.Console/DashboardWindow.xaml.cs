@@ -93,6 +93,9 @@ public partial class DashboardWindow : Window
     /// <summary>ตั้ง gate ทั้งห้องเป็นปิดในโหมดตรวจ UI เพื่อให้แถบเตือนโผล่ขึ้นมาให้ดู</summary>
     public bool PreviewGlobalOff { get; set; }
 
+    /// <summary>เปิด overlay ดูจอเต็มจอค้างไว้ในโหมดตรวจ UI - ปกติเข้าถึงได้เฉพาะตอนมี VNC session จริง</summary>
+    public bool PreviewFullscreen { get; set; }
+
     /// <summary>
     /// ใส่ข้อมูลปลอมลงตารางเพื่อให้เห็น badge / การ์ดตัวเลข / แถบเลือก ตอนตรวจงาน UI โดยไม่ต้อง
     /// login เข้า Server ตัวจริงที่รันอยู่บนเครื่อง dev เครื่องนี้ - ค่าถูกเลือกให้ครบทุกสถานะที่
@@ -138,6 +141,15 @@ public partial class DashboardWindow : Window
                     break;
                 }
             }
+        }
+
+        if (PreviewFullscreen)
+        {
+            _liveViewFullscreenClientGuid = _allClients[0].ClientGuid;
+            FullscreenHeaderText.Text = $"Live View - {_allClients[0].MachineName}";
+            FullscreenStatusText.Text = string.Empty;
+            SetToggleTargetInputButtonVisual(blocked: false);
+            LiveViewFullscreenOverlay.Visibility = Visibility.Visible;
         }
 
         StatusText.Text = "โหมดตรวจ UI (ข้อมูลปลอม)";
@@ -1684,6 +1696,31 @@ public partial class DashboardWindow : Window
         _targetInputBlocked = wantBlocked;
         FullscreenStatusText.Text = "";
         SetToggleTargetInputButtonVisual(_targetInputBlocked);
+    }
+
+    /// <summary>
+    /// ปุ่ม "คำสั่ง..." บนแถบเครื่องมือของหน้าดูจอเต็มจอ - สั่งงานเครื่องที่กำลังดูอยู่ได้เลย
+    /// ไม่ต้องกลับไปจอรวมแล้ววนหาเครื่องเดิมในแท็บ Clients ใหม่
+    ///
+    /// อ่านเครื่องจาก _allClients ด้วย guid ที่กำลังเปิดเต็มจออยู่ ไม่ได้เก็บ DTO ไว้เอง เพราะ
+    /// auto-refresh สร้าง DTO ชุดใหม่ทุกไม่กี่วินาที - อ่านสดจึงได้สถานะล่าสุดเสมอ
+    /// </summary>
+    private async void FullscreenActionsButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_liveViewFullscreenClientGuid is not { } guid)
+        {
+            return;
+        }
+
+        var client = _allClients.FirstOrDefault(c => c.ClientGuid == guid);
+        if (client is null)
+        {
+            FullscreenStatusText.Text = "ไม่พบเครื่องนี้ในรายการแล้ว - ลองกลับไปจอรวมแล้วรีเฟรช";
+            return;
+        }
+
+        var panel = new ActionPanelWindow(_apiClient, client, alreadyViewingScreen: true) { Owner = this };
+        await RunActionPanelAsync(panel);
     }
 
     private void SetToggleTargetInputButtonVisual(bool blocked)

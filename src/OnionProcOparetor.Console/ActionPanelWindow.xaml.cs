@@ -62,8 +62,14 @@ public partial class ActionPanelWindow : Window
     /// </summary>
     public ActionReportRequest? PendingReport { get; private set; }
 
-    /// <summary>Single-client mode - เปิดจากปุ่ม ACTIONS ต่อแถว</summary>
-    public ActionPanelWindow(ApiClient apiClient, ClientMachineDto client)
+    /// <summary>
+    /// Single-client mode - เปิดจากปุ่มคำสั่งของเครื่องนั้น
+    ///
+    /// <paramref name="alreadyViewingScreen"/> = เปิดมาจากหน้าดูจอเต็มจอ จึงซ่อนปุ่ม "ดูหน้าจอ" ทิ้ง
+    /// เพราะครูกำลังดูจอเครื่องนั้นอยู่แล้ว และถ้ากดจริงมันจะสลับไปแท็บ Screen View ทั้งที่ overlay
+    /// เต็มจอยังคลุมอยู่ = จอค้างงง
+    /// </summary>
+    public ActionPanelWindow(ApiClient apiClient, ClientMachineDto client, bool alreadyViewingScreen = false)
     {
         InitializeComponent();
         Loaded += (_, _) => WindowCenteringHelper.CenterOverOwnerOrScreen(this);
@@ -79,7 +85,7 @@ public partial class ActionPanelWindow : Window
         SettingsButton.Visibility = Visibility.Visible;
         ConfigRuleButton.Visibility = Visibility.Visible;
         DeleteButton.Visibility = Visibility.Visible;
-        ViewScreenButton.Visibility = Visibility.Visible;
+        ViewScreenButton.Visibility = alreadyViewingScreen ? Visibility.Collapsed : Visibility.Visible;
         ViewProcessesButton.Visibility = Visibility.Visible;
         PendingCommandsButton.Visibility = Visibility.Visible;
         ToggleButton.Content = client.IsEnabled

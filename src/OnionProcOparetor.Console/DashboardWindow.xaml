@@ -1108,7 +1108,9 @@
                     <RowDefinition Height="*"/>
                 </Grid.RowDefinitions>
 
-                <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,10">
+                <!-- เว้นระยะจากมุมซ้ายบน (2026-09-10) - เดิมปุ่มชิดขอบจนดูเหมือนหลุดออกนอกกรอบ
+                     และบนจอที่ขอบมนของ Windows จะเฉียดมุมพอดี -->
+                <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="16,14,16,12">
                     <Button Style="{StaticResource ButtonPrimary}"
                             Padding="14,8" Click="BackToGridButton_Click">
                         <StackPanel Orientation="Horizontal">
@@ -1124,6 +1126,11 @@
                     <Button x:Name="ToggleTargetInputButton" Content="BLOCK STUDENT INPUT"
                             Style="{StaticResource ButtonSecondary}"
                             Padding="14,8" Margin="10,0,0,0" Click="ToggleTargetInputButton_Click"/>
+                    <!-- สั่งงานเครื่องที่กำลังดูอยู่ได้โดยไม่ต้องออกจากเต็มจอก่อน - ที่ผ่านมาต้องกลับไป
+                         จอรวม แล้วไปแท็บ Clients แล้วค่อยหาเครื่องเดิมให้เจอ -->
+                    <Button x:Name="FullscreenActionsButton" Content="คำสั่ง..."
+                            Style="{StaticResource ButtonSecondary}"
+                            Padding="14,8" Margin="10,0,0,0" Click="FullscreenActionsButton_Click"/>
                     <TextBlock x:Name="FullscreenHeaderText" Style="{StaticResource Heading2}"
                                Margin="20,0,0,0" VerticalAlignment="Center"/>
                     <TextBlock x:Name="FullscreenStatusText" Style="{StaticResource Caption}"
@@ -1131,7 +1138,9 @@
                                Margin="20,0,0,0" VerticalAlignment="Center"/>
                 </StackPanel>
 
-                <Border Grid.Row="1" Background="Black" CornerRadius="10"
+                <!-- ระยะขอบตรงกับ toolbar ด้านบน (16) เพื่อให้ทั้งหน้าเป็นกรอบเดียวกัน - เดิม toolbar
+                     เว้นระยะแล้วแต่จอวิดีโอยังชิดขอบหน้าต่าง ทำให้ดูเหมือนวางคนละชั้น -->
+                <Border Grid.Row="1" Background="Black" CornerRadius="10" Margin="16,0,16,14"
                         BorderBrush="{DynamicResource Brush.Border.Default}" BorderThickness="1">
                     <!-- Step 4h: คุมเมาส์เต็มพื้นที่ Image นี้ - Stretch="Uniform" ทำให้ภาพ letterbox
                          (แถบดำซ้าย-ขวาหรือบน-ล่าง) ถ้าอัตราส่วน target ไม่ตรงกับพื้นที่แสดงผลพอดี ต้องแปลง
