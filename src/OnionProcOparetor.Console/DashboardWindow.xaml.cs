@@ -499,20 +499,10 @@ public partial class DashboardWindow : Window
     {
         var menu = new ContextMenu();
 
-        // header บอกสถานะปัจจุบันเสมอ ไม่ใช่แค่ "Toggle" - ปุ่มที่ไม่บอกว่ากดแล้วจะได้อะไร คือครึ่งหนึ่ง
-        // ของบั๊กเดิม
-        var globalItem = new MenuItem
-        {
-            Header = _globalState is null
-                ? "การบังคับใช้ทั้งระบบ: อ่านค่าไม่ได้"
-                : _globalState.IsEnabled
-                    ? "ปิดการบังคับใช้ทั้งระบบ (ทุกเครื่อง)"
-                    : "เปิดการบังคับใช้ทั้งระบบ (ทุกเครื่อง)",
-            IsEnabled = _globalState is not null
-        };
-        globalItem.Click += async (_, _) => await SetGlobalEnforcementAsync(!_globalState!.IsEnabled);
-        menu.Items.Add(globalItem);
-        menu.Items.Add(new Separator());
+        // สวิตช์ "การบังคับใช้ทั้งระบบ" ถูกย้ายออกจากเมนูนี้แล้ว (2026-09-10) ไปเป็นปุ่มที่มีป้ายกำกับ
+        // อยู่บนแถบคำสั่งของแท็บ Clients คู่กับ BROADCAST บวกกับปุ่ม "เปิดกลับ" บนแถบเตือนซึ่งเห็นจาก
+        // ทุกแท็บ - ทั้งสองทางนั้นมองเห็นได้โดยไม่ต้องเปิดเมนูก่อน ซึ่งเป็นหัวใจของบั๊กเดิม
+        // (12d774a "visible and reachable") การเก็บไว้ในเมนูนี้ด้วยมีแต่จะทำให้มีสามที่ที่ทำสิ่งเดียวกัน
 
         var settingsItem = new MenuItem { Header = "Settings..." };
         settingsItem.Click += (_, _) => new SettingsWindow(_apiClient) { Owner = this }.ShowDialog();

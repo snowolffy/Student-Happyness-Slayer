@@ -521,6 +521,35 @@
         </Setter>
     </Style>
 
+    <!-- ปุ่มที่วางอยู่บนพื้นสีสถานะ (แถบเตือน gate ปิด) - เป็นเม็ดสีเข้มบนพื้นเหลือง
+         ButtonPrimary ใช้ไม่ได้ตรงนี้เพราะส้มบนเหลืองแยกกันแทบไม่ออก และ ButtonSecondary ก็จะกลืน
+         ไปกับพื้นการ์ดในธีมสว่าง -->
+    <Style x:Key="ButtonOnStatus" TargetType="Button">
+        <Setter Property="Background" Value="{DynamicResource Brush.Text.OnStatusFill}"/>
+        <Setter Property="Foreground" Value="{DynamicResource Brush.Text.OnAccent}"/>
+        <Setter Property="FontFamily" Value="{StaticResource FontFamily.Primary}"/>
+        <Setter Property="FontWeight" Value="SemiBold"/>
+        <Setter Property="FontSize" Value="12"/>
+        <Setter Property="Padding" Value="16,7"/>
+        <Setter Property="Cursor" Value="Hand"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="Bd" CornerRadius="8" Background="{TemplateBinding Background}"
+                            Padding="{TemplateBinding Padding}">
+                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"
+                                          TextElement.Foreground="{TemplateBinding Foreground}"/>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Bd" Property="Opacity" Value="0.85"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
     <!-- ==================== StatCardFilter ====================
          การ์ดตัวเลขสรุปบนหัวหน้า Clients ที่ "กดเพื่อกรองตารางข้างล่าง" ได้
 

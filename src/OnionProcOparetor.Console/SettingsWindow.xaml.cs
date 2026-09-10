@@ -17,6 +17,7 @@ public partial class SettingsWindow : Window
         var settings = SettingsService.Current;
         VncLimitBox.Text = settings.Vnc.MaxConcurrentSessions.ToString();
         KeepLiveViewOpenCheckBox.IsChecked = settings.Vnc.KeepLiveViewOpenOnTabLeave;
+        ShowTailscaleActionsCheckBox.IsChecked = settings.Ui.ShowTailscaleActions;
         PollIntervalBox.Text = settings.Connection.DashboardPollIntervalSeconds.ToString();
         ServerHostBox.Text = settings.Connection.ServerHost;
         ServerPortBox.Text = settings.Connection.ServerPort;
@@ -58,7 +59,15 @@ public partial class SettingsWindow : Window
                 ServerPort = ServerPortBox.Text.Trim(),
                 DashboardPollIntervalSeconds = pollInterval
             },
-            Ui = SettingsService.Current.Ui
+            // คัดลอกกลุ่ม Ui เดิมมาทั้งก้อนแล้วทับเฉพาะช่องที่หน้านี้แก้ - ธีมกับสถานะ sidebar ถูกตั้ง
+            // จากที่อื่น (ปุ่มบน sidebar) ถ้าสร้าง UiSettings ใหม่เปล่า ๆ ตรงนี้ กดเซฟหน้านี้ทีเดียว
+            // ค่าพวกนั้นจะถูกล้างกลับเป็น default ทันที
+            Ui = new UiSettings
+            {
+                Theme = SettingsService.Current.Ui.Theme,
+                SidebarCollapsed = SettingsService.Current.Ui.SidebarCollapsed,
+                ShowTailscaleActions = ShowTailscaleActionsCheckBox.IsChecked ?? false
+            }
         };
 
         var (success, error) = SettingsService.Save(updated);

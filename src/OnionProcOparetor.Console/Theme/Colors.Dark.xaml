@@ -122,6 +122,13 @@
     <SolidColorBrush x:Key="Brush.Badge.Danger.Background" Color="{StaticResource Color.Badge.Danger.Background}"/>
     <SolidColorBrush x:Key="Brush.Badge.Accent.Background" Color="{StaticResource Color.Badge.Accent.Background}"/>
 
+    <!-- ==================== Text on a saturated status fill ====================
+         พื้นสีสถานะ (เหลืองเตือน/แดงอันตราย) เป็นสีเดียวกันทั้งธีมสว่างและมืด ตัวหนังสือที่วางทับมัน
+         จึงต้องเป็นสีเดียวกันทั้งสองธีมด้วย ห้ามใช้ Text.Primary เพราะในธีมมืดมันคือขาวนวล
+         = ขาวบนเหลือง อ่านไม่ออก (บั๊กเดียวกับที่เคยเจอกับ badge "Warning") ค่าเท่ากับฝั่ง Light เป๊ะ ๆ โดยเจตนา -->
+    <Color x:Key="Color.Text.OnStatusFill">#1F2430</Color>
+    <SolidColorBrush x:Key="Brush.Text.OnStatusFill" Color="{StaticResource Color.Text.OnStatusFill}"/>
+
     <!-- ==================== Overlay ==================== -->
     <Color x:Key="Color.Overlay">#9E000000</Color>               <!-- css:overlay: rgba(0,0,0,.62) -->
     <SolidColorBrush x:Key="Brush.Overlay" Color="{StaticResource Color.Overlay}"/>

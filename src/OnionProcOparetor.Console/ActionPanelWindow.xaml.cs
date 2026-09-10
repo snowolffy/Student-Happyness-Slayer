@@ -83,6 +83,7 @@ public partial class ActionPanelWindow : Window
         ViewProcessesButton.Visibility = Visibility.Visible;
         PendingCommandsButton.Visibility = Visibility.Visible;
         ToggleButton.Content = client.IsEnabled ? "DISABLE ENFORCEMENT" : "ENABLE ENFORCEMENT";
+        ApplyTailscaleVisibility();
     }
 
     /// <summary>
@@ -132,6 +133,24 @@ public partial class ActionPanelWindow : Window
         ViewProcessesButton.Visibility = Visibility.Collapsed;
         PendingCommandsButton.Visibility = Visibility.Collapsed;
         ToggleButton.Content = "TOGGLE ENFORCEMENT";
+        ApplyTailscaleVisibility();
+    }
+
+    /// <summary>
+    /// ซ่อนปุ่ม Tailscale ทั้งสี่ตัวถ้าผู้ใช้ไม่ได้เปิดไว้ใน Settings (ค่าเริ่มต้นคือซ่อน)
+    ///
+    /// เรียกจาก constructor **ทุกตัว** ไม่ว่าจะโหมด single-client หรือ bulk - โจทย์คือ "ถ้าปิดไว้
+    /// ต้องไม่โผล่ในหน้า actions ทุกหน้า" ถ้าเรียกแค่ตัวใดตัวหนึ่งจะหลุดทันทีในอีกโหมด
+    /// </summary>
+    private void ApplyTailscaleVisibility()
+    {
+        var visibility = SettingsService.Current.Ui.ShowTailscaleActions
+            ? Visibility.Visible
+            : Visibility.Collapsed;
+
+        // ซ่อนทั้ง Grid ที่ครอบอยู่ ไม่ใช่ซ่อนแค่ปุ่ม - ไม่งั้นจะเหลือช่องว่างสองแถวค้างไว้
+        TailscaleLockRow.Visibility = visibility;
+        TailscaleStatusRow.Visibility = visibility;
     }
 
     private List<ClientMachineDto> CurrentTargets =>

@@ -109,18 +109,18 @@
 
                         <controls:IconPresenter Grid.Column="0" Icon="alert-triangle" IconSize="20"
                                                 VerticalAlignment="Center"
-                                                Foreground="{DynamicResource Brush.Text.Primary}"/>
+                                                Foreground="{DynamicResource Brush.Text.OnStatusFill}"/>
 
                         <StackPanel Grid.Column="1" Margin="10,0,12,0" VerticalAlignment="Center">
                             <TextBlock Text="ปิดการบังคับใช้ทั้งระบบอยู่" FontWeight="Bold" FontSize="13"
-                                       Foreground="{DynamicResource Brush.Text.Primary}"/>
+                                       Foreground="{DynamicResource Brush.Text.OnStatusFill}"/>
                             <TextBlock Text="กฎทั้งหมดหยุดทำงานบนทุกเครื่องในห้อง แม้เครื่องนั้นจะขึ้น ENABLED ก็ตาม"
                                        FontSize="12" TextWrapping="Wrap" Margin="0,1,0,0"
-                                       Foreground="{DynamicResource Brush.Text.Primary}"/>
+                                       Foreground="{DynamicResource Brush.Text.OnStatusFill}"/>
                         </StackPanel>
 
                         <Button Grid.Column="2" x:Name="GlobalTurnOnButton" Content="เปิดกลับ"
-                                Style="{StaticResource ButtonPrimary}" Padding="16,7"
+                                Style="{StaticResource ButtonOnStatus}"
                                 Click="GlobalTurnOnButton_Click" VerticalAlignment="Center"/>
                     </Grid>
                 </Border>

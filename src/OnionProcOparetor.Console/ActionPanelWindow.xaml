@@ -1,4 +1,4 @@
-﻿<Window x:Class="OnionProcOparetor.Console.ActionPanelWindow"
+<Window x:Class="OnionProcOparetor.Console.ActionPanelWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Actions"
@@ -97,7 +97,7 @@
                 <!-- Tailscale: remote lock/unlock (AlwaysOn policy toggle - กันนักเรียน disconnect เอง)
                      + status/login (on-demand เท่านั้น ไม่มี persistent badge ที่ dashboard - ดู
                      CommandProcessor.cs's SetTailscaleLockdown/GetTailscaleStatus/RunTailscaleLogin) -->
-                <Grid Margin="0,0,0,8">
+                <Grid x:Name="TailscaleLockRow" Margin="0,0,0,8">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*"/>
                         <ColumnDefinition Width="8"/>
@@ -109,7 +109,7 @@
                             Style="{StaticResource ButtonSecondary}" Padding="10,9" FontSize="12" Click="TailscaleUnlockButton_Click"/>
                 </Grid>
 
-                <Grid Margin="0,0,0,12">
+                <Grid x:Name="TailscaleStatusRow" Margin="0,0,0,12">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*"/>
                         <ColumnDefinition Width="8"/>

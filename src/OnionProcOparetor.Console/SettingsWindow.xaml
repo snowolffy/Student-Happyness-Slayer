@@ -1,4 +1,4 @@
-﻿<Window x:Class="OnionProcOparetor.Console.SettingsWindow"
+<Window x:Class="OnionProcOparetor.Console.SettingsWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Settings"
@@ -53,6 +53,11 @@
                 <CheckBox x:Name="KeepLiveViewOpenCheckBox"
                           Content="คงการเชื่อมต่อไว้เมื่อออกจากแท็บ LIVE VIEW" Margin="0,0,0,8"/>
                 <TextBlock Text="ค่า default คือปิดทั้งหมดเมื่อออกจากแท็บ"
+                           Style="{StaticResource Caption}" TextWrapping="Wrap" Margin="0,0,0,14"/>
+
+                <CheckBox x:Name="ShowTailscaleActionsCheckBox"
+                          Content="แสดงปุ่ม Tailscale ในแผงคำสั่ง" Margin="0,0,0,8"/>
+                <TextBlock Text="TAILSCALE LOCK / UNLOCK / STATUS / LOGIN เป็นงานดูแลเครือข่าย ไม่ใช่งานคุมห้องเรียน ค่า default คือซ่อนไว้เพื่อให้แผงคำสั่งเหลือเฉพาะปุ่มที่ใช้จริงทุกวัน"
                            Style="{StaticResource Caption}" TextWrapping="Wrap"/>
             </StackPanel>
         </Border>
