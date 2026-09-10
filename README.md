@@ -1,6 +1,3 @@
-<p align="center">
-  <img src="src/OnionProcOparetor.OnlineConsole/wwwroot/img/logo-256.png" alt="Onion ProcOparetor" width="140">
-</p>
 
 <h1 align="center">Onion ProcOparetor</h1>
 
