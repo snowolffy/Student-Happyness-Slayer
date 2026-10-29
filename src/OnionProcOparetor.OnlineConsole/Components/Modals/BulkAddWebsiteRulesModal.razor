@@ -1,0 +1,62 @@
+@* Ported from BulkAddWebsiteRulesWindow (WPF) - paste many domains at once instead of adding one
+   at a time (2026-09-12). Name = UrlPattern always for this entry point - no separate name field. *@
+@inject ApiClient Api
+@inject ToastService Toasts
+
+<ModalShell Title="Bulk Add Website Rules" OnClose="OnClose">
+    <div class="form-row">
+        <label>โดเมน (หนึ่งรายการต่อบรรทัด)</label>
+        <textarea @bind="_domainsText" rows="8" class="mono" placeholder="roblox.com"></textarea>
+    </div>
+
+    @if (!string.IsNullOrEmpty(_error))
+    {
+        <div class="error-text">@_error</div>
+    }
+
+    <div class="toolbar">
+        <span class="spacer"></span>
+        <button class="btn btn-secondary" @onclick="OnClose" disabled="@_busy">CANCEL</button>
+        <button class="btn btn-primary" @onclick="SaveAsync" disabled="@_busy">เพิ่มทั้งหมด</button>
+    </div>
+</ModalShell>
+
+@code {
+    [Parameter] public EventCallback OnClose { get; set; }
+    [Parameter] public EventCallback OnSaved { get; set; }
+
+    private string _domainsText = string.Empty;
+    private bool _busy;
+    private string? _error;
+
+    private async Task SaveAsync()
+    {
+        var lines = _domainsText
+            .Split('\n')
+            .Select(l => l.Trim())
+            .Where(l => l.Length > 0)
+            .ToList();
+
+        if (lines.Count == 0)
+        {
+            _error = "กรุณาวางรายชื่อโดเมนอย่างน้อยหนึ่งบรรทัด";
+            return;
+        }
+
+        _busy = true;
+        _error = null;
+
+        var result = await Api.AddWebsiteRulesBulkAsync(lines);
+
+        _busy = false;
+        if (result is null)
+        {
+            _error = "บันทึกไม่สำเร็จ";
+            return;
+        }
+
+        Toasts.Success($"เพิ่ม {result.Added} รายการ", result.Skipped > 0 ? $"ข้าม {result.Skipped} รายการซ้ำ" : null);
+        await OnSaved.InvokeAsync();
+        await OnClose.InvokeAsync();
+    }
+}

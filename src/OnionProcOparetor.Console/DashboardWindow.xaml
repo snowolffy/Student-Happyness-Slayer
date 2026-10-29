@@ -210,6 +210,12 @@
                                             controls:Nav.Icon="search" Content="Program Review"
                                             ToolTip="Program Control - คิวตรวจสอบโปรแกรมที่ตรวจพบอัตโนมัติ"
                                             Click="ProgramControlButton_Click"/>
+                                    <!-- Website Control (2026-09-11) - popup แยกเหมือน Program Review ข้างบน
+                                         ไม่ใช่ tab ของ Rules ตั้งใจไม่ให้กฎบล็อกโปรแกรมกับบล็อกเว็บปนกัน -->
+                                    <Button Style="{StaticResource SidebarActionButton}"
+                                            controls:Nav.Icon="wifi" Content="Website Control"
+                                            ToolTip="Website Control - จัดการกฎบล็อกเว็บไซต์ (Chrome/Edge)"
+                                            Click="WebsiteControlButton_Click"/>
                                     <Button Style="{StaticResource SidebarActionButton}"
                                             controls:Nav.Icon="settings" Content="Settings"
                                             ToolTip="Settings / About"

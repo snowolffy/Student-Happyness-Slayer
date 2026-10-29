@@ -122,6 +122,7 @@ builder.Services.AddWindowsService();
 // singleton เพราะถือ blocklist + cache ผลจำแนกไว้ในหน่วยความจำข้ามทุกรอบ scan
 builder.Services.AddSingleton<ProgramFingerprinter>();
 builder.Services.AddSingleton<ProgramControlService>();
+builder.Services.AddSingleton<WebsiteControlService>();
 
 // ---- ผูก Worker เป็น background service หลัก ----
 builder.Services.AddHostedService<Worker>();

@@ -53,6 +53,7 @@ public class Worker : BackgroundService
     private readonly LabHubConnection _labHubConnection;
     private readonly AgentBypassState _bypassState;
     private readonly ProgramControlService _programControl;
+    private readonly WebsiteControlService _websiteControl;
 
     public Worker(
         ILogger<Worker> logger,
@@ -62,7 +63,8 @@ public class Worker : BackgroundService
         CommandProcessor commandProcessor,
         LabHubConnection labHubConnection,
         AgentBypassState bypassState,
-        ProgramControlService programControl)
+        ProgramControlService programControl,
+        WebsiteControlService websiteControl)
     {
         _logger = logger;
         _serverClient = serverClient;
@@ -72,6 +74,7 @@ public class Worker : BackgroundService
         _labHubConnection = labHubConnection;
         _bypassState = bypassState;
         _programControl = programControl;
+        _websiteControl = websiteControl;
         _clientGuid = ClientIdentity.GetOrCreateClientGuid();
         _machineName = ClientIdentity.GetMachineName();
         _state.ClientGuid = _clientGuid;
@@ -337,12 +340,22 @@ public class Worker : BackgroundService
 
     private async Task ScanRunningProcessesAsync()
     {
+        // Website Control (2026-09-11): apply ทุกรอบ scan โดยไม่มี early-return แบบ process rules
+        // ข้างล่าง เพราะ registry key ที่เคยเขียนไว้จะ "อยู่ต่อ" ในเซสชันเดียวกันจนกว่าจะมีคนลบจริง
+        // (ต่างจาก process kill ที่แค่ไม่ทำอะไรต่อก็พอ) ต้องส่ง empty list เข้าไปเองเมื่อ bypass/ปิด
+        // enforcement เพื่อให้ WebsiteControlService เคลียร์ URLBlocklist ออกจริง ไม่ใช่แค่หยุดยุ่งเฉยๆ
+        var websitePatterns = (_bypassState.IsBypassed || !_lastKnownState.Enabled)
+            ? Array.Empty<string>()
+            : _lastKnownState.WebsiteRules.Select(r => r.UrlPattern).ToArray();
+        _websiteControl.Apply(websitePatterns);
+
         // Bypass เปิดอยู่ = ครูตั้งใจให้เครื่องนี้หยุด enforce ชั่วคราว (ดู AgentBypassState) ต้องไม่ scan/kill
         // ต่อด้วย _lastKnownState เก่าที่ค้างมาจากก่อน bypass - ไม่งั้น toggle "BYPASS" ที่ AgentTray
         // จะกัน "คำสั่งใหม่" ได้ (ตัด SignalR/poll) แต่กัน "rule ที่ทำงานอยู่" ไม่ได้จริง ซึ่งขัดจุดประสงค์
         // ของปุ่มนี้ที่มีไว้ให้ทำงานกับ process ที่ปกติจะโดน rule เล่นงานโดยไม่ถูกยุ่ง
         //
-        // ถ้า enforcement ปิดอยู่ (global หรือ per-machine) ก็ไม่ต้อง scan เลยเหมือนกัน
+        // ถ้า enforcement ปิดอยู่ (global หรือ per-machine) ก็ไม่ต้อง scan process เลยเหมือนกัน (website
+        // blocklist ถูกจัดการไปแล้วข้างบนแยกจากเงื่อนไขนี้)
         if (_bypassState.IsBypassed || !_lastKnownState.Enabled)
         {
             return;

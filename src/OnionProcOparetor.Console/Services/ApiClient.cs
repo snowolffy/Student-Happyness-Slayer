@@ -274,6 +274,89 @@ public class ApiClient
         return response.IsSuccessStatusCode;
     }
 
+    // ---- Website Control (2026-09-11) - mirror ของ Rule CRUD ข้างบนทุกอย่าง ----
+
+    /// <summary>
+    /// แบ่งหน้า + ค้นหา + กรองตาม catalog source (2026-09-12) - เดินตามแบบเดียวกับ audit log
+    /// page/pageSize (ดู DashboardWindow.xaml.cs) sourceCatalogId=null และ manualOnly=false คือ
+    /// "ทั้งหมด" (ค่า default)
+    /// </summary>
+    public async Task<WebsiteRulesPageDto> GetWebsiteRulesAsync(
+        string? search = null, int? sourceCatalogId = null, bool manualOnly = false,
+        int page = 1, int pageSize = 100)
+    {
+        var query = $"page={page}&pageSize={pageSize}&manualOnly={manualOnly}";
+        if (!string.IsNullOrWhiteSpace(search)) query += $"&search={Uri.EscapeDataString(search)}";
+        if (sourceCatalogId is not null) query += $"&sourceCatalogId={sourceCatalogId}";
+
+        var result = await _httpClient.GetFromJsonAsync<WebsiteRulesPageDto>($"/api/website-rules?{query}");
+        return result ?? new WebsiteRulesPageDto();
+    }
+
+    public async Task<bool> AddWebsiteRuleAsync(WebsiteRuleDto rule)
+    {
+        var response = await _httpClient.PostAsJsonAsync("/api/website-rules", rule);
+        return response.IsSuccessStatusCode;
+    }
+
+    public async Task<BulkAddResultDto?> AddWebsiteRulesBulkAsync(List<string> urlPatterns)
+    {
+        var response = await _httpClient.PostAsJsonAsync("/api/website-rules/bulk", new { UrlPatterns = urlPatterns });
+        return response.IsSuccessStatusCode
+            ? await response.Content.ReadFromJsonAsync<BulkAddResultDto>()
+            : null;
+    }
+
+    public async Task<bool> UpdateWebsiteRuleAsync(WebsiteRuleDto rule)
+    {
+        var response = await _httpClient.PutAsJsonAsync($"/api/website-rules/{rule.Id}", rule);
+        return response.IsSuccessStatusCode;
+    }
+
+    public async Task<bool> DeleteWebsiteRuleAsync(int ruleId)
+    {
+        var response = await _httpClient.DeleteAsync($"/api/website-rules/{ruleId}");
+        return response.IsSuccessStatusCode;
+    }
+
+    public async Task<bool> ToggleWebsiteRuleAsync(int ruleId)
+    {
+        var response = await _httpClient.PostAsync($"/api/website-rules/{ruleId}/toggle", null);
+        return response.IsSuccessStatusCode;
+    }
+
+    // ---- Website Catalog Sources (2026-09-12) ----
+
+    public async Task<List<WebsiteCatalogSourceDto>> GetWebsiteCatalogSourcesAsync()
+    {
+        var result = await _httpClient.GetFromJsonAsync<List<WebsiteCatalogSourceDto>>("/api/website-catalog-sources");
+        return result ?? new List<WebsiteCatalogSourceDto>();
+    }
+
+    public async Task<bool> AddWebsiteCatalogSourceAsync(WebsiteCatalogSourceDto source)
+    {
+        var response = await _httpClient.PostAsJsonAsync("/api/website-catalog-sources", source);
+        return response.IsSuccessStatusCode;
+    }
+
+    public async Task<bool> UpdateWebsiteCatalogSourceAsync(WebsiteCatalogSourceDto source)
+    {
+        var response = await _httpClient.PutAsJsonAsync($"/api/website-catalog-sources/{source.Id}", source);
+        return response.IsSuccessStatusCode;
+    }
+
+    public async Task<bool> DeleteWebsiteCatalogSourceAsync(int id)
+    {
+        var response = await _httpClient.DeleteAsync($"/api/website-catalog-sources/{id}");
+        return response.IsSuccessStatusCode;
+    }
+
+    public async Task<bool> SyncWebsiteCatalogSourceNowAsync(int id)
+    {
+        var response = await _httpClient.PostAsync($"/api/website-catalog-sources/{id}/sync-now", null);
+        return response.IsSuccessStatusCode;
+    }
+
     /// <summary>Override เฉพาะเครื่องเดียว - ดึง override ทั้งหมดของเครื่องนี้ (Config Rule dialog เอาไปเทียบกับ GetRulesAsync() เพื่อโชว์สถานะ effective ต่อกฎ)</summary>
     public async Task<List<RuleOverrideDto>> GetRuleOverridesAsync(string clientGuid)
     {

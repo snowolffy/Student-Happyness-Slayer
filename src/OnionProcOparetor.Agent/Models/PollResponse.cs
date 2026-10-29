@@ -10,6 +10,9 @@ public class PollResponse
 
     public List<RuleDto> Rules { get; set; } = new();
 
+    /// <summary>กฎบล็อกเว็บที่เปิดใช้งานอยู่ (Website Control, 2026-09-11) - ดู WebsiteControlService</summary>
+    public List<WebsiteRuleDto> WebsiteRules { get; set; } = new();
+
     /// <summary>[OPTIONAL] ถ้า Server ตั้ง override ไว้ ให้ใช้ค่านี้แทน PollIntervalSeconds ใน appsettings.json</summary>
     public int? PollIntervalOverrideSeconds { get; set; }
 

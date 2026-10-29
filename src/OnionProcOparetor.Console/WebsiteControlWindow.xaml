@@ -1,0 +1,152 @@
+<Window x:Class="OnionProcOparetor.Console.WebsiteControlWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:controls="clr-namespace:OnionProcOparetor.Console.Controls"
+        Title="Website Control"
+        Height="680" Width="960"
+        WindowStartupLocation="CenterOwner"
+        Icon="/Theme/icon.ico"
+        Style="{StaticResource AppDialogWindow}">
+    <!-- Popup window แยกจาก DashboardWindow's TabControl โดยตั้งใจ (2026-09-11) - เหมือน
+         ProgramReviewWindow ไม่ใช่ tab ของ Rules เพราะไม่อยากให้กฎบล็อกโปรแกรมกับกฎบล็อกเว็บปนกัน
+         จนงงตอนใช้งาน ใช้ global enforcement toggle ตัวเดียวกับ Program Control (ดู GlobalOffBanner
+         ใน DashboardWindow) ไม่มี toggle แยกในหน้าต่างนี้
+
+         2026-09-12: เพิ่ม Bulk Add + Catalog Sources + ค้นหา/กรอง/แบ่งหน้า - เดิมกลัวรายการเยอะ
+         เกินจะโชว์ในตารางได้ (list สาธารณะบางอันมีโดเมนเป็นแสน) แต่ user ชี้ว่าแค่แบ่งหน้า+ค้นหา+
+         กรองตาม catalog ก็พอแล้ว ไม่ต้องจำกัด UI - เดินตาม pager pattern เดียวกับ Audit Log tab
+         ใน DashboardWindow (ก่อนหน้า/ถัดไป + debounce ช่องค้นหา) -->
+    <Grid Margin="20">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <Grid Grid.Row="0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="8"/>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="8"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            <TextBlock Grid.Column="0" Text="WEBSITE CONTROL" Style="{StaticResource Heading2}" VerticalAlignment="Center"/>
+            <Button Grid.Column="1" Content="จัดการ Catalog..." Style="{StaticResource ButtonSecondary}"
+                    Padding="10,5" FontSize="11" VerticalAlignment="Center" Click="ManageCatalogButton_Click"/>
+            <Button Grid.Column="3" Content="Bulk Add..." Style="{StaticResource ButtonSecondary}"
+                    Padding="10,5" FontSize="11" VerticalAlignment="Center" Click="BulkAddButton_Click"/>
+            <Button Grid.Column="5" Content="เพิ่มกฎ..." Style="{StaticResource ButtonPrimary}"
+                    VerticalAlignment="Center" Click="AddRuleButton_Click"/>
+        </Grid>
+
+        <Grid Grid.Row="1" Margin="0,12,0,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="250"/>
+                <ColumnDefinition Width="10"/>
+                <ColumnDefinition Width="220"/>
+            </Grid.ColumnDefinitions>
+            <TextBox Grid.Column="0" x:Name="SearchBox" Height="35" VerticalAlignment="Center"
+                    Style="{StaticResource SearchTextBox}"
+                    Tag="ค้นหาชื่อกฎ/URL pattern..." TextChanged="SearchBox_TextChanged"/>
+            <ComboBox Grid.Column="2" x:Name="SourceFilterCombo" Height="35" VerticalAlignment="Center"
+                      SelectionChanged="SourceFilterCombo_SelectionChanged"/>
+        </Grid>
+
+        <TextBlock Grid.Row="2" x:Name="StatusText" Style="{StaticResource Caption}"
+                   TextWrapping="Wrap" Margin="0,10,0,10"/>
+
+        <Grid Grid.Row="3">
+            <Border CornerRadius="12" ClipToBounds="True"
+                    Background="{DynamicResource Brush.Background.Card}"
+                    BorderBrush="{DynamicResource Brush.Border.Default}" BorderThickness="1">
+                <DataGrid x:Name="RulesGrid" AutoGenerateColumns="False" IsReadOnly="True"
+                        Background="Transparent"
+                        BorderThickness="0"
+                        RowBackground="{DynamicResource Brush.Background.Card}"
+                        AlternatingRowBackground="{DynamicResource Brush.Background.Card}"
+                        HorizontalGridLinesBrush="{DynamicResource Brush.Border.Default}"
+                        VerticalGridLinesBrush="{DynamicResource Brush.Border.Default}"
+                        RowHeight="40" CanUserAddRows="False"
+                        ColumnHeaderStyle="{StaticResource ConsoleGridColumnHeaderStyle}"
+                        RowStyle="{StaticResource ConsoleGridRowStyle}"
+                        CellStyle="{StaticResource ConsoleGridCellStyle}">
+                    <DataGrid.Resources>
+                        <Style x:Key="WebsiteRuleStatusBadge" TargetType="ContentControl" BasedOn="{StaticResource StatusBadge}">
+                            <Setter Property="Tag" Value="Danger"/>
+                            <Setter Property="Content" Value="DISABLED"/>
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsEnabled}" Value="True">
+                                    <Setter Property="Tag" Value="Online"/>
+                                    <Setter Property="Content" Value="ENABLED"/>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </DataGrid.Resources>
+                    <DataGrid.Columns>
+                        <DataGridTemplateColumn Header="สถานะ" Width="90" SortMemberPath="IsEnabled">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate>
+                                    <ContentControl Style="{StaticResource WebsiteRuleStatusBadge}"/>
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
+                        <DataGridTextColumn Header="ชื่อกฎ" Binding="{Binding Name}" Width="130"/>
+                        <DataGridTextColumn Header="รูปแบบ URL" Binding="{Binding UrlPattern}" Width="*"/>
+                        <DataGridTextColumn Header="ที่มา" Binding="{Binding SourceText}" Width="120"/>
+                        <DataGridTemplateColumn Header="จัดการ" Width="250">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate>
+                                    <StackPanel Orientation="Horizontal">
+                                        <Button Content="แก้ไข" Style="{StaticResource ButtonSecondary}"
+                                                Padding="10,5" FontSize="11"
+                                                Click="EditRuleButton_Click" Tag="{Binding}" Margin="0,0,4,0"/>
+                                        <Button Content="{Binding ToggleActionText}" Style="{StaticResource ButtonSecondary}"
+                                                Padding="10,5" FontSize="11" MinWidth="66"
+                                                Click="ToggleRuleButton_Click" Tag="{Binding Id}" Margin="0,0,4,0"/>
+                                        <Button Content="ลบกฎ" Style="{StaticResource ButtonDanger}"
+                                                Padding="10,5" FontSize="11"
+                                                Click="DeleteRuleButton_Click" Tag="{Binding Id}"/>
+                                    </StackPanel>
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
+                    </DataGrid.Columns>
+                </DataGrid>
+            </Border>
+            <ContentControl x:Name="RulesEmptyText"
+                            Style="{StaticResource EmptyState}" controls:Nav.Icon="wifi"
+                            Content="ยังไม่มีกฎบล็อกเว็บ" Tag="กด &quot;เพิ่มกฎ...&quot; เพื่อสร้างกฎแรก - ตราบใดที่ยังไม่มีกฎ จะไม่มีเว็บไซต์ไหนถูกบล็อก"
+                            Visibility="Collapsed"/>
+        </Grid>
+
+        <Grid Grid.Row="4" Margin="0,10,0,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="8"/>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="12"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            <Button Grid.Column="0" Style="{StaticResource ButtonSecondary}"
+                    Padding="10,5" FontSize="11" Click="PrevPageButton_Click">
+                <StackPanel Orientation="Horizontal">
+                    <controls:IconPresenter Icon="chevron-left" IconSize="14" VerticalAlignment="Center"/>
+                    <TextBlock Text="ก่อนหน้า" Margin="6,0,0,0" VerticalAlignment="Center"/>
+                </StackPanel>
+            </Button>
+            <Button Grid.Column="2" Style="{StaticResource ButtonSecondary}"
+                    Padding="10,5" FontSize="11" Click="NextPageButton_Click">
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock Text="ถัดไป" Margin="0,0,6,0" VerticalAlignment="Center"/>
+                    <controls:IconPresenter Icon="chevron-right" IconSize="14" VerticalAlignment="Center"/>
+                </StackPanel>
+            </Button>
+            <TextBlock Grid.Column="4" x:Name="PageInfoText" VerticalAlignment="Center"
+                    Foreground="{DynamicResource Brush.Text.Secondary}"/>
+        </Grid>
+    </Grid>
+</Window>

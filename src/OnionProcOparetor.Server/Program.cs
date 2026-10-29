@@ -134,6 +134,13 @@ builder.Services.AddHostedService<ClientOnlineStatusMonitorService>();
 // report ไปแล้ว แต่ command ที่ค้างยังต้องถูกสรุปผลอยู่ดี ----
 builder.Services.AddHostedService<CommandResultTimeoutService>();
 
+// ---- Website Control catalog sync (2026-09-12) - ดึง WebsiteRule จาก list ภายนอกเป็นระยะ
+// (ดู WebsiteCatalogSyncer สำหรับ fetch/parse/diff, WebsiteCatalogSyncService สำหรับตัวเดินเวลา
+// ทุก 24 ชม.) แยก syncer ออกมาเป็น service ต่างหากเพื่อให้ endpoint "sync-now" เรียกโค้ดเดียวกับ
+// timer ได้โดยไม่ต้องพึ่ง BackgroundService ----
+builder.Services.AddScoped<WebsiteCatalogSyncer>();
+builder.Services.AddHostedService<WebsiteCatalogSyncService>();
+
 // ---- รองรับ Windows Service host (ให้ publish เป็น service ได้ทีหลัง) ----
 builder.Host.UseWindowsService();
 
@@ -558,6 +565,301 @@ app.MapPost("/api/rules/{id:int}/toggle", async (int id, HttpRequest request, Ap
     return Results.Ok(rule);
 });
 
+// ---- Website Control endpoints (2026-09-11) ----
+// mirror ของชุด /api/rules ข้างบนทุกอย่าง (auth, error shape, activity log) ต่างกันแค่ field ของ
+// model - ดู Models/WebsiteRule.cs เรื่องที่ไม่มี override ต่อเครื่องในรอบแรก
+
+// ค้นหา + กรองตาม catalog source + แบ่งหน้า (2026-09-12) - ตั้งใจให้ Website Control ใช้ catalog
+// sync ได้เต็มที่ (ไม่ตัด cap ที่ UI ให้ต่ำเกินไป) แล้วแก้ปัญหา "รายการเยอะ" ด้วยการแบ่งหน้า/ค้นหา/
+// กรองแทน เดินตาม pattern เดียวกับ GET /api/activitylog (page/pageSize + totalCount)
+app.MapGet("/api/website-rules", async (
+    HttpRequest request, AppDbContext db,
+    string? search, int? sourceCatalogId, bool manualOnly = false,
+    int page = 1, int pageSize = 100) =>
+{
+    var admin = await GetAuthorizedAdmin(request, db);
+    if (admin is null)
+        return Results.Unauthorized();
+    if (admin.HasDefaultPassword)
+        return Results.Json(new { error = "Password change required before continuing." }, statusCode: 403);
+
+    page = Math.Max(page, 1);
+    pageSize = Math.Clamp(pageSize, 1, 500);
+
+    var query = db.WebsiteRules.AsQueryable();
+
+    if (!string.IsNullOrWhiteSpace(search))
+    {
+        query = query.Where(r => r.Name.Contains(search) || r.UrlPattern.Contains(search));
+    }
+
+    if (manualOnly)
+    {
+        query = query.Where(r => r.SourceCatalogId == null);
+    }
+    else if (sourceCatalogId is not null)
+    {
+        query = query.Where(r => r.SourceCatalogId == sourceCatalogId);
+    }
+
+    var totalCount = await query.CountAsync();
+    var items = await query
+        .OrderBy(r => r.Name)
+        .Skip((page - 1) * pageSize)
+        .Take(pageSize)
+        .ToListAsync();
+
+    return Results.Ok(new { items, totalCount, page, pageSize });
+});
+
+app.MapPost("/api/website-rules", async (WebsiteRule rule, HttpRequest request, AppDbContext db, IActivityLogService activityLog) =>
+{
+    var admin = await GetAuthorizedAdmin(request, db);
+    if (admin is null)
+        return Results.Unauthorized();
+    if (admin.HasDefaultPassword)
+        return Results.Json(new { error = "Password change required before continuing." }, statusCode: 403);
+
+    rule.CreatedAt = DateTime.UtcNow;
+    rule.UpdatedAt = DateTime.UtcNow;
+    db.WebsiteRules.Add(rule);
+    await db.SaveChangesAsync();
+
+    await activityLog.LogAdminActionAsync(admin, "WebsiteRuleCreated", $"{admin.Username} สร้างกฎบล็อกเว็บ '{rule.Name}'");
+
+    return Results.Created($"/api/website-rules/{rule.Id}", rule);
+});
+
+app.MapDelete("/api/website-rules/{id:int}", async (int id, HttpRequest request, AppDbContext db, IActivityLogService activityLog) =>
+{
+    var admin = await GetAuthorizedAdmin(request, db);
+    if (admin is null)
+        return Results.Unauthorized();
+    if (admin.HasDefaultPassword)
+        return Results.Json(new { error = "Password change required before continuing." }, statusCode: 403);
+
+    var rule = await db.WebsiteRules.FindAsync(id);
+    if (rule is null) return Results.NotFound();
+
+    db.WebsiteRules.Remove(rule);
+    await db.SaveChangesAsync();
+
+    await activityLog.LogAdminActionAsync(admin, "WebsiteRuleDeleted", $"{admin.Username} ลบกฎบล็อกเว็บ '{rule.Name}'");
+
+    return Results.Ok(new { message = "Website rule deleted." });
+});
+
+app.MapPut("/api/website-rules/{id:int}", async (int id, WebsiteRule updated, HttpRequest request, AppDbContext db, IActivityLogService activityLog) =>
+{
+    var admin = await GetAuthorizedAdmin(request, db);
+    if (admin is null)
+        return Results.Unauthorized();
+    if (admin.HasDefaultPassword)
+        return Results.Json(new { error = "Password change required before continuing." }, statusCode: 403);
+
+    var rule = await db.WebsiteRules.FindAsync(id);
+    if (rule is null) return Results.NotFound();
+
+    rule.Name = updated.Name;
+    rule.UrlPattern = updated.UrlPattern;
+    rule.IsEnabled = updated.IsEnabled;
+    rule.UpdatedAt = DateTime.UtcNow;
+
+    await db.SaveChangesAsync();
+
+    await activityLog.LogAdminActionAsync(admin, "WebsiteRuleUpdated", $"{admin.Username} แก้ไขกฎบล็อกเว็บ '{rule.Name}'");
+
+    return Results.Ok(rule);
+});
+
+app.MapPost("/api/website-rules/{id:int}/toggle", async (int id, HttpRequest request, AppDbContext db, IActivityLogService activityLog) =>
+{
+    var admin = await GetAuthorizedAdmin(request, db);
+    if (admin is null)
+        return Results.Unauthorized();
+    if (admin.HasDefaultPassword)
+        return Results.Json(new { error = "Password change required before continuing." }, statusCode: 403);
+
+    var rule = await db.WebsiteRules.FindAsync(id);
+    if (rule is null) return Results.NotFound();
+
+    rule.IsEnabled = !rule.IsEnabled;
+    rule.UpdatedAt = DateTime.UtcNow;
+    await db.SaveChangesAsync();
+
+    await activityLog.LogAdminActionAsync(admin, "WebsiteRuleToggled",
+        $"{admin.Username} {(rule.IsEnabled ? "เปิด" : "ปิด")} กฎบล็อกเว็บ '{rule.Name}'");
+
+    return Results.Ok(rule);
+});
+
+// เพิ่มกฎบล็อกเว็บทีเดียวหลายรายการ (2026-09-12) - ครูวางรายชื่อโดเมนทีละบรรทัดแทนกด "เพิ่มกฎ" ทีละอัน
+// Name = UrlPattern เสมอสำหรับทางเข้านี้ (ไม่มีช่องชื่อแยกในฟอร์ม paste) กันซ้ำทั้งกับของเดิมในระบบและ
+// ภายในชุดที่วางมาเอง เดินตาม pattern การจำกัดจำนวนต่อ request แบบเดียวกับ /api/classify
+app.MapPost("/api/website-rules/bulk", async (AddWebsiteRulesBulkRequest req, HttpRequest request, AppDbContext db, IActivityLogService activityLog) =>
+{
+    var admin = await GetAuthorizedAdmin(request, db);
+    if (admin is null)
+        return Results.Unauthorized();
+    if (admin.HasDefaultPassword)
+        return Results.Json(new { error = "Password change required before continuing." }, statusCode: 403);
+
+    if (req.UrlPatterns is null || req.UrlPatterns.Count == 0)
+    {
+        return Results.Ok(new { added = 0, skipped = 0 });
+    }
+
+    const int MaxBulkRulesPerRequest = 200;
+
+    var existing = await db.WebsiteRules
+        .Select(r => r.UrlPattern)
+        .ToListAsync();
+    var seen = new HashSet<string>(existing, StringComparer.OrdinalIgnoreCase);
+
+    var now = DateTime.UtcNow;
+    var added = 0;
+    var skipped = 0;
+
+    foreach (var raw in req.UrlPatterns.Take(MaxBulkRulesPerRequest))
+    {
+        var pattern = raw?.Trim();
+        if (string.IsNullOrEmpty(pattern) || !seen.Add(pattern))
+        {
+            skipped++;
+            continue;
+        }
+
+        db.WebsiteRules.Add(new WebsiteRule
+        {
+            Name = pattern,
+            UrlPattern = pattern,
+            IsEnabled = true,
+            CreatedAt = now,
+            UpdatedAt = now
+        });
+        added++;
+    }
+
+    await db.SaveChangesAsync();
+
+    await activityLog.LogAdminActionAsync(admin, "WebsiteRuleBulkAdded",
+        $"{admin.Username} เพิ่มกฎบล็อกเว็บ {added} รายการ (ข้าม {skipped} รายการซ้ำ)");
+
+    return Results.Ok(new { added, skipped });
+});
+
+// ---- Website Catalog Sources (2026-09-12) - sync WebsiteRule จาก list ภายนอกเป็นระยะ ----
+// ดู Services/WebsiteCatalogSyncer.cs สำหรับกลไก fetch/parse/diff เต็ม และ AbsoluteMaxEntries
+// สำหรับเหตุผลที่ต้องมีเพดาน (list สาธารณะบางอันมีโดเมนเป็นแสน ใช้กับ registry policy ไม่ได้จริง)
+
+app.MapGet("/api/website-catalog-sources", async (HttpRequest request, AppDbContext db) =>
+{
+    var admin = await GetAuthorizedAdmin(request, db);
+    if (admin is null)
+        return Results.Unauthorized();
+    if (admin.HasDefaultPassword)
+        return Results.Json(new { error = "Password change required before continuing." }, statusCode: 403);
+
+    var sources = await db.WebsiteCatalogSources.OrderBy(s => s.Name).ToListAsync();
+    return Results.Ok(sources);
+});
+
+app.MapPost("/api/website-catalog-sources", async (WebsiteCatalogSource source, HttpRequest request, AppDbContext db, IActivityLogService activityLog) =>
+{
+    var admin = await GetAuthorizedAdmin(request, db);
+    if (admin is null)
+        return Results.Unauthorized();
+    if (admin.HasDefaultPassword)
+        return Results.Json(new { error = "Password change required before continuing." }, statusCode: 403);
+
+    source.Id = 0;
+    source.CreatedAt = DateTime.UtcNow;
+    source.LastSyncStatus = WebsiteCatalogSyncStatus.NeverRun;
+    source.LastSyncedAt = null;
+    source.LastSyncEntryCount = null;
+    source.LastSyncError = null;
+    if (source.MaxEntries <= 0 || source.MaxEntries > WebsiteCatalogSyncer.AbsoluteMaxEntries)
+    {
+        source.MaxEntries = Math.Min(source.MaxEntries <= 0 ? 1000 : source.MaxEntries, WebsiteCatalogSyncer.AbsoluteMaxEntries);
+    }
+
+    db.WebsiteCatalogSources.Add(source);
+    await db.SaveChangesAsync();
+
+    await activityLog.LogAdminActionAsync(admin, "WebsiteCatalogSourceCreated",
+        $"{admin.Username} เพิ่ม catalog source '{source.Name}' ({source.SourceUrl})");
+
+    return Results.Created($"/api/website-catalog-sources/{source.Id}", source);
+});
+
+app.MapPut("/api/website-catalog-sources/{id:int}", async (int id, WebsiteCatalogSource updated, HttpRequest request, AppDbContext db, IActivityLogService activityLog) =>
+{
+    var admin = await GetAuthorizedAdmin(request, db);
+    if (admin is null)
+        return Results.Unauthorized();
+    if (admin.HasDefaultPassword)
+        return Results.Json(new { error = "Password change required before continuing." }, statusCode: 403);
+
+    var source = await db.WebsiteCatalogSources.FindAsync(id);
+    if (source is null) return Results.NotFound();
+
+    source.Name = updated.Name;
+    source.SourceUrl = updated.SourceUrl;
+    source.IsEnabled = updated.IsEnabled;
+    source.MaxEntries = Math.Clamp(updated.MaxEntries <= 0 ? 1000 : updated.MaxEntries, 1, WebsiteCatalogSyncer.AbsoluteMaxEntries);
+
+    await db.SaveChangesAsync();
+
+    await activityLog.LogAdminActionAsync(admin, "WebsiteCatalogSourceUpdated",
+        $"{admin.Username} แก้ไข catalog source '{source.Name}'");
+
+    return Results.Ok(source);
+});
+
+// ลบ source พร้อม WebsiteRule ทุกแถวที่ผูกกับ source นี้ - กัน orphan (แถวที่ SourceCatalogId ชี้ไป
+// source ที่ไม่มีอยู่แล้ว จะไม่มีทาง sync ใหม่/ลบออกได้อีกเลยถ้าไม่ลบตรงนี้ให้)
+app.MapDelete("/api/website-catalog-sources/{id:int}", async (int id, HttpRequest request, AppDbContext db, IActivityLogService activityLog) =>
+{
+    var admin = await GetAuthorizedAdmin(request, db);
+    if (admin is null)
+        return Results.Unauthorized();
+    if (admin.HasDefaultPassword)
+        return Results.Json(new { error = "Password change required before continuing." }, statusCode: 403);
+
+    var source = await db.WebsiteCatalogSources.FindAsync(id);
+    if (source is null) return Results.NotFound();
+
+    var removedRuleCount = await db.WebsiteRules
+        .Where(r => r.SourceCatalogId == id)
+        .ExecuteDeleteAsync();
+
+    db.WebsiteCatalogSources.Remove(source);
+    await db.SaveChangesAsync();
+
+    await activityLog.LogAdminActionAsync(admin, "WebsiteCatalogSourceDeleted",
+        $"{admin.Username} ลบ catalog source '{source.Name}' (พร้อมกฎบล็อกเว็บที่มาจาก source นี้ {removedRuleCount} รายการ)");
+
+    return Results.Ok(new { message = "Catalog source deleted.", removedRuleCount });
+});
+
+// ให้ครูกด sync ทันทีแทนรอรอบ timer 24 ชม. - เรียก WebsiteCatalogSyncer โค้ดเดียวกับที่ timer ใช้
+app.MapPost("/api/website-catalog-sources/{id:int}/sync-now", async (int id, HttpRequest request, AppDbContext db, WebsiteCatalogSyncer syncer, CancellationToken ct) =>
+{
+    var admin = await GetAuthorizedAdmin(request, db);
+    if (admin is null)
+        return Results.Unauthorized();
+    if (admin.HasDefaultPassword)
+        return Results.Json(new { error = "Password change required before continuing." }, statusCode: 403);
+
+    var source = await db.WebsiteCatalogSources.FindAsync(id);
+    if (source is null) return Results.NotFound();
+
+    await syncer.SyncSourceAsync(db, source, ct);
+    await db.SaveChangesAsync(ct);
+
+    return Results.Ok(source);
+});
+
 // ---- Per-agent rule override endpoints (Stable 1 เรื่องที่ 3) ----
 // override ชนะ global เสมอ 100% - ดู /api/poll/{clientGuid} สำหรับจุดที่ resolve ค่าจริง
 
@@ -759,6 +1061,10 @@ app.MapGet("/api/poll/{clientGuid}", async (string clientGuid, string machineNam
         .Where(r => ruleOverrides.TryGetValue(r.Id, out var overrideEnabled) ? overrideEnabled : r.IsEnabled)
         .ToList();
 
+    // Website Control (2026-09-11) - เหมือน rules ข้างบนแต่ไม่มี override ต่อเครื่อง (ยังไม่ทำในรอบแรก)
+    // ส่งเฉพาะกฎที่ IsEnabled เท่านั้น - Agent ไม่ต้องกรองซ้ำ ได้ list เดียวไปเขียน registry ตรงๆ
+    var websiteRules = await db.WebsiteRules.Where(r => r.IsEnabled).ToListAsync();
+
     // fallback path สำหรับ command ที่ยังไม่ถึง Agent ผ่าน SignalR (เช่น เครื่อง disconnect อยู่ตอนที่ถูกสั่ง)
     // Agent จะเห็น command เหล่านี้ผ่าน poll รอบถัดไปเสมอ ไม่ว่า SignalR จะต่อติดอยู่หรือไม่ก็ตาม
     //
@@ -834,6 +1140,7 @@ app.MapGet("/api/poll/{clientGuid}", async (string clientGuid, string machineNam
     {
         enabled = globalEnabled && client.IsEnabled,
         rules,
+        websiteRules,
         pollIntervalOverrideSeconds = client.PollIntervalOverrideSeconds,
         pendingCommands,
         blocklistVersion = currentBlocklistVersion,
@@ -1733,6 +2040,9 @@ record AgentUninstallAuthorizedRequest(string ClientGuid, string MachineName);
 
 /// <summary>Agent ส่ง fingerprint ของโปรแกรมที่ยังไม่รู้จักมาให้จำแนกเป็นชุด</summary>
 record ClassifyRequest(List<ProgramFingerprint>? Programs);
+
+/// <summary>POST /api/website-rules/bulk - รายชื่อโดเมนที่ครูวางมาทีเดียวหลายบรรทัด</summary>
+record AddWebsiteRulesBulkRequest(List<string>? UrlPatterns);
 
 /// <summary>ครูตัดสินโปรแกรมหนึ่งด้วยมือ - Action ตรงกับ enum ProgramAction (0=Allow, 1=Flag, 2=Block)</summary>
 record ProgramDecisionRequest(int Action);

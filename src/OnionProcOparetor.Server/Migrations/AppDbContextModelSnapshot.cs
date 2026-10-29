@@ -398,6 +398,80 @@ namespace OnionProcOparetor.Server.Migrations
 
                     b.ToTable("RuleOverrides");
                 });
+
+            modelBuilder.Entity("OnionProcOparetor.Server.Models.WebsiteCatalogSource", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("IsEnabled")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("LastSyncEntryCount")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("LastSyncError")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("LastSyncStatus")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime?>("LastSyncedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("MaxEntries")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("SourceUrl")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("WebsiteCatalogSources");
+                });
+
+            modelBuilder.Entity("OnionProcOparetor.Server.Models.WebsiteRule", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("IsEnabled")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<int?>("SourceCatalogId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("UrlPattern")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UrlPattern")
+                        .IsUnique();
+
+                    b.ToTable("WebsiteRules");
+                });
 #pragma warning restore 612, 618
         }
     }

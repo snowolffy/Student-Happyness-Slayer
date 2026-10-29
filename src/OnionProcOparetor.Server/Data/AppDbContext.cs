@@ -23,6 +23,12 @@ public class AppDbContext : DbContext
     public DbSet<ClientCommand> ClientCommands => Set<ClientCommand>();
     public DbSet<RuleOverride> RuleOverrides => Set<RuleOverride>();
 
+    /// <summary>กฎบล็อกเว็บไซต์ (Website Control, 2026-09-11) - ดู Models/WebsiteRule.cs</summary>
+    public DbSet<WebsiteRule> WebsiteRules => Set<WebsiteRule>();
+
+    /// <summary>แหล่งข้อมูล catalog ภายนอกที่ sync เข้า WebsiteRule เป็นระยะ (2026-09-12)</summary>
+    public DbSet<WebsiteCatalogSource> WebsiteCatalogSources => Set<WebsiteCatalogSource>();
+
     /// <summary>ผลจำแนกโปรแกรม key ด้วย SHA-256 - ดู Models/ProgramVerdict.cs</summary>
     public DbSet<ProgramVerdict> ProgramVerdicts => Set<ProgramVerdict>();
 
@@ -82,6 +88,13 @@ public class AppDbContext : DbContext
         // SightingCount ซึ่งเป็นตารางที่จะโตเรื่อยๆ ตามจำนวนโปรแกรมที่เคยเจอทั้งห้อง
         modelBuilder.Entity<ProgramVerdict>()
             .HasIndex(v => new { v.Action, v.SightingCount });
+
+        // UrlPattern ต้องไม่ซ้ำกัน (2026-09-12) - เดิมไม่มีอะไรกันเลย ทั้ง bulk-add และ
+        // WebsiteCatalogSyncer เช็คซ้ำเองตอน insert อยู่แล้ว แต่ยังเผื่อไว้เป็นเกราะชั้นสุดท้ายกัน
+        // race condition เหมือนกับ Username/ClientGuid/Token ข้างบน
+        modelBuilder.Entity<WebsiteRule>()
+            .HasIndex(r => r.UrlPattern)
+            .IsUnique();
 
         // Seed ค่าเริ่มต้นของ GlobalState ให้มี row เดียวเสมอ (Id = 1, เปิดใช้งานเป็นค่าเริ่มต้น)
         // สำคัญ: ต้องใช้ค่า DateTime แบบ fixed/static เท่านั้น ห้ามใช้ DateTime.UtcNow หรือ

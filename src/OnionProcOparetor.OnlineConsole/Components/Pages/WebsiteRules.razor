@@ -1,0 +1,257 @@
+@* Website Control (2026-09-11) - separate page from Rules (own nav link, own route), same as
+   ProgramReview vs Rules on this Console: kept apart so app-block rules and website-block rules never
+   get confused for each other. Shares the same global enforcement toggle as everything else (Home.razor
+   banner) - no toggle of its own.
+
+   2026-09-12: added Bulk Add + Catalog Sources + search/filter/paging - a naive "load everything"
+   here breaks down once a catalog source is syncing in hundreds/thousands of domains (see
+   WebsiteCatalogSyncer server-side for why that scale is real: public blocklists range from 5 to
+   342,627 entries). Search + source filter + paging mirrors AuditLog.razor's pattern exactly. *@
+@page "/website-rules"
+@rendermode InteractiveServer
+@inherits AuthenticatedPageBase
+@inject ToastService Toasts
+
+<PageTitle>Website Control - OnionProcOparetor Online Console</PageTitle>
+
+<div class="page-head">
+    <div>
+        <h2 class="heading2" style="margin:0">Website Control</h2>
+        <div class="page-subtitle">กฎบล็อกเว็บไซต์ที่ Agent ทุกเครื่องใช้เขียนเข้า Chrome/Edge policy</div>
+    </div>
+    <span class="spacer"></span>
+    <button class="btn btn-secondary" @onclick="() => _showCatalogSources = true">
+        จัดการ Catalog
+    </button>
+    <button class="btn btn-secondary" @onclick="() => _showBulkAdd = true">
+        Bulk Add
+    </button>
+    <button class="btn btn-primary" @onclick="() => _editing = new WebsiteRuleDto()">
+        <Icon Name="plus" Size="15" /> เพิ่มกฎ
+    </button>
+</div>
+
+<div class="toolbar">
+    <select @bind="_sourceFilter" @bind:after="ReloadFromFirstPageAsync" style="max-width:190px" aria-label="กรองตาม source">
+        <option value="">ทั้งหมด</option>
+        <option value="manual">พิมพ์เอง</option>
+        @foreach (var source in _catalogSources)
+        {
+            <option value="@source.Id">@source.Name</option>
+        }
+    </select>
+    <SearchBox Value="@_search" DelayMs="400" ValueChanged="OnSearchChangedAsync"
+               Placeholder="ค้นหาชื่อกฎ/URL pattern..." AriaLabel="ค้นหากฎบล็อกเว็บ" />
+</div>
+
+@if (_loading)
+{
+    @for (var i = 0; i < 4; i++) { <div class="skeleton skeleton-card"></div> }
+}
+else if (_page.Items.Count == 0)
+{
+    <div class="card">
+        <EmptyState IconName="wifi" Title="ไม่พบกฎบล็อกเว็บ"
+                    Detail="กด เพิ่มกฎ เพื่อสร้างกฎแรก หรือลองล้างตัวกรอง/คำค้นหา" />
+    </div>
+}
+else
+{
+    <div class="card-list narrow-only">
+        @foreach (var rule in _page.Items)
+        {
+            <div class="data-card" @key="rule.Id"
+                 style="--data-card-accent: @(rule.IsEnabled ? "var(--online)" : "var(--offline)")">
+                <div class="data-card-head">
+                    <div style="flex:1; min-width:0">
+                        <div class="data-card-title">@rule.Name</div>
+                        <div class="data-card-sub mono truncate">@rule.UrlPattern</div>
+                        <div class="caption">ที่มา: @rule.SourceText</div>
+                    </div>
+                    <button class="badge @(rule.IsEnabled ? "badge-online" : "badge-offline")"
+                            style="border:none; cursor:pointer" @onclick="() => ToggleAsync(rule)">
+                        @(rule.IsEnabled ? "เปิด" : "ปิด")
+                    </button>
+                </div>
+
+                <div class="data-card-actions">
+                    <button class="btn btn-secondary btn-sm" @onclick="() => _editing = rule">
+                        <Icon Name="edit" Size="14" /> แก้ไข
+                    </button>
+                    <button class="btn btn-danger btn-sm" @onclick="() => _deleting = rule">
+                        <Icon Name="trash" Size="14" /> ลบ
+                    </button>
+                </div>
+            </div>
+        }
+    </div>
+
+    <div class="table-scroll wide-only">
+        <table>
+            <thead>
+                <tr>
+                    <th>Status</th><th>Name</th><th>URL Pattern</th><th>ที่มา</th><th></th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var rule in _page.Items)
+                {
+                    <tr @key="rule.Id">
+                        <td>
+                            <button class="badge @(rule.IsEnabled ? "badge-online" : "badge-offline")" style="border:none; cursor:pointer" @onclick="() => ToggleAsync(rule)">
+                                @(rule.IsEnabled ? "ON" : "OFF")
+                            </button>
+                        </td>
+                        <td><strong>@rule.Name</strong></td>
+                        <td class="mono">@rule.UrlPattern</td>
+                        <td>@rule.SourceText</td>
+                        <td>
+                            <div style="display:flex; gap:.3rem">
+                                <button class="btn btn-secondary btn-sm" @onclick="() => _editing = rule">EDIT</button>
+                                <button class="btn btn-danger btn-sm" @onclick="() => _deleting = rule">DELETE</button>
+                            </div>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+
+    <div class="toolbar" style="justify-content:center; margin-top:1rem">
+        <button class="btn btn-secondary btn-sm" disabled="@(_pageNum <= 1)" @onclick="PrevPageAsync">
+            <Icon Name="chevron-left" Size="14" /> ก่อนหน้า
+        </button>
+        <span class="caption">@FirstRowNumber()-@LastRowNumber() จาก @_page.TotalCount รายการ</span>
+        <button class="btn btn-secondary btn-sm" disabled="@(_pageNum * _pageSize >= _page.TotalCount)" @onclick="NextPageAsync">
+            ถัดไป <Icon Name="chevron-right" Size="14" />
+        </button>
+    </div>
+}
+
+@if (_editing is not null)
+{
+    <AddEditWebsiteRuleModal InitialRule="@(_editing.Id == 0 ? null : _editing)" OnClose="() => _editing = null" OnSaved="LoadAsync" />
+}
+
+@if (_deleting is not null)
+{
+    <ConfirmDialog Title="ลบกฎนี้?"
+                   Message="@($"กฎ \"{_deleting.Name}\" จะถูกลบถาวรและมีผลกับทุกเครื่องทันที การลบนี้ย้อนกลับไม่ได้")"
+                   ConfirmText="ลบกฎ"
+                   OnCancel="() => _deleting = null"
+                   OnConfirm="DeleteConfirmedAsync" />
+}
+
+@if (_showBulkAdd)
+{
+    <BulkAddWebsiteRulesModal OnClose="() => _showBulkAdd = false" OnSaved="LoadAsync" />
+}
+
+@if (_showCatalogSources)
+{
+    <WebsiteCatalogSourcesModal OnClose="CloseCatalogSourcesAsync" OnChanged="LoadCatalogSourcesAsync" />
+}
+
+@code {
+    private WebsiteRulesPageDto _page = new();
+    private List<WebsiteCatalogSourceDto> _catalogSources = new();
+    private int _pageNum = 1;
+    private readonly int _pageSize = 100;
+    private string _search = string.Empty;
+    private string _sourceFilter = string.Empty;
+    private bool _loading = true;
+    private bool _showBulkAdd;
+    private bool _showCatalogSources;
+
+    private WebsiteRuleDto? _editing;
+    private WebsiteRuleDto? _deleting;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await base.OnInitializedAsync();
+        _catalogSources = await Api.GetWebsiteCatalogSourcesAsync();
+        await LoadAsync();
+        _loading = false;
+    }
+
+    private async Task LoadAsync()
+    {
+        int? sourceCatalogId = int.TryParse(_sourceFilter, out var id) ? id : null;
+        var manualOnly = _sourceFilter == "manual";
+
+        _page = await Api.GetWebsiteRulesAsync(
+            string.IsNullOrWhiteSpace(_search) ? null : _search,
+            sourceCatalogId, manualOnly,
+            _pageNum, _pageSize);
+
+        var sourceNames = _catalogSources.ToDictionary(s => s.Id, s => s.Name);
+        foreach (var rule in _page.Items)
+        {
+            rule.SourceText = rule.SourceCatalogId is null
+                ? "พิมพ์เอง"
+                : sourceNames.GetValueOrDefault(rule.SourceCatalogId.Value, "Catalog (ลบไปแล้ว)");
+        }
+    }
+
+    /// <summary>เหตุผลเดียวกับ AuditLog.razor's ReloadFromFirstPageAsync - เปลี่ยน filter ระหว่างอยู่
+    /// หน้าท้ายๆ แล้วยังขอหน้าเดิมจะได้ผลลัพธ์ว่างเปล่าซึ่งดูเหมือน "ไม่เจอ" ทั้งที่ไม่จริง</summary>
+    private async Task ReloadFromFirstPageAsync()
+    {
+        _pageNum = 1;
+        await LoadAsync();
+    }
+
+    private async Task OnSearchChangedAsync(string value)
+    {
+        _search = value;
+        await ReloadFromFirstPageAsync();
+    }
+
+    private async Task NextPageAsync() { _pageNum++; await LoadAsync(); }
+    private async Task PrevPageAsync() { if (_pageNum > 1) { _pageNum--; await LoadAsync(); } }
+
+    private int FirstRowNumber() => _page.TotalCount == 0 ? 0 : ((_pageNum - 1) * _pageSize) + 1;
+    private int LastRowNumber() => Math.Min(_pageNum * _pageSize, _page.TotalCount);
+
+    private async Task LoadCatalogSourcesAsync()
+    {
+        _catalogSources = await Api.GetWebsiteCatalogSourcesAsync();
+        await LoadAsync();
+    }
+
+    private async Task CloseCatalogSourcesAsync()
+    {
+        _showCatalogSources = false;
+        await LoadCatalogSourcesAsync();
+    }
+
+    /// <summary>Optimistic toggle - same reasoning as Rules.razor's ToggleAsync (see there for the full
+    /// explanation of why this is safe here specifically: the failure is visible and reversible).</summary>
+    private async Task ToggleAsync(WebsiteRuleDto rule)
+    {
+        var previous = rule.IsEnabled;
+        rule.IsEnabled = !previous;
+        StateHasChanged();
+
+        var ok = await Api.ToggleWebsiteRuleAsync(rule.Id);
+        if (!ok)
+        {
+            rule.IsEnabled = previous;
+            Toasts.Error("เปลี่ยนสถานะกฎไม่สำเร็จ", $"กฎ {rule.Name} ยังเป็น{(previous ? "เปิด" : "ปิด")}เหมือนเดิม");
+            StateHasChanged();
+            return;
+        }
+
+        Toasts.Success(rule.IsEnabled ? $"เปิดกฎ {rule.Name} แล้ว" : $"ปิดกฎ {rule.Name} แล้ว");
+    }
+
+    private async Task DeleteConfirmedAsync()
+    {
+        var rule = _deleting!;
+        _deleting = null;
+
+        var ok = await Api.DeleteWebsiteRuleAsync(rule.Id);
+        Toasts.Result(ok, $"ลบกฎ {rule.Name} แล้ว", "ลบกฎไม่สำเร็จ");
+        await LoadAsync();
+    }
+}

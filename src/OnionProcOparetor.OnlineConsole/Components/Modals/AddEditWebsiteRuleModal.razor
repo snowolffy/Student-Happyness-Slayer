@@ -1,0 +1,80 @@
+@* Ported from AddEditRuleModal but much shorter - Website Control has only Name/UrlPattern/IsEnabled,
+   no publisher/signature/action-command (there's only one action: add to URLBlocklist). *@
+@inject ApiClient Api
+
+<ModalShell Title="@(_rule.Id == 0 ? "Add Website Rule" : "Edit Website Rule")" OnClose="OnClose">
+    <div class="form-row">
+        <label>Name</label>
+        <input type="text" @bind="_rule.Name" />
+    </div>
+    <div class="form-row">
+        <label>URL Pattern</label>
+        <input type="text" placeholder="เช่น roblox.com หรือ *.roblox.com" @bind="_rule.UrlPattern" />
+    </div>
+    <div class="form-row">
+        <label style="display:flex; align-items:center; gap:.4rem; min-height:auto; font-weight:400; text-transform:none">
+            <input type="checkbox" @bind="_rule.IsEnabled" /> Enabled
+        </label>
+    </div>
+
+    @if (!string.IsNullOrEmpty(_error))
+    {
+        <div class="error-text">@_error</div>
+    }
+
+    <div class="toolbar">
+        <span class="spacer"></span>
+        <button class="btn btn-secondary" @onclick="OnClose" disabled="@_busy">CANCEL</button>
+        <button class="btn btn-primary" @onclick="SaveAsync" disabled="@_busy">SAVE</button>
+    </div>
+</ModalShell>
+
+@code {
+    [Parameter] public WebsiteRuleDto? InitialRule { get; set; }
+    [Parameter] public EventCallback OnClose { get; set; }
+    [Parameter] public EventCallback OnSaved { get; set; }
+
+    private WebsiteRuleDto _rule = new();
+    private bool _busy;
+    private string? _error;
+
+    protected override void OnInitialized()
+    {
+        if (InitialRule is not null)
+        {
+            // copy so cancelling doesn't leave the caller's list holding a half-edited object
+            _rule = new WebsiteRuleDto
+            {
+                Id = InitialRule.Id,
+                Name = InitialRule.Name,
+                UrlPattern = InitialRule.UrlPattern,
+                IsEnabled = InitialRule.IsEnabled
+            };
+        }
+    }
+
+    private async Task SaveAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_rule.Name) || string.IsNullOrWhiteSpace(_rule.UrlPattern))
+        {
+            _error = "กรอก Name และ URL Pattern ก่อน";
+            return;
+        }
+
+        _busy = true;
+        _error = null;
+
+        var ok = _rule.Id == 0 ? await Api.AddWebsiteRuleAsync(_rule) : await Api.UpdateWebsiteRuleAsync(_rule);
+
+        _busy = false;
+        if (ok)
+        {
+            await OnSaved.InvokeAsync();
+            await OnClose.InvokeAsync();
+        }
+        else
+        {
+            _error = "บันทึกไม่สำเร็จ";
+        }
+    }
+}

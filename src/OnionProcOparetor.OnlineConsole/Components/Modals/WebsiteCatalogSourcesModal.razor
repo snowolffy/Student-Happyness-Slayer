@@ -1,0 +1,188 @@
+@* Website Catalog Sources (2026-09-12) - จัดการ URL ภายนอกที่ Server sync เข้า WebsiteRule ให้เอง
+   ทุก 24 ชม. (ดู WebsiteCatalogSyncer ฝั่ง Server) inline add/edit form เดียว ไม่ทำ modal ซ้อน modal -
+   สลับระหว่าง "กำลังเพิ่มใหม่" กับ "กำลังแก้ไข id X" ด้วย _editingId (0 = กำลังเพิ่มใหม่/ไม่ได้แก้ไข) *@
+@inject ApiClient Api
+@inject ToastService Toasts
+
+<ModalShell Title="Website Catalog Sources" OnClose="OnClose">
+    <div class="card" style="padding:.75rem; margin-bottom:1rem">
+        <div style="font-weight:600; margin-bottom:.5rem">@(_editingId == 0 ? "เพิ่ม Source ใหม่" : "แก้ไข Source")</div>
+        <div class="form-row">
+            <label>Name</label>
+            <input type="text" @bind="_formName" />
+        </div>
+        <div class="form-row">
+            <label>Source URL</label>
+            <input type="text" @bind="_formUrl" placeholder="https://raw.githubusercontent.com/.../hosts" />
+        </div>
+        <div class="form-row">
+            <label>Max Entries (เพดานจำนวนโดเมน)</label>
+            <input type="number" @bind="_formMaxEntries" min="1" />
+        </div>
+        <div class="toolbar">
+            <span class="spacer"></span>
+            @if (_editingId != 0)
+            {
+                <button class="btn btn-secondary" @onclick="ResetForm">ยกเลิกแก้ไข</button>
+            }
+            <button class="btn btn-primary" @onclick="SaveFormAsync" disabled="@_busy">
+                @(_editingId == 0 ? "เพิ่ม" : "บันทึก")
+            </button>
+        </div>
+        @if (!string.IsNullOrEmpty(_formError))
+        {
+            <div class="error-text">@_formError</div>
+        }
+    </div>
+
+    @if (_loading)
+    {
+        <div class="status-text">กำลังโหลด...</div>
+    }
+    else if (_sources.Count == 0)
+    {
+        <div class="status-text">ยังไม่มี catalog source</div>
+    }
+    else
+    {
+        @foreach (var source in _sources)
+        {
+            <div class="card" style="padding:.6rem .75rem; margin-bottom:.5rem">
+                <div style="display:flex; justify-content:space-between; align-items:start; gap:.5rem; flex-wrap:wrap">
+                    <div style="flex:1; min-width:200px">
+                        <div style="font-weight:600">@source.Name <span class="badge @(source.IsEnabled ? "badge-online" : "badge-offline")">@(source.IsEnabled ? "เปิดใช้" : "ปิดใช้")</span></div>
+                        <div class="caption mono truncate">@source.SourceUrl</div>
+                        <div class="caption">เพดาน @source.MaxEntries โดเมน · @source.StatusText</div>
+                    </div>
+                    <div style="display:flex; gap:.3rem; flex-shrink:0">
+                        <button class="btn btn-secondary btn-sm" @onclick="() => SyncNowAsync(source.Id)">Sync Now</button>
+                        <button class="btn btn-secondary btn-sm" @onclick="() => StartEdit(source)">แก้ไข</button>
+                        <button class="btn btn-danger btn-sm" @onclick="() => _deleting = source">ลบ</button>
+                    </div>
+                </div>
+            </div>
+        }
+    }
+
+    @if (!string.IsNullOrEmpty(_status))
+    {
+        <div class="status-text">@_status</div>
+    }
+</ModalShell>
+
+@if (_deleting is not null)
+{
+    <ConfirmDialog Title="ลบ Catalog Source นี้?"
+                   Message="@($"Source \"{_deleting.Name}\" และกฎบล็อกเว็บทุกรายการที่มาจาก source นี้จะถูกลบไปด้วย การกระทำนี้ย้อนกลับไม่ได้")"
+                   ConfirmText="ลบ Source นี้"
+                   OnCancel="() => _deleting = null"
+                   OnConfirm="DeleteConfirmedAsync" />
+}
+
+@code {
+    [Parameter] public EventCallback OnClose { get; set; }
+    [Parameter] public EventCallback OnChanged { get; set; }
+
+    private List<WebsiteCatalogSourceDto> _sources = new();
+    private bool _loading = true;
+    private bool _busy;
+    private string? _status;
+    private string? _formError;
+    private WebsiteCatalogSourceDto? _deleting;
+
+    private int _editingId;
+    private string _formName = string.Empty;
+    private string _formUrl = string.Empty;
+    private int _formMaxEntries = 1000;
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        _sources = await Api.GetWebsiteCatalogSourcesAsync();
+        _loading = false;
+    }
+
+    private void StartEdit(WebsiteCatalogSourceDto source)
+    {
+        _editingId = source.Id;
+        _formName = source.Name;
+        _formUrl = source.SourceUrl;
+        _formMaxEntries = source.MaxEntries;
+        _formError = null;
+    }
+
+    private void ResetForm()
+    {
+        _editingId = 0;
+        _formName = string.Empty;
+        _formUrl = string.Empty;
+        _formMaxEntries = 1000;
+        _formError = null;
+    }
+
+    private async Task SaveFormAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_formName) || string.IsNullOrWhiteSpace(_formUrl))
+        {
+            _formError = "กรอก Name และ Source URL ก่อน";
+            return;
+        }
+
+        if (_formMaxEntries <= 0)
+        {
+            _formError = "Max Entries ต้องมากกว่า 0";
+            return;
+        }
+
+        _busy = true;
+        _formError = null;
+
+        var source = new WebsiteCatalogSourceDto
+        {
+            Id = _editingId,
+            Name = _formName.Trim(),
+            SourceUrl = _formUrl.Trim(),
+            MaxEntries = _formMaxEntries,
+            IsEnabled = true
+        };
+
+        var ok = _editingId == 0
+            ? await Api.AddWebsiteCatalogSourceAsync(source)
+            : await Api.UpdateWebsiteCatalogSourceAsync(source);
+
+        _busy = false;
+        if (!ok)
+        {
+            _formError = "บันทึกไม่สำเร็จ";
+            return;
+        }
+
+        Toasts.Success(_editingId == 0 ? "เพิ่ม source แล้ว" : "แก้ไข source แล้ว");
+        ResetForm();
+        await LoadAsync();
+        await OnChanged.InvokeAsync();
+    }
+
+    private async Task SyncNowAsync(int id)
+    {
+        _status = "กำลัง sync...";
+        var ok = await Api.SyncWebsiteCatalogSourceNowAsync(id);
+        _status = null;
+        Toasts.Result(ok, "Sync สำเร็จ", "Sync ไม่สำเร็จ");
+        await LoadAsync();
+        await OnChanged.InvokeAsync();
+    }
+
+    private async Task DeleteConfirmedAsync()
+    {
+        var source = _deleting!;
+        _deleting = null;
+
+        var ok = await Api.DeleteWebsiteCatalogSourceAsync(source.Id);
+        Toasts.Result(ok, $"ลบ source {source.Name} แล้ว", "ลบไม่สำเร็จ");
+        await LoadAsync();
+        await OnChanged.InvokeAsync();
+    }
+}

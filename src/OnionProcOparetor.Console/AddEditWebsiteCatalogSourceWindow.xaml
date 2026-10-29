@@ -1,0 +1,42 @@
+<Window x:Class="OnionProcOparetor.Console.AddEditWebsiteCatalogSourceWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Catalog Source"
+        Width="480"
+        SizeToContent="Height"
+        WindowStartupLocation="CenterOwner"
+        ResizeMode="NoResize"
+        Icon="/Theme/icon.ico"
+        Style="{StaticResource AppDialogWindow}">
+    <StackPanel Margin="20">
+        <TextBlock x:Name="TitleText" Style="{StaticResource Heading2}" Margin="0,0,0,16"/>
+
+        <Border Style="{StaticResource Card}" Margin="0,0,0,16">
+            <StackPanel>
+                <TextBlock Text="NAME" Style="{StaticResource Label}" Margin="0,0,0,4"/>
+                <TextBox x:Name="NameBox" Style="{StaticResource RoundedTextBox}" Margin="0,0,0,12"
+                         ToolTip="ชื่อที่ตั้งเอง เช่น 'Fortnite Block List'"/>
+
+                <TextBlock Text="SOURCE URL" Style="{StaticResource Label}" Margin="0,0,0,4"/>
+                <TextBox x:Name="SourceUrlBox" Style="{StaticResource RoundedTextBox}" Margin="0,0,0,12"
+                         ToolTip="URL ของไฟล์ hosts-file หรือ domain list ทีละบรรทัด (raw text)"/>
+
+                <TextBlock Text="MAX ENTRIES (เพดานจำนวนโดเมน)" Style="{StaticResource Label}" Margin="0,0,0,4"/>
+                <TextBox x:Name="MaxEntriesBox" Style="{StaticResource RoundedTextBox}" Margin="0,0,0,12"
+                         ToolTip="ถ้า list ที่ดึงมามีโดเมนเกินจำนวนนี้ จะไม่ import อะไรเลย (กันเผลอชี้ไป list ที่ใหญ่เกินจะใช้ได้จริง)"/>
+
+                <CheckBox x:Name="IsEnabledCheckBox" Content="เปิดใช้งาน source นี้ (sync อัตโนมัติทุก 24 ชม.)"
+                          Foreground="{DynamicResource Brush.Text.Primary}"/>
+            </StackPanel>
+        </Border>
+
+        <TextBlock x:Name="StatusText" Style="{StaticResource Caption}" TextWrapping="Wrap" Margin="0,0,0,16"/>
+
+        <Grid>
+            <Button Content="ยกเลิก" Style="{StaticResource ButtonSecondary}"
+                    Padding="10,5" FontSize="11" HorizontalAlignment="Right" Margin="0,0,96,0" Click="CancelButton_Click"/>
+            <Button Content="บันทึก" Style="{StaticResource ButtonPrimary}"
+                    HorizontalAlignment="Right" Click="SaveButton_Click"/>
+        </Grid>
+    </StackPanel>
+</Window>

@@ -407,6 +407,22 @@ public partial class DashboardWindow : Window
         _programReviewWindow.Show();
     }
 
+    /// <summary>เปิด Website Control - popup แยกเหมือน ProgramControlButton_Click ข้างบน (เหตุผลเดียวกันทุกอย่าง)</summary>
+    private WebsiteControlWindow? _websiteControlWindow;
+
+    private void WebsiteControlButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_websiteControlWindow is { IsLoaded: true })
+        {
+            _websiteControlWindow.Activate();
+            return;
+        }
+
+        _websiteControlWindow = new WebsiteControlWindow(_apiClient) { Owner = this };
+        _websiteControlWindow.Closed += (_, _) => _websiteControlWindow = null;
+        _websiteControlWindow.Show();
+    }
+
     private async void RefreshButton_Click(object sender, RoutedEventArgs e)
     {
         await LoadAllDataAsync();
