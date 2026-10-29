@@ -1,0 +1,18 @@
+<Window x:Class="OnionProcOparetor.AgentTray.BsodWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="BsodWindow"
+        WindowStyle="None"
+        WindowStartupLocation="Manual"
+        Topmost="True"
+        ResizeMode="NoResize"
+        ShowInTaskbar="False"
+        Background="#0078D7">
+    <!--
+        Easter egg มุกจอ shutdown - ดู Services/JokeShutdownController.cs
+        Background ตั้งเป็น #0078D7 ตรงกับสีขอบภาพ windows-modern-10-bsod.png เป๊ะ (sample พิกเซลมุม
+        ภาพมาแล้ว) ภาพเป็น 16:9 แต่จอจริงอาจไม่ใช่ - Stretch="Uniform" ย่อภาพให้พอดีจอโดยรักษาสัดส่วน
+        แล้วพื้นหลังสีเดียวกันเติมช่องว่างสองข้าง (letterbox) แทนที่จะเห็นแถบดำ/ขาวโผล่มาให้รู้ว่าเป็นมุก
+    -->
+    <Image x:Name="BsodImage" Stretch="Uniform"/>
+</Window>

@@ -58,4 +58,14 @@
     </None>
   </ItemGroup>
 
+  <!-- Easter egg มุกจอ shutdown (ดู Services/JokeShutdownController.cs) - ปิด default ผ่าน
+       appsettings.json (JokeShutdown:Enabled=false) ไฟล์ต้องเป็น loose file บน disk (ไม่ใช่
+       embedded Resource) เพราะ MediaPlayer เปิดเสียงจาก pack:// URI ไม่ได้ -->
+  <ItemGroup>
+    <None Include="Assets\Joke\**">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+    </None>
+  </ItemGroup>
+
 </Project>

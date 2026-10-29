@@ -24,6 +24,7 @@ public partial class App : System.Windows.Application
     // ไม่ได้ล็อกอยู่ (ใช้แทนการเช็ค field เดี่ยวเดิมที่รองรับแค่จอเดียว)
     private readonly List<LockScreenWindow> _lockScreenWindows = new();
     private ShutdownNotifyWindow? _shutdownNotifyWindow;
+    private readonly JokeShutdownController _jokeShutdownController = new();
 
     protected override void OnStartup(StartupEventArgs e)
     {
@@ -173,6 +174,7 @@ public partial class App : System.Windows.Application
         HideAllLockScreens();
         _shutdownNotifyWindow?.ForceClose();
         _shutdownNotifyWindow = null;
+        _jokeShutdownController.Cancel();
 
         // ToList ก่อนวนลูป เพราะ Windows collection เปลี่ยนระหว่างที่ปิดทีละอัน
         foreach (var window in Windows.Cast<Window>().ToList())
@@ -431,10 +433,25 @@ public partial class App : System.Windows.Application
         Dispatcher.BeginInvoke(() =>
         {
             _shutdownNotifyWindow?.ForceClose();
+            _jokeShutdownController.Cancel();
 
             _shutdownNotifyWindow = new ShutdownNotifyWindow(notify);
-            _shutdownNotifyWindow.Closed += (_, _) => _shutdownNotifyWindow = null;
+            _shutdownNotifyWindow.Closed += (_, _) =>
+            {
+                _shutdownNotifyWindow = null;
+
+                // จอฟ้าปลอม (ถ้ากำลังโชว์อยู่) ต้องปิดพร้อมกันเสมอ ไม่ว่า ShutdownNotifyWindow จะปิด
+                // เพราะนับครบ (shutdown จริงกำลังจะเกิด) หรือเพราะมีคำสั่งใหม่มาทับก่อนก็ตาม
+                _jokeShutdownController.Cancel();
+            };
             _shutdownNotifyWindow.Show();
+
+            // Easter egg - ปิด default เสมอ (JokeShutdown:Enabled ใน appsettings.json) ดู
+            // Services/JokeShutdownController.cs ว่าทำไมต้อง >= 10 วิ
+            if (JokeShutdownController.ShouldRun(notify.DelaySeconds))
+            {
+                _jokeShutdownController.Start(notify.DelaySeconds);
+            }
         });
     }
 
@@ -446,6 +463,7 @@ public partial class App : System.Windows.Application
         _physicalInputBlocker.Unblock();
         _vncProcessManager.Stop();
         _shutdownNotifyWindow?.ForceClose();
+        _jokeShutdownController.Cancel();
         _trayIcon?.Dispose();
         _singleInstanceGuard.Dispose();
         base.OnExit(e);
