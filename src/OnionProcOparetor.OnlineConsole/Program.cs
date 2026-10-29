@@ -41,17 +41,41 @@ if (string.Equals(bindMode, "Loopback", StringComparison.OrdinalIgnoreCase))
 else
 {
     using var startupLoggerFactory = LoggerFactory.Create(logging => logging.AddConsole());
-    var startupGateway = new TailscaleGatewayService(startupLoggerFactory.CreateLogger<TailscaleGatewayService>());
-    var tailnetIp = startupGateway.ResolveOwnTailnetIpAsync().GetAwaiter().GetResult();
+    var startupLogger = startupLoggerFactory.CreateLogger<TailscaleGatewayService>();
+    var startupGateway = new TailscaleGatewayService(startupLogger);
+
+    // ลองซ้ำแทนที่จะ throw ตั้งแต่ครั้งแรก (2026-09-20) - ตอนเพิ่งบูตเครื่อง tailscaled อาจยังเชื่อม
+    // tailnet ไม่เสร็จตอนที่ Windows Service (Start="auto") ของแอปนี้เริ่มทำงาน ResolveOwnTailnetIpAsync
+    // เองมี timeout ในตัวอยู่แล้ว 10 วิ/ครั้ง - ลอง 6 ครั้ง (~60 วิรวม) ครอบคลุมเวลาที่ tailscaled ทั่วไป
+    // ใช้เชื่อมต่อหลังบูตโดยไม่ต้องรอ service restart (ดู installer's ServiceConfig เป็นเกราะชั้นถัดไป
+    // ถ้า 60 วินี้ไม่พอจริงๆ - ดู docs/architecture.md หัวข้อ Online Console)
+    const int MaxAttempts = 6;
+    string? tailnetIp = null;
+
+    for (var attempt = 1; attempt <= MaxAttempts; attempt++)
+    {
+        tailnetIp = startupGateway.ResolveOwnTailnetIpAsync().GetAwaiter().GetResult();
+        if (tailnetIp is not null)
+        {
+            break;
+        }
+
+        if (attempt < MaxAttempts)
+        {
+            startupLogger.LogWarning(
+                "หา Tailscale IP ไม่สำเร็จ (ครั้งที่ {Attempt}/{MaxAttempts}) - tailscaled อาจยังเชื่อมต่อไม่เสร็จหลังบูต ลองใหม่...",
+                attempt, MaxAttempts);
+        }
+    }
 
     if (tailnetIp is null || !IPAddress.TryParse(tailnetIp, out bindAddress!))
     {
         throw new InvalidOperationException(
-            "หา Tailscale IP ของเครื่องนี้ไม่ได้ (tailscale ip -4 ไม่สำเร็จ) - ต้องติดตั้ง Tailscale และเชื่อมต่อ " +
-            "tailnet อยู่แล้วก่อนรัน OnionProcOparetor.OnlineConsole (ต้องรันบนเครื่องเดียวกับ " +
-            "OnionProcOparetor.Server เพื่อให้ Screen View/Live View เปิด TCP ตรงไปยัง Agent ในวง LAN ได้ - " +
-            "ดู docs/architecture.md) ถ้ากำลังพัฒนาบนเครื่องที่ยังไม่ได้ต่อ tailnet ให้ตั้ง " +
-            "Tailscale:BindMode=Loopback ใน appsettings.Development.json แทน");
+            $"หา Tailscale IP ของเครื่องนี้ไม่ได้หลังลอง {MaxAttempts} ครั้ง (tailscale ip -4 ไม่สำเร็จ) - " +
+            "ต้องติดตั้ง Tailscale และเชื่อมต่อ tailnet อยู่แล้วก่อนรัน OnionProcOparetor.OnlineConsole " +
+            "(ต้องรันบนเครื่องเดียวกับ OnionProcOparetor.Server เพื่อให้ Screen View/Live View เปิด TCP " +
+            "ตรงไปยัง Agent ในวง LAN ได้ - ดู docs/architecture.md) ถ้ากำลังพัฒนาบนเครื่องที่ยังไม่ได้ต่อ " +
+            "tailnet ให้ตั้ง Tailscale:BindMode=Loopback ใน appsettings.Development.json แทน");
     }
 }
 
