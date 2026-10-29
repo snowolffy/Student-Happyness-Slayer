@@ -79,3 +79,11 @@ publish.html
 *.tmp
 *.bak
 *.swp
+
+# Firmware secrets (WiFi credentials, RemoteBridge RemoteSecret) - real values live only on disk,
+# never in git; firmware/*/secrets.h.example stays committed as the template
+firmware/**/secrets.h
+
+# arduino-cli.exe (downloaded straight into the firmware folder for local compile-checking) - a
+# binary tool, not source, never belongs in git
+firmware/**/arduino-cli.exe

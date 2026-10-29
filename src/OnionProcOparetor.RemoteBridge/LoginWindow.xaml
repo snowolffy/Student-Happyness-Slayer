@@ -1,0 +1,22 @@
+<Window x:Class="OnionProcOparetor.RemoteBridge.LoginWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Remote Bridge - Login" Height="360" Width="380"
+        WindowStartupLocation="CenterScreen" ResizeMode="NoResize">
+    <StackPanel Margin="16">
+        <TextBlock Text="Server (IP:Port)" Margin="0,0,0,4"/>
+        <TextBox x:Name="ServerUrlBox" Margin="0,0,0,12"/>
+
+        <TextBlock Text="Username" Margin="0,0,0,4"/>
+        <TextBox x:Name="UsernameBox" Margin="0,0,0,12"/>
+
+        <TextBlock Text="Password" Margin="0,0,0,4"/>
+        <PasswordBox x:Name="PasswordBox" Margin="0,0,0,12"/>
+
+        <TextBlock Text="Remote ID (รหัสประจำ remote นี้ - ยังไม่เชื่อมฮาร์ดแวร์จริง)" TextWrapping="Wrap" Margin="0,0,0,4"/>
+        <TextBox x:Name="RemoteIdBox" Margin="0,0,0,16"/>
+
+        <Button x:Name="ConnectButton" Content="Connect" Click="ConnectButton_Click" Padding="8,4" Margin="0,0,0,8" HorizontalAlignment="Left"/>
+        <TextBlock x:Name="StatusText" TextWrapping="Wrap" Foreground="Gray"/>
+    </StackPanel>
+</Window>

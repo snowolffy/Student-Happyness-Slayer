@@ -1,0 +1,39 @@
+<Window x:Class="OnionProcOparetor.RemoteBridge.StatusWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Remote Bridge" Height="520" Width="420"
+        WindowStartupLocation="CenterScreen" ResizeMode="NoResize">
+    <StackPanel Margin="16">
+        <TextBlock Text="Remote ID:" FontWeight="Bold"/>
+        <TextBlock x:Name="RemoteIdText" Margin="0,0,0,12"/>
+
+        <TextBlock Text="Server:" FontWeight="Bold"/>
+        <TextBlock x:Name="ServerText" Margin="0,0,0,4"/>
+
+        <TextBlock Text="Username:" FontWeight="Bold"/>
+        <TextBlock x:Name="UsernameText" Margin="0,0,0,12"/>
+
+        <TextBlock x:Name="StatusText" Margin="0,0,0,16" TextWrapping="Wrap" Foreground="Gray"/>
+
+        <Separator Margin="0,0,0,12"/>
+
+        <TextBlock Text="ตั้งค่าฮาร์ดแวร์ (ESP32)" FontWeight="Bold" Margin="0,0,0,8"/>
+
+        <TextBlock Text="1. เปิด Tailscale Funnel บนเครื่องนี้ (รันครั้งเดียว, cmd/PowerShell):" TextWrapping="Wrap" Margin="0,0,0,4"/>
+        <TextBox x:Name="FunnelCommandText" IsReadOnly="True" Margin="0,0,0,12" FontFamily="Consolas"/>
+
+        <TextBlock Text="2. Remote Secret (ใส่ใน Arduino sketch - ห้ามแชร์ต่อ):" TextWrapping="Wrap" Margin="0,0,0,4"/>
+        <TextBox x:Name="RemoteSecretText" IsReadOnly="True" Margin="0,0,0,12" FontFamily="Consolas"/>
+
+        <TextBlock Text="3. รูปแบบ URL ที่ ESP32 ต้องยิง (แทน &lt;funnel-url&gt; ด้วย URL จริงหลังเปิด Funnel):" TextWrapping="Wrap" Margin="0,0,0,4"/>
+        <TextBox x:Name="TriggerUrlExampleText" IsReadOnly="True" Margin="0,0,0,16" FontFamily="Consolas" TextWrapping="Wrap"/>
+
+        <TextBlock Text="ปุ่มด้านล่างเป็นตัวแทนชั่วคราวของ remote hardware - กดทดสอบวงจร login → ดึงรายชื่อเครื่อง → ยิงคำสั่งได้เลยโดยไม่ต้องรอฮาร์ดแวร์จริง"
+                   TextWrapping="Wrap" FontStyle="Italic" Foreground="Gray" Margin="0,0,0,12"/>
+
+        <StackPanel Orientation="Horizontal">
+            <Button x:Name="LockButton" Content="Lock All (ทดสอบ)" Click="LockButton_Click" Padding="8,4" Margin="0,0,8,0" IsEnabled="False"/>
+            <Button x:Name="UnlockButton" Content="Unlock All (ทดสอบ)" Click="UnlockButton_Click" Padding="8,4" IsEnabled="False"/>
+        </StackPanel>
+    </StackPanel>
+</Window>
