@@ -26,6 +26,7 @@
 |---|---|
 | **Rule enforcement** | จับ process ด้วย Authenticode signature (fallback เป็น `CompanyName`) → kill และ/หรือรัน `ActionCommand` ต่อ · ตรวจผ่าน WMI event + full-scan ทุก 10 วิ · override รายเครื่องได้ |
 | **Program Control** | จำแนกโปรแกรมที่ระบบ rule เดิมมองไม่เห็นด้วยคะแนนอัตโนมัติ → block ทันที / เข้าคิวให้ครูตัดสิน · blocklist กระจายเป็น SHA-256 ไปทุกเครื่องพร้อม poll |
+| **Website Control** | บล็อกเว็บไซต์รายรายการผ่าน Chrome/Edge Enterprise Policy (registry) · เปิด/ปิดทีละเว็บได้ ผูกกับสวิตช์ enforcement ตัวเดียวกับ Program Control · เพิ่มได้ทีละหลายรายการ (bulk add) หรือ sync อัตโนมัติจาก catalog ภายนอกทุก 24 ชม. พร้อมเพดานกันรายการใหญ่เกินไป |
 | **Remote commands** | Lock / Unlock screen, Shutdown, Restart, Broadcast message, ดูรายการ process ที่รันอยู่ · มี ack + ผลจริงรายเครื่อง |
 | **Screen View (VNC)** | ดูและควบคุมหน้าจอเครื่องนักเรียนแบบ full-screen (เมาส์/คีย์บอร์ด) · data plane ต่อ TCP ตรง ไม่ผ่าน Server |
 | **Tamper protection** | watchdog เฝ้า Agent ผ่าน Scheduled Task + heartbeat · สร้าง task คืนเองถ้าถูกลบ |

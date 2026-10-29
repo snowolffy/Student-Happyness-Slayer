@@ -166,6 +166,20 @@ feature-selection สองรอบจากดีไซน์นี้ (ADDLOC
 > ทั้ง 2 ตัวที่ FileVersion `1.2.5.12310` **ต้องลงใหม่เฉพาะฝั่ง Server+Console เท่านั้น** เพราะ
 > ทั้ง 2 อย่างแก้ที่ Server เป็นหลัก (ที่แก้ในฝั่ง Agent เป็นแค่ log เตือน ไม่ได้แก้อาการอะไร) —
 > ไม่ต้องแตะเครื่อง lab ทั้ง 40 เครื่อง และไม่มี DB migration
+>
+> **อัพเดต 2026-09-11 (Website Control)**: เพิ่มฟีเจอร์ใหม่ "Website Control" — บล็อกเว็บไซต์ระดับ URL
+> ผ่าน Chrome/Edge Enterprise Policy (`URLBlocklist` registry) ดูหัวข้อ Website Control ด้านล่าง
+> **คนละกลไกกับ "Internet restriction (Phase 5)" ที่เคย stash ไว้และยังไม่ได้ทำต่อ** (Phase 5 คือ
+> `NetShutdownManager` ตัดเน็ตทั้งเครื่องผ่าน Windows Firewall — อันนั้นยังไม่มีในระบบเหมือนเดิม
+> ดูหัวข้อ Known limitations) build ผ่านทั้ง 4 โปรเจกต์ + สร้าง/ทดสอบ migration และ CRUD endpoint
+> จริงบน DB แยกต่างหาก (isolated port/DB บนเครื่อง dev)
+>
+> **อัพเดต 2026-09-12**: field-test Website Control จริงบน Chrome/Edge จริง (ไม่ใช่แค่ curl) สำเร็จ
+> ทั้งสองเบราว์เซอร์ — ดูรายละเอียดในหัวข้อ Website Control ด้านล่าง ตามด้วย **Bulk Add + Online
+> Catalog Sync** (วางโดเมนทีละหลายบรรทัด + sync จาก hosts-file list ภายนอกอัตโนมัติทุก 24 ชม. พร้อม
+> เพดานกันเหตุ list สาธารณะที่ใหญ่เกินจะใช้ได้จริง เช่น `gambling.txt` ที่มี 342,627 โดเมน) และ
+> `GET /api/website-rules` เปลี่ยนเป็นแบ่งหน้า/ค้นหา/กรองแทนคืนทั้งหมดทีเดียว (breaking change ของ
+> response shape) **ยังไม่ deploy ขึ้นเครื่อง lab**
 
 ## ภาพรวมสถาปัตยกรรม
 
@@ -364,6 +378,106 @@ return ทันทีถ้าไฟล์ไม่มี publisher ซึ่�
 - กฎเหล็ก: อะไรก็ตามใน `%SystemRoot%` คืน Allow ทันทีโดยไม่ผ่านการให้คะแนน
 - ข้อจำกัดที่รู้ตัว: **เกมผ่าน browser มองไม่เห็นเลย** และไฟล์ที่ไม่มี marker อะไรเลยได้ 0 คะแนน
 
+## Website Control (2026-09-11)
+
+ปิดช่องที่ Program Control ประกาศไว้เป็นข้อจำกัดที่รู้ตัว ("เกมผ่าน browser มองไม่เห็นเลย") — เพิ่มชั้น
+บล็อกระดับ URL ในเบราว์เซอร์ ตัดสินใจร่วมกับ user 2026-09-11 ว่าเป็นงาน step 2 ที่ควรทำก่อนระบบ
+sign-in/tracking เพราะภัยจริงคือเด็กหนีไปเล่นเกม/emulator ผ่านเว็บ (threat model เดิมที่สรุปไว้ 2026-09-02
+ว่า Server/Console-only fixes พอ ไม่ต้องแตะ agent 40 เครื่อง)
+
+- **กลไก**: เขียน Chrome/Edge Enterprise Policy ผ่าน Registry — `HKLM\SOFTWARE\Policies\Google\
+  Chrome\URLBlocklist` และ `...\Policies\Microsoft\Edge\URLBlocklist` เป็น subkey ที่มี REG_SZ
+  เรียงเลข `1`, `2`, `3`... (list-type policy format มาตรฐานของ Chromium) เลือกวิธีนี้แทน
+  hosts-file (หยาบเกิน บล็อกได้แค่ทั้งโดเมน) และแทน extension (เด็กถอนเองได้ถ้ามีสิทธิ์) —
+  ผู้ใช้ปิดเองไม่ได้ผ่าน UI ปกติ (browser โชว์ "This setting is managed by your administrator")
+  และ Chrome/Edge เองก็ watch key นี้แล้ว reload policy ให้เองภายในไม่กี่วินาทีโดยไม่ต้อง restart
+- **คนละเรื่องกับ "Internet restriction (Phase 5)"** ที่เคยออกแบบไว้ในปี 2026-08-02 แล้วถูก stash
+  พร้อมงานอื่นตอน stabilization (ดูหัวข้อ Known limitations) — Phase 5 คือสวิตช์ตัดเน็ตทั้งเครื่อง
+  (`NetShutdownManager`, Windows Firewall rule) ส่วน Website Control คือบล็อกทีละเว็บไซต์แบบเลือกได้
+  คนละ scope และคนละกลไกกันโดยสิ้นเชิง ไม่ได้ต่อยอดจากโค้ดที่ stash ไว้เลย
+- **Model**: `WebsiteRule` (Id/Name/UrlPattern/IsEnabled) — table แยกจาก `Rule` ของ Program Control
+  ไม่มี `RuleType` discriminator ร่วมกัน (เดินตาม pattern เดิมที่ `Rule` เองก็เป็น dedicated table)
+  **ยังไม่มี per-machine override** (`WebsiteRuleOverride`) แบบที่ `RuleOverride` มีให้ `Rule` — ตัดสินใจ
+  เว้นไว้ก่อนเพราะไม่มีใครขอ (YAGNI) เพิ่มทีหลังได้ถ้าจำเป็นจริง
+- **Endpoint**: `/api/website-rules[/{id}]` + `/toggle` (mirror `/api/rules` ทุกอย่าง auth/error shape
+  เดียวกัน) `/api/poll/{clientGuid}` ส่ง `websiteRules` (เฉพาะ `IsEnabled`) มาคู่กับ `rules` เดิม
+- **⚠️ Gate ต่างจาก Program Control โดยตั้งใจ**: `Worker.ScanRunningProcessesAsync` เรียก
+  `WebsiteControlService.Apply()` **ทุกรอบ scan เสมอ ไม่มี early-return** ตามด้วยเงื่อนไข
+  `_bypassState.IsBypassed || !_lastKnownState.Enabled` เหมือน process rules — ส่ง `Array.Empty
+  <string>()` เข้าไปเองแทนตอน bypass/ปิด enforcement เหตุผล: registry key ที่เคยเขียนไว้จะ
+  **"ค้างอยู่ต่อ"** ในเซสชันเดียวกันจนกว่าจะมีคนลบจริง (ต่างจาก process kill ที่แค่ไม่ทำอะไรต่อก็พอ)
+  ถ้า early-return เหมือน process rules เว็บที่เคยบล็อกไว้จะยังบล็อกค้างอยู่หลังปิด enforcement/bypass
+  จนกว่าจะ reboot (เครื่อง lab ทุกเครื่องรัน Reboot Restore Rx ซึ่งล้าง registry ทุก reboot อยู่แล้ว)
+  ซึ่งขัดกับสิ่งที่ครูคาดหวังตอนกด BYPASS/ปิดสวิตช์ทันที ใช้ global enforcement toggle ตัวเดียวกับ
+  Program Control (`GlobalState.IsEnabled` AND-gate) ไม่มี toggle แยก
+- **Console UI**: popup window แยก (`WebsiteControlWindow`) ไม่ใช่ tab ของ Rules — เหมือน
+  `ProgramReviewWindow` ตั้งใจไม่ให้กฎบล็อกแอปกับบล็อกเว็บปนกันจนงง ฝั่ง OnlineConsole เป็นหน้าแยก
+  `/website-rules` เข้า group เดียวกับ Rules
+- **ข้อจำกัดที่รู้ตัว**: ครอบคลุมแค่ Chrome/Edge เท่านั้น (เครื่อง lab ใช้แค่สองตัวนี้จริง) ไม่มี Firefox/
+  browser อื่น และ registry policy เป็นระดับ `HKLM` — นักเรียนที่ยังมีสิทธิ์ local admin (ก่อนแผนเปลี่ยน
+  นักเรียนเป็น standard user เสร็จสมบูรณ์ — ดูหัวข้อ "AgentTray กับ user account ใหม่" ด้านบน) ลบ key นี้
+  เองได้โดยตรงถ้ารู้ตำแหน่ง เหมือนกับที่ Program Control ก็มีข้อจำกัดเดียวกันเรื่องสิทธิ์ ไม่ใช่ปัญหาใหม่
+  ของฟีเจอร์นี้
+- **Field-test 2026-09-12**: ทดสอบจริงบนเครื่อง dev นี้ทั้ง Chrome และ Edge จริง (ไม่ใช่แค่ curl) —
+  เห็น `URLBlocklist` ขึ้นใน `chrome://policy`/`edge://policy` เองอัตโนมัติ, เข้าเว็บที่บล็อกไว้เจอ
+  หน้า "This page is blocked" จริง, ปิดกฎแล้ว registry เคลียร์เองภายใน ~15 วิ ยืนยันครบทั้งสอง
+  เบราว์เซอร์ (รายละเอียดขั้นตอนเทสอยู่ใน session log 2026-09-12) **ยังไม่ deploy ขึ้นเครื่อง lab**
+  (รอ MSI rollout รอบที่มีงานค้างอื่นๆ ฝั่ง Agent/AgentTray อยู่แล้ว เช่น pipe-deafness fix จาก
+  2026-09-10)
+- **Bulk Add + Online Catalog Sync (2026-09-12)** — ปิดช่องที่ต้องพิมพ์ทีละโดเมน:
+  - `POST /api/website-rules/bulk` วางรายชื่อโดเมนทีละหลายบรรทัดได้ทีเดียว (cap 200 รายการ/ครั้ง,
+    dedup case-insensitive ทั้งกับของเดิมในระบบและภายในชุดที่วางมาเอง)
+  - `WebsiteCatalogSource` (model ใหม่) + `WebsiteCatalogSyncer`/`WebsiteCatalogSyncService` (Server) —
+    ให้ admin ชี้ไป URL ของ hosts-file/domain-list ภายนอกอะไรก็ได้ แล้ว sync เข้า `WebsiteRule` ให้เอง
+    ทุก 24 ชม. (เลือกแบบอัตโนมัติ ไม่ใช่ manual-only) **ต้องมีเพดานจริงจัง** เพราะเช็คจริงแล้วพบว่า list
+    สาธารณะมีขนาดต่างกันมหาศาล — ตรวจสอบจริงกับ `blocklistproject/Lists` บน GitHub วันที่ 2026-09-12:
+    `fortnite.txt` มี 5 โดเมน, `smart-tv.txt` มี 90, แต่ `gambling.txt` มี **342,627** และ `youtube.txt`
+    มี 24,295 — สอง list หลังนี้ไม่มีทางใช้กับกลไก registry ของเราได้จริง ทดสอบแล้วว่าระบบปฏิเสธ
+    `gambling.txt` ถูกต้อง (`SkippedTooLarge`, ไม่ import อะไรเลย, เห็นตัวเลขจริง 342,623 ใน error
+    message) ในขณะที่ `fortnite.txt` sync ผ่านได้ปกติ (สร้าง `WebsiteRule` 5 แถวพอดี, ลบ source ก็
+    cascade ลบทั้ง 5 แถวถูกต้อง, re-sync ซ้ำก็ idempotent ไม่สร้างซ้ำ) — ทดสอบจริงกับ endpoint ตรงๆ
+    ผ่าน curl แล้ว (isolated DB) ไม่ใช่แค่ทฤษฎี
+  - `AbsoluteMaxEntries = 5000` (เดิมตั้งไว้ 500 ตอนออกแบบแรก แต่ user ชี้ว่าปัญหา UI แก้ด้วยการแบ่ง
+    หน้า/ค้นหา/กรองได้อยู่แล้ว ไม่ต้องพึ่ง cap ต่ำๆ — เพดานที่เหลืออยู่จึงป้องกันแค่ "ใช้กับ registry
+    policy ไม่ได้จริง" ไม่ใช่ "ตารางค้าง")
+  - `GET /api/website-rules` เปลี่ยนจากคืน array ตรงๆ เป็น `{ items, totalCount, page, pageSize }`
+    พร้อม `search`/`sourceCatalogId`/`manualOnly` — เดินตาม pattern เดียวกับ `GET /api/activitylog`
+    (page/pageSize + totalCount) ที่มีอยู่แล้ว **นี่คือ breaking change ของ response shape** ถ้ามีที่
+    อื่นเรียก endpoint นี้แบบเก่าไว้ต้องแก้ด้วย
+
+## Online Console — bundled into the Server+Console installer (2026-09-20)
+
+`OnionProcOparetor.OnlineConsole` เดิม deploy ด้วยมือล้วนๆ (`dotnet publish` + copy ไฟล์เอง, ดู
+`deploy/onlineconsole/install-service.ps1`) แม้โค้ดจะมี `UseWindowsService()` ต่อไว้ให้แล้วตั้งแต่แรก
+ตอนนี้ผูกเข้า `installer/OnionProcOparetor.ServerConsole.wxs` เป็น Feature ที่ 3 (`OnlineConsoleFeature`)
+แล้ว — อัปเดตทีเดียวไม่ต้อง copy ไฟล์เองอีกต่อไป
+
+- **default ไม่ติ๊ก** (`INSTALLONLINECONSOLE` default `"0"`) ต่างจาก Server/Console ที่ default ติ๊กทั้งคู่
+  — เป็นความสามารถใหม่ที่มี external dependency (ต้องมี Tailscale เชื่อมต่ออยู่แล้ว) เครื่องที่อัปเกรดมา
+  ไม่ควรได้ service ใหม่ที่ไม่ได้ขอ
+- **บังคับว่าต้องติ๊ก Server ด้วยเสมอถ้าจะติ๊ก Online Console** (validation ใหม่ใน `ComponentsDlg`) เพราะ
+  OnlineConsole proxy เข้า `/api/auth/login` ของ Server ที่ `127.0.0.1:8787` ตรงๆ ต้องรันเครื่องเดียวกัน
+- **ความเสี่ยงจริงที่แก้ก่อนทำ packaging**: `Program.cs` resolve Tailscale IP ตอน startup แล้ว throw ทันที
+  ถ้าไม่สำเร็จ (เดิมลองแค่ครั้งเดียว) — เป็น Windows Service แบบ `Start="auto"` แปลว่าเครื่องรีสตาร์ท
+  ตอนที่ tailscaled ยังเชื่อมต่อไม่เสร็จจะทำให้ service ตายตั้งแต่เริ่ม แก้เป็น 2 ชั้น: (1) retry ใน
+  `Program.cs` เอง 6 ครั้ง (~60 วิ) ก่อน throw จริง (2) `sc.exe failure OnionOnlineConsole reset=86400
+  actions=restart/30000/restart/60000/restart/120000` ผ่าน deferred CustomAction (`ConfigureOnlineConsoleRecovery`,
+  `After="StartServices"`) — ค่าเดียวกับที่ `deploy/onlineconsole/install-service.ps1` ใช้มาก่อนแล้วจริง
+  ไม่ใช้ `util:ServiceConfig` เพราะ schema ไม่ชัดว่า `RestartServiceDelayInSeconds` รองรับ delay แบบขั้นบันได
+  เหมือน `sc.exe` หรือเปล่า — เรียก `sc.exe` ตรงๆ ปลอดภัยกว่า **ลอง `DelayedAutoStart="yes"` บน
+  `<ServiceInstall>` แล้วด้วยแต่ WiX v5 ปฏิเสธ (`WIX0004: unexpected attribute`) ทั้งที่ string นี้มีอยู่จริง
+  ใน `WixToolset.Data.dll` — ไม่ได้ถูก expose ผ่าน attribute นี้ ไม่ได้ตามหา syntax อื่นต่อเพราะไม่ใช่
+  เกราะหลัก
+- **ยืนยันด้วย `wix build` จริง**: compile ผ่าน 0 error หลังแก้ปัญหาข้างบน ตรวจ table ในตัว .msi ที่ compile
+  ได้ตรงๆ ผ่าน `WindowsInstaller.Installer` COM object (ไม่ต้องติดตั้งจริง) ยืนยัน Feature/Component/
+  ServiceInstall (`StartType=2` = auto ถูกต้อง)/CustomAction/sequencing/Dialog controls ครบถ้วนตรงตามที่
+  ตั้งใจ **ยังไม่เคยติดตั้งจริงบนเครื่องไหนเลย** (ต้องมีคนอยู่หน้าเครื่องตอนทดสอบ service recovery จริง
+  ด้วยการถอด Tailscale ออกก่อนแล้วลองรีสตาร์ท - เป็นการทดสอบที่กระทบเครื่องจริง ไม่ทำแบบไม่มีคนดูอยู่)
+- **บทเรียนเรื่อง tooling**: `wix build` รันผ่าน Bash (MSYS) บนเครื่องนี้ล้มเหลวเงียบๆ/เขียนไฟล์ผิดที่ —
+  backslash ใน `-o output\file.msi` โดน bash กลืนทิ้ง (backslash+ตัวอักษรอื่นในตัวมันเองไม่มีความหมายพิเศษ
+  ใน bash เลยหายไปเฉยๆ) กลายเป็นชื่อไฟล์ `outputfile.msi` แบนๆ ในโฟลเดอร์ผิด ต้องรันผ่าน PowerShell เท่านั้น
+  สำหรับคำสั่งที่มี Windows-style path แบบนี้
+
 ## Tailscale fallback health (2026-08-31)
 
 `tailscaled.state` (node key) อยู่บนไดรฟ์ที่ freeze เหมือนกัน → **หลุด tailnet ทุก reboot** ถ้าไม่ได้
@@ -441,8 +555,12 @@ thaw → สร้าง user → **login เป็น user นั้น** → *
   ทำให้ instance ใหม่ปิดตัวเองทันทีถ้าตัวเก่ายังถือ mutex อยู่ ไม่ได้แก้เพราะการยอมให้มี tray สองตัว
   แปลว่ามี pipe listener สองตัวแย่งกันรับ message และ lock screen ซ้อนกัน — อันตรายกว่าปัญหาที่จะแก้
   ทางที่ถูกคือให้ instance ใหม่ probe pipe ของตัวเก่าก่อนแล้วค่อยตัดสินใจ ซึ่งยังไม่ได้ทำ
-- Windows Firewall/hosts-based website blocking, "ปิดเน็ตทั้งหมด" — ออกแบบ+implement ไปรอบหนึ่งแล้ว
-  (Phase 5) แต่ถูก revert พร้อมงานอื่นตอน stabilization — ยังไม่มีในระบบตอนนี้
+- **"ปิดเน็ตทั้งหมด" แบบสวิตช์เดียว (Phase 5 internet kill-switch)** — ออกแบบ+implement ไปรอบหนึ่งแล้ว
+  (`NetShutdownManager`, Windows Firewall rule + watchdog กันเครื่องค้างในสถานะนี้ถาวร) แต่ถูก stash
+  พร้อมงานอื่น (SignalR migration, Physical Input Block) ตอน stabilization เพราะบั๊กสะสมจนคุมยากรวมกัน
+  — ยังไม่มีในระบบตอนนี้ โค้ดยังอยู่ใน `git stash`/commit `2f733be` เผื่อกลับไปหยิบมาทำใหม่ทีหลัง
+  **ต่างจาก Website Control** (เพิ่มแล้ว 2026-09-11 ดูหัวข้อด้านบน) ซึ่งบล็อกเป็นรายเว็บไซต์ผ่าน
+  Chrome/Edge policy ไม่ใช่ตัดเน็ตทั้งเครื่อง — สองเรื่องนี้แก้ปัญหาคนละแบบ ไม่ใช่ฟีเจอร์เดียวกัน
 - `ResizeMode="NoResize"` + pixel-fixed `Canvas` layout ทุกหน้าจอ Console — ใช้งานได้ดีในสภาพแวดล้อมปกติ
   แต่ไม่รองรับ DPI/text-scaling ที่สูงกว่าปกติหรือเนื้อหาที่ยาวเกินพื้นที่ที่จัดไว้ (รู้ข้อจำกัดแล้ว ยังไม่
   ทำ เพราะเป็น rework ใหญ่)
@@ -452,7 +570,10 @@ thaw → สร้าง user → **login เป็น user นั้น** → *
   (ช่องที่คุ้มแก้ที่สุดที่เหลืออยู่ — ทางแก้คือให้ tray ส่ง token ที่ได้จาก Server มาด้วยแล้วให้ Agent verify)
   **และเนื่องจาก bypass ปิด Program Control ไปด้วย (ดูหัวข้อ Program Control) request เดียวนี้จึงปิดทั้ง
   กฎ publisher และ blocklist เกมทั้งหมดพร้อมกัน** — เป็น loopback HTTP ล้วนๆ ไม่เกี่ยวกับสิทธิ์ผู้ใช้
-  การเปลี่ยนนักเรียนเป็น standard user จึง**ไม่ได้ปิดช่องนี้เลย**
+  การเปลี่ยนนักเรียนเป็น standard user จึง**ไม่ได้ปิดช่องนี้เลย** ตั้งแต่ Website Control (2026-09-11)
+  เพิ่มเข้ามา ช่องเดียวกันนี้**เคลียร์ URLBlocklist ทิ้งด้วย** (ตั้งใจให้ gate เดียวกับ Program Control —
+  ดูหัวข้อ Website Control) เพราะฉะนั้น exploit เดิมตัวนี้ตอนนี้ปลดบล็อกเว็บที่เคยบล็อกไว้ได้ด้วย ไม่ใช่
+  แค่โปรแกรม — ยิ่งเพิ่มน้ำหนักว่าช่องนี้ควรแก้เป็นลำดับแรกๆ
 - `/vnc/session-result` และ `/processes/list-result` บน loopback ก็ยังไม่มี auth เช่นกัน — ยิง PID ปลอม
   เข้ามาให้ Agent (SYSTEM) เปิด firewall rule ให้ port ที่เลือกเองได้
 - **ทั้งระบบยังเป็น HTTP ล้วน** — agent secret ที่เพิ่มมาก็ยังเดินทางเป็น plaintext
