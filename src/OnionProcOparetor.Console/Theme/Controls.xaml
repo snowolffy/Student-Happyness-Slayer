@@ -10,6 +10,34 @@
         <ResourceDictionary Source="Typography.xaml"/>
     </ResourceDictionary.MergedDictionaries>
 
+    <!-- แปลงเวลาจาก Server (UTC) เป็นเวลาไทย/UTC ตามที่ตั้งค่า (WP6) - ใช้กับทุกคอลัมน์เวลา
+         ดู Services/TimeDisplay.cs และ Controls/TimeColumn.cs -->
+    <controls:DisplayTimeConverter x:Key="DisplayTimeConverter"/>
+
+    <!-- ==================== GhostIconButton (WP6) ====================
+         ปุ่มไอคอนอย่างเดียวไม่มีกรอบ สำหรับ ✕ ปิด / หุบ-กาง ในแผงข้อมูลเครื่องและ toast
+         ใส่ IconPresenter เป็น Content แล้วผูก Foreground กับปุ่ม เพื่อให้ไอคอนเข้มขึ้นตอนชี้ -->
+    <Style x:Key="GhostIconButton" TargetType="Button">
+        <Setter Property="Foreground" Value="{DynamicResource Brush.Text.Secondary}"/>
+        <Setter Property="Cursor" Value="Hand"/>
+        <Setter Property="Padding" Value="5"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="Bd" CornerRadius="6" Padding="{TemplateBinding Padding}" Background="Transparent">
+                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Bd" Property="Background" Value="{DynamicResource Brush.Row.Hover}"/>
+                            <Setter Property="Foreground" Value="{DynamicResource Brush.Text.Primary}"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
     <!-- ==================== Window base ==================== -->
     <Style x:Key="AppWindowStyle" TargetType="Window">
         <Setter Property="Background" Value="{DynamicResource Brush.Background.Primary}"/>
@@ -836,13 +864,16 @@
                     <StackPanel>
                         <!-- หัวข้อกลุ่มวาดโดยแถวแรกของกลุ่มเอง ไม่ใช่ element แยก เพราะ TabControl มี
                              items host ได้ panel เดียว จะแทรกอะไรคั่นกลางระหว่าง item ไม่ได้ (ดู Nav.Group) -->
-                        <TextBlock x:Name="GroupHeader" Margin="20,16,12,6"
+                        <!-- ระยะหัวกลุ่ม/ความสูงแถวถูกบีบลงเล็กน้อย (WP6) - sidebar มี 10 เมนูใน 4 กลุ่มแล้ว
+                             ขนาดเดิม (หัวกลุ่ม 16/6, แถว 40) ล้นความสูงหน้าต่างเริ่มต้น 732px จน "ตั้งค่า"
+                             ตกขอบล่างไปอยู่ใต้ scroll -->
+                        <TextBlock x:Name="GroupHeader" Margin="20,10,12,4"
                                    Text="{Binding (controls:Nav.Group), RelativeSource={RelativeSource TemplatedParent}}"
                                    Foreground="{DynamicResource Brush.Sidebar.TextSecondary}"
                                    FontFamily="{StaticResource FontFamily.Primary}"
                                    FontSize="10" FontWeight="SemiBold" Opacity="0.7"/>
 
-                        <Border x:Name="Row" Height="40" CornerRadius="8" Margin="8,1"
+                        <Border x:Name="Row" Height="38" CornerRadius="8" Margin="8,1"
                                 Background="Transparent"
                                 TextElement.Foreground="{TemplateBinding Foreground}">
                             <Grid>

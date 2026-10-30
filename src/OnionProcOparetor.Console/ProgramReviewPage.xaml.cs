@@ -1,4 +1,4 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
 using System.Windows;
 using System.Windows.Controls;
 using OnionProcOparetor.Console.Models;
@@ -10,22 +10,38 @@ namespace OnionProcOparetor.Console;
 /// คิวตรวจสอบของ Program Control (2026-08-31) - ครูดูโปรแกรมที่ระบบเจอแต่ตัดสินเองไม่ได้
 /// แล้วกดอนุญาต/บล็อกถาวร ผลผูกกับ SHA-256 ของไฟล์ มีผลกับทุกเครื่องในรอบ poll ถัดไป
 ///
+/// WP6 (2026-10-30): ย้ายจากหน้าต่างลอย (ProgramReviewWindow) มาเป็นหน้าใน shell ของ Dashboard
+/// logic เดิมทั้งหมด ต่างกันแค่ (1) ApiClient ส่งเข้ามาทาง <see cref="Initialize"/> เพราะหน้านี้ถูก
+/// สร้างโดย XAML ของ Dashboard (2) ผลลัพธ์/error ไปที่ toast (3) โหลดใหม่ทุกครั้งที่เปิดหน้านี้
+/// (ผูกกับ IsVisibleChanged - ดู constructor) แทนที่จะโหลดครั้งเดียวตอนเปิดหน้าต่าง
+///
 /// ทุก async void handler ต้องมี try/catch ครอบเต็ม - ไม่มีใคร await handler พวกนี้ exception ที่หลุด
 /// ออกไปจะกลายเป็น unhandled (App.xaml.cs มี DispatcherUnhandledException รับไว้อยู่ก็จริง แต่ผลคือ
-/// ครูเห็นกล่อง error ลอยๆ แทนที่จะเห็นสาเหตุในบริบทของหน้าต่างนี้)
+/// ครูเห็นกล่อง error ลอยๆ แทนที่จะเห็นสาเหตุในบริบทของหน้านี้)
 /// </summary>
-public partial class ProgramReviewWindow : Window
+public partial class ProgramReviewPage : UserControl
 {
-    private readonly ApiClient _apiClient;
+    private ApiClient? _apiClient;
     private List<ProgramVerdictDto> _items = new();
     private bool _suppressCategoryEvent;
 
-    public ProgramReviewWindow(ApiClient apiClient)
+    public ProgramReviewPage()
     {
         InitializeComponent();
-        _apiClient = apiClient;
-        Loaded += async (_, _) => await RefreshAsync();
+        // โหลดตอน "เห็น" ไม่ใช่ตอน Loaded - TabControl ยิง Loaded ให้เนื้อหาของทุกแท็บตั้งแต่เปิด
+        // Dashboard (ผ่าน logical tree) แม้แท็บนั้นยังไม่เคยถูกเลือก (เจอตอนถ่ายภาพตรวจ: หน้าที่ไม่ได้
+        // เปิดยิง API ไปแล้ว) ส่วน IsVisible เป็นจริงเฉพาะตอนแท็บนี้ถูกเลือกอยู่จริงเท่านั้น
+        IsVisibleChanged += async (_, e) =>
+        {
+            if (e.NewValue is true)
+            {
+                await RefreshAsync();
+            }
+        };
     }
+
+    /// <summary>เรียกครั้งเดียวจาก DashboardWindow หลัง InitializeComponent</summary>
+    public void Initialize(ApiClient apiClient) => _apiClient = apiClient;
 
     private string SelectedFilter =>
         (FilterCombo.SelectedItem as ComboBoxItem)?.Tag as string ?? "flagged";
@@ -38,8 +54,7 @@ public partial class ProgramReviewWindow : Window
 
     private async void FilterCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
-        // ยิงตอน InitializeComponent ตั้ง IsSelected ครั้งแรกด้วย ซึ่งตอนนั้น _apiClient ยังเป็น null
-        // (constructor ยังไม่ทันได้ assign) - Loaded handler จะ refresh ให้อยู่แล้ว ข้ามรอบนั้นไป
+        // ยิงตอน InitializeComponent ตั้ง IsSelected ครั้งแรกด้วย - Loaded จะ refresh ให้อยู่แล้ว ข้ามรอบนั้นไป
         if (!IsLoaded) return;
         await RefreshAsync();
     }
@@ -54,10 +69,16 @@ public partial class ProgramReviewWindow : Window
 
     private async Task RefreshAsync()
     {
+        if (_apiClient is null)
+        {
+            return;
+        }
+
         try
         {
-            StatusText.Text = "กำลังโหลด...";
+            SummaryText.Text = "กำลังโหลด...";
             VerdictsGrid.ItemsSource = null;
+            EmptyText.Visibility = Visibility.Collapsed;
             SetButtonsEnabled(false);
 
             // โหลด summary ก่อนเสมอ เพื่อให้กล่องหมวดสะท้อนของที่มีอยู่จริงในตอนนี้ (หมวดที่เพิ่งหมด
@@ -71,7 +92,8 @@ public partial class ProgramReviewWindow : Window
 
             if (_items.Count == 0)
             {
-                StatusText.Text = "ไม่มีรายการในหมวดนี้";
+                SummaryText.Text = string.Empty;
+                EmptyText.Visibility = Visibility.Visible;
                 return;
             }
 
@@ -85,11 +107,12 @@ public partial class ProgramReviewWindow : Window
                 ? $" - แสดง {_items.Count} แถวแรกเท่านั้น เลือกหมวดเพื่อดูให้ครบ"
                 : string.Empty;
 
-            StatusText.Text = $"{scope} - เรียงตามจำนวนครั้งที่พบมากที่สุดก่อน{truncated}";
+            SummaryText.Text = $"{scope} - เรียงตามจำนวนครั้งที่พบมากที่สุดก่อน{truncated}";
         }
         catch (System.Exception ex)
         {
-            StatusText.Text = $"โหลดไม่สำเร็จ: {ex.Message}";
+            SummaryText.Text = string.Empty;
+            ToastService.Error($"โหลดคิว Program Review ไม่สำเร็จ: {ex.Message}");
         }
     }
 
@@ -129,8 +152,6 @@ public partial class ProgramReviewWindow : Window
             }
 
             // หมวดที่เคยเลือกไว้อาจไม่มีของแล้ว (ครูเพิ่งตัดสินตัวสุดท้ายไป) - ตกกลับไปที่ "ทุกหมวด"
-            // แทนที่จะปล่อยให้ไม่มีอะไรถูกเลือกซึ่งทำให้ SelectedCategory เป็น null โดยบังเอิญเหมือนกัน
-            // แต่กล่องดูเหมือนว่างเปล่าจนครูไม่รู้ว่าตอนนี้กำลังดูอะไรอยู่
             CategoryCombo.SelectedItem = toSelect ?? allItem;
         }
         finally
@@ -171,14 +192,14 @@ public partial class ProgramReviewWindow : Window
     }
 
     private async void AllowButton_Click(object sender, RoutedEventArgs e)
-        => await DecideAsync(ProgramActionDto.Allow, "อนุญาต");
+        => await DecideAsync(ProgramActionDto.Allow);
 
     private async void BlockButton_Click(object sender, RoutedEventArgs e)
-        => await DecideAsync(ProgramActionDto.Block, "บล็อก");
+        => await DecideAsync(ProgramActionDto.Block);
 
-    private async Task DecideAsync(ProgramActionDto action, string verb)
+    private async Task DecideAsync(ProgramActionDto action)
     {
-        if (VerdictsGrid.SelectedItem is not ProgramVerdictDto selected)
+        if (_apiClient is null || VerdictsGrid.SelectedItem is not ProgramVerdictDto selected)
         {
             return;
         }
@@ -186,24 +207,23 @@ public partial class ProgramReviewWindow : Window
         try
         {
             SetButtonsEnabled(false);
-            StatusText.Text = $"กำลังตั้งค่าให้ {verb} '{selected.FileName}'...";
 
             var success = await _apiClient.DecideProgramVerdictAsync(selected.Id, (int)action);
             if (!success)
             {
-                StatusText.Text = $"ตั้งค่าไม่สำเร็จ - ลองใหม่อีกครั้ง";
+                ToastService.Error($"ตั้งค่า '{selected.FileName}' ไม่สำเร็จ - ลองใหม่อีกครั้ง");
                 SetButtonsEnabled(true);
                 return;
             }
 
             await RefreshAsync();
-            StatusText.Text = action == ProgramActionDto.Block
+            ToastService.Success(action == ProgramActionDto.Block
                 ? $"บล็อก '{selected.FileName}' แล้ว - ทุกเครื่องจะเริ่มบล็อกภายในรอบ poll ถัดไป"
-                : $"อนุญาต '{selected.FileName}' แล้ว - จะไม่ถูกถามซ้ำอีก";
+                : $"อนุญาต '{selected.FileName}' แล้ว - จะไม่ถูกถามซ้ำอีก");
         }
         catch (System.Exception ex)
         {
-            StatusText.Text = $"ตั้งค่าไม่สำเร็จ: {ex.Message}";
+            ToastService.Error($"ตั้งค่า '{selected.FileName}' ไม่สำเร็จ: {ex.Message}");
             SetButtonsEnabled(true);
         }
     }

@@ -9,18 +9,21 @@ using OnionProcOparetor.Console.Services;
 namespace OnionProcOparetor.Console;
 
 /// <summary>
-/// Website Control (2026-09-11) - popup window แยกจาก Rules tab เหมือน ProgramReviewWindow ไม่ปน
-/// กฎบล็อกเว็บกับกฎบล็อกโปรแกรม ใช้ global enforcement toggle ตัวเดียวกับ Program Control (ไม่มี
-/// toggle แยกในนี้)
+/// Website Control (2026-09-11) - แยกจากหน้ากฎโปรแกรม ไม่ปนกฎบล็อกเว็บกับกฎบล็อกโปรแกรม ใช้ global
+/// enforcement toggle ตัวเดียวกับ Program Control (ไม่มี toggle แยกในนี้)
+///
+/// WP6 (2026-10-30): ย้ายจากหน้าต่างลอย (WebsiteControlWindow) มาเป็นหน้าใน shell - ApiClient
+/// ส่งเข้ามาทาง <see cref="Initialize"/>, ผลลัพธ์/error ไปเป็น toast, หน้าต่างย่อย (เพิ่ม/แก้กฎ,
+/// Bulk Add, Catalog) ใช้หน้าต่างหลักเป็น Owner, และโหลดใหม่ทุกครั้งที่สลับกลับมาหน้านี้
 ///
 /// 2026-09-12: เพิ่ม Bulk Add + Catalog Sources + ค้นหา/กรอง/แบ่งหน้า - เดินตาม pager pattern
 /// เดียวกับ Audit Log tab ใน DashboardWindow.xaml.cs (debounce ช่องค้นหา, ก่อนหน้า/ถัดไป)
 /// </summary>
-public partial class WebsiteControlWindow : Window
+public partial class WebsiteControlPage : UserControl
 {
     private const int PageSize = 100;
 
-    private readonly ApiClient _apiClient;
+    private ApiClient? _apiClient;
     private readonly DispatcherTimer _searchDebounceTimer;
 
     private List<WebsiteRuleDto> _currentPageRules = new();
@@ -30,10 +33,9 @@ public partial class WebsiteControlWindow : Window
 
     private WebsiteCatalogSourcesWindow? _catalogSourcesWindow;
 
-    public WebsiteControlWindow(ApiClient apiClient)
+    public WebsiteControlPage()
     {
         InitializeComponent();
-        _apiClient = apiClient;
 
         _searchDebounceTimer = new DispatcherTimer { Interval = System.TimeSpan.FromMilliseconds(400) };
         _searchDebounceTimer.Tick += async (_, _) =>
@@ -43,17 +45,35 @@ public partial class WebsiteControlWindow : Window
             await RefreshAsync();
         };
 
-        Loaded += async (_, _) => await RefreshAsync();
+        // โหลดตอน "เห็น" ไม่ใช่ตอน Loaded - เหตุผลเดียวกับ ProgramReviewPage (Loaded ยิงให้ทุกแท็บ
+        // ตั้งแต่เปิด Dashboard แม้ยังไม่เคยเลือกแท็บนี้)
+        IsVisibleChanged += async (_, e) =>
+        {
+            if (e.NewValue is true)
+            {
+                await RefreshAsync();
+            }
+        };
     }
+
+    /// <summary>เรียกครั้งเดียวจาก DashboardWindow หลัง InitializeComponent</summary>
+    public void Initialize(ApiClient apiClient) => _apiClient = apiClient;
+
+    /// <summary>หน้าต่างหลักที่หน้านี้อยู่ - ใช้เป็น Owner ของหน้าต่างย่อยให้จัดกึ่งกลางและซ้อนถูกที่</summary>
+    private Window? OwnerWindow => Window.GetWindow(this);
 
     /// <summary>Tag ของตัวเลือก "พิมพ์เอง" ใน SourceFilterCombo - แยกจาก null ("ทั้งหมด") ให้ชัดเจน</summary>
     private const string ManualFilterTag = "__manual__";
 
     private async Task RefreshAsync()
     {
+        if (_apiClient is null)
+        {
+            return;
+        }
+
         try
         {
-            StatusText.Text = "กำลังโหลด...";
 
             // โหลด source list ก่อนเสมอ (ใช้ทั้ง populate ComboBox และ join ชื่อ source เข้าตาราง)
             _catalogSources = await _apiClient.GetWebsiteCatalogSourcesAsync();
@@ -77,11 +97,10 @@ public partial class WebsiteControlWindow : Window
             var totalPages = System.Math.Max(1, (int)System.Math.Ceiling(_totalCount / (double)PageSize));
             PageInfoText.Text = $"หน้า {pageResult.Page}/{totalPages} ({_totalCount} รายการ)";
 
-            StatusText.Text = $"อัพเดตล่าสุด: {System.DateTime.Now:HH:mm:ss}";
         }
         catch (System.Exception ex)
         {
-            StatusText.Text = $"โหลดข้อมูลไม่สำเร็จ: {ex.Message}";
+            ToastService.Error($"โหลดกฎเว็บไซต์ไม่สำเร็จ: {ex.Message}");
         }
     }
 
@@ -160,22 +179,23 @@ public partial class WebsiteControlWindow : Window
 
     private async void AddRuleButton_Click(object sender, RoutedEventArgs e)
     {
-        var dialog = new AddEditWebsiteRuleWindow(_apiClient) { Owner = this };
+        if (_apiClient is null) return;
+        var dialog = new AddEditWebsiteRuleWindow(_apiClient) { Owner = OwnerWindow };
         if (dialog.ShowDialog() == true)
         {
-            StatusText.Text = "เพิ่มกฎสำเร็จ";
+            ToastService.Success("เพิ่มกฎเว็บไซต์แล้ว");
             await RefreshAsync();
         }
     }
 
     private async void EditRuleButton_Click(object sender, RoutedEventArgs e)
     {
-        if (sender is Button { Tag: WebsiteRuleDto rule })
+        if (_apiClient is not null && sender is Button { Tag: WebsiteRuleDto rule })
         {
-            var dialog = new AddEditWebsiteRuleWindow(_apiClient, rule) { Owner = this };
+            var dialog = new AddEditWebsiteRuleWindow(_apiClient, rule) { Owner = OwnerWindow };
             if (dialog.ShowDialog() == true)
             {
-                StatusText.Text = "แก้ไขกฎสำเร็จ";
+                ToastService.Success($"แก้ไขกฎ \"{rule.Name}\" แล้ว");
                 await RefreshAsync();
             }
         }
@@ -183,55 +203,75 @@ public partial class WebsiteControlWindow : Window
 
     private async void ToggleRuleButton_Click(object sender, RoutedEventArgs e)
     {
-        if (sender is Button { Tag: int ruleId })
+        if (_apiClient is not null && sender is Button { Tag: int ruleId })
         {
+            var rule = _currentPageRules.FirstOrDefault(r => r.Id == ruleId);
             var success = await _apiClient.ToggleWebsiteRuleAsync(ruleId);
-            StatusText.Text = success ? "Toggle กฎสำเร็จ" : "Toggle กฎไม่สำเร็จ";
+            if (success)
+            {
+                // บอกผลที่เกิดจริง ไม่ใช่ "Toggle สำเร็จ" ซึ่งไม่บอกว่าตอนนี้เปิดหรือปิด (กติกาตั้งชื่อ §5.1)
+                ToastService.Success(rule is null
+                    ? "เปลี่ยนสถานะกฎแล้ว"
+                    : rule.IsEnabled ? $"ปิดใช้กฎ \"{rule.Name}\" แล้ว" : $"เปิดใช้กฎ \"{rule.Name}\" แล้ว");
+            }
+            else
+            {
+                ToastService.Error("เปลี่ยนสถานะกฎไม่สำเร็จ");
+            }
             await RefreshAsync();
         }
     }
 
     private async void DeleteRuleButton_Click(object sender, RoutedEventArgs e)
     {
-        if (sender is Button { Tag: int ruleId })
+        if (_apiClient is not null && sender is Button { Tag: int ruleId })
         {
             var ruleName = _currentPageRules.FirstOrDefault(r => r.Id == ruleId)?.Name;
             var confirmed = string.IsNullOrWhiteSpace(ruleName)
-                ? ConfirmWindow.Show("ยืนยันการลบกฎนี้? การกระทำนี้ย้อนกลับไม่ได้", "ยืนยันการลบ", this)
+                ? ConfirmWindow.Show("ยืนยันการลบกฎนี้? การกระทำนี้ย้อนกลับไม่ได้", "ยืนยันการลบ", OwnerWindow)
                 : ConfirmWindow.ShowWithTypeToConfirm(
                     $"กำลังจะลบกฎ \"{ruleName}\" ออกจากระบบถาวร การกระทำนี้ย้อนกลับไม่ได้",
-                    "ยืนยันการลบกฎ", ruleName, this, "ลบกฎนี้");
+                    "ยืนยันการลบกฎ", ruleName, OwnerWindow, "ลบกฎนี้");
             if (!confirmed)
             {
                 return;
             }
 
             var success = await _apiClient.DeleteWebsiteRuleAsync(ruleId);
-            StatusText.Text = success ? "ลบกฎสำเร็จ" : "ลบกฎไม่สำเร็จ";
+            if (success)
+            {
+                ToastService.Success(string.IsNullOrWhiteSpace(ruleName) ? "ลบกฎแล้ว" : $"ลบกฎ \"{ruleName}\" แล้ว");
+            }
+            else
+            {
+                ToastService.Error("ลบกฎไม่สำเร็จ");
+            }
             await RefreshAsync();
         }
     }
 
     private async void BulkAddButton_Click(object sender, RoutedEventArgs e)
     {
-        var dialog = new BulkAddWebsiteRulesWindow(_apiClient) { Owner = this };
+        if (_apiClient is null) return;
+        var dialog = new BulkAddWebsiteRulesWindow(_apiClient) { Owner = OwnerWindow };
         if (dialog.ShowDialog() == true)
         {
-            StatusText.Text = dialog.ResultText;
+            ToastService.Success(dialog.ResultText);
             await RefreshAsync();
         }
     }
 
-    /// <summary>เก็บ reference ไว้กันเปิดซ้อนหลายบาน - เหตุผลเดียวกับ _programReviewWindow ใน DashboardWindow</summary>
+    /// <summary>เก็บ reference ไว้กันเปิดซ้อนหลายบาน (ครูมักกดปุ่มซ้ำตอนหน้าต่างยังโหลดไม่เสร็จ)</summary>
     private void ManageCatalogButton_Click(object sender, RoutedEventArgs e)
     {
+        if (_apiClient is null) return;
         if (_catalogSourcesWindow is { IsLoaded: true })
         {
             _catalogSourcesWindow.Activate();
             return;
         }
 
-        _catalogSourcesWindow = new WebsiteCatalogSourcesWindow(_apiClient) { Owner = this };
+        _catalogSourcesWindow = new WebsiteCatalogSourcesWindow(_apiClient) { Owner = OwnerWindow };
         _catalogSourcesWindow.Closed += async (_, _) =>
         {
             _catalogSourcesWindow = null;

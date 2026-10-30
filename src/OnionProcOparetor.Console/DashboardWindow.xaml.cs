@@ -1,7 +1,8 @@
-﻿using System.Windows;
+using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Media.Animation;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using OnionProcOparetor.Console.Models;
@@ -96,6 +97,21 @@ public partial class DashboardWindow : Window
     /// <summary>เปิด overlay ดูจอเต็มจอค้างไว้ในโหมดตรวจ UI - ปกติเข้าถึงได้เฉพาะตอนมี VNC session จริง</summary>
     public bool PreviewFullscreen { get; set; }
 
+    /// <summary>ใส่ toast ตัวอย่างครบ 3 ชนิด (สำเร็จ+ลิงก์ / ข้อมูล / error) เพื่อตรวจหน้าตา (--toasts)</summary>
+    public bool PreviewToasts { get; set; }
+
+    /// <summary>ใส่ประกาศ "Server หลุด" + "การอัปเดตสดหลุด" เพิ่ม เพื่อตรวจแถบหัวกับปุ่ม +N (--announce)</summary>
+    public bool PreviewAnnouncements { get; set; }
+
+    /// <summary>เลือกแถวแรกแล้วหุบแผงข้อมูลเครื่องเหลือแถบแคบ (--inspector-collapsed)</summary>
+    public bool PreviewInspectorCollapsed { get; set; }
+
+    /// <summary>
+    /// กาง sidebar โดยไม่บันทึก (--sidebar-expanded) - ค่าย่อ/กางอ่านจาก console-settings.json ตัวจริงที่ใช้
+    /// ร่วมกับ Console บนเครื่องนี้ จะถ่ายภาพหัวข้อกลุ่มของ sidebar ก็ต้องไม่ไปแก้ค่าที่ผู้ใช้ตั้งไว้
+    /// </summary>
+    public bool PreviewSidebarExpanded { get; set; }
+
     /// <summary>
     /// ใส่ข้อมูลปลอมลงตารางเพื่อให้เห็น badge / การ์ดตัวเลข / แถบเลือก ตอนตรวจงาน UI โดยไม่ต้อง
     /// login เข้า Server ตัวจริงที่รันอยู่บนเครื่อง dev เครื่องนี้ - ค่าถูกเลือกให้ครบทุกสถานะที่
@@ -150,6 +166,29 @@ public partial class DashboardWindow : Window
             FullscreenStatusText.Text = string.Empty;
             SetToggleTargetInputButtonVisual(blocked: false);
             LiveViewFullscreenOverlay.Visibility = Visibility.Visible;
+        }
+
+        if (PreviewInspectorCollapsed)
+        {
+            SetInspectorCollapsed(true);
+        }
+
+        if (PreviewSidebarExpanded)
+        {
+            SetSidebarCollapsed(false, persist: false);
+        }
+
+        if (PreviewAnnouncements)
+        {
+            ReportServerUnreachable("ไม่สามารถเชื่อมต่อ 192.0.2.1:8787 (ข้อมูลปลอม)");
+            OnHubConnectionStateChanged(false);
+        }
+
+        if (PreviewToasts)
+        {
+            ToastService.Success("ส่งคำสั่ง \"ล็อกหน้าจอ\" ไป 5 เครื่อง", "ดูผล", () => { });
+            ToastService.Info("คืนค่าที่บันทึกไว้แล้ว");
+            ToastService.Error("ลบกฎไม่สำเร็จ - Server ตอบกลับ 500");
         }
 
         StatusText.Text = "โหมดตรวจ UI (ข้อมูลปลอม)";
@@ -234,6 +273,22 @@ public partial class DashboardWindow : Window
     {
         InitializeComponent();
         _apiClient = apiClient;
+
+        // แถบหัวแสดงประกาศของทั้งระบบจากศูนย์กลางตัวเดียว (WP6) - ใครรู้ว่าเกิด/หายก็ Set/Clear ที่นี่
+        HeaderBar.Center = _announcements;
+
+        // หน้าที่เคยเป็นหน้าต่างลอย (WP6) ถูกสร้างโดย XAML ข้างบน จึงต้องส่ง ApiClient ให้ทีหลัง
+        ProgramReviewPage.Initialize(_apiClient);
+        WebsiteControlPage.Initialize(_apiClient);
+        SettingsPage.Initialize(_apiClient);
+
+        // Esc ปิดแผงข้อมูลเครื่อง - ฟังแบบ handledEventsToo เพราะ DataGrid ที่ถือ focus อยู่อาจ mark
+        // Esc ว่าจัดการแล้ว (ดู Window_KeyDown สำหรับกรณีที่ตั้งใจไม่แย่ง)
+        AddHandler(KeyDownEvent, new KeyEventHandler(Window_KeyDown), handledEventsToo: true);
+
+        // สลับเวลาไทย/UTC ในหน้าตั้งค่า -> ตารางที่เปิดอยู่ต้องเปลี่ยนทันที ไม่ใช่รอรอบ refresh
+        TimeDisplay.ModeChanged += OnTimeDisplayModeChanged;
+
         ServerLabel.Text = $"connected to {_apiClient.BaseUrl}";
         FooterServerText.Text = _apiClient.BaseUrl ?? "-";
         FooterUserText.Text = _apiClient.Username ?? "-";
@@ -286,6 +341,7 @@ public partial class DashboardWindow : Window
         // SignalR เป็นชั้นเสริมคู่ขนานกับ DispatcherTimer ข้างบน (ไม่แทนที่) - ทำให้ตารางเครื่องอัปเดต
         // ไวขึ้นโดยไม่ต้องรอรอบ poll ถ้า SignalR หลุด/ต่อไม่ได้ ตาราง ยังอัปเดตปกติผ่าน auto refresh เดิม
         _labHubClient.ClientStatusChanged += OnClientStatusChangedFromHub;
+        _labHubClient.ConnectionStateChanged += OnHubConnectionStateChanged;
         _ = _labHubClient.StartAsync(_apiClient.BaseUrl!, CancellationToken.None);
 
         // Step 4h: กัน Alt+F4 (หรือทางอื่นที่ทำให้ Window พยายามปิด เช่นปุ่ม X บน title bar) ปิด Console
@@ -300,7 +356,7 @@ public partial class DashboardWindow : Window
             if (_liveViewFullscreenClientGuid is not null)
             {
                 e.Cancel = true;
-                StatusText.Text = "กด \"กลับไปจอรวม\" ก่อนปิดโปรแกรม (กำลังควบคุมเครื่อง target แบบเต็มจออยู่)";
+                ToastService.Info("กด \"กลับไปจอรวม\" ก่อนปิดโปรแกรม (กำลังควบคุมเครื่อง target แบบเต็มจออยู่)");
             }
         };
 
@@ -309,6 +365,8 @@ public partial class DashboardWindow : Window
             _autoRefreshTimer.Stop();
             _auditLogFilterDebounceTimer.Stop();
             SettingsService.Changed -= OnSettingsChanged;
+            TimeDisplay.ModeChanged -= OnTimeDisplayModeChanged;
+            _labHubClient.ConnectionStateChanged -= OnHubConnectionStateChanged;
             DisconnectVncView();
             await CloseAllLiveViewSessionsAsync();
             _labHubClient.ClientStatusChanged -= OnClientStatusChangedFromHub;
@@ -381,57 +439,69 @@ public partial class DashboardWindow : Window
             UsersEmptyText.Visibility = users.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
 
             StatusText.Text = $"อัพเดตล่าสุด: {DateTime.Now:HH:mm:ss}";
+            _announcements.Clear(ServerUnreachableKey);
         }
         catch (Exception ex)
         {
-            StatusText.Text = $"โหลดข้อมูลไม่สำเร็จ: {ex.Message}";
+            // ไม่ใช่ toast: poll ยิงทุก 2-10 วินาที toast จะเด้งซ้ำไม่หยุด และพอหายไป ปัญหาก็ยังอยู่
+            // นี่คือ "สภาพของระบบตอนนี้" จึงขึ้นแถบหัวค้างไว้จนกว่ารอบถัดไปจะโหลดสำเร็จ
+            StatusText.Text = "โหลดข้อมูลไม่สำเร็จ";
+            ReportServerUnreachable(ex.Message);
         }
+    }
+
+    // ==================== ประกาศสถานะของทั้งระบบบนแถบหัว (WP6) ====================
+
+    private readonly AnnouncementCenter _announcements = new();
+
+    private const string GlobalOffKey = "global-off";
+    private const string ServerUnreachableKey = "server-unreachable";
+    private const string HubReconnectingKey = "hub-reconnecting";
+
+    private void ReportServerUnreachable(string reason)
+    {
+        _announcements.Set(new Announcement
+        {
+            Key = ServerUnreachableKey,
+            Severity = AnnouncementSeverity.Danger,
+            Title = "เชื่อมต่อ Server ไม่ได้ - กำลังลองใหม่อัตโนมัติ ข้อมูลบนจออาจไม่ใช่ล่าสุด",
+            Detail = reason,
+            FixText = "ลองใหม่ตอนนี้",
+            Fix = async () => await LoadAllDataAsync()
+        });
     }
 
     /// <summary>
-    /// เปิดคิวตรวจสอบของ Program Control - เก็บ reference ไว้กันเปิดซ้อนหลายบาน (ครูมักกดปุ่มซ้ำ
-    /// ตอนหน้าต่างยังโหลดไม่เสร็จ) ถ้าเปิดอยู่แล้วให้ดึงบานเดิมขึ้นมาแทน
+    /// SignalR (การอัปเดตสด) หลุด/ต่อกลับ - เรียกจาก background thread ของ LabHubClient
+    /// ระดับ "ข้อมูล" ไม่ใช่ "เตือน": ตารางยังอัปเดตต่อผ่าน poll ตามปกติ สิ่งที่หายไปคือความไว
+    /// และ Live View/ดูโปรแกรมที่เปิดอยู่ ซึ่งต้องพึ่ง SignalR
     /// </summary>
-    private ProgramReviewWindow? _programReviewWindow;
-
-    private void ProgramControlButton_Click(object sender, RoutedEventArgs e)
+    private void OnHubConnectionStateChanged(bool connected)
     {
-        if (_programReviewWindow is { IsLoaded: true })
+        Dispatcher.BeginInvoke(() =>
         {
-            _programReviewWindow.Activate();
-            return;
-        }
+            if (connected)
+            {
+                _announcements.Clear(HubReconnectingKey);
+                return;
+            }
 
-        _programReviewWindow = new ProgramReviewWindow(_apiClient) { Owner = this };
-        _programReviewWindow.Closed += (_, _) => _programReviewWindow = null;
-        _programReviewWindow.Show();
+            _announcements.Set(new Announcement
+            {
+                Key = HubReconnectingKey,
+                Severity = AnnouncementSeverity.Info,
+                Title = "การอัปเดตสดหลุด กำลังเชื่อมต่อใหม่ - ตารางยังรีเฟรชตามรอบปกติ",
+                Detail = "ระหว่างนี้ ดูหน้าจอ / Live View / ดูโปรแกรมที่เปิดอยู่ อาจรอนานหรือไม่ตอบ"
+            });
+        });
     }
 
-    /// <summary>เปิด Website Control - popup แยกเหมือน ProgramControlButton_Click ข้างบน (เหตุผลเดียวกันทุกอย่าง)</summary>
-    private WebsiteControlWindow? _websiteControlWindow;
-
-    private void WebsiteControlButton_Click(object sender, RoutedEventArgs e)
-    {
-        if (_websiteControlWindow is { IsLoaded: true })
-        {
-            _websiteControlWindow.Activate();
-            return;
-        }
-
-        _websiteControlWindow = new WebsiteControlWindow(_apiClient) { Owner = this };
-        _websiteControlWindow.Closed += (_, _) => _websiteControlWindow = null;
-        _websiteControlWindow.Show();
-    }
+    // ProgramControlButton_Click / WebsiteControlButton_Click เคยเปิดหน้าต่างลอยตรงนี้ - ตอนนี้เป็น
+    // หน้าใน sidebar (ProgramReviewPage / WebsiteControlPage) แล้ว (WP6)
 
     private async void RefreshButton_Click(object sender, RoutedEventArgs e)
     {
         await LoadAllDataAsync();
-    }
-
-    /// <summary>ปุ่ม "เปิดกลับ" บนแถบเตือน - ทางออกอยู่ตรงที่เห็นปัญหา ไม่ต้องไปหาในเมนู</summary>
-    private async void GlobalTurnOnButton_Click(object sender, RoutedEventArgs e)
-    {
-        await SetGlobalEnforcementAsync(true);
     }
 
     /// <summary>
@@ -449,9 +519,14 @@ public partial class DashboardWindow : Window
         }
 
         var success = await _apiClient.SetGlobalEnabledAsync(enabled);
-        StatusText.Text = success
-            ? enabled ? "เปิดการบังคับใช้ทั้งระบบแล้ว" : "ปิดการบังคับใช้ทั้งระบบแล้ว"
-            : "เปลี่ยนการบังคับใช้ทั้งระบบไม่สำเร็จ";
+        if (success)
+        {
+            ToastService.Success(enabled ? "เปิดการบังคับใช้ทั้งระบบแล้ว" : "ปิดการบังคับใช้ทั้งระบบแล้ว");
+        }
+        else
+        {
+            ToastService.Error("เปลี่ยนการบังคับใช้ทั้งระบบไม่สำเร็จ");
+        }
 
         // โหลดใหม่ทั้งชุดเสมอ ไม่ใช่แค่เดาค่าใหม่ลง _globalState เอง - แถบเตือนกับคอลัมน์
         // ENFORCEMENT ต้องสะท้อนสิ่งที่ Server ตอบจริง ไม่ใช่สิ่งที่ Console เพิ่งกดไป
@@ -459,17 +534,31 @@ public partial class DashboardWindow : Window
     }
 
     /// <summary>
-    /// แสดง/ซ่อนแถบเตือน "ปิดการบังคับใช้ทั้งระบบ" ตาม _globalState
+    /// ขึ้น/ลบประกาศ "ปิดการบังคับใช้ทั้งระบบ" บนแถบหัวตาม _globalState
     ///
     /// _globalState เป็น null (อ่านค่าไม่ได้ เช่น Server เวอร์ชันเก่าที่ยังไม่มี GET /api/global)
-    /// ให้ซ่อนแถบไว้ - ขึ้นเตือนว่า "ปิดอยู่" ทั้งที่ยังไม่รู้ว่าปิดจริงไหม แย่กว่าไม่ขึ้นเลย
-    /// (เมนูเกียร์จะขึ้นว่า "อ่านค่าไม่ได้" ให้เห็นแทน)
+    /// ไม่ขึ้นประกาศ - ขึ้นเตือนว่า "ปิดอยู่" ทั้งที่ยังไม่รู้ว่าปิดจริงไหม แย่กว่าไม่ขึ้นเลย
+    /// (ปุ่มบนแถบคำสั่งของ Clients จะขึ้นว่า "อ่านค่าไม่ได้" ให้เห็นแทน)
     /// </summary>
     private void RefreshGlobalStateUi()
     {
-        GlobalOffBanner.Visibility = _globalState is { IsEnabled: false }
-            ? Visibility.Visible
-            : Visibility.Collapsed;
+        if (_globalState is { IsEnabled: false })
+        {
+            // ปุ่มแก้อยู่บนแถบหัวที่เห็นจากทุกหน้า (ไม่ใช่แค่แท็บ Clients) - ดูเหตุผลในหัวแถบใน XAML
+            _announcements.Set(new Announcement
+            {
+                Key = GlobalOffKey,
+                Severity = AnnouncementSeverity.Warning,
+                Title = "ปิดการบังคับใช้ทั้งระบบอยู่ - กฎทั้งหมดหยุดทำงานบนทุกเครื่อง",
+                Detail = "กฎทั้งหมดหยุดทำงานบนทุกเครื่องในห้อง แม้เครื่องนั้นจะขึ้น ENABLED ก็ตาม",
+                FixText = "เปิดการบังคับใช้กลับ",
+                Fix = async () => await SetGlobalEnforcementAsync(true)
+            });
+        }
+        else
+        {
+            _announcements.Clear(GlobalOffKey);
+        }
 
         // ปุ่มบอก "สิ่งที่จะเกิดถ้ากด" ไม่ใช่ "สถานะตอนนี้" - ปุ่มที่เขียนว่า Toggle เฉย ๆ คือครึ่งหนึ่ง
         // ของบั๊กเดิมปี 2026-09-04 ที่ครูไม่รู้ว่า gate เปิดหรือปิดอยู่
@@ -513,37 +602,8 @@ public partial class DashboardWindow : Window
         await SetGlobalEnforcementAsync(!state.IsEnabled);
     }
 
-    /// <summary>
-    /// ปุ่มเกียร์บน toolbar - เปิด ContextMenu ให้เลือก Settings/About แทนที่จะแยกปุ่มคนละจุด
-    ///
-    /// รวมสวิตช์ "การบังคับใช้ทั้งระบบ" กลับเข้ามาที่นี่ด้วย (2026-09-04): ปุ่ม TOGGLE GLOBAL เดิม
-    /// เคยถูกลบทิ้งด้วยเหตุผลที่ผิด - เข้าใจว่า "ACTIONS > ทุกเครื่อง > TOGGLE ENFORCEMENT ให้ผล
-    /// เหมือนกัน" ซึ่งไม่จริงเลย: อันนั้นพลิก IsEnabled ราย "เครื่อง" ส่วนอันนี้คือ GlobalState ที่เป็น
-    /// AND gate คร่อมทุกเครื่องอีกชั้น (ดู /api/poll) พอลบไปโดยที่ gate ยังอยู่ Console ตัวนี้จึงไม่มี
-    /// ทางทั้ง "เห็น" และ "แก้" ค่านั้นได้อีกเลย = ถ้ามันถูกปิดไว้ ทั้งห้องหยุดบังคับใช้กฎถาวรโดยที่
-    /// ครูหาสาเหตุไม่เจอ (เจอจริงตอน field test)
-    /// </summary>
-    private void SettingsMenuButton_Click(object sender, RoutedEventArgs e)
-    {
-        var menu = new ContextMenu();
-
-        // สวิตช์ "การบังคับใช้ทั้งระบบ" ถูกย้ายออกจากเมนูนี้แล้ว (2026-09-10) ไปเป็นปุ่มที่มีป้ายกำกับ
-        // อยู่บนแถบคำสั่งของแท็บ Clients คู่กับ BROADCAST บวกกับปุ่ม "เปิดกลับ" บนแถบเตือนซึ่งเห็นจาก
-        // ทุกแท็บ - ทั้งสองทางนั้นมองเห็นได้โดยไม่ต้องเปิดเมนูก่อน ซึ่งเป็นหัวใจของบั๊กเดิม
-        // (12d774a "visible and reachable") การเก็บไว้ในเมนูนี้ด้วยมีแต่จะทำให้มีสามที่ที่ทำสิ่งเดียวกัน
-
-        var settingsItem = new MenuItem { Header = "Settings..." };
-        settingsItem.Click += (_, _) => new SettingsWindow(_apiClient) { Owner = this }.ShowDialog();
-        menu.Items.Add(settingsItem);
-
-        var aboutItem = new MenuItem { Header = "About..." };
-        aboutItem.Click += (_, _) => new AboutWindow { Owner = this }.ShowDialog();
-        menu.Items.Add(aboutItem);
-
-        menu.PlacementTarget = (Button)sender;
-        menu.Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom;
-        menu.IsOpen = true;
-    }
+    // SettingsMenuButton_Click (เมนูเฟือง Settings.../About...) ถูกแทนด้วยหน้า "ตั้งค่า" ใน sidebar (WP6)
+    // ทางเข้า About ย้ายไปอยู่ท้ายหน้าตั้งค่า
 
     /// <summary>
     /// ปุ่มเดียวใน DataGrid row - เปิด ActionPanelWindow โหมด single-client รวม action ทั้งหมดของ
@@ -576,8 +636,32 @@ public partial class DashboardWindow : Window
         {
             // ส่ง LabHubClient ตัวเดิมของ Dashboard เข้าไปใช้ต่อ (join group "console" ไว้แล้ว)
             // ไม่เปิด connection ใหม่ให้เปลือง - หน้า report unsubscribe ตัวเองตอนปิด
-            var report = new ActionReportWindow(_apiClient, _labHubClient, panel.PendingReport) { Owner = this };
+            var request = panel.PendingReport;
+            var report = new ActionReportWindow(_apiClient, _labHubClient, request) { Owner = this };
             report.Show();
+
+            // หน้ารายงานเปิดเองอยู่แล้ว (มันเป็นคนส่งคำสั่งจริง) toast นี้มีไว้เป็นทางกลับไปหามัน
+            // เมื่อมันถูกบังอยู่หลัง Dashboard - กดหน้าต่างหลักทีเดียว หน้ารายงานก็จมหายไปข้างหลังแล้ว
+            ToastService.Info(
+                $"ส่งคำสั่ง \"{request.ActionLabel}\" ไป {request.Rows.Count} เครื่อง",
+                "ดูผล",
+                () =>
+                {
+                    if (report.IsLoaded)
+                    {
+                        if (report.WindowState == WindowState.Minimized)
+                        {
+                            report.WindowState = WindowState.Normal;
+                        }
+
+                        report.Activate();
+                    }
+                    else
+                    {
+                        ToastService.Info("หน้ารายงานผลถูกปิดไปแล้ว - ประวัติคำสั่งดูได้ที่ Audit Log",
+                            "เปิด Audit Log", () => MainTabControl.SelectedItem = AuditLogTabItem);
+                    }
+                });
         }
 
         if (panel.DataChanged)
@@ -607,8 +691,19 @@ public partial class DashboardWindow : Window
     {
         if (sender is Button { Tag: int ruleId })
         {
+            var rule = _allRules.FirstOrDefault(r => r.Id == ruleId);
             var success = await _apiClient.ToggleRuleAsync(ruleId);
-            StatusText.Text = success ? "Toggle กฎสำเร็จ" : "Toggle กฎไม่สำเร็จ";
+            if (success)
+            {
+                // บอกผลที่เกิดจริง ไม่ใช่ "Toggle สำเร็จ" (console-ui-notes §5.1)
+                ToastService.Success(rule is null
+                    ? "เปลี่ยนสถานะกฎแล้ว"
+                    : rule.IsEnabled ? $"ปิดใช้กฎ \"{rule.Name}\" แล้ว" : $"เปิดใช้กฎ \"{rule.Name}\" แล้ว");
+            }
+            else
+            {
+                ToastService.Error("เปลี่ยนสถานะกฎไม่สำเร็จ");
+            }
             await LoadAllDataAsync();
         }
     }
@@ -632,7 +727,14 @@ public partial class DashboardWindow : Window
             }
 
             var success = await _apiClient.DeleteRuleAsync(ruleId);
-            StatusText.Text = success ? "ลบกฎสำเร็จ" : "ลบกฎไม่สำเร็จ";
+            if (success)
+            {
+                ToastService.Success(string.IsNullOrWhiteSpace(ruleName) ? "ลบกฎแล้ว" : $"ลบกฎ \"{ruleName}\" แล้ว");
+            }
+            else
+            {
+                ToastService.Error("ลบกฎไม่สำเร็จ");
+            }
             await LoadAllDataAsync();
         }
     }
@@ -642,7 +744,7 @@ public partial class DashboardWindow : Window
         var dialog = new AddEditRuleWindow(_apiClient) { Owner = this };
         if (dialog.ShowDialog() == true)
         {
-            StatusText.Text = "เพิ่มกฎสำเร็จ";
+            ToastService.Success("เพิ่มกฎแล้ว");
             await LoadAllDataAsync();
         }
     }
@@ -654,7 +756,7 @@ public partial class DashboardWindow : Window
             var dialog = new AddEditRuleWindow(_apiClient, rule) { Owner = this };
             if (dialog.ShowDialog() == true)
             {
-                StatusText.Text = "แก้ไขกฎสำเร็จ";
+                ToastService.Success($"แก้ไขกฎ \"{rule.Name}\" แล้ว");
                 await LoadAllDataAsync();
             }
         }
@@ -667,18 +769,18 @@ public partial class DashboardWindow : Window
 
         if (string.IsNullOrEmpty(username) || string.IsNullOrEmpty(password))
         {
-            StatusText.Text = "กรุณากรอก Username และ Password";
+            ToastService.Error("กรุณากรอก Username และ Password");
             return;
         }
 
         if (password.Length < 8)
         {
-            StatusText.Text = "Password ต้องมีความยาวอย่างน้อย 8 ตัวอักษร";
+            ToastService.Error("Password ต้องมีความยาวอย่างน้อย 8 ตัวอักษร");
             return;
         }
 
         var (success, message) = await _apiClient.CreateUserAsync(username, password);
-        StatusText.Text = message;
+        ShowResultToast(success, message);
 
         if (success)
         {
@@ -706,7 +808,7 @@ public partial class DashboardWindow : Window
             }
 
             var (success, message) = await _apiClient.DeleteUserAsync(userId);
-            StatusText.Text = message;
+            ShowResultToast(success, message);
             await LoadAllDataAsync();
         }
     }
@@ -735,10 +837,22 @@ public partial class DashboardWindow : Window
     /// </summary>
     private ClientMachineDto? _inspectedClient;
 
+    /// <summary>ความกว้างของแผงตอนกางเต็ม / ตอนหุบเหลือแถบแคบ</summary>
+    private const double InspectorExpandedWidth = 284;
+    private const double InspectorCollapsedWidth = 48;
+
     /// <summary>
-    /// แผงขวาแสดงเมื่อเลือก "เครื่องเดียว" เท่านั้น - เลือกหลายเครื่องคือคนละโหมด (สั่งงานหมู่)
+    /// ผู้ใช้หุบแผงไว้หรือไม่ - จำไว้ข้ามการเลือกเครื่อง (หุบไว้เพื่อดูคอลัมน์ขวาของตาราง แล้วคลิกไล่ดู
+    /// ทีละเครื่อง แผงไม่ควรเด้งกางกลับมาบังทุกครั้งที่คลิก) แต่ไม่จำข้ามการเปิดโปรแกรม
+    /// </summary>
+    private bool _inspectorCollapsed;
+
+    /// <summary>
+    /// แผงข้อมูลเครื่องแสดงเมื่อเลือก "เครื่องเดียว" เท่านั้น - เลือกหลายเครื่องคือคนละโหมด (สั่งงานหมู่)
     /// ซึ่งมีแถบเลือกด้านบนรับหน้าที่อยู่แล้ว การโชว์รายละเอียดของเครื่องใดเครื่องหนึ่งตอนเลือก 7 เครื่อง
     /// จะทำให้เข้าใจผิดว่าคำสั่งจะไปลงที่เครื่องนั้นเครื่องเดียว
+    ///
+    /// แผงทับอยู่บนตาราง (WP6) การโผล่/หายจึงไม่ทำให้ตารางขยับ - ดูหัวข้อใน XAML
     /// </summary>
     private void UpdateClientInspector()
     {
@@ -747,14 +861,16 @@ public partial class DashboardWindow : Window
         {
             _inspectedClient = null;
             ClientInspector.Visibility = Visibility.Collapsed;
+            UpdateToastOffset();
             return;
         }
 
         var client = selected[0];
+        var wasHidden = ClientInspector.Visibility != Visibility.Visible;
         _inspectedClient = client;
-        ClientInspector.Visibility = Visibility.Visible;
 
         InspectorMachineName.Text = client.MachineName;
+        InspectorCollapsedIcon.ToolTip = client.MachineName;
 
         InspectorStatusBadge.Content = client.IsOnline ? "ONLINE" : "OFFLINE";
         InspectorStatusBadge.Tag = client.IsOnline ? "Online" : "Offline";
@@ -766,11 +882,107 @@ public partial class DashboardWindow : Window
         InspectorConnectionBadge.Tag = client.UsingFallback ? "Warning" : "Online";
 
         InspectorIp.Text = string.IsNullOrWhiteSpace(client.LastKnownIp) ? "-" : client.LastKnownIp;
-        InspectorLastSeen.Text = client.LastSeenAt.ToString("yyyy-MM-dd HH:mm:ss");
+        InspectorLastSeenLabel.Text = TimeDisplay.Header("เห็นล่าสุด");
+        InspectorLastSeen.Text = TimeDisplay.Text(client.LastSeenAt);
         InspectorGuid.Text = client.ClientGuid;
         InspectorPollInterval.Text = client.PollIntervalOverrideSeconds is { } seconds
             ? $"{seconds} วินาที (ตั้งเฉพาะเครื่องนี้)"
             : "ตามค่าเริ่มต้นของระบบ";
+
+        ApplyInspectorCollapsedVisual();
+
+        if (wasHidden)
+        {
+            ClientInspector.Visibility = Visibility.Visible;
+
+            // สไลด์เข้าจากขวาสั้น ๆ เฉพาะตอนโผล่ครั้งแรก - คลิกเปลี่ยนเครื่องขณะแผงเปิดอยู่แล้ว
+            // แค่เปลี่ยนเนื้อหา ไม่เล่นซ้ำ (แผงที่ขยับทุกคลิกน่ารำคาญกว่ามีประโยชน์)
+            var ease = new CubicEase { EasingMode = EasingMode.EaseOut };
+            InspectorSlide.BeginAnimation(TranslateTransform.XProperty,
+                new DoubleAnimation(32, 0, TimeSpan.FromMilliseconds(180)) { EasingFunction = ease });
+            ClientInspector.BeginAnimation(OpacityProperty,
+                new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(150)));
+        }
+
+        UpdateToastOffset();
+    }
+
+    private void ApplyInspectorCollapsedVisual()
+    {
+        ClientInspector.Width = _inspectorCollapsed ? InspectorCollapsedWidth : InspectorExpandedWidth;
+        InspectorExpanded.Visibility = _inspectorCollapsed ? Visibility.Collapsed : Visibility.Visible;
+        InspectorCollapsedStrip.Visibility = _inspectorCollapsed ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    private void SetInspectorCollapsed(bool collapsed)
+    {
+        _inspectorCollapsed = collapsed;
+        ApplyInspectorCollapsedVisual();
+        UpdateToastOffset();
+    }
+
+    private void InspectorCollapseButton_Click(object sender, RoutedEventArgs e) => SetInspectorCollapsed(true);
+
+    private void InspectorExpandButton_Click(object sender, RoutedEventArgs e) => SetInspectorCollapsed(false);
+
+    /// <summary>
+    /// ปิดแผง = เลิกเลือกเครื่อง ไม่ใช่แค่ซ่อนแผง - ถ้าซ่อนเฉย ๆ แถวยังถูกเลือกค้าง คลิกแถวเดิมซ้ำจะไม่มี
+    /// SelectionChanged ให้แผงกลับมา (ต้องคลิกเครื่องอื่นก่อนแล้วค่อยคลิกกลับ ซึ่งไม่มีใครเดาออก)
+    /// </summary>
+    private void CloseClientInspector() => ClientsGrid.UnselectAll();
+
+    private void InspectorCloseButton_Click(object sender, RoutedEventArgs e) => CloseClientInspector();
+
+    /// <summary>
+    /// Esc ปิดแผงข้อมูลเครื่อง - ฟังด้วย handledEventsToo (ดู constructor) จึงต้องกันเองในกรณีที่ Esc
+    /// มีเจ้าของอยู่แล้ว: ระหว่างควบคุมเครื่องแบบเต็มจอ (Esc ต้องไปถึงเครื่องนักเรียน) และตอนที่ focus
+    /// อยู่ในช่องพิมพ์หรือ dropdown (Esc ของมันคือยกเลิก/ปิด dropdown ไม่ใช่ปิดแผง)
+    /// </summary>
+    private void Window_KeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key != Key.Escape
+            || _liveViewFullscreenClientGuid is not null
+            || ClientInspector.Visibility != Visibility.Visible
+            || !ReferenceEquals(MainTabControl.SelectedItem, ClientsTabItem))
+        {
+            return;
+        }
+
+        if (Keyboard.FocusedElement is TextBox or PasswordBox or ComboBox or ComboBoxItem)
+        {
+            return;
+        }
+
+        CloseClientInspector();
+        e.Handled = true;
+    }
+
+    /// <summary>
+    /// ขยับ toast ให้หลบแผงข้อมูลเครื่อง (WP6) - toast อยู่มุมขวาล่างของหน้าต่าง ซึ่งเป็นแนวเดียวกับ
+    /// แผงที่ทับอยู่ฝั่งขวาของตาราง ถ้าไม่หลบ toast จะบังปุ่มในแผงพอดี
+    /// </summary>
+    private void UpdateToastOffset()
+    {
+        const double baseRight = 34;
+        var right = baseRight;
+
+        if (ClientInspector.Visibility == Visibility.Visible
+            && ReferenceEquals(MainTabControl.SelectedItem, ClientsTabItem)
+            && _liveViewFullscreenClientGuid is null)
+        {
+            right += ClientInspector.Width + 12;
+        }
+
+        var target = new Thickness(0, 0, right, 80);
+        if (Toasts.Margin == target)
+        {
+            return;
+        }
+
+        Toasts.BeginAnimation(MarginProperty, new ThicknessAnimation(target, TimeSpan.FromMilliseconds(180))
+        {
+            EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut }
+        });
     }
 
     private async void InspectorViewScreenButton_Click(object sender, RoutedEventArgs e)
@@ -843,11 +1055,9 @@ public partial class DashboardWindow : Window
 
         if (targets.Count == 0)
         {
-            StatusText.Text = "ไม่มีเครื่องให้ส่งข้อความ";
+            ToastService.Error("ไม่มีเครื่องให้ส่งข้อความ");
             return;
         }
-
-        StatusText.Text = $"กำลังส่งข้อความไป {targets.Count} เครื่อง...";
 
         var successCount = 0;
         foreach (var client in targets)
@@ -862,7 +1072,15 @@ public partial class DashboardWindow : Window
             if (success) successCount++;
         }
 
-        StatusText.Text = $"ส่งข้อความสำเร็จ {successCount}/{targets.Count} เครื่อง";
+        if (successCount == targets.Count)
+        {
+            ToastService.Success($"ส่งข้อความขึ้นจอแล้ว {successCount} เครื่อง");
+        }
+        else
+        {
+            // ส่งไม่ครบต้องค้างให้เห็น (error ไม่หายเอง) ไม่งั้นครูจะเข้าใจว่านักเรียนทุกคนเห็นข้อความแล้ว
+            ToastService.Error($"ส่งข้อความสำเร็จ {successCount}/{targets.Count} เครื่อง - เครื่องที่เหลืออาจออฟไลน์");
+        }
     }
 
     /// <summary>
@@ -898,7 +1116,7 @@ public partial class DashboardWindow : Window
         {
             if (user.IsBuiltIn)
             {
-                StatusText.Text = "ไม่แนะนำให้ reset password ของ built-in Administrator ด้วยวิธีนี้ ใช้ change password ปกติแทน";
+                ToastService.Info("ไม่แนะนำให้ reset password ของ built-in Administrator ด้วยวิธีนี้ ใช้ \"เปลี่ยนรหัสผ่านของฉัน\" ในหน้าตั้งค่าแทน");
                 return;
             }
 
@@ -908,7 +1126,7 @@ public partial class DashboardWindow : Window
             if (result == true && !string.IsNullOrEmpty(resetWindow.NewPassword))
             {
                 var (success, message) = await _apiClient.ResetUserPasswordAsync(user.Id, resetWindow.NewPassword);
-                StatusText.Text = message;
+                ShowResultToast(success, message);
                 await LoadAllDataAsync();
             }
         }
@@ -1101,7 +1319,7 @@ public partial class DashboardWindow : Window
         }
         catch (Exception ex)
         {
-            StatusText.Text = $"โหลด audit log ไม่สำเร็จ: {ex.Message}";
+            ToastService.Error($"โหลด Audit Log ไม่สำเร็จ: {ex.Message}");
         }
     }
 
@@ -1257,6 +1475,9 @@ public partial class DashboardWindow : Window
         {
             return;
         }
+
+        // แผงข้อมูลเครื่องอยู่ในแท็บ Clients เท่านั้น - ออกจากแท็บแล้ว toast ไม่ต้องหลบอะไร
+        UpdateToastOffset();
 
         if (e.RemovedItems.Contains(ScreenViewTabItem))
         {
@@ -1414,18 +1635,18 @@ public partial class DashboardWindow : Window
 
         if (selected.Count == 0)
         {
-            LiveViewStatusText.Text = _liveViewCells.Count == 0
-                ? "กรุณาเลือกเครื่องอย่างน้อย 1 เครื่อง"
-                : "เครื่องที่เลือกเปิดอยู่ใน grid แล้วทั้งหมด";
+            ToastService.Info(_liveViewCells.Count == 0
+                ? "เลือกเครื่องจากรายการทางซ้ายอย่างน้อย 1 เครื่องก่อน"
+                : "เครื่องที่เลือกเปิดอยู่ในจอรวมแล้วทั้งหมด");
             return;
         }
 
         var remaining = VncSessionPool.MaxConcurrentSessions - _liveViewCells.Count;
         if (selected.Count > remaining)
         {
-            LiveViewStatusText.Text = remaining <= 0
-                ? $"Grid เต็มแล้ว (สูงสุด {VncSessionPool.MaxConcurrentSessions} เครื่อง) - เอาเครื่องออกก่อนเพิ่มใหม่"
-                : $"เลือกเกินจำนวนที่เพิ่มได้ (เหลือที่ว่างอีก {remaining} เครื่อง จากทั้งหมด {VncSessionPool.MaxConcurrentSessions}) - เลือกน้อยลง";
+            ToastService.Error(remaining <= 0
+                ? $"จอรวมเต็มแล้ว (สูงสุด {VncSessionPool.MaxConcurrentSessions} เครื่อง) - เอาเครื่องออกก่อนเพิ่มใหม่"
+                : $"เลือกเกินจำนวนที่เพิ่มได้ (เหลือที่ว่างอีก {remaining} เครื่อง จากทั้งหมด {VncSessionPool.MaxConcurrentSessions}) - เลือกน้อยลง");
             return;
         }
 
@@ -1699,9 +1920,9 @@ public partial class DashboardWindow : Window
 
         if (!success)
         {
-            FullscreenStatusText.Text = wantBlocked
+            ToastService.Error(wantBlocked
                 ? "บล็อก input ไม่สำเร็จ - ลองใหม่อีกครั้ง"
-                : "คืนสิทธิ์ input ไม่สำเร็จ - ลองใหม่อีกครั้ง";
+                : "คืนสิทธิ์ input ไม่สำเร็จ - ลองใหม่อีกครั้ง");
             return;
         }
 
@@ -1734,7 +1955,7 @@ public partial class DashboardWindow : Window
         var client = _allClients.FirstOrDefault(c => c.ClientGuid == guid);
         if (client is null)
         {
-            FullscreenStatusText.Text = "ไม่พบเครื่องนี้ในรายการแล้ว - ลองกลับไปจอรวมแล้วรีเฟรช";
+            ToastService.Error("ไม่พบเครื่องนี้ในรายการแล้ว - ลองกลับไปจอรวมแล้วรีเฟรช");
             return;
         }
 
@@ -2131,5 +2352,31 @@ public partial class DashboardWindow : Window
     private void NewUserUsernameBox_TextChanged(object sender, TextChangedEventArgs e)
     {
 
+    }
+
+    /// <summary>API ที่คืน (success, message) - ข้อความมาจาก Server เอง ใช้ตรง ๆ แยกแค่ชนิดของ toast</summary>
+    private static void ShowResultToast(bool success, string message)
+    {
+        if (success)
+        {
+            ToastService.Success(message);
+        }
+        else
+        {
+            ToastService.Error(message);
+        }
+    }
+
+    /// <summary>
+    /// ผู้ใช้สลับเวลาไทย/UTC ในหน้าตั้งค่า - หัวคอลัมน์เปลี่ยนเองแล้ว (Controls.TimeColumn) ตรงนี้
+    /// สั่งให้เซลล์ที่แปลงด้วย DisplayTimeConverter ประเมินค่าใหม่ และวาดแผงข้อมูลเครื่องใหม่
+    /// </summary>
+    private void OnTimeDisplayModeChanged()
+    {
+        ClientsGrid.Items.Refresh();
+        LogsGrid.Items.Refresh();
+        AuditLogGrid.Items.Refresh();
+        UsersGrid.Items.Refresh();
+        UpdateClientInspector();
     }
 }

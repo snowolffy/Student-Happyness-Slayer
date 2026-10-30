@@ -56,6 +56,16 @@ public partial class App : Application
         };
 
 #if DEBUG
+        // --theme=light|dark บังคับธีมสำหรับการถ่ายภาพตรวจ โดยไม่บันทึกลง console-settings.json
+        // (ไฟล์นั้นใช้ร่วมกับ Console ตัวจริงบนเครื่องนี้) - ต้องมาก่อนสร้างหน้าต่างใด ๆ
+        var themeArg = e.Args.FirstOrDefault(a => a.StartsWith("--theme=", StringComparison.Ordinal));
+        if (themeArg is not null
+            && Enum.TryParse<AppTheme>(themeArg["--theme=".Length..], ignoreCase: true, out var forcedTheme))
+        {
+            ThemeService.PreviewOverride(forcedTheme);
+        }
+
+
         // เครื่องมือสำหรับตรวจงาน UI เท่านั้น และมีเฉพาะใน build แบบ Debug (installer/publish-all.ps1
         // publish ด้วย -c Release เสมอ ปุ่มนี้จึงไม่มีอยู่จริงในของที่ส่งขึ้นเครื่องครู)
         //
@@ -152,14 +162,12 @@ public partial class App : Application
                 "confirm" => ConfirmWindow.CreatePreview(typeToConfirm: false),
                 "confirm-type" => ConfirmWindow.CreatePreview(typeToConfirm: true),
                 "about" => new AboutWindow(),
-                "settings" => new SettingsWindow(api),
                 "broadcast" => new BroadcastMessageWindow(3),
                 "add-rule" => new AddEditRuleWindow(api),
                 "change-password" => new ChangeMyPasswordWindow(api),
                 "force-password" => new ForceChangePasswordWindow(api),
                 "reset-password" => new ResetPasswordWindow("teacher01"),
                 "tailscale" => new TailscaleLoginWindow(),
-                "program-review" => new ProgramReviewWindow(api),
                 "client-settings" => new ClientSettingsWindow(api, sampleClient),
                 "rule-overrides" => new RuleOverridesWindow(api, sampleClient),
                 "pending-commands" => new PendingCommandsWindow(api, sampleClient),
@@ -208,7 +216,11 @@ public partial class App : Application
                 PreviewMode = true,
                 PreviewSelectFirst = e.Args.Contains("--select"),
                 PreviewGlobalOff = e.Args.Contains("--global-off"),
-                PreviewFullscreen = e.Args.Contains("--fullscreen")
+                PreviewFullscreen = e.Args.Contains("--fullscreen"),
+                PreviewToasts = e.Args.Contains("--toasts"),
+                PreviewAnnouncements = e.Args.Contains("--announce"),
+                PreviewInspectorCollapsed = e.Args.Contains("--inspector-collapsed"),
+                PreviewSidebarExpanded = e.Args.Contains("--sidebar-expanded")
             };
 
             // --tab=<ชื่อแท็บ> เลือกแท็บก่อนถ่ายภาพ ใช้ไล่ตรวจทุกหน้าจอในโหมดมืดรอบเดียว
@@ -278,6 +290,17 @@ public partial class App : Application
             System.Windows.Threading.DispatcherPriority.ApplicationIdle,
             () =>
             {
+                // วัดตำแหน่ง/ขนาดตาราง Clients ลง console.log (WP6) - เกณฑ์ "ตารางไม่ขยับตอนแผงเปิดหรือ
+                // ตอนประกาศโผล่" พิสูจน์ด้วยตัวเลขเทียบกันระหว่างภาพ ไม่ใช่ด้วยการเพ่งภาพสองใบ
+                if (window is DashboardWindow dashboard && dashboard.ClientsGrid.IsVisible)
+                {
+                    var origin = dashboard.ClientsGrid.TranslatePoint(new Point(0, 0), dashboard);
+                    ConsoleDiagnostics.WriteLine(
+                        $"LAYOUT-TEST ClientsGrid=({origin.X:F1},{origin.Y:F1} "
+                        + $"{dashboard.ClientsGrid.ActualWidth:F1}x{dashboard.ClientsGrid.ActualHeight:F1}) "
+                        + $"args={string.Join(' ', args)}");
+                }
+
                 var bitmap = new System.Windows.Media.Imaging.RenderTargetBitmap(
                     (int)window.ActualWidth, (int)window.ActualHeight, 96, 96,
                     System.Windows.Media.PixelFormats.Pbgra32);

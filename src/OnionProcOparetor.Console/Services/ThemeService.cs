@@ -100,6 +100,20 @@ public static class ThemeService
     /// </summary>
     public static void Toggle() => Set(IsDarkActive ? AppTheme.Light : AppTheme.Dark);
 
+#if DEBUG
+    /// <summary>
+    /// โหมดตรวจ UI เท่านั้น (--theme=light|dark ใน App.OnStartup): สลับธีม **โดยไม่บันทึก** ลง
+    /// console-settings.json - ไฟล์นั้นอยู่ใน ProgramData ใช้ร่วมกับ Console ตัวจริงบนเครื่องเดียวกัน
+    /// การถ่ายภาพตรวจทั้งสองธีมจึงต้องไม่ไปเปลี่ยนธีมที่ครูเลือกไว้
+    /// </summary>
+    public static void PreviewOverride(AppTheme theme)
+    {
+        _current = theme;
+        ApplyToApplication(Resolve(theme));
+        ThemeChanged?.Invoke();
+    }
+#endif
+
     private static void OnUserPreferenceChanged(object sender, UserPreferenceChangedEventArgs e)
     {
         // สนใจเฉพาะตอนที่ผู้ใช้เลือก "ตามระบบ" ไว้ - ถ้าเขาเลือก Light/Dark ตายตัว Windows จะเปลี่ยน
