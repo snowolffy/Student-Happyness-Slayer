@@ -203,6 +203,14 @@ public class ApiClient
         return result ?? new List<ClientMachineDto>();
     }
 
+    /// <summary>ห้องทั้งหมด + จำนวนเครื่องในห้องนั้น (WP3, 2026-10-30) - ใช้เติมตัวเลือกห้องบนหัวแท็บ
+    /// Clients (ดู DashboardWindow.LoadRoomsAsync) - pattern เดียวกับ OnlineConsole's ApiClient.GetRoomsAsync</summary>
+    public async Task<List<RoomDto>> GetRoomsAsync()
+    {
+        var result = await _httpClient.GetFromJsonAsync<List<RoomDto>>("/api/rooms");
+        return result ?? new List<RoomDto>();
+    }
+
     public async Task<bool> ToggleClientAsync(int clientId)
     {
         var response = await _httpClient.PostAsync($"/api/clients/{clientId}/toggle", null);

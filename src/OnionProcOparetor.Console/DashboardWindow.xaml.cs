@@ -123,12 +123,20 @@ public partial class DashboardWindow : Window
         _globalState = new GlobalStateDto { IsEnabled = !PreviewGlobalOff };
         _allClients =
         [
-            new() { Id = 1, ClientGuid = "a1", MachineName = "LAB-PC-01", LastKnownIp = "192.168.1.11", IsOnline = true,  IsEnabled = true,  LastSeenAt = now },
-            new() { Id = 2, ClientGuid = "b2", MachineName = "LAB-PC-02", LastKnownIp = "192.168.1.12", IsOnline = true,  IsEnabled = false, LastSeenAt = now },
-            new() { Id = 3, ClientGuid = "c3", MachineName = "LAB-PC-03", LastKnownIp = "100.84.2.7",   IsOnline = true,  IsEnabled = true,  UsingFallback = true, LastSeenAt = now },
-            new() { Id = 4, ClientGuid = "d4", MachineName = "LAB-PC-04", LastKnownIp = "192.168.1.14", IsOnline = false, IsEnabled = true,  LastSeenAt = now.AddHours(-3) },
-            new() { Id = 5, ClientGuid = "e5", MachineName = "LAB-PC-05", LastKnownIp = null,           IsOnline = false, IsEnabled = false, LastSeenAt = now.AddDays(-2) },
+            new() { Id = 1, ClientGuid = "a1", MachineName = "LAB-PC-01", LastKnownIp = "192.168.1.11", IsOnline = true,  IsEnabled = true,  LastSeenAt = now, RoomId = 1 },
+            new() { Id = 2, ClientGuid = "b2", MachineName = "LAB-PC-02", LastKnownIp = "192.168.1.12", IsOnline = true,  IsEnabled = false, LastSeenAt = now, RoomId = 1 },
+            new() { Id = 3, ClientGuid = "c3", MachineName = "LAB-PC-03", LastKnownIp = "100.84.2.7",   IsOnline = true,  IsEnabled = true,  UsingFallback = true, LastSeenAt = now, RoomId = 2 },
+            new() { Id = 4, ClientGuid = "d4", MachineName = "LAB-PC-04", LastKnownIp = "192.168.1.14", IsOnline = false, IsEnabled = true,  LastSeenAt = now.AddHours(-3), RoomId = 2 },
+            new() { Id = 5, ClientGuid = "e5", MachineName = "LAB-PC-05", LastKnownIp = null,           IsOnline = false, IsEnabled = false, LastSeenAt = now.AddDays(-2), RoomId = null },
         ];
+
+        // ตัวเลือกห้อง (WP3) - เติมข้อมูลปลอมด้วย ไม่งั้น RoomFilterCombo จะโล่งเปล่าตอนตรวจงาน UI
+        _allRooms =
+        [
+            new() { Id = 1, Name = "ห้อง 1", ClientCount = 2 },
+            new() { Id = 2, Name = "ห้อง 2", ClientCount = 2 },
+        ];
+        PopulateRoomFilterCombo();
 
         RefreshGlobalStateUi();
         ApplyClientsFilter();
@@ -423,6 +431,9 @@ public partial class DashboardWindow : Window
             // อ่านก่อน _allClients เสมอ - ApplyClientsFilter ต้องใช้ค่านี้เติมลง DTO แต่ละตัว
             _globalState = await _apiClient.GetGlobalStateAsync();
             RefreshGlobalStateUi();
+
+            _allRooms = await _apiClient.GetRoomsAsync();
+            PopulateRoomFilterCombo();
 
             _allClients = await _apiClient.GetClientsAsync();
             ApplyClientsFilter();
@@ -1135,6 +1146,12 @@ public partial class DashboardWindow : Window
     private List<ClientMachineDto> _allClients = new();
     private List<RuleDto> _allRules = new();
     private List<LogEntryDto> _allLogs = new();
+    private List<RoomDto> _allRooms = new();
+
+    /// <summary>true ระหว่างกำลังเขียน RoomFilterCombo.Items ใหม่ (ทุกครั้งที่ LoadAllDataAsync ทำงาน) -
+    /// กัน SelectionChanged ที่ยิงขึ้นมาตอนกำลังตั้ง ItemsSource/SelectedValue กลับไปกรองซ้ำ/เขียน settings
+    /// ทับตัวเองเปล่าๆ (ดู RoomFilterCombo_SelectionChanged)</summary>
+    private bool _suppressRoomFilterEvent;
 
     // ==================== Audit Log tab ====================
     // ตั้งใจไม่ผูกกับ LoadAllDataAsync/_allLogs pattern (โหลดทั้งหมดทุก tick) เพราะ volume คาดว่าสูง
@@ -1177,15 +1194,27 @@ public partial class DashboardWindow : Window
             _ => _allClients
         };
 
+        // ตัวเลือกห้อง (WP3, 2026-10-30) - กรองซ้อนกับตัวกรองสถานะข้างบน เหมือนที่ OnlineConsole's
+        // Home.razor ทำ (กรองฝั่ง client จากข้อมูลที่โหลดมาแล้ว ไม่ยิง GET /api/clients?roomId= ใหม่
+        // ทุกครั้งที่สลับห้อง - 40 เครื่องไม่จำเป็นต้องทำขนาดนั้น) null = ทุกห้อง (ไม่กรอง)
+        var selectedRoomFilter = (RoomFilterCombo.SelectedItem as RoomFilterOption)?.RoomIdOrSentinel;
+        var byRoom = selectedRoomFilter switch
+        {
+            null => byStatus,
+            UnassignedRoomSentinel => byStatus.Where(c => c.RoomId is null),
+            _ => byStatus.Where(c => c.RoomId == selectedRoomFilter)
+        };
+
         var filtered = (string.IsNullOrEmpty(keyword)
-            ? byStatus
-            : byStatus.Where(c => c.MachineName.Contains(keyword, StringComparison.OrdinalIgnoreCase))).ToList();
+            ? byRoom
+            : byRoom.Where(c => c.MachineName.Contains(keyword, StringComparison.OrdinalIgnoreCase))).ToList();
 
         ClientsGrid.ItemsSource = filtered;
 
         // แยก "ยังไม่มีเครื่องเลย" ออกจาก "กรองแล้วไม่เจอ" - คนละสถานการณ์ และทางออกคนละอย่าง
         // (อันแรกคือไปติดตั้ง Agent อันหลังคือล้างตัวกรอง) ของเดิมขึ้นข้อความเดียวกันทั้งสองกรณี
-        var filteringSomething = !string.IsNullOrEmpty(keyword) || _clientStatusFilter != ClientStatusFilter.All;
+        var filteringSomething = !string.IsNullOrEmpty(keyword) || _clientStatusFilter != ClientStatusFilter.All
+            || selectedRoomFilter is not null;
         if (filtered.Count > 0)
         {
             ClientsEmptyText.Visibility = Visibility.Collapsed;
@@ -1223,6 +1252,77 @@ public partial class DashboardWindow : Window
     }
 
     private ClientStatusFilter _clientStatusFilter = ClientStatusFilter.All;
+
+    // ==================== ตัวเลือกห้องบนหัวแท็บ Clients (WP3, 2026-10-30) ====================
+
+    /// <summary>sentinel แทน "ยังไม่จัดห้อง" ใน RoomFilterCombo/UiSettings.SelectedClientsRoomFilter -
+    /// Room.Id จริงฝั่ง Server เป็น EF identity column เริ่มนับจาก 1 เสมอ จึงไม่มีทางชนกับห้องจริง</summary>
+    private const int UnassignedRoomSentinel = 0;
+
+    /// <summary>หนึ่งแถวของ RoomFilterCombo - RoomIdOrSentinel: null = "ทุกห้อง", 0 = "ยังไม่จัดห้อง", อื่นๆ = Room.Id</summary>
+    private sealed class RoomFilterOption
+    {
+        public int? RoomIdOrSentinel { get; init; }
+        public required string Label { get; init; }
+    }
+
+    /// <summary>
+    /// เติม/รีเฟรช RoomFilterCombo ตามห้องที่โหลดมาได้ล่าสุด - เรียกทุกครั้งที่ LoadAllDataAsync ทำงาน
+    /// เพราะห้องอาจถูกเพิ่ม/ลบ/เปลี่ยนชื่อ หรือจำนวนเครื่องในห้องเปลี่ยนจาก Console เครื่องอื่นหรือ
+    /// OnlineConsole ก็ได้ ไม่เสียตัวเลือกเดิมของผู้ใช้ไปตอนรีเฟรช (จำค่าที่เลือกอยู่ไว้ก่อนเขียน Items
+    /// ใหม่ทั้งชุด แล้วเลือกคืนให้ตาม RoomIdOrSentinel - ถ้าห้องนั้นหายไปแล้ว ถอยไป "ทุกห้อง")
+    ///
+    /// ตั้ง _suppressRoomFilterEvent ครอบไว้เพราะเขียน ItemsSource/SelectedItem ใหม่ยิง SelectionChanged
+    /// ขึ้นมาด้วยเสมอ ซึ่งไม่ควรไปกรองซ้ำ/เขียน settings ทับตัวเองทุกรอบ auto-refresh (ทุก 10 วิ)
+    /// </summary>
+    private void PopulateRoomFilterCombo()
+    {
+        _suppressRoomFilterEvent = true;
+        try
+        {
+            var previousSelection = (RoomFilterCombo.SelectedItem as RoomFilterOption)?.RoomIdOrSentinel
+                ?? SettingsService.Current.Ui.SelectedClientsRoomFilter;
+
+            var options = new List<RoomFilterOption>
+            {
+                new() { RoomIdOrSentinel = null, Label = "ทุกห้อง" },
+                new() { RoomIdOrSentinel = UnassignedRoomSentinel, Label = "ยังไม่จัดห้อง" }
+            };
+            options.AddRange(_allRooms.Select(r => new RoomFilterOption
+            {
+                RoomIdOrSentinel = r.Id,
+                Label = $"{r.Name} ({r.ClientCount})"
+            }));
+
+            RoomFilterCombo.ItemsSource = options;
+            RoomFilterCombo.SelectedItem = options.FirstOrDefault(o => o.RoomIdOrSentinel == previousSelection) ?? options[0];
+        }
+        finally
+        {
+            _suppressRoomFilterEvent = false;
+        }
+    }
+
+    private void RoomFilterCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_suppressRoomFilterEvent)
+        {
+            return;
+        }
+
+        var selected = (RoomFilterCombo.SelectedItem as RoomFilterOption)?.RoomIdOrSentinel;
+
+        var settings = SettingsService.Current;
+        settings.Ui.SelectedClientsRoomFilter = selected;
+        var (success, error) = SettingsService.Save(settings);
+        if (!success)
+        {
+            // จำไม่ได้ก็ไม่เป็นไร ตัวกรองรอบนี้ยังใช้ได้ตามที่เลือกไว้ (pattern เดียวกับ SetSidebarCollapsed)
+            ConsoleDiagnostics.WriteLine($"DashboardWindow: จำตัวเลือกห้องไม่สำเร็จ ({error})");
+        }
+
+        ApplyClientsFilter();
+    }
 
     private void ClientStatFilter_Checked(object sender, RoutedEventArgs e)
     {

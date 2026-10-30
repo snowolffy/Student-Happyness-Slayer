@@ -17,5 +17,17 @@
     <Resource Include="Theme\logo.png" />
     <Resource Include="Theme\logo-source.png" />
     <Resource Include="Theme\icon.ico" />
+
+    <!-- หน้าล็อกอินใหม่ (WP7, 2026-10-30) - ภาพฝั่งซ้ายของการ์ดล็อกอิน (placeholder ตอนนี้)
+         สองรายการนี้ชี้ไฟล์เดียวกันโดยเจตนา คนละ item type:
+           - Resource: ฝังเข้าตัว exe เป็น pack resource - ใช้เป็น fallback เมื่อไม่มีไฟล์ "ข้างแอป"
+             (ดู MainWindow.xaml.cs LoadHeroImage) มีอยู่แน่นอนเสมอไม่ว่าจะลบไฟล์ข้างล่างทิ้งไปหรือไม่
+           - None + CopyToOutputDirectory: สำเนาไฟล์จริงที่ Assets\LoginHero.png ข้าง .exe ให้ครู
+             เปลี่ยนภาพเองได้โดยไม่ต้อง build ใหม่ (นี่คือไฟล์ที่เกณฑ์ทดสอบ WP7 สั่งให้ลบทิ้งแล้วดูว่า
+             แอปไม่ crash) -->
+    <Resource Include="Assets\LoginHero.png" />
+    <None Include="Assets\LoginHero.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
   </ItemGroup>
 </Project>

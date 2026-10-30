@@ -17,6 +17,14 @@ public class ClientMachineDto
     public DateTime RegisteredAt { get; set; }
     public int? PollIntervalOverrideSeconds { get; set; }
 
+    /// <summary>ห้องที่เครื่องนี้อยู่ (WP3, 2026-10-30) - null = "ยังไม่จัดห้อง" มาจาก GET /api/clients ตรงๆ
+    /// (Server serialize ClientMachine entity ทั้งตัว ไม่ใช่ DTO แยก จึงมี field นี้ติดมาอยู่แล้วแม้ก่อนหน้านี้
+    /// Console ยังไม่เคยอ่าน - ดู ตัวเลือกห้องบนหัวแท็บ Clients ใน DashboardWindow.ApplyClientsFilter)</summary>
+    public int? RoomId { get; set; }
+
+    public int? SeatRow { get; set; }
+    public int? SeatCol { get; set; }
+
     /// <summary>
     /// คำนวณฝั่ง Server (ClientMachine.IsOnline) ส่งมาเป็น field นี้ตรงๆ ทั้งจาก GET /api/clients และ
     /// SignalR ClientStatusChanged - ไม่คำนวณเองฝั่ง Console อีกต่อไป (เดิมมี IsOffline คำนวณจาก

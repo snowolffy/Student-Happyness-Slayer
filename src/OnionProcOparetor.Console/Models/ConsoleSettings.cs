@@ -64,4 +64,13 @@ public class UiSettings
     /// = เวลาไทย ซึ่งเป็นค่าที่ต้องการ ไม่ต้องมี migration ของไฟล์
     /// </summary>
     public bool ShowTimesInUtc { get; set; }
+
+    /// <summary>
+    /// ห้องที่เลือกไว้ล่าสุดที่ตัวกรองห้องบนหัวแท็บ Clients (WP3, 2026-10-30) - จำต่อเครื่อง Console
+    /// เหมือนค่าอื่นในกลุ่มนี้ (ครูคนเดียวกันอาจสลับเครื่อง Console คนละห้องกัน)
+    ///
+    /// null = "ทุกห้อง" (ค่าเริ่มต้น) · 0 = sentinel แทน "ยังไม่จัดห้อง" (Room.Id จริงฝั่ง Server เริ่ม
+    /// นับจาก 1 เสมอผ่าน EF identity column จึงไม่ชนกับห้องจริง) · ค่าอื่น = Room.Id
+    /// </summary>
+    public int? SelectedClientsRoomFilter { get; set; }
 }

@@ -1,4 +1,6 @@
+using System.IO;
 using System.Windows;
+using System.Windows.Media.Imaging;
 using OnionProcOparetor.Console.Models;
 using OnionProcOparetor.Console.Services;
 
@@ -21,6 +23,46 @@ public partial class MainWindow : Window
         var connection = SettingsService.Current.Connection;
         ServerIpBox.Text = connection.ServerHost;
         PortBox.Text = connection.ServerPort;
+
+        LoadHeroImage();
+    }
+
+    /// <summary>
+    /// WP7 (2026-10-30): ภาพฝั่งซ้ายของการ์ดล็อกอิน - ลองโหลดจากไฟล์ "ข้างแอป" (Assets\LoginHero.png
+    /// ถัดจาก .exe) ก่อนเสมอ เพื่อให้เปลี่ยนภาพได้โดยไม่ต้อง build ใหม่ ถ้าไฟล์นั้นหายไป (ลบทิ้ง/ติดตั้ง
+    /// พลาด/อ่านไม่ได้) fallback ไปใช้ภาพเดียวกันที่ฝังอยู่ในตัว exe เอง (pack resource - ดู .csproj ที่มี
+    /// ทั้ง None CopyToOutputDirectory และ Resource ชี้ไฟล์เดียวกัน) **ต้องไม่ throw ขึ้นไปเด็ดขาด** -
+    /// เกณฑ์เสร็จของ WP7 คือ "ลบไฟล์ภาพ LoginHero ทิ้งแล้วแอปต้องไม่ crash"
+    /// </summary>
+    private void LoadHeroImage()
+    {
+        var externalPath = Path.Combine(AppContext.BaseDirectory, "Assets", "LoginHero.png");
+        try
+        {
+            if (File.Exists(externalPath))
+            {
+                var bitmap = new BitmapImage();
+                bitmap.BeginInit();
+                // OnLoad = อ่านทั้งไฟล์เข้า memory ทันทีตอน EndInit แล้วปล่อย file handle - ถ้าใช้
+                // ค่า default (OnDemand) ไฟล์จะยังถูกถือล็อกอยู่ตราบใดที่ BitmapImage นี้มีชีวิต ซึ่งแปลว่า
+                // ลบไฟล์ทิ้งตอน Console ยังเปิดอยู่จะทำไม่ได้ (ไม่ตรงกับเกณฑ์ทดสอบที่ต้องลบไฟล์ได้)
+                bitmap.CacheOption = BitmapCacheOption.OnLoad;
+                bitmap.UriSource = new Uri(externalPath, UriKind.Absolute);
+                bitmap.EndInit();
+                HeroImage.Source = bitmap;
+                return;
+            }
+        }
+        catch (Exception ex)
+        {
+            // ไฟล์เสีย/อ่านไม่ได้ (permission, PNG พัง ฯลฯ) - log ไว้แล้วไหลลงไป fallback ด้านล่าง
+            // เหมือนกรณีไม่มีไฟล์เลย ไม่ throw ขึ้นไปทำให้หน้าล็อกอินเปิดไม่ขึ้น
+            ConsoleDiagnostics.WriteLine($"MainWindow: โหลด {externalPath} ไม่สำเร็จ ({ex.Message}) - ใช้ภาพที่ฝังไว้แทน");
+        }
+
+        // ไม่มีไฟล์ข้างแอป (หรือโหลดพัง) - ใช้ภาพที่ฝังในตัว exe เอง (pack resource) ซึ่งมีอยู่แน่นอนเสมอ
+        // เพราะถูก build เข้าไปกับ assembly ไม่ได้พึ่งไฟล์แยกบนดิสก์
+        HeroImage.Source = new BitmapImage(new Uri("pack://application:,,,/Assets/LoginHero.png"));
     }
 
     private async void ConnectButton_Click(object sender, RoutedEventArgs e)
@@ -67,6 +109,11 @@ public partial class MainWindow : Window
             {
                 StatusText.SetResourceReference(System.Windows.Controls.TextBlock.ForegroundProperty, "Brush.Status.Online");
                 StatusText.Text = "เชื่อมต่อสำเร็จ กำลังเปิด Dashboard...";
+
+                // Toast ของ WP6 - ตอนนี้ยังไม่มี ToastHost อยู่จริง (อยู่ใน DashboardWindow ที่กำลังจะเปิด
+                // ด้านล่างนี้) แต่ ToastService.Items เป็น static queue อยู่แล้ว โชว์ทันทีที่ ToastHost
+                // ของ Dashboard mount เสร็จ (ดู Services/ToastService.cs ส่วน "เรียกก่อนมี host")
+                ToastService.Success($"เข้าสู่ระบบสำเร็จ ({username})");
 
                 var dashboard = new DashboardWindow(_apiClient);
                 dashboard.Show();
