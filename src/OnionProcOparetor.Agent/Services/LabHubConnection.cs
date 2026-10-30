@@ -114,6 +114,10 @@ public class LabHubConnection : IAsyncDisposable
         _activeBaseUrl = baseUrl;
         var hubUrl = baseUrl.TrimEnd('/') + "/hubs/lab";
 
+        // WP1 (2026-10-30) - HTTPS: ไม่ override HttpMessageHandlerFactory/cert validation ที่นี่ด้วย
+        // เหตุผลเดียวกับ ServerClient's AddHttpClient<ServerClient> ใน Program.cs (เชื่อถือผ่าน Windows
+        // trust store ที่ MSI ติดตั้ง cert ของ Server ไว้ให้แล้ว) hubUrl ใช้ https:// ได้ตรงๆ ถ้า baseUrl
+        // ที่ส่งมาเป็น https
         _connection = new HubConnectionBuilder()
             .WithUrl(hubUrl, options =>
             {

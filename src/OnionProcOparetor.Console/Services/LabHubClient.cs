@@ -73,7 +73,12 @@ public class LabHubClient : IAsyncDisposable
         var hubUrl = baseUrl.TrimEnd('/') + "/hubs/lab";
 
         _connection = new HubConnectionBuilder()
-            .WithUrl(hubUrl)
+            .WithUrl(hubUrl, options =>
+            {
+                // WP1 (2026-10-30): pin thumbprint เดียวกับที่ ApiClient ใช้ (ดู ServerCertificatePinning)
+                // ไม่มีผลถ้า hubUrl เป็น http:// (ไม่มี TLS handshake ให้ callback นี้ถูกเรียก)
+                options.HttpMessageHandlerFactory = _ => ServerCertificatePinning.CreateHandler();
+            })
             .WithAutomaticReconnect(new ExponentialBackoffRetryPolicy())
             .Build();
 
