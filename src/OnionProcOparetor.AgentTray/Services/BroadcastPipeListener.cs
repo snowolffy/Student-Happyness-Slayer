@@ -278,6 +278,11 @@ public class BroadcastPipeListener
                 return;
             }
 
+            // WP2b: เก็บ secret ล่าสุดไว้ไม่ว่า message นี้เป็น Type ไหน (ดู LoopbackSecretStore) - ทำให้
+            // AgentTray มี secret ตัวล่าสุดเสมอก่อนจะต้อง callback กลับไปที่ /vnc/session-result หรือ
+            // /processes/list-result แม้ Agent restart แล้วสุ่มค่าใหม่ไปแล้วก็ตาม
+            LoopbackSecretStore.Update(envelope.Secret);
+
             switch (envelope.Type)
             {
                 case "Broadcast":

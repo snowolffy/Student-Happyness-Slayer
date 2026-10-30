@@ -64,13 +64,16 @@ public class ClientApiClient
     {
         try
         {
+            // WP2b: แนบ secret ล่าสุดที่ได้จาก Agent ผ่าน pipe (ดู LoopbackSecretStore) - Agent ปฏิเสธ
+            // (401) ถ้าไม่มี/ผิด กัน process อื่นบนเครื่องเดียวกันยิง PID ปลอมเข้ามาที่ endpoint นี้ตรงๆ
             await _httpClient.PostAsJsonAsync("/vnc/session-result", new
             {
                 requestingConsoleSessionId,
                 success,
                 pid,
                 password,
-                failureReason
+                failureReason,
+                secret = LoopbackSecretStore.Current
             });
         }
         catch
@@ -88,12 +91,14 @@ public class ClientApiClient
     {
         try
         {
+            // WP2b: แนบ secret ล่าสุดเหมือนกับ PostVncSessionResultAsync ด้านบน (เหตุผลเดียวกัน)
             await _httpClient.PostAsJsonAsync("/processes/list-result", new
             {
                 requestingConsoleSessionId,
                 success,
                 processes,
-                failureReason
+                failureReason,
+                secret = LoopbackSecretStore.Current
             });
         }
         catch
