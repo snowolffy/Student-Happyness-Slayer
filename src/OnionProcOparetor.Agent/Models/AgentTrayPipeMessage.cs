@@ -28,6 +28,15 @@ namespace OnionProcOparetor.Agent.Models;
 /// สำคัญ: ไฟล์นี้ถูก "ก๊อปมือ" ไว้ 2 ที่ (Agent/Models + AgentTray/Models) เพราะ solution นี้
 /// ไม่มี shared class library ระหว่างโปรเจกต์เลย (ดู LogEntryDto ที่ก๊อปแบบเดียวกัน) -
 /// แก้ field ตรงนี้เมื่อไหร่ต้องแก้อีกฝั่งให้ตรงกันเสมอ ไม่งั้น JSON deserialize แล้ว field หาย
+///
+/// WP2b (2026-10-30): เพิ่ม Secret - AgentTrayNotifier แนบ LoopbackSecret.Value ของ Agent ตัวนี้มาด้วย
+/// "ทุก" message ไม่ว่า Type ไหน (ดู AgentTrayNotifier.SendAsync) ฝั่ง AgentTray (BroadcastPipeListener)
+/// เก็บค่านี้ไว้ล่าสุดเสมอ (LoopbackSecretStore) แล้วแนบกลับไปกับ /vnc/session-result และ
+/// /processes/list-result เพื่อปิดช่องที่ process อื่นบนเครื่องเดียวกันยิง PID/ผลปลอมเข้ามาที่ loopback
+/// endpoint 2 ตัวนี้ได้โดยไม่ต้องผ่าน AgentTray จริง (Agent เป็นฝั่งเดียวที่รู้ค่าจริงและตรวจเอง - ดู
+/// LoopbackSecret.Matches) เพราะแนบมาทุก message จึงทำให้ secret sync กันเสมอแม้ Agent restart แล้วสุ่ม
+/// ค่าใหม่ - ค่าใหม่มาถึง AgentTray ในคำสั่ง StartVncSession/GetRunningProcesses เดียวกันกับที่ทำให้ต้อง
+/// callback กลับมาอยู่แล้ว ไม่ต้องมี round-trip แยก
 /// </summary>
 public class AgentTrayPipeMessage
 {
@@ -41,4 +50,7 @@ public class AgentTrayPipeMessage
 
     /// <summary>ใช้เฉพาะ Type = "ShowShutdownNotify" - จำนวนวินาทีที่จะนับถอยหลังก่อนเครื่องดับจริง</summary>
     public int? DelaySeconds { get; set; }
+
+    /// <summary>WP2b: secret ปัจจุบันของ Agent process นี้ (ดู LoopbackSecret) แนบมาทุก message - ไม่ใช้ต่อ Type ใดโดยเฉพาะ</summary>
+    public string? Secret { get; set; }
 }

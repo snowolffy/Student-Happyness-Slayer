@@ -91,6 +91,12 @@ builder.Services.AddSingleton<ClientState>();
 builder.Services.AddSingleton<UserSessionLauncher>();
 builder.Services.AddSingleton<AgentTrayRecoveryService>();
 
+// ---- WP2b: shared secret ของ loopback API (8788) - สุ่มใหม่ทุกครั้งที่ Agent เริ่ม เก็บใน memory
+// เท่านั้น ใช้ปิด /vnc/session-result และ /processes/list-result ด้านล่าง (ดู LoopbackSecret.cs
+// ว่าทำไมแยกเป็นคลาสเดี่ยวๆ ไม่มี dependency อื่น - ต้องเป็น singleton เพราะต้องเป็นค่าเดียวกันตลอดอายุ
+// Agent process ทั้งฝั่งที่ AgentTrayNotifier ส่งออกไป และฝั่งที่ endpoint ด้านล่างตรวจรับเข้ามา) ----
+builder.Services.AddSingleton<LoopbackSecret>();
+
 builder.Services.AddSingleton<AgentTrayNotifier>();
 
 // รายงาน "ผลจริง" ของ command กลับ Server (SignalR ก่อน ไม่ได้ค่อย HTTP) - ต้องเป็น singleton
@@ -176,9 +182,17 @@ app.MapGet("/logs/recent", (ClientState state) =>
 
 // ---- AgentTray เรียกกลับมาที่นี่หลัง start winvnc.exe เอง (ต้องทำจาก AgentTray เพราะรันใน user
 // session จริง - Agent เอง Session 0 capture หน้าจอไม่ได้เลย ดู comment เต็มใน VncSessionManager.cs) -
-// loopback เท่านั้น (ConfigureKestrel ผูก 127.0.0.1 ไว้แล้วด้านบน) ไม่มีทางถูกเรียกจากเครื่องอื่น ----
-app.MapPost("/vnc/session-result", async (VncSessionResultRequest request, CommandProcessor commandProcessor, CancellationToken ct) =>
+// loopback เท่านั้น (ConfigureKestrel ผูก 127.0.0.1 ไว้แล้วด้านบน) แต่ "loopback เท่านั้น" ไม่ได้แปลว่า
+// "เฉพาะ AgentTray" - process อื่นบนเครื่องเดียวกัน (เช่นนักเรียนเขียน script เอง) ยิง POST ตรงมาที่นี่
+// ได้เหมือนกันโดยไม่ต้องผ่าน AgentTray เลย แล้วใส่ PID ปลอมให้ Agent (รันเป็น SYSTEM) เปิด firewall
+// rule ให้ได้ (WP2b, 2026-10-30) - ตอนนี้บังคับตรวจ LoopbackSecret ก่อนทุกครั้ง (401 ถ้าไม่มี/ผิด) ----
+app.MapPost("/vnc/session-result", async (VncSessionResultRequest request, CommandProcessor commandProcessor, LoopbackSecret loopbackSecret, CancellationToken ct) =>
 {
+    if (!loopbackSecret.Matches(request.Secret))
+    {
+        return Results.Unauthorized();
+    }
+
     await commandProcessor.HandleVncSessionResultAsync(
         request.RequestingConsoleSessionId, request.Success, request.Pid, request.Password, request.FailureReason, ct);
     return Results.Ok();
@@ -187,9 +201,15 @@ app.MapPost("/vnc/session-result", async (VncSessionResultRequest request, Comma
 // ---- AgentTray เรียกกลับมาที่นี่หลังสแกนโปรแกรมที่มีหน้าต่างอยู่บน desktop เสร็จ (ต้องทำจาก
 // AgentTray เพราะรันใน user session จริง - เหตุผลเดียวกับ /vnc/session-result ด้านบน) - loopback
 // เท่านั้น รับ Processes เป็น JsonElement ดิบแล้ว forward เป็น raw JSON string ต่อไปเลย ไม่ต้องมี
-// RunningProcessDto ฝั่ง Agent เพราะ Agent แค่ relay ผ่านมือ ไม่ได้อ่าน field ไหนเลย ----
-app.MapPost("/processes/list-result", async (RunningProcessesResultRequest request, CommandProcessor commandProcessor, CancellationToken ct) =>
+// RunningProcessDto ฝั่ง Agent เพราะ Agent แค่ relay ผ่านมือ ไม่ได้อ่าน field ไหนเลย - เช็ค LoopbackSecret
+// ก่อนเหมือนกับ /vnc/session-result ด้านบน (เหตุผลเดียวกัน WP2b) ----
+app.MapPost("/processes/list-result", async (RunningProcessesResultRequest request, CommandProcessor commandProcessor, LoopbackSecret loopbackSecret, CancellationToken ct) =>
 {
+    if (!loopbackSecret.Matches(request.Secret))
+    {
+        return Results.Unauthorized();
+    }
+
     var processListJson = request is { Success: true, Processes: not null }
         ? request.Processes.Value.GetRawText()
         : null;
@@ -219,6 +239,6 @@ app.MapPost("/bypass/set", async (BypassSetRequest request, BypassCoordinator co
 
 app.Run();
 
-internal sealed record VncSessionResultRequest(string RequestingConsoleSessionId, bool Success, int Pid, string? Password, string? FailureReason);
-internal sealed record RunningProcessesResultRequest(string RequestingConsoleSessionId, bool Success, System.Text.Json.JsonElement? Processes, string? FailureReason);
+internal sealed record VncSessionResultRequest(string RequestingConsoleSessionId, bool Success, int Pid, string? Password, string? FailureReason, string? Secret);
+internal sealed record RunningProcessesResultRequest(string RequestingConsoleSessionId, bool Success, System.Text.Json.JsonElement? Processes, string? FailureReason, string? Secret);
 internal sealed record BypassSetRequest(bool Bypassed, string? StaffSessionToken = null);

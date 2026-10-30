@@ -17,6 +17,11 @@ namespace OnionProcOparetor.AgentTray.Models;
 /// ต้อง "ตรงกัน" กับ OnionProcOparetor.Agent/Models/AgentTrayPipeMessage.cs เป๊ะๆ เสมอ เพราะ
 /// solution นี้ไม่มี shared class library ระหว่างโปรเจกต์ (ก๊อปมือแบบเดียวกับ LogEntryDto) -
 /// เพิ่ม/แก้ field ที่นี่แล้วต้องไปแก้อีกฝั่งด้วยทุกครั้ง
+///
+/// WP2b (2026-10-30): เพิ่ม Secret - ค่าปัจจุบันของ LoopbackSecret ฝั่ง Agent แนบมาทุก message
+/// (ดู AgentTrayNotifier.SendAsync ฝั่ง Agent) BroadcastPipeListener เก็บค่านี้ไว้ใน
+/// LoopbackSecretStore ทุกครั้งที่รับ message แล้ว ClientApiClient แนบกลับไปกับ
+/// /vnc/session-result และ /processes/list-result เพื่อให้ Agent ตรวจได้ว่าเป็น AgentTray จริง
 /// </summary>
 public class AgentTrayPipeMessage
 {
@@ -30,4 +35,7 @@ public class AgentTrayPipeMessage
 
     /// <summary>ใช้เฉพาะ Type = "ShowShutdownNotify" - จำนวนวินาทีที่จะนับถอยหลังก่อนเครื่องดับจริง</summary>
     public int? DelaySeconds { get; set; }
+
+    /// <summary>WP2b: secret ปัจจุบันของ Agent process (ดู LoopbackSecret ฝั่ง Agent) แนบมาทุก message - ไม่ใช้ต่อ Type ใดโดยเฉพาะ</summary>
+    public string? Secret { get; set; }
 }

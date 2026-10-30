@@ -32,11 +32,13 @@ public class AgentTrayNotifier
 
     private readonly ILogger<AgentTrayNotifier> _logger;
     private readonly AgentTrayRecoveryService _recoveryService;
+    private readonly LoopbackSecret _loopbackSecret;
 
-    public AgentTrayNotifier(ILogger<AgentTrayNotifier> logger, AgentTrayRecoveryService recoveryService)
+    public AgentTrayNotifier(ILogger<AgentTrayNotifier> logger, AgentTrayRecoveryService recoveryService, LoopbackSecret loopbackSecret)
     {
         _logger = logger;
         _recoveryService = recoveryService;
+        _loopbackSecret = loopbackSecret;
     }
 
     public Task<bool> SendBroadcastMessageAsync(BroadcastMessagePayload payload, CancellationToken ct)
@@ -149,6 +151,12 @@ public class AgentTrayNotifier
     /// </summary>
     private async Task<bool> SendAsync(AgentTrayPipeMessage envelope, string logContext, CancellationToken ct)
     {
+        // WP2b: แนบ secret ปัจจุบันไปกับ "ทุก" message ไม่ว่า Type ไหน - จุดเดียวที่ต้องแก้เพื่อให้ทุก
+        // caller ข้างบน (SendBroadcastMessageAsync, SendStartVncSessionAsync ฯลฯ) ได้ secret ไปด้วยโดย
+        // ไม่ต้องแก้ทีละที่ ทำให้ AgentTray ได้ secret ตัวล่าสุดเสมอแม้ Agent restart แล้วสุ่มค่าใหม่ (ค่าใหม่
+        // มาถึงพร้อมคำสั่ง StartVncSession/GetRunningProcesses ที่ทำให้ต้อง callback กลับมาอยู่แล้ว)
+        envelope.Secret = _loopbackSecret.Value;
+
         try
         {
             await SendOnceAsync(envelope, ct);
