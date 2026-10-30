@@ -58,6 +58,13 @@ public class LabHubClient : IAsyncDisposable
     public event Action<string, string>? ProcessListFailed;
 
     /// <summary>
+    /// สถานะการเชื่อมต่อ SignalR เปลี่ยน (true = ต่ออยู่) - Dashboard ใช้ขึ้นประกาศ "การอัปเดตสด
+    /// กำลังเชื่อมต่อใหม่" บนแถบหัว (WP6) ยิงจาก background thread เหมือน event อื่นในคลาสนี้
+    /// ยิงซ้ำค่าเดิมได้ (เช่นทุกรอบ retry ที่ต่อไม่ติด) ผู้ฟังต้องรับมือเอง
+    /// </summary>
+    public event Action<bool>? ConnectionStateChanged;
+
+    /// <summary>
     /// เริ่มต่อ SignalR ไปยัง {baseUrl}/hubs/lab - ไม่ throw ออกไปแม้ server จะยังไม่พร้อม/offline
     /// มี retry loop ของตัวเองข้างใน เรียกแบบ fire-and-forget ได้เลย (ไม่ block caller)
     /// </summary>
@@ -96,6 +103,7 @@ public class LabHubClient : IAsyncDisposable
         _connection.Reconnecting += ex =>
         {
             ConsoleDiagnostics.WriteLine($"[LabHubClient] Reconnecting: {ex?.Message}");
+            ConnectionStateChanged?.Invoke(false);
             return Task.CompletedTask;
         };
 
@@ -103,11 +111,13 @@ public class LabHubClient : IAsyncDisposable
         {
             ConsoleDiagnostics.WriteLine("[LabHubClient] Reconnected - join group \"console\" + session group อีกครั้ง");
             await RegisterConsoleSafeAsync();
+            ConnectionStateChanged?.Invoke(true);
         };
 
         _connection.Closed += ex =>
         {
             ConsoleDiagnostics.WriteLine($"[LabHubClient] Closed: {ex?.Message} - Dashboard ยังอัปเดตผ่าน poll ตามปกติ");
+            ConnectionStateChanged?.Invoke(false);
             return Task.CompletedTask;
         };
 
@@ -129,6 +139,7 @@ public class LabHubClient : IAsyncDisposable
                 await _connection!.StartAsync(ct);
                 ConsoleDiagnostics.WriteLine($"[LabHubClient] Connected (ConnectionId: {_connection.ConnectionId})");
                 await RegisterConsoleSafeAsync();
+                ConnectionStateChanged?.Invoke(true);
                 return;
             }
             catch (Exception ex)
@@ -136,6 +147,7 @@ public class LabHubClient : IAsyncDisposable
                 var delay = ExponentialBackoffRetryPolicy.GetDelay(attempt);
                 ConsoleDiagnostics.WriteLine(
                     $"[LabHubClient] Connect failed ({ex.Message}) - retry in {delay.TotalSeconds}s");
+                ConnectionStateChanged?.Invoke(false);
                 attempt++;
 
                 try

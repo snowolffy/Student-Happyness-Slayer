@@ -1,22 +1,14 @@
-<Window x:Class="OnionProcOparetor.Console.WebsiteControlWindow"
-        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        xmlns:controls="clr-namespace:OnionProcOparetor.Console.Controls"
-        Title="Website Control"
-        Height="680" Width="960"
-        WindowStartupLocation="CenterOwner"
-        Icon="/Theme/icon.ico"
-        Style="{StaticResource AppDialogWindow}">
-    <!-- Popup window แยกจาก DashboardWindow's TabControl โดยตั้งใจ (2026-09-11) - เหมือน
-         ProgramReviewWindow ไม่ใช่ tab ของ Rules เพราะไม่อยากให้กฎบล็อกโปรแกรมกับกฎบล็อกเว็บปนกัน
-         จนงงตอนใช้งาน ใช้ global enforcement toggle ตัวเดียวกับ Program Control (ดู GlobalOffBanner
-         ใน DashboardWindow) ไม่มี toggle แยกในหน้าต่างนี้
+<UserControl x:Class="OnionProcOparetor.Console.WebsiteControlPage"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:controls="clr-namespace:OnionProcOparetor.Console.Controls">
+    <!-- Website Control เป็นหน้าใน shell (WP6, 2026-10-30) - เดิมเป็นหน้าต่างลอย WebsiteControlWindow
+         ยังแยกจากหน้า "กฎโปรแกรม" ตามที่ตั้งใจไว้ตั้งแต่ 2026-09-11 (ไม่ให้กฎบล็อกโปรแกรมกับกฎบล็อกเว็บ
+         ปนกันจนงง) และใช้ global enforcement ตัวเดียวกับ Program Control (ประกาศบนแถบหัวของ shell)
 
-         2026-09-12: เพิ่ม Bulk Add + Catalog Sources + ค้นหา/กรอง/แบ่งหน้า - เดิมกลัวรายการเยอะ
-         เกินจะโชว์ในตารางได้ (list สาธารณะบางอันมีโดเมนเป็นแสน) แต่ user ชี้ว่าแค่แบ่งหน้า+ค้นหา+
-         กรองตาม catalog ก็พอแล้ว ไม่ต้องจำกัด UI - เดินตาม pager pattern เดียวกับ Audit Log tab
-         ใน DashboardWindow (ก่อนหน้า/ถัดไป + debounce ช่องค้นหา) -->
-    <Grid Margin="20">
+         2026-09-12: Bulk Add + Catalog Sources + ค้นหา/กรอง/แบ่งหน้า - เดินตาม pager pattern
+         เดียวกับ Audit Log (ก่อนหน้า/ถัดไป + debounce ช่องค้นหา) -->
+    <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
@@ -34,7 +26,7 @@
                 <ColumnDefinition Width="8"/>
                 <ColumnDefinition Width="Auto"/>
             </Grid.ColumnDefinitions>
-            <TextBlock Grid.Column="0" Text="WEBSITE CONTROL" Style="{StaticResource Heading2}" VerticalAlignment="Center"/>
+            <TextBlock Grid.Column="0" Text="Website Control" Style="{StaticResource Heading2}" VerticalAlignment="Center"/>
             <Button Grid.Column="1" Content="จัดการ Catalog..." Style="{StaticResource ButtonSecondary}"
                     Padding="10,5" FontSize="11" VerticalAlignment="Center" Click="ManageCatalogButton_Click"/>
             <Button Grid.Column="3" Content="Bulk Add..." Style="{StaticResource ButtonSecondary}"
@@ -56,8 +48,9 @@
                       SelectionChanged="SourceFilterCombo_SelectionChanged"/>
         </Grid>
 
-        <TextBlock Grid.Row="2" x:Name="StatusText" Style="{StaticResource Caption}"
-                   TextWrapping="Wrap" Margin="0,10,0,10"/>
+        <!-- แถว 2 เคยเป็น StatusText ("อัพเดตล่าสุด" / ผลของการกด) - ผลลัพธ์ย้ายไปเป็น toast แล้ว (WP6)
+             เหลือไว้เป็นช่องว่างคั่นระหว่างแถบค้นหากับตาราง -->
+        <Border Grid.Row="2" Height="10"/>
 
         <Grid Grid.Row="3">
             <Border CornerRadius="12" ClipToBounds="True"
@@ -149,4 +142,4 @@
                     Foreground="{DynamicResource Brush.Text.Secondary}"/>
         </Grid>
     </Grid>
-</Window>
+</UserControl>

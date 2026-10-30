@@ -57,4 +57,11 @@ public class UiSettings
     /// เป็นค่าต่อเครื่อง Console ไม่ผูกกับบัญชี เหมือนค่าอื่นในกลุ่มนี้
     /// </summary>
     public bool ShowTailscaleActions { get; set; }
+
+    /// <summary>
+    /// แสดงเวลาในตารางเป็น UTC แทนเวลาไทยไหม - **ค่าเริ่มต้นคือเวลาไทย** (false) ดู Services/TimeDisplay
+    /// เก็บเป็น "UTC หรือไม่" แทน "เวลาไทยหรือไม่" เพื่อให้ไฟล์ settings เก่าที่ไม่มีช่องนี้ได้ค่า false
+    /// = เวลาไทย ซึ่งเป็นค่าที่ต้องการ ไม่ต้องมี migration ของไฟล์
+    /// </summary>
+    public bool ShowTimesInUtc { get; set; }
 }
