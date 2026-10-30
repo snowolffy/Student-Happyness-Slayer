@@ -207,5 +207,6 @@ app.MapProgramControlEndpoints();
 app.MapTamperReportEndpoints();
 app.MapActivityLogEndpoints();
 app.MapUserEndpoints();
+app.MapRoomEndpoints();
 
 app.Run();

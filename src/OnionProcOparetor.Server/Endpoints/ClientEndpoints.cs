@@ -12,7 +12,9 @@ public static class ClientEndpoints
     public static WebApplication MapClientEndpoints(this WebApplication app)
     {
         // ดึงรายชื่อ client ทั้งหมด + สถานะ
-        app.MapGet("/api/clients", async (HttpRequest request, AppDbContext db, AgentConnectionRegistry connectionRegistry) =>
+        // roomId เป็น query param ใหม่ (WP3, 2026-10-30) - optional เสมอ ไม่ส่งมา = ได้ทุกเครื่องเหมือนเดิม
+        // ทุกประการ (client เก่าที่ไม่รู้จัก param นี้ไม่พัง) ส่งมา = กรองเฉพาะเครื่องในห้องนั้น
+        app.MapGet("/api/clients", async (HttpRequest request, AppDbContext db, AgentConnectionRegistry connectionRegistry, int? roomId) =>
         {
             var admin = await GetAuthorizedAdmin(request, db);
             if (admin is null)
@@ -20,7 +22,13 @@ public static class ClientEndpoints
             if (admin.HasDefaultPassword)
                 return Results.Json(new { error = "Password change required before continuing." }, statusCode: 403);
 
-            var clients = await db.ClientMachines.OrderBy(c => c.MachineName).ToListAsync();
+            var query = db.ClientMachines.AsQueryable();
+            if (roomId is not null)
+            {
+                query = query.Where(c => c.RoomId == roomId);
+            }
+
+            var clients = await query.OrderBy(c => c.MachineName).ToListAsync();
             // เติม IsConnectedViaSignalR + HasEverConnectedViaSignalR ก่อน serialize เสมอ (ไม่ set = default
             // false ทั้งคู่ = IsOnline พึ่ง LastSeenAt อย่างเดียว ยังถูกอยู่แต่ไม่ได้สัญญาณเร็วจาก SignalR - ดู
             // ClientMachine.IsConnectedViaSignalR/HasEverConnectedViaSignalR)

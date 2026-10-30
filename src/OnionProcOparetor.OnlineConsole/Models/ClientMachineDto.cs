@@ -18,4 +18,10 @@ public class ClientMachineDto
 
     /// <summary>คำนวณฝั่ง Server (ClientMachine.IsOnline) ส่งมาตรงๆ ทั้งจาก GET /api/clients และ SignalR ClientStatusChanged</summary>
     public bool IsOnline { get; set; }
+
+    /// <summary>ห้องที่เครื่องนี้อยู่ (WP3, 2026-10-30) - null = "ยังไม่จัดห้อง"</summary>
+    public int? RoomId { get; set; }
+
+    public int? SeatRow { get; set; }
+    public int? SeatCol { get; set; }
 }
