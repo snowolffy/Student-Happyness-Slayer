@@ -414,6 +414,39 @@ public class ApiClient
         return response.IsSuccessStatusCode;
     }
 
+    // ---- ห้อง + ผังที่นั่ง (WP3, 2026-10-30) ----
+
+    public async Task<List<RoomDto>> GetRoomsAsync()
+    {
+        var result = await _httpClient.GetFromJsonAsync<List<RoomDto>>("/api/rooms");
+        return result ?? new List<RoomDto>();
+    }
+
+    public async Task<bool> CreateRoomAsync(string name)
+    {
+        var response = await _httpClient.PostAsJsonAsync("/api/rooms", new { name });
+        return response.IsSuccessStatusCode;
+    }
+
+    public async Task<bool> RenameRoomAsync(int roomId, string name)
+    {
+        var response = await _httpClient.PutAsJsonAsync($"/api/rooms/{roomId}", new { name });
+        return response.IsSuccessStatusCode;
+    }
+
+    public async Task<bool> DeleteRoomAsync(int roomId)
+    {
+        var response = await _httpClient.DeleteAsync($"/api/rooms/{roomId}");
+        return response.IsSuccessStatusCode;
+    }
+
+    /// <summary>ย้ายเครื่องเข้า/ออกห้อง - roomId = null คือเอาเครื่องออกจากห้อง (กลับไปเป็น "ยังไม่จัดห้อง")</summary>
+    public async Task<bool> AssignClientRoomAsync(int clientId, int? roomId, int? seatRow = null, int? seatCol = null)
+    {
+        var response = await _httpClient.PutAsJsonAsync($"/api/clients/{clientId}/room", new { roomId, seatRow, seatCol });
+        return response.IsSuccessStatusCode;
+    }
+
     public async Task<bool> SendCommandAsync(string clientGuid, string commandType, object? payload)
         => (await SendCommandTrackedAsync(clientGuid, commandType, payload, batchId: null)).CommandId is not null;
 

@@ -172,6 +172,15 @@ namespace OnionProcOparetor.Server.Migrations
                     b.Property<DateTime>("RegisteredAt")
                         .HasColumnType("TEXT");
 
+                    b.Property<int?>("RoomId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("SeatCol")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("SeatRow")
+                        .HasColumnType("INTEGER");
+
                     b.Property<bool>("UsingFallback")
                         .HasColumnType("INTEGER");
 
@@ -179,6 +188,8 @@ namespace OnionProcOparetor.Server.Migrations
 
                     b.HasIndex("ClientGuid")
                         .IsUnique();
+
+                    b.HasIndex("RoomId");
 
                     b.ToTable("ClientMachines");
                 });
@@ -324,6 +335,30 @@ namespace OnionProcOparetor.Server.Migrations
                     b.HasIndex("Action", "SightingCount");
 
                     b.ToTable("ProgramVerdicts");
+                });
+
+            modelBuilder.Entity("OnionProcOparetor.Server.Models.Room", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Name")
+                        .IsUnique();
+
+                    b.ToTable("Rooms");
                 });
 
             modelBuilder.Entity("OnionProcOparetor.Server.Models.Rule", b =>

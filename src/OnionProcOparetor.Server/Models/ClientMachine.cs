@@ -33,6 +33,21 @@ public class ClientMachine
     public bool IsEnabled { get; set; } = true;
 
     /// <summary>
+    /// ห้องที่เครื่องนี้อยู่ (WP3, 2026-10-30) - null = "ยังไม่จัดห้อง" (ค่าเริ่มต้นของเครื่องเก่าทุกเครื่อง
+    /// หลัง migration นี้ และของเครื่องใหม่ที่ยังไม่ถูกย้ายเข้าห้อง) ไม่ใส่ FK/navigation property ไปที่
+    /// Models/Room.cs ตั้งใจ - เดินตาม pattern เดียวกับ WebsiteRule.SourceCatalogId (เป็น int? เปล่าๆ,
+    /// endpoint เป็นคนดูแล referential integrity เอง เช่นตอนลบห้องต้องเซ็ตเครื่องในห้องนั้นกลับเป็น null ก่อน
+    /// ดู Endpoints/RoomEndpoints.cs) เพื่อให้ migration เป็น additive ล้วนๆ
+    /// </summary>
+    public int? RoomId { get; set; }
+
+    /// <summary>แถวที่นั่งในผังห้อง (WP3) - null = ยังไม่ระบุตำแหน่ง มีผลเฉพาะตอน RoomId ไม่เป็น null เท่านั้น</summary>
+    public int? SeatRow { get; set; }
+
+    /// <summary>คอลัมน์ที่นั่งในผังห้อง (WP3) - null = ยังไม่ระบุตำแหน่ง มีผลเฉพาะตอน RoomId ไม่เป็น null เท่านั้น</summary>
+    public int? SeatCol { get; set; }
+
+    /// <summary>
     /// PBKDF2 hash ของ agent secret ประจำเครื่องนี้ (2026-08-31, จาก security audit)
     ///
     /// null = ยังไม่เคย enroll (เครื่องที่ติดตั้งด้วย build ก่อนหน้า หรือเครื่องใหม่ที่ยังไม่ poll)

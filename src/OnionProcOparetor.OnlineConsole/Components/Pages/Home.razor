@@ -104,6 +104,18 @@ else
        of both the table and the card list per character. *@
     <SearchBox Value="@_search" ValueChanged="OnSearchChanged"
                Placeholder="ค้นหาชื่อเครื่อง / IP..." AriaLabel="ค้นหาเครื่อง" />
+    @* ตัวเลือกห้อง (WP3, 2026-10-30) - กรองฝั่ง client เหมือนตัวกรอง online/offline/disabled/fallback
+       ข้างบน (40 เครื่องไม่จำเป็นต้องยิง roomId ไปที่ Server ใหม่ทุกครั้งที่เปลี่ยนห้อง) ยังไม่มีหน้าผัง
+       ที่นั่งเต็มในรอบนี้ - นี่คือแค่ตัวกรองรายชื่อ ดู GET /api/clients?roomId= ฝั่ง Server สำหรับ client
+       อื่นที่อยากกรองจาก Server ตรงๆ เดินตาม pattern เดียวกับ _sourceFilter ใน WebsiteRules.razor *@
+    <select @bind="_roomFilter" style="max-width:190px" aria-label="กรองตามห้อง">
+        <option value="">ทุกห้อง</option>
+        <option value="none">ยังไม่จัดห้อง</option>
+        @foreach (var room in _rooms)
+        {
+            <option value="@room.Id">@room.Name (@room.ClientCount)</option>
+        }
+    </select>
     <span class="spacer"></span>
     <button class="btn btn-secondary @(_refreshing ? "is-busy" : "")" @onclick="RefreshAsync">
         <Icon Name="refresh-cw" Size="15" /> รีเฟรช
@@ -121,7 +133,7 @@ else
     </button>
 </div>
 
-@if (_filter != ClientFilter.All || !string.IsNullOrWhiteSpace(_search))
+@if (_filter != ClientFilter.All || !string.IsNullOrWhiteSpace(_search) || !string.IsNullOrEmpty(_roomFilter))
 {
     @* A filtered list that doesn't say it is filtered is how someone concludes half the lab has
        vanished. Always show what is being hidden, and always give a one-tap way out. *@
@@ -320,12 +332,21 @@ else
     private enum SortKey { Machine, Status, LastSeen }
 
     private List<ClientMachineDto> _clients = new();
+    private List<RoomDto> _rooms = new();
     private HashSet<int> _selected = new();
 
     private bool _loading = true;
     private bool _refreshing;
     private ClientFilter _filter = ClientFilter.All;
     private string _search = string.Empty;
+
+    /// <summary>
+    /// ค่าของ &lt;select&gt; ตัวกรองห้อง (WP3, 2026-10-30) - "" = ทุกห้อง, "none" = ยังไม่จัดห้อง
+    /// (ClientMachineDto.RoomId == null), อย่างอื่น = Room.Id ตัวนั้นเป็น string เดินตาม pattern เดียวกับ
+    /// _sourceFilter ใน WebsiteRules.razor (string เปล่าๆ แทน int? เพราะ &lt;select&gt; ของ Blazor bind
+    /// เป็น string ได้ตรงๆ โดยไม่ต้อง parse เอง)
+    /// </summary>
+    private string _roomFilter = string.Empty;
     private SortKey _sortKey = SortKey.Machine;
     private bool _sortDescending;
 
@@ -396,6 +417,10 @@ else
         // และหน้านี้ต้องไม่ใช่หน้าที่แสดงว่าทุกอย่างปกติทั้งที่ทั้งห้องหยุดบังคับใช้ไปแล้ว
         _globalState = await Api.GetGlobalStateAsync();
 
+        // รายชื่อห้องสำหรับตัวกรอง (WP3, 2026-10-30) - ห้องถูกสร้าง/ลบไม่บ่อย แต่ดึงพร้อมกันทุกรอบเหมือน
+        // _globalState ข้างบน เผื่อครูอีกคนสร้าง/ลบห้องจากอีกเครื่องขณะหน้านี้เปิดอยู่
+        _rooms = await Api.GetRoomsAsync();
+
         await InvokeAsync(StateHasChanged);
     }
 
@@ -444,6 +469,16 @@ else
             query = query.Where(c =>
                 c.MachineName.Contains(needle, StringComparison.OrdinalIgnoreCase) ||
                 (c.LastKnownIp?.Contains(needle, StringComparison.OrdinalIgnoreCase) ?? false));
+        }
+
+        // ตัวกรองห้อง (WP3, 2026-10-30) - "none" คือ RoomId == null ("ยังไม่จัดห้อง") ส่วนค่าอื่นคือ Room.Id
+        if (_roomFilter == "none")
+        {
+            query = query.Where(c => c.RoomId == null);
+        }
+        else if (!string.IsNullOrEmpty(_roomFilter) && int.TryParse(_roomFilter, out var roomId))
+        {
+            query = query.Where(c => c.RoomId == roomId);
         }
 
         query = _sortKey switch
@@ -524,6 +559,7 @@ else
     {
         _filter = ClientFilter.All;
         _search = string.Empty;
+        _roomFilter = string.Empty;
     }
 
     // ---- Selection -----------------------------------------------------------------------------

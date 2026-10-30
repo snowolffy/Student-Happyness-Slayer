@@ -32,6 +32,9 @@ public class AppDbContext : DbContext
     /// <summary>ผลจำแนกโปรแกรม key ด้วย SHA-256 - ดู Models/ProgramVerdict.cs</summary>
     public DbSet<ProgramVerdict> ProgramVerdicts => Set<ProgramVerdict>();
 
+    /// <summary>ห้องแล็บ + ผังที่นั่ง (WP3, 2026-10-30) - ดู Models/Room.cs</summary>
+    public DbSet<Room> Rooms => Set<Room>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
@@ -95,6 +98,17 @@ public class AppDbContext : DbContext
         modelBuilder.Entity<WebsiteRule>()
             .HasIndex(r => r.UrlPattern)
             .IsUnique();
+
+        // ชื่อห้องต้องไม่ซ้ำกัน (WP3, 2026-10-30) - ป้องกันครูสร้างห้อง "ห้องคอม 1" สองรอบโดยไม่ตั้งใจ
+        // เหมือนกับ index อื่นข้างบนทั้งหมดในกลุ่มนี้
+        modelBuilder.Entity<Room>()
+            .HasIndex(r => r.Name)
+            .IsUnique();
+
+        // query หลักของ GET /api/clients?roomId= (ดู ClientEndpoints.cs) - เครื่อง 40 ตัวไม่จำเป็นต้องมี
+        // index จริงจังขนาดนี้ แต่ทำไว้ให้ตรงกับ pattern เดียวกับ index อื่นๆ ของ ClientMachine/ClientCommand
+        modelBuilder.Entity<ClientMachine>()
+            .HasIndex(c => c.RoomId);
 
         // Seed ค่าเริ่มต้นของ GlobalState ให้มี row เดียวเสมอ (Id = 1, เปิดใช้งานเป็นค่าเริ่มต้น)
         // สำคัญ: ต้องใช้ค่า DateTime แบบ fixed/static เท่านั้น ห้ามใช้ DateTime.UtcNow หรือ
