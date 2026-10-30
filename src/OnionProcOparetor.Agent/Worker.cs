@@ -48,6 +48,23 @@ public class Worker : BackgroundService
     private int _consecutiveSuccesses;
     private bool _loggedFallbackNotConfigured;
 
+    // ---- ช่วงเริ่มทำงาน: แข่ง LAN กับ Tailscale (WP5, ตกลงกับผู้ใช้แล้ว ดู docs/roadmap.md) ----
+    // ปัญหาเดิม: ตอนบูต LAN มักยังไม่พร้อม Agent ต้อง poll LAN พลาดครบ FailuresBeforeFallback ครั้งก่อนจะ
+    // ได้ลอง Tailscale เครื่องจึงขาดการติดต่อช่วงหนึ่งทุกครั้งที่เปิด ตอนนี้: จนกว่าจะติดต่อ Server ได้ครั้งแรก
+    // ให้ใช้ StartupRouteRace (LAN ได้เปรียบ 2 วิ แล้วทางไหนตอบก่อนใช้ทางนั้น) แทน PollAsync ปกติ ถ้าได้
+    // Tailscale ให้ probe LAN เบื้องหลัง พอ LAN ตอบครั้งแรกสลับกลับเลย (LAN แค่ยังไม่พร้อมตอนบูต ไม่ได้เสีย
+    // จริง จึงไม่ใช้ M=7) หลังจากนั้นทุกอย่างใช้กติกา 5/7 เดิมไม่เปลี่ยน ถ้าไม่ได้ตั้ง FallbackBaseUrl ส่วนนี้
+    // ไม่ทำงานเลย (_startupRacePending = false ตั้งแต่ต้น)
+    private bool _startupRacePending;
+    private int _startupRaceFailures;
+    private bool _pollSoonToCorrectFallbackFlag;
+    private volatile bool _bootPrimaryProbeActive;
+    private volatile bool _bootPrimaryReachable;
+
+    // ปลุก loop หลักให้ตื่นก่อนครบ delay (ใช้ตอน probe LAN เบื้องหลังเจอว่า LAN ตอบแล้ว) - ถ้าไม่มีใครปลุก
+    // WaitAsync(timeout, ct) ทำงานเหมือน Task.Delay(timeout, ct) เดิมทุกอย่าง
+    private readonly SemaphoreSlim _wakeMainLoop = new(0, 1);
+
     private readonly ClientState _state;
     private readonly CommandProcessor _commandProcessor;
     private readonly LabHubConnection _labHubConnection;
@@ -102,7 +119,18 @@ public class Worker : BackgroundService
 
         // เริ่มต่อ SignalR แบบ fire-and-forget - เป็นชั้นเสริมคู่ขนานกับ poll loop เดิม ไม่แทนที่
         // มี retry loop ของตัวเองอยู่แล้วข้างใน ไม่ throw ออกมาแม้ server จะยังไม่พร้อม/offline
-        _ = _labHubConnection.StartAsync(_clientGuid, stoppingToken);
+        //
+        // ถ้าตั้ง FallbackBaseUrl ไว้ (WP5) ยังไม่ต่อตอนนี้ - รอให้การแข่งตอนเริ่มทำงานเลือกเส้นทางได้ก่อน
+        // แล้วค่อยต่อไปที่เดียวกับ HTTP poll (OnStartupRouteChosen) ไม่งั้น SignalR จะไปค้าง retry ที่ LAN
+        // ทั้งที่ poll ได้ Tailscale ไปแล้ว
+        if (string.IsNullOrWhiteSpace(_settings.FallbackBaseUrl))
+        {
+            _ = _labHubConnection.StartAsync(_clientGuid, stoppingToken);
+        }
+        else
+        {
+            _startupRacePending = true;
+        }
 
         // Loop หลัก: poll server เป็นระยะๆ เพื่ออัพเดต rules + enabled state
         while (!stoppingToken.IsCancellationRequested)
@@ -115,7 +143,33 @@ public class Worker : BackgroundService
                 continue;
             }
 
-            var polled = await _serverClient.PollAsync(_clientGuid, _machineName, stoppingToken, _programControl.BlocklistVersion);
+            // probe LAN เบื้องหลัง (หลังบูตได้ Tailscale) เจอว่า LAN ตอบแล้ว - สลับกลับก่อน poll รอบนี้
+            if (_bootPrimaryReachable)
+            {
+                _bootPrimaryReachable = false;
+                if (_serverClient.IsUsingFallback)
+                {
+                    SwitchToPrimary(stoppingToken, "LAN เพิ่งพร้อมหลังบูต (probe เบื้องหลังตอบแล้ว)");
+                }
+            }
+
+            PollResponse? polled;
+            if (_startupRacePending)
+            {
+                var race = await _serverClient.RaceStartupPollAsync(
+                    _settings.BaseUrl, _settings.FallbackBaseUrl!, _clientGuid, _machineName,
+                    stoppingToken, _programControl.BlocklistVersion);
+                polled = race.Response;
+                if (polled is not null)
+                {
+                    OnStartupRouteChosen(race, stoppingToken);
+                }
+            }
+            else
+            {
+                polled = await _serverClient.PollAsync(_clientGuid, _machineName, stoppingToken, _programControl.BlocklistVersion);
+            }
+
             if (polled is not null)
             {
                 _lastKnownState = polled;
@@ -142,7 +196,13 @@ public class Worker : BackgroundService
                 // แต่ enabled/rulesCount ยังคงใช้ค่าล่าสุดที่มี (fail-secure)
                 _state.UpdatePollResult(_lastKnownState.Enabled, _lastKnownState.Rules.Count, succeeded: false);
 
-                if (_serverClient.IsUsingFallback)
+                if (_startupRacePending)
+                {
+                    // ช่วงเริ่มทำงาน: ทั้ง LAN และ Tailscale ยังไม่ตอบ - ไม่นับ 5/7 (การแข่งลองทั้งสองทางอยู่แล้ว)
+                    // แค่นับไว้เลือกจังหวะ retry ข้างล่าง
+                    _startupRaceFailures++;
+                }
+                else if (_serverClient.IsUsingFallback)
                 {
                     // fallback เองก็ติดต่อไม่ได้ตอนนี้ - ไม่ควรให้ recovery counter รอดจากตรงนี้
                     _consecutiveSuccesses = 0;
@@ -171,7 +231,9 @@ public class Worker : BackgroundService
 
             // กำลังใช้ fallback อยู่ - probe primary คู่ขนานไปด้วยทุกรอบ (ไม่กระทบ _lastKnownState/enforcement
             // เลย ใช้แค่นับ M ครั้งสำเร็จติดกันเพื่อตัดสินใจสลับกลับ primary เท่านั้น)
-            if (_serverClient.IsUsingFallback)
+            //
+            // ข้ามระหว่างที่ probe LAN เบื้องหลังของช่วงบูตยังทำงานอยู่ (WP5) - ตัวนั้นรับหน้าที่สลับกลับแทน
+            if (_serverClient.IsUsingFallback && !_bootPrimaryProbeActive)
             {
                 var primaryOk = await _serverClient.ProbePrimaryAsync(_settings.BaseUrl, _clientGuid, _machineName, stoppingToken);
                 if (primaryOk)
@@ -197,7 +259,25 @@ public class Worker : BackgroundService
                 || (_serverClient.IsUsingFallback && _consecutiveSuccesses > 0);
             var delaySeconds = suspectingTrouble ? FastRetryIntervalSeconds : ResolvePollIntervalSeconds();
 
-            await Task.Delay(TimeSpan.FromSeconds(delaySeconds), stoppingToken);
+            if (_startupRacePending)
+            {
+                // ช่วงเริ่มทำงานที่ทั้งสองทางยังไม่ตอบ: จังหวะเดียวกับที่ loop เดิมใช้ตอน Server ติดต่อไม่ได้ -
+                // retry ถี่ (FastRetryIntervalSeconds) FailuresBeforeFallback รอบแรก แล้วกลับไปใช้ interval ปกติ
+                // (เดิมเมื่อสลับไป fallback แล้ว fallback ก็ไม่ตอบ ก็ถอยไปใช้ interval ปกติเหมือนกัน)
+                delaySeconds = _startupRaceFailures < FailuresBeforeFallback
+                    ? FastRetryIntervalSeconds
+                    : ResolvePollIntervalSeconds();
+            }
+            else if (_pollSoonToCorrectFallbackFlag)
+            {
+                // การแข่งตอนเริ่มยิงไปทั้งสองทาง: request ของทางที่แพ้อาจไปถึง Server ทีหลังแล้วเขียน
+                // UsingFallback ผิด - poll อีกรอบเร็วๆ ให้ค่าบน Server ตรงกับทางที่ใช้อยู่จริง
+                _pollSoonToCorrectFallbackFlag = false;
+                delaySeconds = FastRetryIntervalSeconds;
+            }
+
+            // เหมือน Task.Delay(delay, stoppingToken) เดิม แต่ probe LAN เบื้องหลังปลุกให้ตื่นก่อนได้
+            await _wakeMainLoop.WaitAsync(TimeSpan.FromSeconds(delaySeconds), stoppingToken);
         }
 
         _processWatcher?.Stop();
@@ -266,15 +346,92 @@ public class Worker : BackgroundService
     /// สลับกลับไปที่ primary หลังจาก probe สำเร็จติดกันครบ SuccessesBeforeRecovery ครั้งระหว่างที่ใช้
     /// fallback อยู่ (hysteresis กัน flapping) - เหมือน SwitchToFallback ในทางกลับกัน
     /// </summary>
-    private void SwitchToPrimary(CancellationToken ct)
+    private void SwitchToPrimary(CancellationToken ct, string? reason = null)
     {
         _serverClient.SwitchTo(_settings.BaseUrl, isFallback: false);
         _ = _labHubConnection.SwitchServerAsync(_settings.BaseUrl, ct);
-        _logger.LogInformation(
-            "Primary server กลับมาใช้งานได้แล้ว (probe สำเร็จติดกัน {Successes} ครั้ง) - สลับกลับจาก fallback ไปใช้ primary: {PrimaryUrl}",
-            _consecutiveSuccesses, _settings.BaseUrl);
+        if (reason is null)
+        {
+            _logger.LogInformation(
+                "Primary server กลับมาใช้งานได้แล้ว (probe สำเร็จติดกัน {Successes} ครั้ง) - สลับกลับจาก fallback ไปใช้ primary: {PrimaryUrl}",
+                _consecutiveSuccesses, _settings.BaseUrl);
+        }
+        else
+        {
+            _logger.LogInformation("{Reason} - สลับกลับจาก fallback ไปใช้ primary: {PrimaryUrl}", reason, _settings.BaseUrl);
+        }
         _consecutiveFailures = 0;
         _consecutiveSuccesses = 0;
+    }
+
+    /// <summary>
+    /// การแข่งตอนเริ่มทำงานได้ผลแล้ว (WP5) - ServerClient สลับ HTTP poll ไปทางที่ชนะเรียบร้อยใน
+    /// RaceStartupPollAsync ตรงนี้ทำส่วนที่เหลือ: ต่อ SignalR ไปที่เดียวกัน ปิดช่วงเริ่มทำงาน (ต่อจากนี้ใช้
+    /// กติกา 5/7 เดิม) และถ้าได้ Tailscale ให้เริ่ม probe LAN เบื้องหลังเพื่อสลับกลับทันทีที่ LAN พร้อม
+    /// </summary>
+    private void OnStartupRouteChosen(StartupRaceResult<PollResponse> race, CancellationToken ct)
+    {
+        _startupRacePending = false;
+        _pollSoonToCorrectFallbackFlag = race.FallbackFired;
+
+        var chosenUrl = _serverClient.ActiveBaseUrl;
+
+        // ปกติ SignalR ยังไม่เคยต่อ (เลื่อนไว้รอผลแข่ง) แต่ถ้ามีคนต่อไปก่อนแล้วระหว่างรอ (BypassCoordinator
+        // ต่อกลับตอนปิด bypass) ให้สลับแทน - ทั้งสองแบบ fire-and-forget เหมือนเดิม
+        if (_labHubConnection.IsStarted)
+        {
+            _ = _labHubConnection.SwitchServerAsync(chosenUrl, ct);
+        }
+        else
+        {
+            _ = _labHubConnection.StartAsync(_clientGuid, ct, chosenUrl);
+        }
+
+        if (race.ViaFallback)
+        {
+            _logger.LogWarning(
+                "ตอนเริ่มทำงาน LAN ({PrimaryUrl}) ไม่ตอบภายใน {HeadStart} วิ แต่ Tailscale ตอบก่อน - ใช้ FallbackBaseUrl: {FallbackUrl} ไปก่อน แล้วจะ probe LAN เบื้องหลังเพื่อสลับกลับ",
+                _settings.BaseUrl, StartupRouteRace.PrimaryHeadStart.TotalSeconds, chosenUrl);
+            _bootPrimaryProbeActive = true;
+            _ = RunBootPrimaryProbeAsync(ct);
+        }
+        else
+        {
+            _logger.LogInformation("ตอนเริ่มทำงานติดต่อ Server ผ่าน LAN ได้: {PrimaryUrl}", chosenUrl);
+        }
+    }
+
+    /// <summary>
+    /// probe LAN เบื้องหลังหลังบูตได้ Tailscale - ไม่สลับเองจากตรงนี้ (กันแข่งกับ loop หลักที่กำลัง poll
+    /// อยู่) แค่ตั้งธงแล้วปลุก loop หลักให้เป็นคนสลับ ไม่ probe ระหว่าง bypass (ห้ามยิงออกไปหา Server)
+    /// </summary>
+    private async Task RunBootPrimaryProbeAsync(CancellationToken ct)
+    {
+        try
+        {
+            var reachable = await _serverClient.WaitForPrimaryAsync(
+                _settings.BaseUrl, _clientGuid, _machineName, () => _bypassState.IsBypassed, ct);
+            if (reachable)
+            {
+                _bootPrimaryReachable = true;
+                try
+                {
+                    _wakeMainLoop.Release();
+                }
+                catch (SemaphoreFullException)
+                {
+                    // ถูกปลุกค้างไว้อยู่แล้ว
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "probe LAN เบื้องหลังหลังบูตล้มเหลว - จะใช้กติกาสลับกลับปกติ (7 ครั้ง) แทน");
+        }
+        finally
+        {
+            _bootPrimaryProbeActive = false;
+        }
     }
 
     /// <summary>
