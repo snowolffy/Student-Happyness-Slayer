@@ -26,6 +26,9 @@ namespace OnionProcOparetor.Server.Migrations.ActivityLog
                     b.Property<int?>("ActorAdminUserId")
                         .HasColumnType("INTEGER");
 
+                    b.Property<string>("ActorDisplayName")
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("ActorUsername")
                         .HasColumnType("TEXT");
 

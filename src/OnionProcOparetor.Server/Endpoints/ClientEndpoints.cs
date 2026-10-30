@@ -73,6 +73,8 @@ public static class ClientEndpoints
                 return Results.Unauthorized();
             if (admin.HasDefaultPassword)
                 return Results.Json(new { error = "Password change required before continuing." }, statusCode: 403);
+            // WP4: ลบเครื่องออกจากระบบถาวรเป็นงาน decommission ไม่ใช่งานประจำวันของ Teacher - Admin เท่านั้น
+            if (RequireAdmin(admin) is { } forbidden) return forbidden;
 
             var client = await db.ClientMachines.FindAsync(id);
             if (client is null) return Results.NotFound();
@@ -176,6 +178,9 @@ public static class ClientEndpoints
                 return Results.Unauthorized();
             if (admin.HasDefaultPassword)
                 return Results.Json(new { error = "Password change required before continuing." }, statusCode: 403);
+            // WP4: แก้ agent secret กระทบความปลอดภัยการพิสูจน์ตัวตนของเครื่อง - เลือกฝั่งปลอดภัย (Admin เท่านั้น)
+            // ตามที่ roadmap ไม่ได้ระบุชัดว่า Teacher ทำได้ไหม
+            if (RequireAdmin(admin) is { } forbidden) return forbidden;
 
             var client = await db.ClientMachines.FindAsync(id);
             if (client is null) return Results.NotFound();
@@ -200,6 +205,8 @@ public static class ClientEndpoints
                 return Results.Unauthorized();
             if (admin.HasDefaultPassword)
                 return Results.Json(new { error = "Password change required before continuing." }, statusCode: 403);
+            // WP4: ตั้งค่าเครื่องจากศูนย์กลาง (poll interval) ไม่ชัดในตาราง roadmap - เลือกฝั่งปลอดภัย (Admin)
+            if (RequireAdmin(admin) is { } forbidden) return forbidden;
 
             var client = await db.ClientMachines.FindAsync(id);
             if (client is null) return Results.NotFound();

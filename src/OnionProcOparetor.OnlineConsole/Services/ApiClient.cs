@@ -363,14 +363,31 @@ public class ApiClient
         return result ?? new List<UserDto>();
     }
 
-    public async Task<(bool Success, string Message)> CreateUserAsync(string username, string password)
+    /// <summary>role: 0 = Admin, 1 = Teacher (ตรง enum AdminRole ฝั่ง Server - WP4, 2026-10-30)</summary>
+    public async Task<(bool Success, string Message)> CreateUserAsync(string username, string password, string? displayName = null, int role = 0)
     {
         try
         {
-            var response = await _httpClient.PostAsJsonAsync("/api/admin/users", new { username, password });
+            var response = await _httpClient.PostAsJsonAsync("/api/admin/users", new { username, password, displayName, role });
             return response.IsSuccessStatusCode
                 ? (true, "สร้าง user สำเร็จ")
                 : (false, await ExtractErrorAsync(response, $"สร้าง user ไม่สำเร็จ: {response.StatusCode}"));
+        }
+        catch (Exception ex)
+        {
+            return (false, $"เกิดข้อผิดพลาด: {ex.Message}");
+        }
+    }
+
+    /// <summary>แก้ชื่อที่แสดง (WP4, 2026-10-30) - เจ้าของบัญชีแก้เองได้ Admin แก้ให้คนอื่นได้</summary>
+    public async Task<(bool Success, string Message)> UpdateDisplayNameAsync(int userId, string displayName)
+    {
+        try
+        {
+            var response = await _httpClient.PutAsJsonAsync($"/api/admin/users/{userId}/display-name", new { displayName });
+            return response.IsSuccessStatusCode
+                ? (true, "แก้ชื่อที่แสดงสำเร็จ")
+                : (false, await ExtractErrorAsync(response, $"แก้ชื่อที่แสดงไม่สำเร็จ: {response.StatusCode}"));
         }
         catch (Exception ex)
         {

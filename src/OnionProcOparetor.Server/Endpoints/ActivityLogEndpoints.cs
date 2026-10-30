@@ -57,6 +57,7 @@ public static class ActivityLogEndpoints
                 e.Description,
                 e.ActorAdminUserId,
                 e.ActorUsername,
+                e.ActorDisplayName,
                 e.TargetClientGuid,
                 e.TargetMachineName,
                 e.DetailJson

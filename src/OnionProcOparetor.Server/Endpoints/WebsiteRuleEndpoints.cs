@@ -65,6 +65,8 @@ public static class WebsiteRuleEndpoints
                 return Results.Unauthorized();
             if (admin.HasDefaultPassword)
                 return Results.Json(new { error = "Password change required before continuing." }, statusCode: 403);
+            // WP4: กฎบล็อกเว็บถาวรเป็นสิทธิ์ Admin เท่านั้นเหมือน /api/rules
+            if (RequireAdmin(admin) is { } forbidden) return forbidden;
 
             rule.CreatedAt = DateTime.UtcNow;
             rule.UpdatedAt = DateTime.UtcNow;
@@ -83,6 +85,7 @@ public static class WebsiteRuleEndpoints
                 return Results.Unauthorized();
             if (admin.HasDefaultPassword)
                 return Results.Json(new { error = "Password change required before continuing." }, statusCode: 403);
+            if (RequireAdmin(admin) is { } forbidden) return forbidden;
 
             var rule = await db.WebsiteRules.FindAsync(id);
             if (rule is null) return Results.NotFound();
@@ -102,6 +105,7 @@ public static class WebsiteRuleEndpoints
                 return Results.Unauthorized();
             if (admin.HasDefaultPassword)
                 return Results.Json(new { error = "Password change required before continuing." }, statusCode: 403);
+            if (RequireAdmin(admin) is { } forbidden) return forbidden;
 
             var rule = await db.WebsiteRules.FindAsync(id);
             if (rule is null) return Results.NotFound();
@@ -125,6 +129,7 @@ public static class WebsiteRuleEndpoints
                 return Results.Unauthorized();
             if (admin.HasDefaultPassword)
                 return Results.Json(new { error = "Password change required before continuing." }, statusCode: 403);
+            if (RequireAdmin(admin) is { } forbidden) return forbidden;
 
             var rule = await db.WebsiteRules.FindAsync(id);
             if (rule is null) return Results.NotFound();
@@ -149,6 +154,7 @@ public static class WebsiteRuleEndpoints
                 return Results.Unauthorized();
             if (admin.HasDefaultPassword)
                 return Results.Json(new { error = "Password change required before continuing." }, statusCode: 403);
+            if (RequireAdmin(admin) is { } forbidden) return forbidden;
 
             if (req.UrlPatterns is null || req.UrlPatterns.Count == 0)
             {

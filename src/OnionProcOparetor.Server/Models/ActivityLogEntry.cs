@@ -26,6 +26,13 @@ public class ActivityLogEntry
     public int? ActorAdminUserId { get; set; }
     public string? ActorUsername { get; set; }
 
+    /// <summary>
+    /// ชื่อที่แสดง ณ ตอนที่บันทึก (WP4, 2026-10-30) - denormalize เหมือน ActorUsername ด้วยเหตุผลเดียวกัน
+    /// เก็บแยกจาก ActorUsername เพราะ roadmap ต้องการทั้งสองชื่อใน Audit Log พร้อมกัน (username คงที่/ตามหา
+    /// ตัวจริงได้เสมอ ส่วน DisplayName แก้ไขได้ภายหลัง - เก็บค่า ณ ตอนนั้นไว้กันความหมายเพี้ยนย้อนหลัง)
+    /// </summary>
+    public string? ActorDisplayName { get; set; }
+
     // เครื่องเป้าหมาย (หมวด AdminAction ที่เจาะจงเครื่อง และหมวด AgentConnectivity) - denormalize เช่นกัน
     public string? TargetClientGuid { get; set; }
     public string? TargetMachineName { get; set; }

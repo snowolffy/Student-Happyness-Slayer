@@ -53,7 +53,11 @@ public static class AuthEndpoints
                 PasswordHash = hash,
                 IsBuiltIn = true,
                 HasDefaultPassword = true,
-                CreatedAt = DateTime.UtcNow
+                CreatedAt = DateTime.UtcNow,
+                // WP4 (2026-10-30): บัญชี built-in ต้องเป็น Admin เสมอ (กัน lockout) DisplayName เริ่มต้น
+                // = Username เหมือนบัญชีอื่นทุกบัญชี
+                Role = AdminRole.Admin,
+                DisplayName = "Administrator"
             };
 
             db.AdminUsers.Add(admin);
@@ -124,7 +128,11 @@ public static class AuthEndpoints
                 username = admin.Username,
                 token = tokenString,
                 hasDefaultPassword = admin.HasDefaultPassword,
-                adminId = admin.Id
+                adminId = admin.Id,
+                // WP4 (2026-10-30): Console/OnlineConsole ใช้ role ซ่อนปุ่มที่ Teacher ใช้ไม่ได้ และใช้
+                // displayName แสดงแทน username ตามจุดที่ roadmap ระบุ (แถบล่าง Console ฯลฯ)
+                role = admin.Role.ToString(),
+                displayName = string.IsNullOrWhiteSpace(admin.DisplayName) ? admin.Username : admin.DisplayName
             });
         });
 

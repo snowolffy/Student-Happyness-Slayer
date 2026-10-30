@@ -49,6 +49,9 @@ public static class GlobalStateEndpoints
                 return Results.Unauthorized();
             if (admin.HasDefaultPassword)
                 return Results.Json(new { error = "Password change required before continuing." }, statusCode: 403);
+            // WP4: ปิด/เปิด enforcement ทั้งห้องคือ "ตั้งค่าระบบ" - Admin เท่านั้น (Teacher คุมได้แค่รายเครื่อง
+            // ผ่าน POST /api/clients/{id}/toggle)
+            if (RequireAdmin(admin) is { } forbidden) return forbidden;
 
             var state = await GetOrCreateGlobalStateAsync(db);
             var changed = state.IsEnabled != req.Enabled;
@@ -76,6 +79,7 @@ public static class GlobalStateEndpoints
                 return Results.Unauthorized();
             if (admin.HasDefaultPassword)
                 return Results.Json(new { error = "Password change required before continuing." }, statusCode: 403);
+            if (RequireAdmin(admin) is { } forbidden) return forbidden;
 
             var state = await GetOrCreateGlobalStateAsync(db);
 

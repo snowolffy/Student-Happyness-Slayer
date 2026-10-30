@@ -59,6 +59,8 @@ public static class RoomEndpoints
                 return Results.Unauthorized();
             if (admin.HasDefaultPassword)
                 return Results.Json(new { error = "Password change required before continuing." }, statusCode: 403);
+            // WP4: จัดการห้องเป็นสิทธิ์ Admin เท่านั้น (ตาราง Admin/Teacher ใน docs/roadmap.md)
+            if (RequireAdmin(admin) is { } forbidden) return forbidden;
 
             var name = req.Name?.Trim();
             if (string.IsNullOrEmpty(name))
@@ -83,6 +85,7 @@ public static class RoomEndpoints
                 return Results.Unauthorized();
             if (admin.HasDefaultPassword)
                 return Results.Json(new { error = "Password change required before continuing." }, statusCode: 403);
+            if (RequireAdmin(admin) is { } forbidden) return forbidden;
 
             var room = await db.Rooms.FindAsync(id);
             if (room is null) return Results.NotFound();
@@ -114,6 +117,7 @@ public static class RoomEndpoints
                 return Results.Unauthorized();
             if (admin.HasDefaultPassword)
                 return Results.Json(new { error = "Password change required before continuing." }, statusCode: 403);
+            if (RequireAdmin(admin) is { } forbidden) return forbidden;
 
             var room = await db.Rooms.FindAsync(id);
             if (room is null) return Results.NotFound();
@@ -144,6 +148,8 @@ public static class RoomEndpoints
                 return Results.Unauthorized();
             if (admin.HasDefaultPassword)
                 return Results.Json(new { error = "Password change required before continuing." }, statusCode: 403);
+            // ย้ายเครื่องเข้า/ออกห้อง = แก้ "ห้อง" ตามตาราง Admin/Teacher เช่นกัน
+            if (RequireAdmin(admin) is { } forbidden) return forbidden;
 
             var client = await db.ClientMachines.FindAsync(id);
             if (client is null) return Results.NotFound();

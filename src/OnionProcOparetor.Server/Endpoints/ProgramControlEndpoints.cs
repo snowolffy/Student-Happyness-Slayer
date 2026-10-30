@@ -138,6 +138,8 @@ public static class ProgramControlEndpoints
                 return Results.Unauthorized();
             if (admin.HasDefaultPassword)
                 return Results.Json(new { error = "Password change required before continuing." }, statusCode: 403);
+            // WP4: ผูกคำตัดสินกับ SHA-256 มีผลถาวรกับทุกเครื่อง เทียบเท่า "กฎถาวร" - Admin เท่านั้น
+            if (RequireAdmin(admin) is { } forbidden) return forbidden;
 
             if (string.IsNullOrWhiteSpace(req.Sha256) || req.Sha256.Length != 64)
             {
@@ -213,6 +215,7 @@ public static class ProgramControlEndpoints
                 return Results.Unauthorized();
             if (admin.HasDefaultPassword)
                 return Results.Json(new { error = "Password change required before continuing." }, statusCode: 403);
+            if (RequireAdmin(admin) is { } forbidden) return forbidden;
 
             var verdict = await db.ProgramVerdicts.FindAsync(id);
             if (verdict is null) return Results.NotFound();

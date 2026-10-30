@@ -26,6 +26,12 @@ namespace OnionProcOparetor.Server.Migrations
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("DisplayName")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT")
+                        .HasDefaultValue("");
+
                     b.Property<bool>("HasDefaultPassword")
                         .HasColumnType("INTEGER");
 
@@ -42,6 +48,11 @@ namespace OnionProcOparetor.Server.Migrations
                     b.Property<string>("PasswordSalt")
                         .IsRequired()
                         .HasColumnType("TEXT");
+
+                    b.Property<int>("Role")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER")
+                        .HasDefaultValue(0);
 
                     b.Property<string>("Username")
                         .IsRequired()

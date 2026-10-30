@@ -49,6 +49,18 @@ public class AppDbContext : DbContext
             .HasIndex(u => u.Username)
             .IsUnique();
 
+        // ค่า default ของคอลัมน์ใหม่ (WP4, 2026-10-30) ต้องระบุตรงนี้เพื่อให้ migration เพิ่มคอลัมน์แบบ
+        // NOT NULL ลงบน DB เก่าที่มีข้อมูลอยู่แล้วได้โดยไม่พัง (SQLite ต้องมี default ถ้าคอลัมน์ไม่ nullable)
+        // - Role default Admin: บัญชีเดิมทุกบัญชีต้องไม่โดนล็อกออกจากระบบ
+        // - DisplayName default "" แล้ว migration (Up()) ค่อย backfill เป็น Username ทีหลังด้วย SQL ตรงๆ
+        modelBuilder.Entity<AdminUser>()
+            .Property(u => u.Role)
+            .HasDefaultValue(AdminRole.Admin);
+
+        modelBuilder.Entity<AdminUser>()
+            .Property(u => u.DisplayName)
+            .HasDefaultValue(string.Empty);
+
         // Token ต้องไม่ซ้ำกัน และ query หา token ได้เร็ว
         modelBuilder.Entity<AuthToken>()
             .HasIndex(t => t.Token)

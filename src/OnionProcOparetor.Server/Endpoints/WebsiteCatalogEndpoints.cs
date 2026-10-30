@@ -34,6 +34,8 @@ public static class WebsiteCatalogEndpoints
                 return Results.Unauthorized();
             if (admin.HasDefaultPassword)
                 return Results.Json(new { error = "Password change required before continuing." }, statusCode: 403);
+            // WP4: catalog source คือการตั้งค่าระบบ (sync config) - Admin เท่านั้น
+            if (RequireAdmin(admin) is { } forbidden) return forbidden;
 
             source.Id = 0;
             source.CreatedAt = DateTime.UtcNow;
@@ -62,6 +64,7 @@ public static class WebsiteCatalogEndpoints
                 return Results.Unauthorized();
             if (admin.HasDefaultPassword)
                 return Results.Json(new { error = "Password change required before continuing." }, statusCode: 403);
+            if (RequireAdmin(admin) is { } forbidden) return forbidden;
 
             var source = await db.WebsiteCatalogSources.FindAsync(id);
             if (source is null) return Results.NotFound();
@@ -88,6 +91,7 @@ public static class WebsiteCatalogEndpoints
                 return Results.Unauthorized();
             if (admin.HasDefaultPassword)
                 return Results.Json(new { error = "Password change required before continuing." }, statusCode: 403);
+            if (RequireAdmin(admin) is { } forbidden) return forbidden;
 
             var source = await db.WebsiteCatalogSources.FindAsync(id);
             if (source is null) return Results.NotFound();
@@ -113,6 +117,7 @@ public static class WebsiteCatalogEndpoints
                 return Results.Unauthorized();
             if (admin.HasDefaultPassword)
                 return Results.Json(new { error = "Password change required before continuing." }, statusCode: 403);
+            if (RequireAdmin(admin) is { } forbidden) return forbidden;
 
             var source = await db.WebsiteCatalogSources.FindAsync(id);
             if (source is null) return Results.NotFound();

@@ -32,6 +32,8 @@ public static class RuleEndpoints
                 return Results.Unauthorized();
             if (admin.HasDefaultPassword)
                 return Results.Json(new { error = "Password change required before continuing." }, statusCode: 403);
+            // WP4: แก้กฎถาวรเป็นสิทธิ์ Admin เท่านั้น (ตาราง Admin/Teacher ใน docs/roadmap.md)
+            if (RequireAdmin(admin) is { } forbidden) return forbidden;
 
             rule.CreatedAt = DateTime.UtcNow;
             rule.UpdatedAt = DateTime.UtcNow;
@@ -51,6 +53,7 @@ public static class RuleEndpoints
                 return Results.Unauthorized();
             if (admin.HasDefaultPassword)
                 return Results.Json(new { error = "Password change required before continuing." }, statusCode: 403);
+            if (RequireAdmin(admin) is { } forbidden) return forbidden;
 
             var rule = await db.Rules.FindAsync(id);
             if (rule is null) return Results.NotFound();
@@ -71,6 +74,7 @@ public static class RuleEndpoints
                 return Results.Unauthorized();
             if (admin.HasDefaultPassword)
                 return Results.Json(new { error = "Password change required before continuing." }, statusCode: 403);
+            if (RequireAdmin(admin) is { } forbidden) return forbidden;
 
             var rule = await db.Rules.FindAsync(id);
             if (rule is null) return Results.NotFound();
@@ -100,6 +104,7 @@ public static class RuleEndpoints
                 return Results.Unauthorized();
             if (admin.HasDefaultPassword)
                 return Results.Json(new { error = "Password change required before continuing." }, statusCode: 403);
+            if (RequireAdmin(admin) is { } forbidden) return forbidden;
 
             var rule = await db.Rules.FindAsync(id);
             if (rule is null) return Results.NotFound();

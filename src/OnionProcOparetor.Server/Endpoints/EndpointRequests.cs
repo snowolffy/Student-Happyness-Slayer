@@ -3,8 +3,14 @@
 namespace OnionProcOparetor.Server.Endpoints;
 
 // ---- Request DTOs ----
-record CreateUserRequest(string Username, string Password);
+// WP4 (2026-10-30): DisplayName/Role เป็น optional - Console/OnlineConsole เวอร์ชันเก่าที่ยังไม่รู้จัก
+// field นี้ส่งไม่มาก็ยังสร้าง user ได้ตามเดิม (DisplayName fallback เป็น Username, Role fallback เป็น
+// Admin=0 - ดู UserEndpoints.cs จุดใช้งาน)
+record CreateUserRequest(string Username, string Password, string? DisplayName = null, int Role = 0);
 record ChangePasswordRequest(string NewPassword);
+
+/// <summary>PUT /api/admin/users/{id}/display-name - เจ้าของบัญชีแก้เองได้ Admin แก้ให้คนอื่นได้ (WP4, 2026-10-30)</summary>
+record UpdateDisplayNameRequest(string DisplayName);
 record RuleOverrideRequest(bool IsEnabled);
 
 /// <summary>ตั้งค่า enforcement ทั้งห้องแบบระบุค่าตรงๆ (POST /api/global/set)</summary>

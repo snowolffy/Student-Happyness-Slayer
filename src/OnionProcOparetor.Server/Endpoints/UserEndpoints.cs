@@ -21,19 +21,23 @@ public static class UserEndpoints
                 return Results.Unauthorized();
             if (admin.HasDefaultPassword)
                 return Results.Json(new { error = "Password change required before continuing." }, statusCode: 403);
+            // WP4: จัดการบัญชี (ผู้ใช้) เป็นสิทธิ์ Admin เท่านั้น (ตาราง Admin/Teacher ใน docs/roadmap.md)
+            if (RequireAdmin(admin) is { } forbidden) return forbidden;
 
-            var users = await db.AdminUsers
-                .OrderBy(u => u.Username)
-                .Select(u => new
-                {
-                    u.Id,
-                    u.Username,
-                    u.IsBuiltIn,
-                    u.HasDefaultPassword,
-                    u.CreatedAt,
-                    u.LastLoginAt
-                })
-                .ToListAsync();
+            // materialize ก่อนแล้วค่อยแปลง Role เป็น string - enum.ToString() แปลงเป็น SQL ไม่ได้ตรงๆ
+            // (pattern เดียวกับ Category/Severity ใน ActivityLogEndpoints.cs)
+            var entities = await db.AdminUsers.OrderBy(u => u.Username).ToListAsync();
+            var users = entities.Select(u => new
+            {
+                u.Id,
+                u.Username,
+                u.IsBuiltIn,
+                u.HasDefaultPassword,
+                u.CreatedAt,
+                u.LastLoginAt,
+                Role = u.Role.ToString(),
+                u.DisplayName
+            });
 
             return Results.Ok(users);
         });
@@ -46,6 +50,7 @@ public static class UserEndpoints
                 return Results.Unauthorized();
             if (admin.HasDefaultPassword)
                 return Results.Json(new { error = "Password change required before continuing." }, statusCode: 403);
+            if (RequireAdmin(admin) is { } forbidden) return forbidden;
 
             if (string.IsNullOrWhiteSpace(req.Username) || string.IsNullOrWhiteSpace(req.Password))
             {
@@ -57,6 +62,11 @@ public static class UserEndpoints
                 return Results.BadRequest(new { error = "Password must be at least 8 characters." });
             }
 
+            if (!Enum.IsDefined(typeof(AdminRole), req.Role))
+            {
+                return Results.BadRequest(new { error = "Unknown role." });
+            }
+
             var usernameTaken = await db.AdminUsers.AnyAsync(u => u.Username == req.Username);
             if (usernameTaken)
             {
@@ -65,6 +75,9 @@ public static class UserEndpoints
 
             var salt = PasswordHasher.GenerateSalt();
             var hash = PasswordHasher.HashPassword(req.Password, salt);
+            var role = (AdminRole)req.Role;
+            // DisplayName เริ่มต้น = Username เสมอถ้าไม่ได้ระบุมา (WP4, ตรงกับ default ของบัญชีเดิมตอน migrate)
+            var displayName = string.IsNullOrWhiteSpace(req.DisplayName) ? req.Username : req.DisplayName.Trim();
 
             var newUser = new AdminUser
             {
@@ -73,15 +86,18 @@ public static class UserEndpoints
                 PasswordHash = hash,
                 IsBuiltIn = false,
                 HasDefaultPassword = false,
-                CreatedAt = DateTime.UtcNow
+                CreatedAt = DateTime.UtcNow,
+                Role = role,
+                DisplayName = displayName
             };
 
             db.AdminUsers.Add(newUser);
             await db.SaveChangesAsync();
 
-            await activityLog.LogAdminActionAsync(admin, "AdminUserCreated", $"{admin.Username} สร้าง admin user '{newUser.Username}'");
+            await activityLog.LogAdminActionAsync(admin, "AdminUserCreated",
+                $"{admin.Username} สร้าง admin user '{newUser.Username}' ({newUser.DisplayName}, role={newUser.Role})");
 
-            return Results.Created($"/api/admin/users/{newUser.Id}", new { newUser.Id, newUser.Username });
+            return Results.Created($"/api/admin/users/{newUser.Id}", new { newUser.Id, newUser.Username, newUser.DisplayName, Role = newUser.Role.ToString() });
         });
 
         // ลบ admin user (ห้ามลบ built-in account - กัน lockout)
@@ -92,6 +108,7 @@ public static class UserEndpoints
                 return Results.Unauthorized();
             if (admin.HasDefaultPassword)
                 return Results.Json(new { error = "Password change required before continuing." }, statusCode: 403);
+            if (RequireAdmin(admin) is { } forbidden) return forbidden;
 
             var target = await db.AdminUsers.FindAsync(id);
             if (target is null) return Results.NotFound();
@@ -169,6 +186,7 @@ public static class UserEndpoints
                 return Results.Unauthorized();
             if (admin.HasDefaultPassword)
                 return Results.Json(new { error = "Password change required before continuing." }, statusCode: 403);
+            if (RequireAdmin(admin) is { } forbidden) return forbidden;
 
             var target = await db.AdminUsers.FindAsync(id);
             if (target is null) return Results.NotFound();
@@ -208,6 +226,39 @@ public static class UserEndpoints
             await activityLog.LogAdminActionAsync(admin, "AdminPasswordReset", $"{admin.Username} reset password ให้ '{target.Username}'");
 
             return Results.Ok(new { message = $"Password for '{target.Username}' has been reset. They must change it on next login." });
+        });
+
+        // แก้ชื่อที่แสดง (WP4, 2026-10-30) - เจ้าของบัญชีแก้เองได้ Admin แก้ให้คนอื่นได้ (ตามตาราง
+        // Admin/Teacher ใน docs/roadmap.md) ต่างจาก change-password ข้างบนที่ล็อกเฉพาะตัวเองเท่านั้น
+        // ไม่มี id ไหนที่ Teacher แก้ไม่ได้เลยนอกจาก id ของคนอื่น (RequireAdmin เช็คเฉพาะตอนไม่ใช่ตัวเอง)
+        app.MapPut("/api/admin/users/{id:int}/display-name", async (int id, UpdateDisplayNameRequest req, HttpRequest request, AppDbContext db, IActivityLogService activityLog) =>
+        {
+            var admin = await GetAuthorizedAdmin(request, db);
+            if (admin is null)
+                return Results.Unauthorized();
+            if (admin.HasDefaultPassword)
+                return Results.Json(new { error = "Password change required before continuing." }, statusCode: 403);
+
+            if (admin.Id != id && RequireAdmin(admin) is { } forbidden)
+                return forbidden;
+
+            var target = await db.AdminUsers.FindAsync(id);
+            if (target is null) return Results.NotFound();
+
+            var displayName = req.DisplayName?.Trim();
+            if (string.IsNullOrEmpty(displayName))
+            {
+                return Results.BadRequest(new { error = "ต้องระบุชื่อที่แสดง" });
+            }
+
+            var oldName = target.DisplayName;
+            target.DisplayName = displayName;
+            await db.SaveChangesAsync();
+
+            await activityLog.LogAdminActionAsync(admin, "AdminDisplayNameChanged",
+                $"{admin.Username} เปลี่ยนชื่อที่แสดงของ '{target.Username}' จาก '{oldName}' เป็น '{target.DisplayName}'");
+
+            return Results.Ok(new { target.Id, target.Username, target.DisplayName });
         });
 
         return app;

@@ -29,7 +29,7 @@ else
                  style="--data-card-accent: @(user.HasDefaultPassword ? "var(--danger)" : "var(--border)")">
                 <div class="data-card-head">
                     <div style="flex:1; min-width:0">
-                        <div class="data-card-title">@user.Username</div>
+                        <div class="data-card-title">@user.DisplayName <span class="caption">(@user.Username)</span></div>
                         <div class="data-card-sub">
                             @(user.LastLoginAt is null ? "ยังไม่เคยเข้าใช้" : "เข้าใช้ล่าสุด ")
                             @if (user.LastLoginAt is not null) { <TimeAgo Value="user.LastLoginAt.Value" /> }
@@ -38,6 +38,7 @@ else
                     @* A built-in account that still has its default password is the single most useful
                        fact on this page, so it gets a red badge instead of a "Yes" in a column that
                        nobody scrolled far enough sideways to read. *@
+                    <span class="badge @(user.Role == "Admin" ? "badge-offline" : "badge-warning")">@user.Role</span>
                     @if (user.HasDefaultPassword)
                     {
                         <span class="badge badge-danger">รหัสผ่าน default</span>
@@ -48,27 +49,30 @@ else
                     }
                 </div>
 
-                @if (!user.IsBuiltIn)
-                {
-                    <div class="data-card-actions">
+                <div class="data-card-actions">
+                    <button class="btn btn-secondary btn-sm" @onclick="() => OpenRenameDisplayName(user)">แก้ชื่อที่แสดง</button>
+                    @if (!user.IsBuiltIn)
+                    {
                         <button class="btn btn-secondary btn-sm" @onclick="() => OpenReset(user)">รีเซ็ตรหัสผ่าน</button>
                         <button class="btn btn-danger btn-sm" @onclick="() => _deleting = user">
                             <Icon Name="trash" Size="14" /> ลบ
                         </button>
-                    </div>
-                }
+                    }
+                </div>
             </div>
         }
     </div>
 
     <div class="table-scroll wide-only">
         <table>
-            <thead><tr><th>Username</th><th>Built-in</th><th>Default Password</th><th>Created</th><th>Last Login</th><th></th></tr></thead>
+            <thead><tr><th>Username</th><th>ชื่อที่แสดง</th><th>Role</th><th>Built-in</th><th>Default Password</th><th>Created</th><th>Last Login</th><th></th></tr></thead>
             <tbody>
                 @foreach (var user in _users)
                 {
                     <tr @key="user.Id" class="@(user.HasDefaultPassword ? "row-attention" : "")">
                         <td><strong>@user.Username</strong></td>
+                        <td>@user.DisplayName</td>
+                        <td><span class="badge @(user.Role == "Admin" ? "badge-offline" : "badge-warning")">@user.Role</span></td>
                         <td>@(user.IsBuiltIn ? "Yes" : "No")</td>
                         <td>
                             @if (user.HasDefaultPassword)
@@ -84,6 +88,7 @@ else
                         <td>@if (user.LastLoginAt is not null) { <TimeAgo Value="user.LastLoginAt.Value" /> } else { <span class="caption">ยังไม่เคย</span> }</td>
                         <td>
                             <div style="display:flex; gap:.3rem">
+                                <button class="btn btn-secondary btn-sm" @onclick="() => OpenRenameDisplayName(user)">แก้ชื่อที่แสดง</button>
                                 @if (!user.IsBuiltIn)
                                 {
                                     <button class="btn btn-secondary btn-sm" @onclick="() => OpenReset(user)">RESET PASSWORD</button>
@@ -102,6 +107,14 @@ else
 {
     <ModalShell Title="เพิ่มผู้ใช้" OnClose="CloseAdd">
         <div class="form-row"><label>Username</label><input type="text" @bind="_newUsername" autocomplete="off" /></div>
+        <div class="form-row"><label>ชื่อที่แสดง (ว่างไว้ = ใช้ Username)</label><input type="text" @bind="_newDisplayName" autocomplete="off" /></div>
+        <div class="form-row">
+            <label>Role</label>
+            <select @bind="_newRole">
+                <option value="0">Admin</option>
+                <option value="1">Teacher</option>
+            </select>
+        </div>
         <div class="form-row"><label>Password (อย่างน้อย 8 ตัวอักษร)</label><input type="password" @bind="_newPassword" autocomplete="new-password" /></div>
         @if (!string.IsNullOrEmpty(_addError)) { <div class="error-text">@_addError</div> }
         <div class="toolbar" style="margin-bottom:0">
@@ -125,6 +138,21 @@ else
     </ModalShell>
 }
 
+@* WP4 (2026-10-30): เจ้าของบัญชีแก้เองได้ Admin แก้ให้คนอื่นได้ - ไม่เช็ค role ที่หน้านี้ (ให้ Server
+   ตัดสิน 403 เอง) ปุ่มเปิด modal นี้เปิดให้ทุก row เสมอ ถ้า Teacher กดแก้ของคนอื่นจะได้ error กลับมา *@
+@if (_renamingUser is not null)
+{
+    <ModalShell Title="@($"แก้ชื่อที่แสดง - {_renamingUser.Username}")" OnClose="() => _renamingUser = null">
+        <div class="form-row"><label>ชื่อที่แสดง</label><input type="text" @bind="_renameDisplayName" autocomplete="off" /></div>
+        @if (!string.IsNullOrEmpty(_renameError)) { <div class="error-text">@_renameError</div> }
+        <div class="toolbar" style="margin-bottom:0">
+            <span class="spacer"></span>
+            <button class="btn btn-secondary" @onclick="() => _renamingUser = null">ยกเลิก</button>
+            <button class="btn btn-primary" @onclick="RenameDisplayNameAsync">บันทึก</button>
+        </div>
+    </ModalShell>
+}
+
 @* Same reasoning as the rule delete: irreversible, one tap away from RESET PASSWORD, and it removes
    someone's access to the whole console. *@
 @if (_deleting is not null)
@@ -142,7 +170,9 @@ else
 
     private bool _addingUser;
     private string _newUsername = string.Empty;
+    private string _newDisplayName = string.Empty;
     private string _newPassword = string.Empty;
+    private int _newRole;
     private string? _addError;
 
     private UserDto? _resettingUser;
@@ -150,6 +180,10 @@ else
     private string? _resetError;
 
     private UserDto? _deleting;
+
+    private UserDto? _renamingUser;
+    private string _renameDisplayName = string.Empty;
+    private string? _renameError;
 
     protected override async Task OnInitializedAsync()
     {
@@ -166,7 +200,8 @@ else
         // half-typed username from an abandoned attempt is confusing, and leaving a typed password
         // sitting in circuit state for the rest of the session is worse.
         _addingUser = false;
-        _newUsername = _newPassword = string.Empty;
+        _newUsername = _newDisplayName = _newPassword = string.Empty;
+        _newRole = 0;
         _addError = null;
     }
 
@@ -177,17 +212,36 @@ else
         _resetError = null;
     }
 
+    private void OpenRenameDisplayName(UserDto user)
+    {
+        _renamingUser = user;
+        _renameDisplayName = user.DisplayName;
+        _renameError = null;
+    }
+
     private async Task CreateUserAsync()
     {
         if (string.IsNullOrWhiteSpace(_newUsername)) { _addError = "ต้องกรอก username"; return; }
         if (_newPassword.Length < 8) { _addError = "Password ต้องยาวอย่างน้อย 8 ตัวอักษร"; return; }
 
-        var (ok, message) = await Api.CreateUserAsync(_newUsername, _newPassword);
+        var (ok, message) = await Api.CreateUserAsync(_newUsername, _newPassword, _newDisplayName, _newRole);
         if (!ok) { _addError = message; return; }
 
         var created = _newUsername;
         CloseAdd();
         Toasts.Success($"สร้างผู้ใช้ {created} แล้ว");
+        await LoadAsync();
+    }
+
+    private async Task RenameDisplayNameAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_renameDisplayName)) { _renameError = "ต้องกรอกชื่อที่แสดง"; return; }
+
+        var (ok, message) = await Api.UpdateDisplayNameAsync(_renamingUser!.Id, _renameDisplayName);
+        if (!ok) { _renameError = message; return; }
+
+        _renamingUser = null;
+        Toasts.Success("แก้ชื่อที่แสดงแล้ว");
         await LoadAsync();
     }
 
