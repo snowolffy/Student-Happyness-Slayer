@@ -12,7 +12,7 @@
 | ขั้น | สถานะ |
 |---|---|
 | 0 Pilot | MSI build แล้วเมื่อ 29 ต.ค. (`installer/output/`) · ผู้ใช้จะไปลง 2–3 เครื่อง |
-| 1 ฐานราก | **พร้อมเริ่ม** · แบ่ง WP ไว้ด้านล่างแล้ว |
+| 1 ฐานราก | **กำลังทำ** · WP0 ✅ merge แล้ว (`ee94167`) · WP5, WP6 กำลังทำ · WP2, WP3 (เฉพาะ Server+OnlineConsole) รอบสอง · WP1 รอ WP5+WP6 merge · WP4 รอ WP3 merge · WP3 ส่วน Console รอ WP6 |
 | 2–5 | ออกแบบเสร็จ (wireframe) · ยังไม่เริ่ม |
 
 งานที่ผู้ใช้รับไปทำเองที่แล็บ: เปิด Wake-on-LAN ใน BIOS · เดินสาย LAN แทน WiFi · เลือกเครื่อง pilot · ตรวจว่ามี Google Workspace สำหรับหน้า Apps Script
@@ -200,7 +200,8 @@ orchestrator ส่ง WP0, WP5 และ WP6 ออกพร้อมกัน�
 
 ## ข้อมูลอ้างอิงในโค้ด (ณ 30 ต.ค. 2569)
 
-- **Auth ของ Console:** header `X-Auth-Token` ตรวจที่ helper `GetAuthorizedAdmin` (ท้าย `Server/Program.cs`) · token อยู่ในตาราง `AuthTokens` · `PasswordHasher` = PBKDF2 · มี `LoginThrottle` อยู่แล้ว
+- **Endpoint ของ Server:** อยู่ใน `Server/Endpoints/<Group>Endpoints.cs` 14 กลุ่ม (หลัง WP0) · Program.cs เหลือแค่ตั้งค่า + `app.MapXxxEndpoints()` · `MapCommandEndpoints(eventCommandLifetime)` รับพารามิเตอร์เพิ่ม · DTO อยู่ใน `Endpoints/EndpointRequests.cs`
+- **Auth ของ Console:** header `X-Auth-Token` ตรวจที่ `GetAuthorizedAdmin` ใน `Server/Endpoints/AuthHelpers.cs` · token อยู่ในตาราง `AuthTokens` · `PasswordHasher` = PBKDF2 · มี `LoginThrottle` อยู่แล้ว
 - **Agent loopback API:** ผูกไว้ที่ `127.0.0.1:8788` ใน `Agent/Program.cs` (`/bypass/set` อยู่ราวบรรทัด 200)
 - **Failover:** `Agent/Worker.cs` (`FailuresBeforeFallback = 5`, `SuccessesBeforeRecovery = 7`) · `ServerClient.SwitchTo()`
 - **Console:** `DashboardWindow.xaml` คือหน้าหลักแบบแท็บ + sidebar (ราว 1,079 บรรทัด) · ธีมอยู่ใน `Console/Theme/`
