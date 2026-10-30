@@ -12,6 +12,13 @@ public class ClientApiClient
 {
     private readonly HttpClient _httpClient;
 
+    // WP2 (2026-10-30): token ที่ Server ออกให้หลัง login สำเร็จ ผูกกับ clientGuid ของเครื่องนี้ +
+    // บัญชีที่ login (ดู RequestStaffSessionTokenAsync) ต้องแนบไปกับ POST /bypass/set ทุกครั้งที่จะ
+    // เปิด bypass - ไม่มี/หมดอายุ = Agent ปฏิเสธเอง (fail-secure, ดู BypassCoordinator ฝั่ง Agent)
+    // เก็บไว้ใน instance นี้เท่านั้น (ไม่ persist) หายไปตอน AgentTray restart ซึ่งถูกต้องแล้ว - ต้อง
+    // login ใหม่ทุกครั้งที่ AgentTray เริ่มทำงานใหม่
+    private string? _staffSessionToken;
+
     public ClientApiClient()
     {
         _httpClient = new HttpClient
@@ -97,25 +104,30 @@ public class ClientApiClient
 
     /// <summary>
     /// สั่ง Agent Service ให้ toggle "Bypass" (ตัด/ต่อการเชื่อมต่อกับ Server ทั้งหมด) - คืนค่า bypass
-    /// state ที่ยืนยันแล้วจาก Agent จริงๆ (ไม่ใช่แค่ echo ค่าที่ส่งไป) คืน null ถ้า Agent local API
-    /// ไม่ตอบ (เช่น service ไม่ได้รันอยู่) - caller ต้องไม่ถือว่า toggle สำเร็จถ้าได้ null กลับมา
+    /// state ที่ยืนยันแล้วจาก Agent จริงๆ (ไม่ใช่แค่ echo ค่าที่ส่งไป) คืน Bypassed: null ถ้า Agent
+    /// ปฏิเสธ (ไม่ว่าเพราะ service ไม่ตอบ หรือเพราะ token ไม่มี/หมดอายุ - ดู AgentReachable แยกว่า
+    /// เป็นกรณีไหน) caller ต้องไม่ถือว่า toggle สำเร็จถ้า Bypassed เป็น null
+    ///
+    /// WP2 (2026-10-30): แนบ _staffSessionToken ที่ขอไว้ตอน login ไปด้วยทุกครั้ง - Agent เป็นคนตรวจ
+    /// จริงกับ Server (ดู BypassCoordinator) ที่นี่แค่ส่งต่อเฉยๆ ไม่ validate เองฝั่ง AgentTray
     /// </summary>
-    public async Task<bool?> SetBypassAsync(bool bypassed)
+    public async Task<(bool? Bypassed, bool AgentReachable)> SetBypassAsync(bool bypassed)
     {
         try
         {
-            var response = await _httpClient.PostAsJsonAsync("/bypass/set", new { bypassed });
+            var response = await _httpClient.PostAsJsonAsync("/bypass/set", new { bypassed, staffSessionToken = _staffSessionToken });
             if (!response.IsSuccessStatusCode)
             {
-                return null;
+                // Agent ตอบจริง แค่ปฏิเสธ (เช่น token ไม่มี/หมดอายุ) - ต่างจากกรณี service ไม่ตอบเลย
+                return (null, true);
             }
 
             var result = await response.Content.ReadFromJsonAsync<BypassSetResponseDto>();
-            return result?.Bypassed;
+            return (result?.Bypassed, true);
         }
         catch
         {
-            return null;
+            return (null, false);
         }
     }
 
@@ -131,17 +143,67 @@ public class ClientApiClient
     /// </summary>
     public async Task<(bool Success, string Message)> LoginToServerAsync(string primaryBaseUrl, string? fallbackBaseUrl, string username, string password)
     {
-        var (success, reachable, message) = await TryLoginAsync(primaryBaseUrl, username, password);
-        if (success || reachable || string.IsNullOrWhiteSpace(fallbackBaseUrl))
+        var (success, reachable, message, adminToken) = await TryLoginAsync(primaryBaseUrl, username, password);
+        var usedBaseUrl = primaryBaseUrl;
+
+        if (!success && !reachable && !string.IsNullOrWhiteSpace(fallbackBaseUrl))
         {
-            return (success, message);
+            (success, reachable, message, adminToken) = await TryLoginAsync(fallbackBaseUrl, username, password);
+            usedBaseUrl = fallbackBaseUrl;
         }
 
-        var (fallbackSuccess, _, fallbackMessage) = await TryLoginAsync(fallbackBaseUrl, username, password);
-        return (fallbackSuccess, fallbackMessage);
+        // WP2 (2026-10-30): login สำเร็จแล้วขอ bypass token ต่อทันที (ผูกกับ clientGuid ของเครื่องนี้ +
+        // บัญชีที่ login) เก็บไว้ใช้ตอนกดปุ่ม BYPASS ใน StatusWindow - ไม่ throw/ไม่ทำให้ login ล้มเหลว
+        // ถ้าขอ token ไม่สำเร็จ (เช่น Agent local API ไม่ตอบตอนนั้น) ปุ่ม BYPASS จะถูก Agent ปฏิเสธเอง
+        // ตอนกดจริงถ้าไม่มี token (fail-secure, ดู BypassCoordinator)
+        if (success && adminToken is not null)
+        {
+            await RequestStaffSessionTokenAsync(usedBaseUrl, adminToken);
+        }
+
+        return (success, message);
     }
 
-    private static async Task<(bool Success, bool Reachable, string Message)> TryLoginAsync(string serverBaseUrl, string username, string password)
+    /// <summary>
+    /// ขอ bypass token จาก Server (POST /api/staff-session/start) ด้วย adminToken ที่ได้จาก login
+    /// ข้างบน + clientGuid ของเครื่องนี้ (อ่านจาก GET /status ของ Agent) เก็บผลไว้ใน _staffSessionToken
+    /// ให้ SetBypassAsync ใช้ต่อ ล้มเหลวแบบเงียบๆ ได้ทุกจุด (ไม่มีอะไรทำต่อได้ถ้าขอไม่สำเร็จ - ปุ่ม
+    /// BYPASS จะโดน Agent ปฏิเสธเองพร้อมเหตุผลตอนกดจริง)
+    /// </summary>
+    private async Task RequestStaffSessionTokenAsync(string serverBaseUrl, string adminToken)
+    {
+        try
+        {
+            var status = await GetStatusAsync();
+            if (status is null || string.IsNullOrWhiteSpace(status.ClientGuid))
+            {
+                return;
+            }
+
+            using var serverClient = new HttpClient { Timeout = TimeSpan.FromSeconds(10) };
+            var url = serverBaseUrl.TrimEnd('/') + "/api/staff-session/start";
+            using var request = new HttpRequestMessage(HttpMethod.Post, url)
+            {
+                Content = JsonContent.Create(new { clientGuid = status.ClientGuid })
+            };
+            request.Headers.Add("X-Auth-Token", adminToken);
+
+            var response = await serverClient.SendAsync(request);
+            if (!response.IsSuccessStatusCode)
+            {
+                return;
+            }
+
+            var result = await response.Content.ReadFromJsonAsync<StaffSessionStartResponseDto>();
+            _staffSessionToken = result?.Token;
+        }
+        catch
+        {
+            _staffSessionToken = null;
+        }
+    }
+
+    private static async Task<(bool Success, bool Reachable, string Message, string? AdminToken)> TryLoginAsync(string serverBaseUrl, string username, string password)
     {
         try
         {
@@ -152,16 +214,23 @@ public class ClientApiClient
             if (!response.IsSuccessStatusCode)
             {
                 // ต่อ server ได้จริง แค่ credentials ผิด - ไม่ใช่กรณี "ต่อไม่ได้" ที่ควร retry ไป fallback
-                return (false, true, "Username หรือ Password ไม่ถูกต้อง");
+                return (false, true, "Username หรือ Password ไม่ถูกต้อง", null);
             }
 
-            return (true, true, "Login สำเร็จ");
+            var loginResult = await response.Content.ReadFromJsonAsync<LoginResponseDto>();
+            return (true, true, "Login สำเร็จ", loginResult?.Token);
         }
         catch (Exception)
         {
             // ไม่โชว์ ex.Message ตรงๆ เพราะ HttpRequestException ของ .NET มักยาวเกินกว่าจะแสดงใน
             // LoginWindow ที่เป็นหน้าต่างขนาดคงที่ (ResizeMode="NoResize") ทำให้ข้อความล้นออกนอกกรอบ
-            return (false, false, "ต่อ Server ไม่ได้ - เช็คว่า Server เปิดอยู่และตั้งค่า IP:Port ถูกต้อง");
+            return (false, false, "ต่อ Server ไม่ได้ - เช็คว่า Server เปิดอยู่และตั้งค่า IP:Port ถูกต้อง", null);
         }
     }
+
+    /// <summary>รูปร่าง JSON ตอบกลับจาก POST /api/auth/login ฝั่ง Server (ดู AuthEndpoints.cs) - เอาแค่ Token ที่ใช้ต่อ</summary>
+    private sealed record LoginResponseDto(string? Token);
+
+    /// <summary>รูปร่าง JSON ตอบกลับจาก POST /api/staff-session/start ฝั่ง Server (ดู StaffSessionEndpoints.cs)</summary>
+    private sealed record StaffSessionStartResponseDto(string? Token, DateTime? ExpiresAt);
 }

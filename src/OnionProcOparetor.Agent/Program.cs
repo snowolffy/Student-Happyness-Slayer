@@ -106,6 +106,10 @@ builder.Services.AddSingleton<LabHubConnection>();
 // ---- Bypass toggle (Stable 1 เรื่องที่ 2) - state อยู่ใน memory ของ Agent process เท่านั้น
 // (ไม่ persist) BypassCoordinator เป็นจุดเดียวที่ toggle จริง (ตัด/ต่อ LabHubConnection) เรียกจาก
 // POST /bypass/set ข้างล่าง ----
+// AddHttpClient() เปล่าๆ (ไม่ใช่ typed client) เพราะ BypassCoordinator ต้องเป็น Singleton (ถือ
+// _activeStaffSessionToken + semaphore ข้ามทุก request) แต่ AddHttpClient<TClient>() ปกติ register
+// TClient เป็น Transient - ใช้ IHttpClientFactory.CreateClient() ใน constructor แทน (WP2, 2026-10-30)
+builder.Services.AddHttpClient();
 builder.Services.AddSingleton<AgentBypassState>();
 builder.Services.AddSingleton<BypassCoordinator>();
 
@@ -195,16 +199,26 @@ app.MapPost("/processes/list-result", async (RunningProcessesResultRequest reque
     return Results.Ok();
 });
 
-// ---- AgentTray toggle "Bypass" จากหน้า Status (login-gated อยู่แล้วฝั่ง AgentTray - ไม่ต้อง auth
-// เพิ่มที่นี่ เหมือน endpoint อื่นๆ ข้างบน loopback เท่านั้น) ----
+// ---- AgentTray toggle "Bypass" จากหน้า Status ----
+// WP2 (2026-10-30): เดิม login-gate ของ AgentTray + loopback ถือว่าพอแล้ว ("ไม่ต้อง auth เพิ่มที่นี่")
+// แต่จริงๆ ไม่พอ - process อื่นบนเครื่องเดียวกันยิง POST ตรงมาที่ loopback นี้ได้เหมือนกัน ไม่ต้องผ่าน
+// login ของ AgentTray เลย ตอนนี้บังคับแนบ staffSessionToken ที่ Server ออกให้ (ตรวจที่ BypassCoordinator)
 app.MapPost("/bypass/set", async (BypassSetRequest request, BypassCoordinator coordinator) =>
 {
-    var confirmed = await coordinator.SetBypassedAsync(request.Bypassed);
-    return Results.Ok(new { bypassed = confirmed });
+    var result = await coordinator.SetBypassedAsync(request.Bypassed, request.StaffSessionToken);
+
+    if (result.ErrorMessage is not null)
+    {
+        return Results.Json(
+            new { bypassed = result.Bypassed, error = result.ErrorMessage },
+            statusCode: StatusCodes.Status401Unauthorized);
+    }
+
+    return Results.Ok(new { bypassed = result.Bypassed });
 });
 
 app.Run();
 
 internal sealed record VncSessionResultRequest(string RequestingConsoleSessionId, bool Success, int Pid, string? Password, string? FailureReason);
 internal sealed record RunningProcessesResultRequest(string RequestingConsoleSessionId, bool Success, System.Text.Json.JsonElement? Processes, string? FailureReason);
-internal sealed record BypassSetRequest(bool Bypassed);
+internal sealed record BypassSetRequest(bool Bypassed, string? StaffSessionToken = null);
