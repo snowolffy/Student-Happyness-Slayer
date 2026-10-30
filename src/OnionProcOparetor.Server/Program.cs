@@ -207,5 +207,6 @@ app.MapProgramControlEndpoints();
 app.MapTamperReportEndpoints();
 app.MapActivityLogEndpoints();
 app.MapUserEndpoints();
+app.MapStaffSessionEndpoints(); // WP2 (2026-10-30) - token แทน bypass/set ที่ไม่มี auth
 
 app.Run();

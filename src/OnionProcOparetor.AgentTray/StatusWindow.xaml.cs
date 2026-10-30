@@ -117,7 +117,12 @@ public partial class StatusWindow : Window
     /// สั่ง Agent ตัด/ต่อการเชื่อมต่อกับ Server (ดู ClientApiClient.SetBypassAsync/BypassCoordinator)
     /// ถ้าเปลี่ยนเป็น Bypassed สำเร็จ ต้องเก็บกวาด VNC/lock screen/physical-input-block ที่อาจ active
     /// อยู่ฝั่ง AgentTray ด้วย (resource พวกนี้อยู่ฝั่งนี้ล้วนๆ Agent เอง Session 0 แตะไม่ถึง) ถ้า Agent
-    /// local API ไม่ตอบ (คืน null) ไม่ถือว่าสำเร็จ - ไม่แตะ session ใดๆ และโชว่ error ให้เห็นชัด
+    /// ปฏิเสธไม่ว่าด้วยเหตุผลไหน (คืน Bypassed: null) ไม่ถือว่าสำเร็จ - ไม่แตะ session ใดๆ และโชว์
+    /// error ให้เห็นชัด
+    ///
+    /// WP2 (2026-10-30): เปิด bypass ตอนนี้ต้องมี staff session token ที่ขอไว้ตอน login (ดู
+    /// ClientApiClient) ถ้าไม่มี/หมดอายุ Agent จะปฏิเสธ (AgentReachable=true แต่ Bypassed=null) ต่าง
+    /// จากกรณี Agent Service ไม่ตอบเลย (AgentReachable=false) - แยกข้อความสองกรณีนี้ให้ครูเข้าใจถูก
     /// </summary>
     private async void ToggleBypassButton_Click(object sender, RoutedEventArgs e)
     {
@@ -126,12 +131,14 @@ public partial class StatusWindow : Window
         ToggleBypassButton.IsEnabled = false;
         ConnectionText.Text = "กำลังเปลี่ยน...";
 
-        var confirmed = await _apiClient.SetBypassAsync(requestedBypassed);
+        var (confirmed, agentReachable) = await _apiClient.SetBypassAsync(requestedBypassed);
 
         if (confirmed is null)
         {
             ConnectionDot.Fill = (Brush)FindResource("AccentNeutralBrush");
-            ConnectionText.Text = "เปลี่ยนไม่สำเร็จ - ติดต่อ Agent Service ไม่ได้";
+            ConnectionText.Text = agentReachable
+                ? "เปลี่ยนไม่สำเร็จ - ต้อง login ใหม่ก่อนใช้ Bypass (token ไม่มีหรือหมดอายุ)"
+                : "เปลี่ยนไม่สำเร็จ - ติดต่อ Agent Service ไม่ได้";
             ToggleBypassButton.IsEnabled = true;
             return;
         }
