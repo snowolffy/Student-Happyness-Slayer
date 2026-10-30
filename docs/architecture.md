@@ -410,9 +410,11 @@ sign-in/tracking เพราะภัยจริงคือเด็กหน
   จนกว่าจะ reboot (เครื่อง lab ทุกเครื่องรัน Reboot Restore Rx ซึ่งล้าง registry ทุก reboot อยู่แล้ว)
   ซึ่งขัดกับสิ่งที่ครูคาดหวังตอนกด BYPASS/ปิดสวิตช์ทันที ใช้ global enforcement toggle ตัวเดียวกับ
   Program Control (`GlobalState.IsEnabled` AND-gate) ไม่มี toggle แยก
-- **Console UI**: popup window แยก (`WebsiteControlWindow`) ไม่ใช่ tab ของ Rules — เหมือน
-  `ProgramReviewWindow` ตั้งใจไม่ให้กฎบล็อกแอปกับบล็อกเว็บปนกันจนงง ฝั่ง OnlineConsole เป็นหน้าแยก
-  `/website-rules` เข้า group เดียวกับ Rules
+- **Console UI**: แท็บแยกใน sidebar (`WebsiteControlPage`) ไม่ใช่ tab ของ Rules — เหมือน
+  `ProgramReviewPage` ตั้งใจไม่ให้กฎบล็อกแอปกับบล็อกเว็บปนกันจนงง (เดิมทั้งสองเป็นหน้าต่างลอย
+  `WebsiteControlWindow`/`ProgramReviewWindow` แยกจาก Dashboard แต่ WP6, 2026-10-30 แปลงเป็นหน้าใน
+  shell เดียวกันแล้ว - เช่นเดียวกับ `SettingsWindow` เดิม → `SettingsPage` ดู `docs/console-ui-notes.md`
+  §3.2 สำหรับรายละเอียดการแปลง) ฝั่ง OnlineConsole เป็นหน้าแยก `/website-rules` เข้า group เดียวกับ Rules
 - **ข้อจำกัดที่รู้ตัว**: ครอบคลุมแค่ Chrome/Edge เท่านั้น (เครื่อง lab ใช้แค่สองตัวนี้จริง) ไม่มี Firefox/
   browser อื่น และ registry policy เป็นระดับ `HKLM` — นักเรียนที่ยังมีสิทธิ์ local admin (ก่อนแผนเปลี่ยน
   นักเรียนเป็น standard user เสร็จสมบูรณ์ — ดูหัวข้อ "AgentTray กับ user account ใหม่" ด้านบน) ลบ key นี้

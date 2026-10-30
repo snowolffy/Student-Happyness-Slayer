@@ -225,9 +225,18 @@
                                 <ColumnDefinition Width="Auto"/>
                                 <ColumnDefinition Width="*"/>
                                 <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="Auto"/>
                             </Grid.ColumnDefinitions>
                             <TextBlock Grid.Column="0" Text="Client Management" Style="{StaticResource Heading2}" VerticalAlignment="Center"/>
-                            <TextBox Grid.Column="2" x:Name="ClientsSearchBox" Width="240" Height="34"
+                            <!-- ตัวเลือกห้อง (WP3, 2026-10-30) - กรองตารางข้างล่างเหมือนการ์ดตัวเลข/ช่องค้นหา
+                                 ข้อมูลห้องมาจาก GET /api/rooms (DashboardWindow.LoadRoomsAsync) ส่วนตัวกรองจริง
+                                 ทำฝั่ง client จากข้อมูลที่โหลดมาแล้ว (RoomId ติดมากับทุกเครื่องจาก GET /api/clients
+                                 อยู่แล้ว) ไม่ต้องยิง request ใหม่ทุกครั้งที่สลับห้อง - เลือกไว้แล้วจำลง
+                                 console-settings.json ด้วย (ดู RoomFilterCombo_SelectionChanged) -->
+                            <ComboBox Grid.Column="2" x:Name="RoomFilterCombo" Width="200" Height="34" Margin="0,0,10,0"
+                                     VerticalAlignment="Center" DisplayMemberPath="Label"
+                                     SelectionChanged="RoomFilterCombo_SelectionChanged"/>
+                            <TextBox Grid.Column="3" x:Name="ClientsSearchBox" Width="240" Height="34"
                                     Style="{StaticResource SearchTextBox}" VerticalAlignment="Center"
                                     Tag="ค้นหาชื่อเครื่อง..." TextChanged="ClientsSearchBox_TextChanged"/>
                         </Grid>
