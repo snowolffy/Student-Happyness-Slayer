@@ -12,7 +12,8 @@
 | ขั้น | สถานะ |
 |---|---|
 | 0 Pilot | MSI build แล้วเมื่อ 29 ต.ค. (`installer/output/`) · ผู้ใช้จะไปลง 2–3 เครื่อง |
-| 1 ฐานราก | **กำลังทำ** · WP0 ✅ merge แล้ว (`ee94167`) · WP5, WP6 กำลังทำ · WP2, WP3 (เฉพาะ Server+OnlineConsole) รอบสอง · WP1 รอ WP5+WP6 merge · WP4 รอ WP3 merge · WP3 ส่วน Console รอ WP6 |
+| 1 ฐานราก | **กำลังทำ** · ✅ merge แล้ว: WP0, WP5, WP3 (Server+Online), WP2 · กำลังทำ: WP6, WP4 (Server+Online) · รอ WP6: WP1, WP7, ส่วน Console ของ WP3/WP4 · **ต้อง field test บนเครื่องที่ลง Agent เป็น service:** WP2 (bypass ต้องมี token, หมดอายุเอง) และ WP5 (loop + SignalR จริง) |
+| 1 (เพิ่ม) | **WP2b:** ปิด auth ของ `/vnc/session-result` + `/processes/list-result` ด้วย shared secret ที่ AgentTray ได้จาก Agent ผ่าน named pipe (แตะ `AgentTrayNotifier.cs`, pipe listener ฝั่ง tray, `Agent/Program.cs`) · ยังไม่เริ่ม |
 | 2–5 | ออกแบบเสร็จ (wireframe) · ยังไม่เริ่ม |
 
 งานที่ผู้ใช้รับไปทำเองที่แล็บ: เปิด Wake-on-LAN ใน BIOS · เดินสาย LAN แทน WiFi · เลือกเครื่อง pilot · ตรวจว่ามี Google Workspace สำหรับหน้า Apps Script
