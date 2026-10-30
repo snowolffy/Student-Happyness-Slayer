@@ -50,6 +50,29 @@ function Patch-FallbackBaseUrl([string]$AppSettingsPath, [string]$NewFallbackBas
     Write-Log "Patched FallbackBaseUrl in: $AppSettingsPath"
 }
 
+# WP1 (2026-10-30, ดู docs/roadmap.md หัวข้อ "เครือข่ายและความปลอดภัย") - ดึง self-signed certificate
+# ของ Server ผ่าน GET /security/certificate (ไม่มี auth - เป็น public key ล้วนๆ) แล้วติดตั้งลง
+# LocalMachine\Root ของเครื่องนี้ เพื่อให้ Agent/AgentTray เชื่อถือ HTTPS ของ Server ได้ผ่าน trust store
+# ปกติของ Windows (ไม่ต้อง pin thumbprint เอง) - ต้องทำตอน install เพราะ %ProgramData%/registry ที่เขียน
+# ตอน runtime หลังจากนี้จะหายทุก reboot (disk freeze, Reboot Restore Rx) ส่วนตอน install จริงยังไม่ freeze
+# ไม่ hard-fail ถ้าดึง/ติดตั้งไม่สำเร็จ (เช่น Server ยังไม่เปิดตอน install, หรือเป็น Server เวอร์ชันเก่าที่
+# ยังไม่มี endpoint นี้) - Agent จะยังใช้ HTTP ได้ตามปกติ (Security:AllowHttp=true ฝั่ง Server ช่วง
+# ย้ายระบบ) แค่ยังต่อ HTTPS ไม่ได้จนกว่าจะรัน setup-client.ps1 ซ้ำ (เช่น repair/reinstall) หรือติดตั้ง
+# cert เองด้วยมือ
+function Install-ServerCertificate([string]$ServerAddr, [string]$InstallDir) {
+    try {
+        $certUrl = "http://$ServerAddr/security/certificate"
+        $tempCerPath = Join-Path $InstallDir "server-cert-download.cer"
+        Invoke-WebRequest -Uri $certUrl -OutFile $tempCerPath -UseBasicParsing -TimeoutSec 10
+        Import-Certificate -FilePath $tempCerPath -CertStoreLocation "Cert:\LocalMachine\Root" | Out-Null
+        Remove-Item -Path $tempCerPath -Force -ErrorAction SilentlyContinue
+        Write-Log "ติดตั้ง Server certificate ลง LocalMachine\Root สำเร็จ (จาก $certUrl)"
+    }
+    catch {
+        Write-Log "ดึง/ติดตั้ง Server certificate ไม่สำเร็จ (ไม่ hard-fail - Agent จะใช้ HTTP ต่อไปจนกว่าจะแก้): $($_.Exception.Message)"
+    }
+}
+
 $newBaseUrl = "http://$ServerAddr"
 
 # FALLBACKSERVERADDR ที่ WiX ส่งมาอาจเป็น ":8787" (blank IP + default port property) ถ้าครูไม่ได้กรอก
@@ -65,6 +88,12 @@ Write-Log "InstallDir=$InstallDir ServerAddr=$ServerAddr FallbackServerAddr=$Fal
 #    ไม่ต้อง sc.exe create ซ้ำที่นี่ ซ้ำแล้วจะ error "service already exists" เฉยๆ)
 Patch-BaseUrl -AppSettingsPath (Join-Path $InstallDir "Client\appsettings.json") -NewBaseUrl $newBaseUrl
 Patch-BaseUrl -AppSettingsPath (Join-Path $InstallDir "ClientTray\appsettings.json") -NewBaseUrl $newBaseUrl
+
+# 1.5) ติดตั้ง cert ของ Server ลง trust store (WP1) - ทำหลัง patch BaseUrl (ใช้ $ServerAddr ตัวเดียวกัน)
+#      ไม่ว่า BaseUrl ที่ patch ไปจะเป็น http หรือ https ก็ตาม (เผื่ออนาคตสลับ newBaseUrl เป็น https
+#      โดยไม่ต้องแก้จุดนี้) - ยิง HTTP ตรงๆ ไปที่ /security/certificate เสมอเพราะตอนนี้ย้ายระบบยังไม่เสร็จ
+#      (Server:AllowHttp=true ค่าเริ่มต้น)
+Install-ServerCertificate -ServerAddr $ServerAddr -InstallDir $InstallDir
 
 # FallbackBaseUrl ใส่ทั้ง Client (Agent Service - poll/command channel) และ ClientTray (AgentTray's
 # LoginWindow - teacher-login แบบ one-shot request) - เดิมตั้งใจใส่แค่ Client เท่านั้นเพราะคิดว่าคนละ

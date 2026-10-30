@@ -34,6 +34,27 @@ StartupDiagnostics.WriteLine($"ILogger ทั้งหมดจะถูกเ�
 // ---- ตั้งค่า Kestrel ให้ฟัง port ตามที่กำหนดใน appsettings.json ----
 var serverPort = builder.Configuration.GetValue<int>("Server:Port", 8787);
 
+// ---- HTTPS ด้วย self-signed certificate (WP1, 2026-10-30) ----
+// สร้าง/โหลด cert ก่อน builder.Build() เพราะ ConfigureKestrel ด้านล่างต้องมี X509Certificate2 พร้อมใช้
+// ตั้งแต่ตอนนั้น (ไม่ใช่รอ DI พร้อมก่อน) - cert เก็บไว้ที่ %ProgramData%\OnionProcOparetor\cert\ อยู่รอด
+// ข้าม restart (ดู CertificateManager) register ตัวเดิมนี้เป็น singleton ด้วยเพื่อให้ SecurityEndpoints
+// (ดึง .cer/thumbprint ไปแจก client) ใช้ instance เดียวกัน ไม่ต้องโหลดไฟล์ซ้ำ
+var certDirectory = Path.Combine(
+    Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData),
+    "OnionProcOparetor", "cert");
+var certificateManager = CertificateManager.LoadOrCreate(certDirectory);
+builder.Services.AddSingleton(certificateManager);
+StartupDiagnostics.WriteLine($"[HTTPS] ใช้ certificate Thumbprint: {certificateManager.Thumbprint} (เก็บที่ {certDirectory})");
+
+// Https port แยกจาก Port (http) เสมอ - Kestrel ผูก UseHttps() ให้ port ใดต้อง "เป็น https เท่านั้น"
+// ทั้ง port นั้น จะ serve ทั้งสอง protocol บน port เดียวกันไม่ได้ (ไม่เหมือน browser ที่ sniff ALPN ได้
+// เอง) ดีฟอลต์ 8843 ตั้งใจเลี่ยงเลขที่ใกล้ Agent loopback (8788) กัน dev เผลอรันชนกันบนเครื่องเดียว
+var httpsPort = builder.Configuration.GetValue<int>("Server:HttpsPort", 8843);
+
+// "ยอมรับ HTTP เดิม" ช่วงย้ายระบบ (ดู docs/roadmap.md หัวข้อ "เครือข่ายและความปลอดภัย") - true = ฟังทั้ง
+// HTTP (port เดิม) และ HTTPS คู่กัน, false = ฟังแค่ HTTPS อย่างเดียว (ปิด HTTP ทิ้งถาวรตอนย้ายระบบเสร็จแล้ว)
+var allowHttp = builder.Configuration.GetValue<bool>("Security:AllowHttp", true);
+
 // อายุของคำสั่งประเภท "เหตุการณ์" (Shutdown/Restart/Lock/...) - ดู CommandExpiry สำหรับเหตุผลเต็ม
 // ค่าที่ตั้งผิด (0 หรือติดลบ) จะทำให้ทุกคำสั่งหมดอายุทันทีที่สร้าง = สั่งอะไรไม่ได้เลยทั้งห้อง
 // จึงตกกลับไปใช้ค่า default แทนที่จะเชื่อ config ดื้อ ๆ (pattern เดียวกับ CommandResultTimeoutService)
@@ -45,7 +66,13 @@ var eventCommandLifetime = configuredCommandLifetime > 0
     : CommandExpiry.EventCommandLifetime;
 builder.WebHost.ConfigureKestrel(options =>
 {
-    options.ListenAnyIP(serverPort); // ฟังทุก network interface เพื่อให้ client/console เครื่องอื่นต่อเข้ามาได้
+    if (allowHttp)
+    {
+        options.ListenAnyIP(serverPort); // ฟังทุก network interface เพื่อให้ client/console เครื่องอื่นต่อเข้ามาได้ (HTTP เดิม - ปิดได้ผ่าน Security:AllowHttp=false)
+    }
+
+    // HTTPS (WP1, 2026-10-30) - ใช้ self-signed cert ที่ CertificateManager สร้าง/โหลดไว้ด้านบนแล้ว
+    options.ListenAnyIP(httpsPort, listenOptions => listenOptions.UseHttps(certificateManager.Certificate));
 
     // จำกัดขนาด request body (2026-08-31, จาก security audit) - default ของ Kestrel คือ ~30MB
     // ไม่มี endpoint ไหนในระบบนี้รับ payload ใหญ่กว่าหลักร้อย KB เลย (ใหญ่สุดคือ process list ที่
@@ -209,5 +236,6 @@ app.MapActivityLogEndpoints();
 app.MapUserEndpoints();
 app.MapRoomEndpoints();
 app.MapStaffSessionEndpoints(); // WP2 (2026-10-30) - token แทน bypass/set ที่ไม่มี auth
+app.MapSecurityEndpoints(); // WP1 (2026-10-30) - แจก .cer/thumbprint ของ Server เองให้ client
 
 app.Run();

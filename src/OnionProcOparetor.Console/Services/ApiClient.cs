@@ -25,7 +25,11 @@ public class ApiClient
 
     public ApiClient()
     {
-        _httpClient = new HttpClient
+        // WP1 (2026-10-30): ผูก ServerCertificatePinning ไว้ตั้งแต่สร้าง HttpClient เสมอ (ไม่ใช่แค่ตอน
+        // BaseUrl เป็น https://) - ไม่มีผลถ้าต่อ http:// (callback ไม่ถูกเรียกเลยเพราะไม่มี TLS handshake)
+        // และถ้าไม่ได้ pin thumbprint ไว้ที่เครื่องนี้ มันจะ fallback ไปใช้ default validation ของ .NET
+        // เองอยู่แล้ว (ดู comment เต็มใน ServerCertificatePinning)
+        _httpClient = new HttpClient(ServerCertificatePinning.CreateHandler())
         {
             Timeout = TimeSpan.FromSeconds(10)
         };

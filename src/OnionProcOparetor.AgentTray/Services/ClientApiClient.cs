@@ -185,6 +185,9 @@ public class ClientApiClient
                 return;
             }
 
+            // WP1 (2026-10-30) - HTTPS: ไม่ override cert validation ที่นี่ (เหตุผลเดียวกับ Agent's
+            // ServerClient - MSI เดียวกันติดตั้ง cert ของ Server ไว้ใน LocalMachine\Root ของเครื่องนี้
+            // แล้ว) serverBaseUrl ใช้ https:// ได้ตรงๆ ถ้าตั้งไว้แบบนั้น
             using var serverClient = new HttpClient { Timeout = TimeSpan.FromSeconds(10) };
             var url = serverBaseUrl.TrimEnd('/') + "/api/staff-session/start";
             using var request = new HttpRequestMessage(HttpMethod.Post, url)
@@ -212,6 +215,8 @@ public class ClientApiClient
     {
         try
         {
+            // WP1 (2026-10-30) - HTTPS: เหตุผลเดียวกับ RequestStaffSessionTokenAsync ด้านบน (เชื่อถือผ่าน
+            // Windows trust store - MSI ติดตั้ง cert ของ Server ไว้แล้ว ไม่ override ที่นี่)
             using var serverClient = new HttpClient { Timeout = TimeSpan.FromSeconds(10) };
             var url = serverBaseUrl.TrimEnd('/') + "/api/auth/login";
             var response = await serverClient.PostAsJsonAsync(url, new { username, password });

@@ -15,7 +15,9 @@ public record ClientMachineDto(int Id, string ClientGuid, string MachineName);
 /// </summary>
 public class ApiClient
 {
-    private readonly HttpClient _httpClient = new() { Timeout = TimeSpan.FromSeconds(10) };
+    // WP1 (2026-10-30): ผูก ServerCertificatePinning ไว้ตั้งแต่สร้าง (ดู comment เต็มในคลาสนั้น) - ไม่มี
+    // ผลถ้าต่อ http:// และ fallback ไปใช้ default .NET validation เองถ้าไม่ได้ pin thumbprint ไว้
+    private readonly HttpClient _httpClient = new(ServerCertificatePinning.CreateHandler()) { Timeout = TimeSpan.FromSeconds(10) };
     private string? _token;
     private string? _lastUsername;
     private string? _lastPassword;

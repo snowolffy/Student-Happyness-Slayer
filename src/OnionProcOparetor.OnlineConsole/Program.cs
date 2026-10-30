@@ -101,7 +101,11 @@ builder.Services.AddHttpClient("Server", client =>
 {
     client.BaseAddress = new Uri(serverBaseUrl);
     client.Timeout = TimeSpan.FromSeconds(15);
-});
+})
+    // WP1 (2026-10-30): pin thumbprint ของ Server เอง (ดู ServerCertificatePinning) - ไม่มีผลถ้า
+    // serverBaseUrl เป็น http:// (ไม่มี TLS handshake ให้ callback นี้ถูกเรียก) OnlineConsole รันบน
+    // เครื่องเดียวกับ Server เสมอ จึงเจอไฟล์ thumbprint ที่ Server เขียนไว้ให้ตัวเองได้ทันที
+    .ConfigurePrimaryHttpMessageHandler(ServerCertificatePinning.CreateHandler);
 builder.Services.AddScoped(sp => new ApiClient(sp.GetRequiredService<IHttpClientFactory>().CreateClient("Server")));
 
 builder.Services.AddScoped<LabHubClient>();

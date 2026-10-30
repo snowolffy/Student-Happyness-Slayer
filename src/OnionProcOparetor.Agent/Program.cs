@@ -77,6 +77,13 @@ builder.Services.Configure<ServerSettings>(options =>
 // BaseAddress ไม่ได้ set ตรงนี้อีกต่อไป (เดิม set ผ่าน closure ปิด resolvedBaseUrl) - ย้ายไปให้
 // ServerClient's constructor เป็นคน seed เอง จาก IOptions<ServerSettings> เพื่อให้ ServerClient เป็น
 // เจ้าของเดียวของ "กำลังชี้ไป URL ไหนอยู่" (จำเป็นสำหรับรองรับสลับไป FallbackBaseUrl ทีหลัง)
+// WP1 (2026-10-30) - HTTPS: ตั้งใจไม่ override ServerCertificateCustomValidationCallback ที่นี่
+// BaseUrl ใช้ https:// ได้ตรงๆ (แค่เปลี่ยน scheme ใน appsettings.json) โดยพึ่ง default TLS validation
+// ของ .NET เอง (เชื่อถือผ่าน Windows trust store เท่านั้น) - MSI ของ Agent ติดตั้ง self-signed cert ของ
+// Server ลง LocalMachine\Root ตอน install แล้ว (ดู installer/CustomActions/setup-client.ps1's
+// Install-ServerCertificate + Server's CertificateManager/SecurityEndpoints) เครื่องที่ยังไม่ได้ลง cert
+// นี้ (MSI เก่า/ลงไม่สำเร็จ) จะต่อ HTTPS ไม่ได้ทันที (TLS handshake fail ชัดเจน ไม่ fallback เงียบๆ ไป
+// http) - ถ้าจะสลับไปใช้ pin thumbprint แบบ Console ในอนาคต ต้องเพิ่ม handler ตรงนี้เอง
 builder.Services.AddHttpClient<ServerClient>((serviceProvider, client) =>
 {
     client.Timeout = TimeSpan.FromSeconds(10);
