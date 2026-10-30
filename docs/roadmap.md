@@ -12,8 +12,8 @@
 | ขั้น | สถานะ |
 |---|---|
 | 0 Pilot | MSI build แล้วเมื่อ 29 ต.ค. (`installer/output/`) · ผู้ใช้จะไปลง 2–3 เครื่อง |
-| 1 ฐานราก | **กำลังทำ** · ✅ merge แล้ว: WP0, WP5, WP3 (Server+Online), WP2 · กำลังทำ: WP6, WP4 (Server+Online) · รอ WP6: WP1, WP7, ส่วน Console ของ WP3/WP4 · **ต้อง field test บนเครื่องที่ลง Agent เป็น service:** WP2 (bypass ต้องมี token, หมดอายุเอง) และ WP5 (loop + SignalR จริง) |
-| 1 (เพิ่ม) | **WP2b:** ปิด auth ของ `/vnc/session-result` + `/processes/list-result` ด้วย shared secret ที่ AgentTray ได้จาก Agent ผ่าน named pipe (แตะ `AgentTrayNotifier.cs`, pipe listener ฝั่ง tray, `Agent/Program.cs`) · ยังไม่เริ่ม |
+| 1 ฐานราก | **✅ โค้ดครบ (30 ต.ค.)** WP0–WP7 + WP2b + WP4b/WP1b merge เข้า main แล้ว (`926e512`) · **ต้อง field test ในแล็บหลังลง MSI ใหม่:** WP2 (bypass ต้องมี token/หมดอายุเอง), WP2b (callback ต้องมี secret), WP5 (loop + SignalR จริง), WP1 (cert ลง LocalMachine\Root ตอน MSI + SignalR ผ่าน HTTPS) · ยังเป็น HTTP อยู่ (`Security:AllowHttp=true`) จนกว่าจะย้ายระบบ |
+| 1 ข้อจำกัดที่รู้ | pipe squatting: โปรแกรมที่เปิด named pipe ชื่อเดียวกันก่อน tray จะได้ secret ของ WP2b (ต้องมีสิทธิ์ระดับปิด tray ได้อยู่แล้ว ความเสี่ยงต่ำ) · `server.log` บนเครื่อง dev มีบรรทัดจากการทดสอบปนอยู่ |
 | 2–5 | ออกแบบเสร็จ (wireframe) · ยังไม่เริ่ม |
 
 งานที่ผู้ใช้รับไปทำเองที่แล็บ: เปิด Wake-on-LAN ใน BIOS · เดินสาย LAN แทน WiFi · เลือกเครื่อง pilot · ตรวจว่ามี Google Workspace สำหรับหน้า Apps Script
