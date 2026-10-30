@@ -65,9 +65,48 @@ public class ServerClient
     }
 
     /// <summary>ดึง rules + enabled state ล่าสุดจาก server คืน null ถ้าติดต่อไม่ได้</summary>
-    public async Task<PollResponse?> PollAsync(string clientGuid, string machineName, CancellationToken ct, string? blocklistVersion = null)
+    public Task<PollResponse?> PollAsync(string clientGuid, string machineName, CancellationToken ct, string? blocklistVersion = null) =>
+        PollViaAsync(ActiveBaseUrl, IsUsingFallback, clientGuid, machineName, ct, blocklistVersion);
+
+    /// <summary>
+    /// ช่วงเริ่มทำงาน (WP5): แข่ง poll ระหว่าง LAN (primary) กับ Tailscale (fallback) ดู StartupRouteRace
+    /// ทางไหนได้ PollResponse ก่อนจะถูกตั้งเป็นทางที่ใช้งานจริง (SwitchTo) ทันที ผลของ poll ที่ชนะใช้ได้เลย
+    /// เหมือน PollAsync ปกติ (ไม่ต้องยิงซ้ำ) แต่ละทางส่ง usingFallback ตรงกับทางของตัวเอง (LAN=false,
+    /// Tailscale=true) Server จึงไม่ได้ค่าผิดจาก request ของทางที่ชนะ - ถ้ายิงไปทั้งสองทาง ทางที่แพ้อาจไปถึง
+    /// Server ทีหลังแล้วเขียนทับค่าได้ ผู้เรียก (Worker) จึงต้อง poll ซ้ำเร็วๆ อีกรอบเมื่อ FallbackFired
+    /// </summary>
+    public async Task<StartupRaceResult<PollResponse>> RaceStartupPollAsync(
+        string primaryBaseUrl, string fallbackBaseUrl, string clientGuid, string machineName,
+        CancellationToken ct, string? blocklistVersion = null)
     {
-        var baseUrl = ActiveBaseUrl;
+        var result = await StartupRouteRace.RunAsync(
+            token => PollViaAsync(primaryBaseUrl, false, clientGuid, machineName, token, blocklistVersion),
+            token => PollViaAsync(fallbackBaseUrl, true, clientGuid, machineName, token, blocklistVersion),
+            StartupRouteRace.PrimaryHeadStart,
+            ct);
+
+        if (result.Response is not null)
+        {
+            SwitchTo(result.ViaFallback ? fallbackBaseUrl : primaryBaseUrl, result.ViaFallback);
+        }
+
+        return result;
+    }
+
+    /// <summary>
+    /// ใช้หลังการแข่งตอนเริ่มทำงานได้ Tailscale: probe LAN เบื้องหลังเป็นระยะ (2, 5, 10 แล้วทุก 30 วิ ตาม
+    /// ExponentialBackoffRetryPolicy) จนกว่า LAN จะตอบ คืน true เมื่อ LAN ตอบ คืน false เมื่อถูกยกเลิก
+    /// ไม่ probe ระหว่างที่ isPaused() เป็น true (เช่น bypass เปิดอยู่ ห้ามยิงออกไปหา Server)
+    /// </summary>
+    public Task<bool> WaitForPrimaryAsync(string primaryBaseUrl, string clientGuid, string machineName, Func<bool> isPaused, CancellationToken ct) =>
+        StartupRouteRace.WaitUntilReachableAsync(
+            token => ProbePrimaryAsync(primaryBaseUrl, clientGuid, machineName, token),
+            isPaused,
+            attempt => ExponentialBackoffRetryPolicy.GetDelay(attempt),
+            ct);
+
+    private async Task<PollResponse?> PollViaAsync(string baseUrl, bool viaFallback, string clientGuid, string machineName, CancellationToken ct, string? blocklistVersion)
+    {
         try
         {
             // ส่ง IsUsingFallback ไปด้วยทุกครั้ง - Server เก็บไว้ (ClientMachine.UsingFallback) ให้ Console
@@ -78,9 +117,15 @@ public class ServerClient
             var blocklistParam = string.IsNullOrEmpty(blocklistVersion)
                 ? string.Empty
                 : $"&blocklistVersion={Uri.EscapeDataString(blocklistVersion)}";
-            var url = baseUrl.TrimEnd('/') + $"/api/poll/{clientGuid}?machineName={Uri.EscapeDataString(machineName)}&usingFallback={(IsUsingFallback ? "true" : "false")}{blocklistParam}";
+            var url = baseUrl.TrimEnd('/') + $"/api/poll/{clientGuid}?machineName={Uri.EscapeDataString(machineName)}&usingFallback={(viaFallback ? "true" : "false")}{blocklistParam}";
             var response = await _httpClient.GetFromJsonAsync<PollResponse>(url, ct);
             return response;
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            // ถูกยกเลิกโดยตั้งใจ (แพ้การแข่งตอนเริ่มทำงาน หรือ service กำลังหยุด) ไม่ใช่ server มีปัญหา
+            _logger.LogDebug("Poll ไปที่ {BaseUrl} ถูกยกเลิก", baseUrl);
+            return null;
         }
         catch (Exception ex)
         {
@@ -101,7 +146,10 @@ public class ServerClient
     {
         try
         {
-            var url = primaryBaseUrl.TrimEnd('/') + $"/api/poll/{clientGuid}?machineName={Uri.EscapeDataString(machineName)}";
+            // usingFallback=true เพราะ probe นี้ถูกเรียกเฉพาะตอนที่กำลังใช้ fallback อยู่จริงเท่านั้น (WP5) -
+            // เดิมไม่ส่งพารามิเตอร์นี้ Server จึงตีความเป็น false แล้วเขียน ClientMachine.UsingFallback = false
+            // ทุกครั้งที่ probe LAN สำเร็จ ทั้งที่เครื่องยังใช้ fallback อยู่ (badge ใน Console กระพริบสลับไปมา)
+            var url = primaryBaseUrl.TrimEnd('/') + $"/api/poll/{clientGuid}?machineName={Uri.EscapeDataString(machineName)}&usingFallback=true";
             using var request = new HttpRequestMessage(HttpMethod.Get, url);
             using var probeTimeoutCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
             probeTimeoutCts.CancelAfter(TimeSpan.FromSeconds(5));
@@ -212,6 +260,133 @@ public class ServerClient
             _logger.LogWarning(ex,
                 "รายงานผลจริงของ command {CommandId} ไม่สำเร็จทั้ง SignalR และ HTTP - Server จะ mark เป็น TimedOut ให้เองหลังครบเวลา",
                 commandId);
+        }
+    }
+}
+
+/// <summary>ผลของการแข่งตอนเริ่มทำงาน - Response เป็น null = ทั้งสองทางยังไม่ตอบ</summary>
+public sealed record StartupRaceResult<T>(T? Response, bool ViaFallback, bool FallbackFired) where T : class;
+
+/// <summary>
+/// ตรรกะการเลือกเส้นทางตอนเริ่มทำงาน (WP5) แยกออกมาเป็น static ล้วนๆ ไม่พึ่ง HttpClient/registry/DI
+/// เพื่อให้ทดสอบได้โดยตรงโดยไม่ต้องรัน Agent ทั้งตัว (Agent ต้องใช้สิทธิ์ admin และเขียน HKLM)
+///
+/// ตกลงกับผู้ใช้แล้ว (docs/roadmap.md หัวข้อ "เครือข่ายและความปลอดภัย"): ยิง LAN ก่อน ถ้า LAN ยังไม่ตอบ
+/// ภายใน PrimaryHeadStart ให้ยิง Tailscale ตามไปด้วย ทางไหนตอบสำเร็จก่อนใช้ทางนั้น
+/// </summary>
+public static class StartupRouteRace
+{
+    public static readonly TimeSpan PrimaryHeadStart = TimeSpan.FromSeconds(2);
+
+    /// <summary>
+    /// tryPrimary/tryFallback คืน null = ทางนั้นไม่สำเร็จ (exception ถูกนับเป็นไม่สำเร็จด้วย) ทางที่แพ้จะถูก
+    /// cancel ผ่าน token ของมันเอง ไม่รอให้จบ ถ้า LAN ล้มเหลวเร็วกว่า headStart (เช่น connection refused)
+    /// จะยิง Tailscale ทันทีไม่ต้องรอให้ครบ 2 วิ เพราะรอไปก็ไม่มีอะไรให้ LAN ชนะแล้ว
+    /// </summary>
+    public static async Task<StartupRaceResult<T>> RunAsync<T>(
+        Func<CancellationToken, Task<T?>> tryPrimary,
+        Func<CancellationToken, Task<T?>> tryFallback,
+        TimeSpan primaryHeadStart,
+        CancellationToken ct) where T : class
+    {
+        using var primaryCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        using var fallbackCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+
+        var primaryTask = SafeAsync(tryPrimary, primaryCts.Token);
+
+        // LAN ได้เปรียบ: รอ LAN ก่อนไม่เกิน primaryHeadStart (Task.WhenAny ไม่ throw แม้ delay ถูก cancel)
+        await Task.WhenAny(primaryTask, Task.Delay(primaryHeadStart, ct));
+        if (primaryTask.IsCompleted && primaryTask.Result is { } early)
+        {
+            return new StartupRaceResult<T>(early, ViaFallback: false, FallbackFired: false);
+        }
+
+        if (ct.IsCancellationRequested)
+        {
+            primaryCts.Cancel();
+            return new StartupRaceResult<T>(null, ViaFallback: false, FallbackFired: false);
+        }
+
+        var fallbackTask = SafeAsync(tryFallback, fallbackCts.Token);
+
+        // ใส่ LAN ไว้ก่อนใน list - ถ้าเสร็จพร้อมกันพอดี Task.WhenAny จะเลือกตัวแรกใน list ที่เสร็จแล้ว
+        var pending = new List<Task<T?>>();
+        if (!primaryTask.IsCompleted)
+        {
+            pending.Add(primaryTask);
+        }
+        pending.Add(fallbackTask);
+
+        while (pending.Count > 0)
+        {
+            var done = await Task.WhenAny(pending);
+            pending.Remove(done);
+
+            if (done.Result is { } winner)
+            {
+                var viaFallback = ReferenceEquals(done, fallbackTask);
+                (viaFallback ? primaryCts : fallbackCts).Cancel();
+                return new StartupRaceResult<T>(winner, viaFallback, FallbackFired: true);
+            }
+        }
+
+        return new StartupRaceResult<T>(null, ViaFallback: false, FallbackFired: true);
+    }
+
+    /// <summary>
+    /// วน probe จนกว่าจะสำเร็จ (คืน true) หรือถูกยกเลิก (คืน false) รอ delayForAttempt(attempt) ก่อน probe
+    /// แต่ละครั้ง โดย attempt เริ่มที่ 1 (เพิ่งรู้ว่าทางนี้ไม่ตอบ ไม่ต้อง probe ซ้ำทันที) ข้ามรอบที่ isPaused()
+    /// </summary>
+    public static async Task<bool> WaitUntilReachableAsync(
+        Func<CancellationToken, Task<bool>> probe,
+        Func<bool> isPaused,
+        Func<int, TimeSpan> delayForAttempt,
+        CancellationToken ct)
+    {
+        for (var attempt = 1; !ct.IsCancellationRequested; attempt++)
+        {
+            try
+            {
+                await Task.Delay(delayForAttempt(attempt), ct);
+            }
+            catch (OperationCanceledException)
+            {
+                return false;
+            }
+
+            if (isPaused())
+            {
+                continue;
+            }
+
+            bool ok;
+            try
+            {
+                ok = await probe(ct);
+            }
+            catch
+            {
+                ok = false;
+            }
+
+            if (ok)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static async Task<T?> SafeAsync<T>(Func<CancellationToken, Task<T?>> attempt, CancellationToken ct) where T : class
+    {
+        try
+        {
+            return await attempt(ct);
+        }
+        catch
+        {
+            return null;
         }
     }
 }

@@ -49,14 +49,23 @@ public class LabHubConnection : IAsyncDisposable
         return true;
     }
 
+    /// <summary>เคยสร้าง connection แล้วหรือยัง (ไม่ว่าจะต่อติดหรือไม่) - Worker ใช้ตัดสินว่าจะ Start หรือ Switch</summary>
+    public bool IsStarted => _connection is not null;
+
     /// <summary>
     /// เริ่มต่อ SignalR - ไม่ throw ออกไปแม้ server จะยังไม่พร้อม (เช่น start ทีหลัง Agent)
     /// รัน retry loop ของตัวเองอยู่เบื้องหลัง ไม่ block caller (ควร fire-and-forget เรียกจาก Worker)
+    ///
+    /// baseUrl (WP5): ปลายทางที่ ServerClient (HTTP poll) กำลังใช้อยู่ - Worker ส่งมาตอนเลือกเส้นทางตอน
+    /// เริ่มทำงานได้แล้ว ถ้าไม่ส่งมา (เช่น BypassCoordinator ต่อกลับหลังปิด bypass) ใช้ปลายทางล่าสุดที่เคยต่อ
+    /// แทน BaseUrl ตายตัว - เดิมต่อกลับไปที่ LAN เสมอแม้ HTTP poll จะอยู่บน fallback ทำให้สองช่องทางชี้คนละที่
     /// </summary>
-    public async Task StartAsync(string clientGuid, CancellationToken ct)
+    public async Task StartAsync(string clientGuid, CancellationToken ct, string? baseUrl = null)
     {
         _clientGuid = clientGuid;
-        await BuildAndConnectAsync(_settings.BaseUrl, ct);
+        var target = baseUrl
+            ?? (string.IsNullOrEmpty(_activeBaseUrl) ? _settings.BaseUrl : _activeBaseUrl);
+        await BuildAndConnectAsync(target, ct);
     }
 
     /// <summary>
