@@ -34,6 +34,22 @@ public class ConnectionSettings
 
     /// <summary>ความถี่ auto-refresh ของ DashboardWindow (DispatcherTimer) - ค่า default เดิมคือ 10 วิ</summary>
     public int DashboardPollIntervalSeconds { get; set; } = 10;
+
+    /// <summary>
+    /// WP1b (2026-10-30) - ต่อ Server ด้วย HTTP (false) หรือ HTTPS (true) **ค่าเริ่มต้นคือ HTTP** ตามที่
+    /// roadmap ระบุไว้ว่าช่วงย้ายระบบต้องมีตัวเลือก "ยอมรับ HTTP เดิม" จนกว่าทั้งแล็บจะย้ายไป HTTPS จริง
+    /// มาจาก checkbox บนหน้าล็อกอิน (MainWindow) และจำไว้เหมือน ServerHost/ServerPort
+    /// </summary>
+    public bool UseHttps { get; set; } = false;
+
+    /// <summary>
+    /// WP1b (2026-10-30) - thumbprint ของ certificate ที่ผู้ใช้ "ไว้ใจ" ไว้แล้วสำหรับ Server แต่ละตัว
+    /// คีย์ = "host:port" (lower-case) ค่า = X509Certificate2.Thumbprint แก้ไขผ่าน
+    /// ServerCertificatePinning.TrustCertificate เท่านั้น (ดู class นั้นสำหรับ flow เต็มของการไว้ใจ cert
+    /// ครั้งแรกและการตรวจจับ cert ที่เปลี่ยนไปจากที่ pin ไว้) แยกคีย์ตาม host:port เพราะ Console เครื่อง
+    /// เดียวอาจต่อ Server ทดสอบคนละตัวกันได้ (เช่นตอน field test บน port 18787/18788)
+    /// </summary>
+    public Dictionary<string, string> TrustedCertificateThumbprints { get; set; } = new();
 }
 
 public class UiSettings

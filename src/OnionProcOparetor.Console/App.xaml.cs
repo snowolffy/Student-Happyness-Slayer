@@ -167,6 +167,23 @@ public partial class App : Application
                 "change-password" => new ChangeMyPasswordWindow(api),
                 "force-password" => new ForceChangePasswordWindow(api),
                 "reset-password" => new ResetPasswordWindow("teacher01"),
+                // WP4b (2026-10-30)
+                "edit-display-name" => new EditDisplayNameWindow("teacher01", "ครูสมชาย"),
+                "change-role" => new ChangeUserRoleWindow("teacher01", "Teacher"),
+                // WP1b (2026-10-30) - thumbprint/subject/issuer ปลอมล้วนๆ แค่ไว้ถ่ายภาพ chrome ของ
+                // หน้าต่าง ไม่ได้ต่อ server จริง
+                "trust-cert" => new TrustCertificateWindow(
+                    "192.168.17.249", 8843,
+                    new Services.ServerCertificatePinning.SeenCertificate(
+                        "A1B2C3D4E5F60718293A4B5C6D7E8F9001020304", $"CN={Environment.MachineName}", $"CN={Environment.MachineName}",
+                        DateTime.UtcNow.AddYears(10)),
+                    isChanged: false),
+                "trust-cert-changed" => new TrustCertificateWindow(
+                    "192.168.17.249", 8843,
+                    new Services.ServerCertificatePinning.SeenCertificate(
+                        "FFEEDDCCBBAA99887766554433221100FFEEDD", $"CN={Environment.MachineName}", $"CN={Environment.MachineName}",
+                        DateTime.UtcNow.AddYears(10)),
+                    isChanged: true, previousThumbprint: "A1B2C3D4E5F60718293A4B5C6D7E8F9001020304"),
                 "tailscale" => new TailscaleLoginWindow(),
                 "client-settings" => new ClientSettingsWindow(api, sampleClient),
                 "rule-overrides" => new RuleOverridesWindow(api, sampleClient),
@@ -220,7 +237,10 @@ public partial class App : Application
                 PreviewToasts = e.Args.Contains("--toasts"),
                 PreviewAnnouncements = e.Args.Contains("--announce"),
                 PreviewInspectorCollapsed = e.Args.Contains("--inspector-collapsed"),
-                PreviewSidebarExpanded = e.Args.Contains("--sidebar-expanded")
+                PreviewSidebarExpanded = e.Args.Contains("--sidebar-expanded"),
+                // WP4b (2026-10-30)
+                PreviewUsers = e.Args.Contains("--users-sample"),
+                PreviewAsTeacher = e.Args.Contains("--as-teacher")
             };
 
             // --tab=<ชื่อแท็บ> เลือกแท็บก่อนถ่ายภาพ ใช้ไล่ตรวจทุกหน้าจอในโหมดมืดรอบเดียว

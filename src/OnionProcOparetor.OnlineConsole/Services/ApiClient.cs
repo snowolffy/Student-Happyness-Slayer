@@ -395,6 +395,23 @@ public class ApiClient
         }
     }
 
+    /// <summary>เปลี่ยน role ของบัญชี (WP4b, 2026-10-30) - Admin เท่านั้น Server กันบัญชี built-in และ
+    /// การลด Admin คนสุดท้ายให้แล้ว (ดู UserEndpoints.cs ฝั่ง Server)</summary>
+    public async Task<(bool Success, string Message)> UpdateUserRoleAsync(int userId, int role)
+    {
+        try
+        {
+            var response = await _httpClient.PutAsJsonAsync($"/api/admin/users/{userId}/role", new { role });
+            return response.IsSuccessStatusCode
+                ? (true, "เปลี่ยน role สำเร็จ")
+                : (false, await ExtractErrorAsync(response, $"เปลี่ยน role ไม่สำเร็จ: {response.StatusCode}"));
+        }
+        catch (Exception ex)
+        {
+            return (false, $"เกิดข้อผิดพลาด: {ex.Message}");
+        }
+    }
+
     public async Task<(bool Success, string Message)> DeleteUserAsync(int userId)
     {
         try

@@ -261,6 +261,58 @@ public static class UserEndpoints
             return Results.Ok(new { target.Id, target.Username, target.DisplayName });
         });
 
+        // เปลี่ยน role ของบัญชี (WP4b, 2026-10-30) - Admin เท่านั้น ต่างจาก display-name ข้างบนที่
+        // เจ้าของบัญชีแก้เองได้ด้วย ตรงนี้ไม่มีข้อยกเว้น: การแก้ role เป็นการตัดสินใจเชิงสิทธิ์ที่
+        // เจ้าของบัญชีเองไม่ควรเปลี่ยนให้ตัวเองได้
+        // กันไม่ให้ระบบเหลือ Admin เป็นศูนย์คน 2 ทาง: ห้ามแก้บัญชี built-in เลย (ต้องเป็น Admin เสมอ
+        // เหมือนที่ delete/reset-password ข้างบนกันไว้) และห้ามลด Admin คนสุดท้ายของระบบลงเป็น Teacher
+        app.MapPut("/api/admin/users/{id:int}/role", async (int id, UpdateRoleRequest req, HttpRequest request, AppDbContext db, IActivityLogService activityLog) =>
+        {
+            var admin = await GetAuthorizedAdmin(request, db);
+            if (admin is null)
+                return Results.Unauthorized();
+            if (admin.HasDefaultPassword)
+                return Results.Json(new { error = "Password change required before continuing." }, statusCode: 403);
+            if (RequireAdmin(admin) is { } forbidden) return forbidden;
+
+            if (!Enum.IsDefined(typeof(AdminRole), req.Role))
+            {
+                return Results.BadRequest(new { error = "Unknown role." });
+            }
+
+            var target = await db.AdminUsers.FindAsync(id);
+            if (target is null) return Results.NotFound();
+
+            // เหตุผลเดียวกับ reset-password ด้านบน (บั๊กที่เจอจริง 2026-08-25): built-in account
+            // ต้องเป็น Admin เสมอกัน lockout ไม่มีทางแก้ role ของมันได้เลยไม่ว่าใครจะ login อยู่
+            if (target.IsBuiltIn)
+            {
+                return Results.BadRequest(new { error = "Cannot change the role of the built-in Administrator account." });
+            }
+
+            var newRole = (AdminRole)req.Role;
+
+            if (target.Role == AdminRole.Admin && newRole != AdminRole.Admin)
+            {
+                // นับทุกบัญชีที่เป็น Admin ในระบบ (รวม built-in) ก่อนยอมให้ลดคนนี้ลง - ถ้าเหลือแค่
+                // คนเดียว (คนนี้เอง) แปลว่าลดแล้วจะไม่มีใครจัดการผู้ใช้/ห้อง/กฎถาวร/ตั้งค่าระบบได้อีก
+                var adminCount = await db.AdminUsers.CountAsync(u => u.Role == AdminRole.Admin);
+                if (adminCount <= 1)
+                {
+                    return Results.BadRequest(new { error = "Cannot demote the last Admin account - the system must always have at least one Admin." });
+                }
+            }
+
+            var oldRole = target.Role;
+            target.Role = newRole;
+            await db.SaveChangesAsync();
+
+            await activityLog.LogAdminActionAsync(admin, "AdminRoleChanged",
+                $"{admin.Username} เปลี่ยน role ของ '{target.Username}' จาก {oldRole} เป็น {target.Role}");
+
+            return Results.Ok(new { target.Id, target.Username, Role = target.Role.ToString() });
+        });
+
         return app;
     }
 }

@@ -23,6 +23,9 @@ public partial class MainWindow : Window
         var connection = SettingsService.Current.Connection;
         ServerIpBox.Text = connection.ServerHost;
         PortBox.Text = connection.ServerPort;
+        // WP1b (2026-10-30) - จำตัวเลือก HTTP/HTTPS ไว้เหมือน IP/Port (ค่าเริ่มต้นของ ConnectionSettings
+        // คือ false/HTTP จนกว่าจะย้ายระบบจริง)
+        UseHttpsCheckBox.IsChecked = connection.UseHttps;
 
         LoadHeroImage();
     }
@@ -71,6 +74,7 @@ public partial class MainWindow : Window
         var port = PortBox.Text.Trim();
         var username = UsernameBox.Text.Trim();
         var password = PasswordBox.Password;
+        var useHttps = UseHttpsCheckBox.IsChecked == true;
 
         // หมายเหตุ: ไม่เช็ค password ว่างเปล่าที่นี่โดยเจตนา
         // เพราะ built-in "Administrator" ใช้ password ว่างเปล่าเป็นค่า default ตอนยังไม่เคยเปลี่ยน
@@ -89,12 +93,49 @@ public partial class MainWindow : Window
         StatusText.Text = "กำลังเชื่อมต่อ...";
 
         _apiClient = new ApiClient();
-        _apiClient.SetServer(serverAddress);
+        _apiClient.SetServer(serverAddress, useHttps);
         var (success, message) = await _apiClient.LoginAsync(username, password);
+
+        // WP1b (2026-10-30): login พังตอนเลือก HTTPS อาจเป็นเพราะ cert ของ host:port นี้ยังไม่รู้จัก
+        // (ครั้งแรก) หรือเปลี่ยนไปจากที่เคย pin ไว้ - ไม่ใช่เพราะ server ปิดอยู่หรือรหัสผ่านผิด เช็คว่า TLS
+        // handshake ไปถึงชั้นเห็น certificate จริงไหม (TryGetLastSeenCertificate มีค่า = ไปถึงแล้ว - ถ้า
+        // server ปิดอยู่/ต่อ TCP ไม่ติด จะไม่มีค่านี้เลย) ถ้าใช่ เปิดหน้าต่าง "ไว้ใจ certificate นี้" แล้วลอง
+        // login ซ้ำอีกครั้งเดียวถ้าผู้ใช้กดไว้ใจ (ตั้งใจไม่ลูปไม่สิ้นสุด - พังอีกรอบก็แค่โชว์ error ปกติ)
+        if (!success && useHttps)
+        {
+            var portNum = ResolvePort(port, useHttps: true);
+            var certInfo = ServerCertificatePinning.TryGetLastSeenCertificate(serverIp, portNum);
+            if (certInfo is { } cert)
+            {
+                var pinned = ServerCertificatePinning.GetPinnedThumbprint(serverIp, portNum);
+                var isChanged = pinned is not null &&
+                    !string.Equals(pinned, cert.Thumbprint, StringComparison.OrdinalIgnoreCase);
+
+                var trustWindow = new TrustCertificateWindow(serverIp, portNum, cert, isChanged, pinned) { Owner = this };
+                if (trustWindow.ShowDialog() == true && trustWindow.Trusted)
+                {
+                    var (trustOk, trustError) = ServerCertificatePinning.TrustCertificate(serverIp, portNum, cert.Thumbprint);
+                    if (trustOk)
+                    {
+                        StatusText.Text = "ไว้ใจ certificate แล้ว กำลังลองเชื่อมต่อใหม่...";
+                        (success, message) = await _apiClient.LoginAsync(username, password);
+                    }
+                    else
+                    {
+                        success = false;
+                        message = $"บันทึก certificate ที่ไว้ใจไม่สำเร็จ: {trustError}";
+                    }
+                }
+                else
+                {
+                    message = "ยกเลิกการเชื่อมต่อ - ไม่ได้ไว้ใจ certificate นี้";
+                }
+            }
+        }
 
         if (success)
         {
-            SaveConnectionAsDefault(serverIp, port);
+            SaveConnectionAsDefault(serverIp, port, useHttps);
 
             if (_apiClient.HasDefaultPassword)
             {
@@ -133,7 +174,7 @@ public partial class MainWindow : Window
     /// SERVER HOST/PORT) - ไม่ critical ถ้าบันทึกไม่สำเร็จ (เช่น เขียนไฟล์ไม่ได้) เลยไม่โชว์ error ให้ผู้ใช้
     /// ตรงนี้ แค่ล้มเหลวเงียบๆ แล้วครั้งถัดไปยังใช้ค่าเดิมที่เคยบันทึกไว้ (หรือ default ของ ConsoleSettings)
     /// </summary>
-    private static void SaveConnectionAsDefault(string serverHost, string serverPort)
+    private static void SaveConnectionAsDefault(string serverHost, string serverPort, bool useHttps)
     {
         var current = SettingsService.Current;
         var updated = new ConsoleSettings
@@ -144,12 +185,23 @@ public partial class MainWindow : Window
             {
                 ServerHost = serverHost,
                 ServerPort = string.IsNullOrEmpty(serverPort) ? current.Connection.ServerPort : serverPort,
-                DashboardPollIntervalSeconds = current.Connection.DashboardPollIntervalSeconds
+                DashboardPollIntervalSeconds = current.Connection.DashboardPollIntervalSeconds,
+                UseHttps = useHttps,
+                // WP1b (2026-10-30): ต้องคัดลอกมาด้วยเสมอ - ไม่งั้น SaveConnectionAsDefault ที่สร้าง
+                // ConnectionSettings ใหม่ทั้งก้อนนี้จะเขียนทับ pin ที่ TrustCertificate บันทึกไว้ก่อนหน้า
+                // ในการ login ครั้งเดียวกัน (เรียกหลัง login สำเร็จ ซึ่งอาจเพิ่งไว้ใจ cert ไปหมาดๆ)
+                TrustedCertificateThumbprints = current.Connection.TrustedCertificateThumbprints
             }
         };
 
         SettingsService.Save(updated);
     }
+
+    /// <summary>WP1b (2026-10-30) - แปลง Port box (อาจว่าง) เป็นเลขพอร์ตจริงให้ตรงกับที่ Uri ของ .NET
+    /// จะใช้จริง (default 443 สำหรับ https, 80 สำหรับ http) ใช้คำนวณ key "host:port" ให้ตรงกับที่
+    /// ServerCertificatePinning เห็นจาก request.RequestUri.Port จริง (ดู ServerCertificatePinning.Validate)</summary>
+    private static int ResolvePort(string port, bool useHttps) =>
+        !string.IsNullOrEmpty(port) && int.TryParse(port, out var parsed) ? parsed : (useHttps ? 443 : 80);
 
     private void ServerIpBox_TextChanged(object sender, System.Windows.Controls.TextChangedEventArgs e)
     {

@@ -113,6 +113,21 @@ public partial class DashboardWindow : Window
     public bool PreviewSidebarExpanded { get; set; }
 
     /// <summary>
+    /// WP4b (2026-10-30, --users-sample): ใส่ข้อมูลปลอมลงแท็บ "ผู้ใช้" (username/ชื่อที่แสดง/Role/
+    /// built-in ผสมกัน) เพื่อถ่ายภาพคอลัมน์และปุ่มใหม่ (แก้ชื่อที่แสดง/เปลี่ยน Role) ตอนตรวจงาน UI -
+    /// ปกติ SeedPreviewData ปล่อยแท็บนี้ว่างไว้โดยตั้งใจ (ดู comment ใน SeedPreviewData) เพื่อให้เห็น
+    /// empty state ของจริง ธงนี้จึงเป็น opt-in แยกต่างหาก ไม่กระทบการตรวจ empty state เดิม
+    /// </summary>
+    public bool PreviewUsers { get; set; }
+
+    /// <summary>
+    /// WP4b (2026-10-30, --as-teacher): จำลองมุมมอง Teacher โดยไม่ต้อง login จริง (ApiClient ตอน
+    /// PreviewMode ไม่ได้ login เลย จึง Role เป็น "Admin" ค่า default เสมอ - ตั้ง flag นี้แทนเพื่อถ่ายภาพ
+    /// ว่าแท็บ "ผู้ใช้" ถูกซ่อนจริงสำหรับ Teacher ตามที่ ApplyRolePermissions ทำกับ login จริง)
+    /// </summary>
+    public bool PreviewAsTeacher { get; set; }
+
+    /// <summary>
     /// ใส่ข้อมูลปลอมลงตารางเพื่อให้เห็น badge / การ์ดตัวเลข / แถบเลือก ตอนตรวจงาน UI โดยไม่ต้อง
     /// login เข้า Server ตัวจริงที่รันอยู่บนเครื่อง dev เครื่องนี้ - ค่าถูกเลือกให้ครบทุกสถานะที่
     /// UI ต้องรับมือ (ออนไลน์/ออฟไลน์, กฎทำงาน/ไม่ทำงาน, ต่อผ่าน LAN/Tailscale) ไม่ใช่แค่แถวสวย ๆ
@@ -120,6 +135,13 @@ public partial class DashboardWindow : Window
     private void SeedPreviewData()
     {
         var now = DateTime.UtcNow;
+
+        // WP4b (2026-10-30, --as-teacher) - ดู PreviewAsTeacher: ApiClient ตอน preview ไม่ได้ login
+        // จริง จึง IsAdmin เป็น true เสมอ (ค่า default ของ ApiClient.Role) override ที่นี่ตรงๆ แทน
+        if (PreviewAsTeacher)
+        {
+            UsersTabItem.Visibility = Visibility.Collapsed;
+        }
         _globalState = new GlobalStateDto { IsEnabled = !PreviewGlobalOff };
         _allClients =
         [
@@ -146,7 +168,23 @@ public partial class DashboardWindow : Window
         RulesEmptyText.Visibility = Visibility.Visible;
         LogsEmptyText.Visibility = Visibility.Visible;
         AuditLogEmptyText.Visibility = Visibility.Visible;
-        UsersEmptyText.Visibility = Visibility.Visible;
+
+        // WP4b (2026-10-30): --users-sample ใส่แถวตัวอย่างแทน empty state (ดู PreviewUsers) - ผสม
+        // built-in/Admin/Teacher ให้เห็นทุกปุ่มที่ disable ตามเงื่อนไข (DELETE/เปลี่ยน Role ของ built-in)
+        if (PreviewUsers)
+        {
+            UsersGrid.ItemsSource = new List<UserDto>
+            {
+                new() { Id = 1, Username = "Administrator", DisplayName = "Administrator", IsBuiltIn = true, Role = "Admin", CreatedAt = now.AddYears(-1) },
+                new() { Id = 2, Username = "teacher01", DisplayName = "ครูสมชาย", Role = "Teacher", CreatedAt = now.AddMonths(-2), LastLoginAt = now.AddHours(-1) },
+                new() { Id = 3, Username = "admin02", DisplayName = "ผู้ดูแลคนที่สอง", Role = "Admin", HasDefaultPassword = true, CreatedAt = now.AddDays(-5) },
+            };
+            UsersEmptyText.Visibility = Visibility.Collapsed;
+        }
+        else
+        {
+            UsersEmptyText.Visibility = Visibility.Visible;
+        }
 
         // เลือกแถวแรกเฉพาะเมื่อสั่ง (--select) - ต้องถ่ายได้ทั้งสองแบบเพื่อเทียบว่าตารางขยับไหม
         // ตอนแถบ "ที่เลือก" โผล่ขึ้นมา
@@ -275,6 +313,21 @@ public partial class DashboardWindow : Window
     private void SidebarCollapseButton_Click(object sender, RoutedEventArgs e) =>
         SetSidebarCollapsed(!Controls.Nav.GetIsCollapsed(MainTabControl), persist: true);
 
+    /// <summary>
+    /// WP4b (2026-10-30): ซ่อนแท็บ "ผู้ใช้" ทั้งแท็บสำหรับ Teacher แทนปิดปุ่มทีละปุ่ม - GET
+    /// /api/admin/users เป็น Admin เท่านั้นอยู่แล้วฝั่ง Server (ดู UserEndpoints.cs/AuthHelpers.cs
+    /// RequireAdmin) Teacher เข้าแท็บนี้ไม่ได้แม้แค่จะ "ดู" ดังนั้นซ่อนทั้งแท็บจึงตรงกับความจริงมากกว่า
+    /// การโชว์ตารางเปล่าๆ ที่โหลดไม่ขึ้น (Server เป็นคนกันจริงอยู่แล้ว - ตรงนี้แค่เพื่อ UX)
+    ///
+    /// Nav.cs อธิบายไว้ว่า TabItem แต่ละตัวทำหน้าที่เป็น ItemContainer ของแถวเมนู sidebar ไปด้วย
+    /// (ItemsHost ย้ายไปอยู่คอลัมน์ซ้าย) - ตั้ง Visibility=Collapsed ที่นี่จึงซ่อนทั้งแถวเมนูและเนื้อหา
+    /// แท็บพร้อมกันโดยไม่ต้องแก้โค้ด sidebar แยก
+    /// </summary>
+    private void ApplyRolePermissions()
+    {
+        UsersTabItem.Visibility = _apiClient.IsAdmin ? Visibility.Visible : Visibility.Collapsed;
+    }
+
     private void ThemeToggleButton_Click(object sender, RoutedEventArgs e) => ThemeService.Toggle();
 
     public DashboardWindow(ApiClient apiClient)
@@ -299,7 +352,12 @@ public partial class DashboardWindow : Window
 
         ServerLabel.Text = $"connected to {_apiClient.BaseUrl}";
         FooterServerText.Text = _apiClient.BaseUrl ?? "-";
-        FooterUserText.Text = _apiClient.Username ?? "-";
+        // WP4b (2026-10-30): แถบล่างโชว์ชื่อที่แสดงแทน username ตามที่ roadmap ระบุ (ApiClient.DisplayName
+        // fallback เป็น Username เองถ้า login response ไม่มีชื่อที่แสดง - ดู ApiClient.LoginAsync) ค่า "-"
+        // เป็น placeholder เดิมของ FooterUserText.Text = _apiClient.Username ?? "-" (ตอนยังไม่ login เช่น
+        // โหมดตรวจ UI ที่ไม่ผ่าน LoginAsync เลย DisplayName จึงยังเป็นค่าว่างเปล่าตาม default ของ ApiClient)
+        FooterUserText.Text = string.IsNullOrEmpty(_apiClient.DisplayName) ? "-" : _apiClient.DisplayName;
+        ApplyRolePermissions();
         Loaded += async (_, _) =>
         {
             ApplySidebarAndThemeState();
@@ -445,9 +503,16 @@ public partial class DashboardWindow : Window
             _allLogs = await _apiClient.GetLogsAsync();
             ApplyLogsFilter();
 
-            var users = await _apiClient.GetUsersAsync();
-            UsersGrid.ItemsSource = users;
-            UsersEmptyText.Visibility = users.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+            // WP4b (2026-10-30): ข้ามไปเลยถ้าเป็น Teacher - GET /api/admin/users เป็น Admin เท่านั้น
+            // (ดู UserEndpoints.cs) เรียกไปจะได้ 403 ซึ่ง GetFromJsonAsync จะโยน exception แล้วพา
+            // LoadAllDataAsync ทั้งก้อนเข้า catch ด้านล่างทั้งที่ clients/rules/logs โหลดสำเร็จไปแล้ว -
+            // แท็บนี้ถูกซ่อนไว้แล้วด้วย (ApplyRolePermissions) จึงไม่มีอะไรรอข้อมูลนี้อยู่
+            if (_apiClient.IsAdmin)
+            {
+                var users = await _apiClient.GetUsersAsync();
+                UsersGrid.ItemsSource = users;
+                UsersEmptyText.Visibility = users.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+            }
 
             StatusText.Text = $"อัพเดตล่าสุด: {DateTime.Now:HH:mm:ss}";
             _announcements.Clear(ServerUnreachableKey);
@@ -777,6 +842,12 @@ public partial class DashboardWindow : Window
     {
         var username = NewUserUsernameBox.Text.Trim();
         var password = NewUserPasswordBox.Password;
+        var displayName = NewUserDisplayNameBox.Text.Trim();
+        // Tag ของ ComboBoxItem เก็บค่า enum AdminRole เป็น string ("0"/"1") - เลือกไม่ได้เลย (เช่น
+        // ตอน reset form) ก็ fallback เป็น Admin=0 เหมือนที่ Server ทำถ้า field นี้ไม่ส่งมา
+        var role = (NewUserRoleCombo.SelectedItem as ComboBoxItem)?.Tag is string roleTag && int.TryParse(roleTag, out var parsedRole)
+            ? parsedRole
+            : 0;
 
         if (string.IsNullOrEmpty(username) || string.IsNullOrEmpty(password))
         {
@@ -790,16 +861,54 @@ public partial class DashboardWindow : Window
             return;
         }
 
-        var (success, message) = await _apiClient.CreateUserAsync(username, password);
+        var (success, message) = await _apiClient.CreateUserAsync(username, password, displayName, role);
         ShowResultToast(success, message);
 
         if (success)
         {
             NewUserUsernameBox.Clear();
             NewUserPasswordBox.Clear();
+            NewUserDisplayNameBox.Clear();
+            NewUserRoleCombo.SelectedIndex = 0;
         }
 
         await LoadAllDataAsync();
+    }
+
+    /// <summary>WP4b (2026-10-30) - เจ้าของบัญชีแก้เองได้ Admin แก้ให้คนอื่นได้ (Server ตัดสิน ปุ่มนี้
+    /// เปิดให้ทุกแถวเสมอเพราะแท็บนี้ Admin-only อยู่แล้ว - ดู ApplyRolePermissions)</summary>
+    private async void EditDisplayNameButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button { Tag: UserDto user })
+        {
+            var editWindow = new EditDisplayNameWindow(user.Username, user.DisplayName) { Owner = this };
+            var result = editWindow.ShowDialog();
+
+            if (result == true && !string.IsNullOrEmpty(editWindow.NewDisplayName))
+            {
+                var (success, message) = await _apiClient.UpdateDisplayNameAsync(user.Id, editWindow.NewDisplayName);
+                ShowResultToast(success, message);
+                await LoadAllDataAsync();
+            }
+        }
+    }
+
+    /// <summary>WP4b (2026-10-30) - Admin เท่านั้น (ปุ่มนี้ disable ไว้แล้วสำหรับ built-in account ในตาราง
+    /// ด้วย DataTrigger - ดู DashboardWindow.xaml) Server เป็นคนกันบัญชี built-in และ Admin คนสุดท้ายจริง</summary>
+    private async void ChangeUserRoleButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button { Tag: UserDto user })
+        {
+            var roleWindow = new ChangeUserRoleWindow(user.Username, user.Role) { Owner = this };
+            var result = roleWindow.ShowDialog();
+
+            if (result == true)
+            {
+                var (success, message) = await _apiClient.UpdateUserRoleAsync(user.Id, roleWindow.NewRole);
+                ShowResultToast(success, message);
+                await LoadAllDataAsync();
+            }
+        }
     }
 
     private async void DeleteUserButton_Click(object sender, RoutedEventArgs e)

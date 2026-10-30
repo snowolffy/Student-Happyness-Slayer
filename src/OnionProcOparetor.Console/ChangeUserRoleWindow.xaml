@@ -1,0 +1,37 @@
+<Window x:Class="OnionProcOparetor.Console.ChangeUserRoleWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="เปลี่ยน Role"
+        Width="420"
+        SizeToContent="Height"
+        WindowStartupLocation="CenterOwner"
+        ResizeMode="NoResize"
+        Icon="/Theme/icon.ico"
+        Style="{StaticResource AppDialogWindow}">
+    <!-- WP4b (2026-10-30): เหมือน ResetPasswordWindow/EditDisplayNameWindow ทุกจุด ต่างกันแค่ field
+         เป็น ComboBox เลือก Admin/Teacher - Server เป็นคนกันบัญชี built-in และ Admin คนสุดท้ายให้
+         (ดู UserEndpoints.cs MapPut .../role) หน้านี้แค่ส่งค่าไปแล้วโชว์ error ที่ส่งกลับมา -->
+    <StackPanel Margin="20">
+        <TextBlock x:Name="TitleText" Style="{StaticResource Heading2}" Margin="0,0,0,16"/>
+
+        <Border Style="{StaticResource Card}">
+            <StackPanel>
+                <TextBlock Text="ROLE" Style="{StaticResource Label}" Margin="0,0,0,4"/>
+                <TextBlock Text="Admin ทำได้ทุกอย่าง · Teacher คุมห้อง/ดูจอ/โหมดสอบ แต่แก้ผู้ใช้ กฎถาวร ห้อง และตั้งค่าระบบไม่ได้" Style="{StaticResource Caption}" Margin="0,0,0,10" TextWrapping="Wrap"/>
+                <ComboBox x:Name="RoleCombo" Height="35">
+                    <ComboBoxItem Content="Admin" Tag="0"/>
+                    <ComboBoxItem Content="Teacher" Tag="1"/>
+                </ComboBox>
+            </StackPanel>
+        </Border>
+
+        <TextBlock x:Name="StatusText" Style="{StaticResource Caption}" TextWrapping="Wrap" Margin="0,12,0,0"/>
+
+        <Grid Margin="0,16,0,0">
+            <Button Content="ยกเลิก" Style="{StaticResource ButtonSecondary}"
+                    Padding="10,5" FontSize="11" HorizontalAlignment="Right" Margin="0,0,96,0" Click="CancelButton_Click"/>
+            <Button Content="บันทึก" Style="{StaticResource ButtonPrimary}"
+                    HorizontalAlignment="Right" Click="SaveButton_Click"/>
+        </Grid>
+    </StackPanel>
+</Window>

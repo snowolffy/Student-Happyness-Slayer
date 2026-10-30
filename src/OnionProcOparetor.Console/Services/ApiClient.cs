@@ -23,6 +23,16 @@ public class ApiClient
     /// <summary>Id ของ admin ที่ login อยู่ตอนนี้ (ใช้เรียก change-password)</summary>
     public int AdminId { get; private set; }
 
+    /// <summary>"Admin" หรือ "Teacher" ของบัญชีที่ login อยู่ตอนนี้ (WP4b, 2026-10-30)</summary>
+    public string Role { get; private set; } = "Admin";
+
+    /// <summary>true = บัญชีที่ login อยู่เป็น Admin - ใช้ซ่อน/ปิดปุ่มที่ Teacher ใช้ไม่ได้ (Server ตอบ
+    /// 403 อยู่แล้วถ้ากดได้ นี่แค่เพื่อ UX ไม่ใช่การกันจริง)</summary>
+    public bool IsAdmin => Role != "Teacher";
+
+    /// <summary>ชื่อที่แสดงของบัญชีที่ login อยู่ตอนนี้ (WP4b, 2026-10-30) - ใช้แทน Username ในแถบล่าง Console</summary>
+    public string DisplayName { get; private set; } = string.Empty;
+
     public ApiClient()
     {
         // WP1 (2026-10-30): ผูก ServerCertificatePinning ไว้ตั้งแต่สร้าง HttpClient เสมอ (ไม่ใช่แค่ตอน
@@ -35,12 +45,18 @@ public class ApiClient
         };
     }
 
-    /// <summary>ตั้ง base URL จาก IP:Port ที่ user กรอกในหน้า Connect</summary>
-    public void SetServer(string ipAndPort)
+    /// <summary>
+    /// ตั้ง base URL จาก IP:Port ที่ user กรอกในหน้า Connect
+    /// useHttps (WP1b, 2026-10-30): เลือก scheme เมื่อ ipAndPort ไม่ได้พิมพ์ scheme มาเอง (กรณีปกติ -
+    /// ผู้ใช้พิมพ์แค่ IP:Port ไม่ใช่ URL เต็ม) - ค่า default เป็น false (HTTP) เสมอที่ชั้นนี้ ส่วนค่าจริงที่
+    /// ใช้มาจาก checkbox บนหน้าล็อกอิน (ดู MainWindow.xaml.cs) ถ้า ipAndPort มี scheme ระบุมาแล้วตรงๆ
+    /// (เผื่อโค้ดอื่นเรียกแบบเดิม) scheme ที่พิมพ์มาชนะเสมอ ไม่ถูก useHttps ทับ
+    /// </summary>
+    public void SetServer(string ipAndPort, bool useHttps = false)
     {
         BaseUrl = ipAndPort.StartsWith("http://") || ipAndPort.StartsWith("https://")
             ? ipAndPort
-            : $"http://{ipAndPort}";
+            : $"{(useHttps ? "https" : "http")}://{ipAndPort}";
         _httpClient.BaseAddress = new Uri(BaseUrl);
     }
 
@@ -66,6 +82,10 @@ public class ApiClient
             HasDefaultPassword = result.HasDefaultPassword;
             AdminId = result.AdminId;
             Username = username;
+            // ค่าว่าง = login response เก่า (Server ยังไม่มี WP4b) - fallback เป็น Admin/username เดิม
+            // กันไม่ให้ Console ซ่อนปุ่มผิดๆ ทั้งที่ Server ไม่ได้เช็ค role อะไรเลย
+            Role = string.IsNullOrWhiteSpace(result.Role) ? "Admin" : result.Role;
+            DisplayName = string.IsNullOrWhiteSpace(result.DisplayName) ? username : result.DisplayName;
 
             _httpClient.DefaultRequestHeaders.Remove("X-Auth-Token");
             _httpClient.DefaultRequestHeaders.Add("X-Auth-Token", _token);
@@ -418,11 +438,13 @@ public class ApiClient
         return result ?? new List<UserDto>();
     }
 
-    public async Task<(bool Success, string Message)> CreateUserAsync(string username, string password)
+    /// <summary>role: 0 = Admin, 1 = Teacher (ตรง enum AdminRole ฝั่ง Server - WP4b, 2026-10-30)
+    /// displayName ว่างไว้ได้ - Server fallback เป็น username เอง</summary>
+    public async Task<(bool Success, string Message)> CreateUserAsync(string username, string password, string? displayName = null, int role = 0)
     {
         try
         {
-            var response = await _httpClient.PostAsJsonAsync("/api/admin/users", new { username, password });
+            var response = await _httpClient.PostAsJsonAsync("/api/admin/users", new { username, password, displayName, role });
             if (response.IsSuccessStatusCode)
             {
                 return (true, "สร้าง user สำเร็จ");
@@ -606,6 +628,71 @@ public class ApiClient
         catch (Exception ex)
         {
             return (false, $"ยกเลิกไม่สำเร็จ: {ex.Message}");
+        }
+    }
+
+    /// <summary>แก้ชื่อที่แสดง (WP4b, 2026-10-30) - เจ้าของบัญชีแก้เองได้ Admin แก้ให้คนอื่นได้ (Server ตรวจสิทธิ์)</summary>
+    public async Task<(bool Success, string Message)> UpdateDisplayNameAsync(int userId, string displayName)
+    {
+        try
+        {
+            var response = await _httpClient.PutAsJsonAsync($"/api/admin/users/{userId}/display-name", new { displayName });
+            if (response.IsSuccessStatusCode)
+            {
+                return (true, "แก้ชื่อที่แสดงสำเร็จ");
+            }
+
+            string errorMessage = $"แก้ชื่อที่แสดงไม่สำเร็จ: {response.StatusCode}";
+            try
+            {
+                var error = await response.Content.ReadFromJsonAsync<ErrorResponse>();
+                if (!string.IsNullOrEmpty(error?.Error))
+                {
+                    errorMessage = error.Error;
+                }
+            }
+            catch
+            {
+                // response ไม่ใช่ JSON - ใช้ default message
+            }
+            return (false, errorMessage);
+        }
+        catch (Exception ex)
+        {
+            return (false, $"เกิดข้อผิดพลาด: {ex.Message}");
+        }
+    }
+
+    /// <summary>เปลี่ยน role ของบัญชี (WP4b, 2026-10-30) - Admin เท่านั้น Server กันบัญชี built-in และ
+    /// การลด Admin คนสุดท้ายให้แล้ว (ดู UserEndpoints.cs ฝั่ง Server)</summary>
+    public async Task<(bool Success, string Message)> UpdateUserRoleAsync(int userId, int role)
+    {
+        try
+        {
+            var response = await _httpClient.PutAsJsonAsync($"/api/admin/users/{userId}/role", new { role });
+            if (response.IsSuccessStatusCode)
+            {
+                return (true, "เปลี่ยน role สำเร็จ");
+            }
+
+            string errorMessage = $"เปลี่ยน role ไม่สำเร็จ: {response.StatusCode}";
+            try
+            {
+                var error = await response.Content.ReadFromJsonAsync<ErrorResponse>();
+                if (!string.IsNullOrEmpty(error?.Error))
+                {
+                    errorMessage = error.Error;
+                }
+            }
+            catch
+            {
+                // response ไม่ใช่ JSON - ใช้ default message
+            }
+            return (false, errorMessage);
+        }
+        catch (Exception ex)
+        {
+            return (false, $"เกิดข้อผิดพลาด: {ex.Message}");
         }
     }
 

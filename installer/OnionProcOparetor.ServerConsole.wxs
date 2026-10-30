@@ -212,6 +212,11 @@
                        Type="ownProcess" Start="auto" ErrorControl="normal" />
       <ServiceControl Id="OnionCoreServiceControl" Name="OnionCoreService" Start="install" Stop="both" Remove="uninstall" Wait="yes" />
       <fire:FirewallException Id="ServerFirewallRule" Name="OnionProcOparetor Server" Port="8787" Protocol="tcp" Scope="any" />
+      <!-- WP1b (2026-10-30): เปิด port HTTPS (Server:HttpsPort ใน appsettings.json ดีฟอลต์ 8843) คู่กับ
+           port HTTP เดิมข้างบน - ต้องเป็น rule แยกเพราะ FirewallException ผูกกับ port เดียวต่อ element
+           ไม่รองรับ list/range ไม่ลบ rule 8787 ทิ้งเพราะ AllowHttp (WP1) ยังเปิดฟัง HTTP คู่กันไว้ช่วง
+           ย้ายระบบ (ดู docs/roadmap.md หัวข้อ "เครือข่ายและความปลอดภัย") -->
+      <fire:FirewallException Id="ServerHttpsFirewallRule" Name="OnionProcOparetor Server (HTTPS)" Port="8843" Protocol="tcp" Scope="any" />
 
       <!-- ร่องรอยว่า "เครื่องนี้เลือกลง Server ไว้" - อยู่ใน component ของ Server เอง จึงมีอยู่ก็ต่อเมื่อ
            feature นี้ถูกติดตั้งจริง และหายไปเองเมื่อถูกถอด ไม่ต้องมีโค้ดคอยดูแลให้ตรง

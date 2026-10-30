@@ -53,6 +53,7 @@ else
                     <button class="btn btn-secondary btn-sm" @onclick="() => OpenRenameDisplayName(user)">แก้ชื่อที่แสดง</button>
                     @if (!user.IsBuiltIn)
                     {
+                        <button class="btn btn-secondary btn-sm" @onclick="() => OpenChangeRole(user)">เปลี่ยน Role</button>
                         <button class="btn btn-secondary btn-sm" @onclick="() => OpenReset(user)">รีเซ็ตรหัสผ่าน</button>
                         <button class="btn btn-danger btn-sm" @onclick="() => _deleting = user">
                             <Icon Name="trash" Size="14" /> ลบ
@@ -91,6 +92,7 @@ else
                                 <button class="btn btn-secondary btn-sm" @onclick="() => OpenRenameDisplayName(user)">แก้ชื่อที่แสดง</button>
                                 @if (!user.IsBuiltIn)
                                 {
+                                    <button class="btn btn-secondary btn-sm" @onclick="() => OpenChangeRole(user)">เปลี่ยน Role</button>
                                     <button class="btn btn-secondary btn-sm" @onclick="() => OpenReset(user)">RESET PASSWORD</button>
                                     <button class="btn btn-danger btn-sm" @onclick="() => _deleting = user">DELETE</button>
                                 }
@@ -153,6 +155,27 @@ else
     </ModalShell>
 }
 
+@* WP4b (2026-10-30): เปลี่ยน role ของบัญชี - Admin เท่านั้น ไม่เปิดปุ่มนี้ให้บัญชี built-in (Server
+   ปฏิเสธเสมออยู่แล้ว แต่ซ่อนปุ่มไว้เลยดีกว่าให้กดแล้วเจอ error) *@
+@if (_changingRoleUser is not null)
+{
+    <ModalShell Title="@($"เปลี่ยน Role - {_changingRoleUser.Username}")" OnClose="() => _changingRoleUser = null">
+        <div class="form-row">
+            <label>Role</label>
+            <select @bind="_newRoleValue">
+                <option value="0">Admin</option>
+                <option value="1">Teacher</option>
+            </select>
+        </div>
+        @if (!string.IsNullOrEmpty(_roleError)) { <div class="error-text">@_roleError</div> }
+        <div class="toolbar" style="margin-bottom:0">
+            <span class="spacer"></span>
+            <button class="btn btn-secondary" @onclick="() => _changingRoleUser = null">ยกเลิก</button>
+            <button class="btn btn-primary" @onclick="ChangeRoleAsync">บันทึก</button>
+        </div>
+    </ModalShell>
+}
+
 @* Same reasoning as the rule delete: irreversible, one tap away from RESET PASSWORD, and it removes
    someone's access to the whole console. *@
 @if (_deleting is not null)
@@ -184,6 +207,10 @@ else
     private UserDto? _renamingUser;
     private string _renameDisplayName = string.Empty;
     private string? _renameError;
+
+    private UserDto? _changingRoleUser;
+    private int _newRoleValue;
+    private string? _roleError;
 
     protected override async Task OnInitializedAsync()
     {
@@ -242,6 +269,23 @@ else
 
         _renamingUser = null;
         Toasts.Success("แก้ชื่อที่แสดงแล้ว");
+        await LoadAsync();
+    }
+
+    private void OpenChangeRole(UserDto user)
+    {
+        _changingRoleUser = user;
+        _newRoleValue = user.Role == "Teacher" ? 1 : 0;
+        _roleError = null;
+    }
+
+    private async Task ChangeRoleAsync()
+    {
+        var (ok, message) = await Api.UpdateUserRoleAsync(_changingRoleUser!.Id, _newRoleValue);
+        if (!ok) { _roleError = message; return; }
+
+        _changingRoleUser = null;
+        Toasts.Success("เปลี่ยน role แล้ว");
         await LoadAsync();
     }
 

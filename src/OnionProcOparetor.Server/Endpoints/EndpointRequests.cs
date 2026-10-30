@@ -11,6 +11,9 @@ record ChangePasswordRequest(string NewPassword);
 
 /// <summary>PUT /api/admin/users/{id}/display-name - เจ้าของบัญชีแก้เองได้ Admin แก้ให้คนอื่นได้ (WP4, 2026-10-30)</summary>
 record UpdateDisplayNameRequest(string DisplayName);
+
+/// <summary>PUT /api/admin/users/{id}/role - Admin เท่านั้น ห้ามแก้บัญชี built-in หรือลด Admin คนสุดท้าย (WP4b, 2026-10-30)</summary>
+record UpdateRoleRequest(int Role);
 record RuleOverrideRequest(bool IsEnabled);
 
 /// <summary>ตั้งค่า enforcement ทั้งห้องแบบระบุค่าตรงๆ (POST /api/global/set)</summary>

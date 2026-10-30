@@ -999,7 +999,7 @@
                 </TabItem>
 
                 <!-- ========== Users tab ========== -->
-                <TabItem Header="ผู้ใช้" controls:Nav.Icon="users" controls:Nav.Group="ระบบ">
+                <TabItem x:Name="UsersTabItem" Header="ผู้ใช้" controls:Nav.Icon="users" controls:Nav.Group="ระบบ">
                     <Grid Margin="0,12,0,0">
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto"/>
@@ -1009,7 +1009,14 @@
 
                         <TextBlock Grid.Row="0" Text="User Management" Style="{StaticResource Heading2}"/>
 
-                        <Border Grid.Row="1" CornerRadius="10" Padding="12" Margin="0,10,0,0"
+                        <!--
+                            x:Name="AddUserPanel" (WP4b, 2026-10-30): ซ่อนทั้งก้อนสำหรับ Teacher - endpoint
+                            POST /api/admin/users เป็น Admin เท่านั้น (RequireAdmin ฝั่ง Server ตอบ 403) ซ่อน
+                            แทนปิดปุ่มเฉยๆ เพราะ Teacher เข้าแท็บนี้ไม่ได้อยู่แล้ว (GET /api/admin/users ก็
+                            Admin เท่านั้นเหมือนกัน - ดู ApplyRolePermissions ที่ซ่อน UsersTabItem ทั้งแท็บ)
+                            คงพาเนลนี้ไว้เผื่ออนาคตเปิดให้ Teacher ดู read-only
+                        -->
+                        <Border x:Name="AddUserPanel" Grid.Row="1" CornerRadius="10" Padding="12" Margin="0,10,0,0"
                                 Background="{DynamicResource Brush.Background.Primary}"
                                 BorderBrush="{DynamicResource Brush.Border.Default}"
                                 BorderThickness="1">
@@ -1018,16 +1025,29 @@
                                     <ColumnDefinition Width="Auto"/>
                                     <ColumnDefinition Width="8"/>
                                     <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="8"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="8"/>
+                                    <ColumnDefinition Width="Auto"/>
                                     <ColumnDefinition Width="*"/>
                                     <ColumnDefinition Width="Auto"/>
                                 </Grid.ColumnDefinitions>
-                                <TextBox Grid.Column="0" x:Name="NewUserUsernameBox" Width="180" Height="35" VerticalAlignment="Center"
+                                <TextBox Grid.Column="0" x:Name="NewUserUsernameBox" Width="150" Height="35" VerticalAlignment="Center"
                                          Style="{StaticResource PlaceholderTextBox}" Tag="Username"
                                          ToolTip="Username" TextChanged="NewUserUsernameBox_TextChanged"/>
-                                <PasswordBox Grid.Column="2" x:Name="NewUserPasswordBox" Width="200" Height="35" VerticalAlignment="Center"
+                                <PasswordBox Grid.Column="2" x:Name="NewUserPasswordBox" Width="170" Height="35" VerticalAlignment="Center"
                                              Style="{StaticResource PlaceholderPasswordBox}" Tag="Password (อย่างน้อย 8 ตัว)"
                                              ToolTip="Password (อย่างน้อย 8 ตัวอักษร)"/>
-                                <Button Grid.Column="4" Content="เพิ่มผู้ใช้" Style="{StaticResource ButtonPrimary}"
+                                <!-- ชื่อที่แสดง: ว่างไว้ได้ - Server fallback เป็น Username เอง (WP4b, 2026-10-30) -->
+                                <TextBox Grid.Column="4" x:Name="NewUserDisplayNameBox" Width="160" Height="35" VerticalAlignment="Center"
+                                         Style="{StaticResource PlaceholderTextBox}" Tag="ชื่อที่แสดง (ว่างไว้ = ใช้ Username)"
+                                         ToolTip="ชื่อที่แสดง (ว่างไว้ = ใช้ Username)"/>
+                                <ComboBox Grid.Column="6" x:Name="NewUserRoleCombo" Width="110" Height="35" VerticalAlignment="Center"
+                                          ToolTip="Role ของบัญชีใหม่" SelectedIndex="0">
+                                    <ComboBoxItem Content="Admin" Tag="0"/>
+                                    <ComboBoxItem Content="Teacher" Tag="1"/>
+                                </ComboBox>
+                                <Button Grid.Column="8" x:Name="AddUserButton" Content="เพิ่มผู้ใช้" Style="{StaticResource ButtonPrimary}"
                                         VerticalAlignment="Center" Click="AddUserButton_Click"/>
                             </Grid>
                         </Border>
@@ -1048,15 +1068,48 @@
                                     RowStyle="{StaticResource ConsoleGridRowStyle}"
                                     CellStyle="{StaticResource ConsoleGridCellStyle}">
                                 <DataGrid.Columns>
-                                    <DataGridTextColumn Header="ชื่อผู้ใช้" Binding="{Binding Username}" Width="150"/>
+                                    <DataGridTextColumn Header="ชื่อผู้ใช้" Binding="{Binding Username}" Width="120"/>
+                                    <!-- ชื่อที่แสดง + Role (WP4b, 2026-10-30) - Role มาจาก Server เป็น string อยู่แล้ว ("Admin"/"Teacher") -->
+                                    <DataGridTextColumn Header="ชื่อที่แสดง" Binding="{Binding DisplayName}" Width="150"/>
+                                    <DataGridTextColumn Header="Role" Binding="{Binding Role}" Width="80"/>
                                     <DataGridTextColumn Header="บัญชีระบบ" Binding="{Binding IsBuiltIn}" Width="80"/>
                                     <DataGridTextColumn Header="ใช้รหัสผ่านเริ่มต้น" Binding="{Binding HasDefaultPassword}" Width="130"/>
                                     <DataGridTextColumn controls:TimeColumn.Header="สร้างเมื่อ" Binding="{Binding CreatedAt, Converter={StaticResource DisplayTimeConverter}}" SortMemberPath="CreatedAt" Width="160"/>
                                     <DataGridTextColumn controls:TimeColumn.Header="ล็อกอินล่าสุด" Binding="{Binding LastLoginAt, Converter={StaticResource DisplayTimeConverter}}" SortMemberPath="LastLoginAt" Width="160"/>
-                                    <DataGridTemplateColumn Header="จัดการ" Width="220">
+                                    <DataGridTemplateColumn Header="จัดการ" Width="380">
                                         <DataGridTemplateColumn.CellTemplate>
                                             <DataTemplate>
                                                 <StackPanel Orientation="Horizontal">
+                                                    <!--
+                                                        ปุ่มแก้ชื่อที่แสดง: ใช้ได้กับทุก account รวม built-in
+                                                        (เจ้าของบัญชีแก้เองได้ Admin แก้ให้คนอื่นได้ - Server ตัดสิน)
+                                                    -->
+                                                    <Button Content="แก้ชื่อที่แสดง" Tag="{Binding}"
+                                                            Click="EditDisplayNameButton_Click"
+                                                            Style="{StaticResource ButtonSecondary}"
+                                                            Padding="10,5" FontSize="11"
+                                                            Margin="0,0,4,0"/>
+
+                                                    <!--
+                                                        ปุ่มเปลี่ยน Role (WP4b): disable ถ้าเป็น built-in account
+                                                        (ต้องเป็น Admin เสมอกัน lockout - Server ปฏิเสธเหมือนกัน)
+                                                    -->
+                                                    <Button Content="เปลี่ยน Role" Tag="{Binding}"
+                                                            Click="ChangeUserRoleButton_Click"
+                                                            Padding="10,5" FontSize="11"
+                                                            Margin="0,0,4,0">
+                                                        <Button.Style>
+                                                            <Style TargetType="Button" BasedOn="{StaticResource ButtonSecondary}">
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding IsBuiltIn}" Value="True">
+                                                                        <Setter Property="IsEnabled" Value="False"/>
+                                                                        <Setter Property="ToolTip" Value="เปลี่ยน role ของ built-in account ไม่ได้"/>
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </Button.Style>
+                                                    </Button>
+
                                                     <!--
                                                         ปุ่ม RESET PW: ใช้ได้กับทุก account รวม built-in
                                                         (ต่างจาก DELETE ที่ต้องกันไว้เพราะลบ built-in ไม่ได้เลย)

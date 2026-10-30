@@ -97,6 +97,15 @@
                             </StackPanel>
                         </Grid>
 
+                        <!--
+                            WP1b (2026-10-30): เลือกต่อ HTTP หรือ HTTPS - ค่าเริ่มต้นยังเป็น HTTP (unchecked)
+                            ตามที่ roadmap ระบุไว้ว่าช่วงย้ายระบบต้องมีตัวเลือก "ยอมรับ HTTP เดิม" จนกว่าทั้ง
+                            แล็บจะย้ายไป HTTPS จริง เลือก HTTPS ครั้งแรกกับ Server ที่ยังไม่รู้จัก cert จะเจอ
+                            หน้าต่าง "ไว้ใจ certificate นี้" ก่อนต่อจริงได้ (ดู ConnectButton_Click)
+                        -->
+                        <CheckBox x:Name="UseHttpsCheckBox" Content="เชื่อมต่อด้วย HTTPS"
+                                  Margin="0,0,0,16"/>
+
                         <StackPanel Margin="0,0,0,16">
                             <TextBlock Text="USERNAME" Style="{StaticResource Label}" Margin="0,0,0,6"/>
                             <TextBox x:Name="UsernameBox" Style="{StaticResource RoundedTextBox}"/>

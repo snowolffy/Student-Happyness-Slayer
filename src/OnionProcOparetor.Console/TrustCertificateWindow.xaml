@@ -1,0 +1,71 @@
+<Window x:Class="OnionProcOparetor.Console.TrustCertificateWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Certificate ของ Server"
+        Width="460"
+        SizeToContent="Height"
+        WindowStartupLocation="CenterOwner"
+        ResizeMode="NoResize"
+        Icon="/Theme/icon.ico"
+        Style="{StaticResource AppDialogWindow}">
+    <!-- WP1b (2026-10-30) - flow "ไว้ใจ certificate นี้" ตอนต่อ HTTPS ครั้งแรกกับ Server ที่ยังไม่รู้จัก
+         (ดู Services/ServerCertificatePinning.cs สำหรับ logic เต็ม) มี 2 โหมดคุมด้วย IsChanged:
+           - เจอครั้งแรก (ปกติ): แสดง thumbprint ให้เทียบกับที่ Server โชว์ แล้วกดไว้ใจได้ทันที
+           - cert เปลี่ยนจากที่เคย pin ไว้ (อันตรายกว่า): แถบแดงเตือนชัดเจน + ต้องติ๊ก checkbox ยืนยันว่า
+             ตรวจสอบกับผู้ดูแลระบบแล้วก่อนปุ่มไว้ใจจะกดได้ - กันกดผ่านๆ ตอนอาจมีคนปลอมตัวเป็น Server -->
+    <StackPanel Margin="20">
+        <TextBlock x:Name="TitleText" Style="{StaticResource Heading2}" Margin="0,0,0,12" TextWrapping="Wrap"/>
+
+        <!-- แถบเตือนสีแดง - โชว์เฉพาะตอน IsChanged=true (ดู .xaml.cs) -->
+        <Border x:Name="ChangedWarningBanner" CornerRadius="8" Padding="12" Margin="0,0,0,12"
+                Background="{DynamicResource Brush.Danger.Fill}"
+                BorderBrush="{DynamicResource Brush.Danger.Default}" BorderThickness="1"
+                Visibility="Collapsed">
+            <!--
+                Brush.Text.OnAccent (ไม่ใช่ Brush.Danger.Dark): สีข้อความต้องอ่านได้บนพื้น Brush.Danger.Fill
+                เสมอทั้งสองธีม - ตรวจจริงแล้วพบว่าธีมมืด Color.Danger.Fill กับ Color.Danger.Dark เป็นสีเดียวกัน
+                เป๊ะ (#DC2626 ทั้งคู่ - ดู Theme/Colors.Dark.xaml) ทำให้ข้อความเตือนหายไปเงียบๆ บนพื้นแดง
+                (เจอจาก screenshot ตอนตรวจงานจริง ไม่ใช่แค่เดา) Text.OnAccent คือ token ที่ตั้งใจไว้สำหรับ
+                "ข้อความบนพื้น Accent/Danger fill" อยู่แล้วทั้งสองธีม (ขาวคงที่) ตรงตามการใช้งานนี้พอดี
+            -->
+            <TextBlock Text="Certificate ที่เจอตอนนี้ไม่ตรงกับที่เคย &quot;ไว้ใจ&quot; ไว้ก่อนสำหรับ Server ตัวนี้ อาจเป็นเพราะ Server สร้าง certificate ใหม่/ย้ายเครื่อง หรืออาจมีคนพยายามปลอมตัวเป็น Server - ตรวจสอบกับผู้ดูแลระบบก่อนกดไว้ใจ"
+                           TextWrapping="Wrap" FontSize="12"
+                           Foreground="{DynamicResource Brush.Text.OnAccent}"/>
+        </Border>
+
+        <Border Style="{StaticResource Card}">
+            <StackPanel>
+                <TextBlock Text="SERVER" Style="{StaticResource Label}" Margin="0,0,0,2"/>
+                <TextBlock x:Name="HostText" Style="{StaticResource Body}" Margin="0,0,0,10" TextWrapping="Wrap"/>
+
+                <TextBlock Text="THUMBPRINT (เทียบกับที่ Server แสดง)" Style="{StaticResource Label}" Margin="0,0,0,2"/>
+                <TextBlock x:Name="ThumbprintText" Style="{StaticResource Body}" FontFamily="Consolas" Margin="0,0,0,10" TextWrapping="Wrap"/>
+
+                <StackPanel x:Name="PreviousThumbprintPanel" Visibility="Collapsed" Margin="0,0,0,10">
+                    <TextBlock Text="THUMBPRINT เดิมที่เคยไว้ใจไว้" Style="{StaticResource Label}" Margin="0,0,0,2"/>
+                    <TextBlock x:Name="PreviousThumbprintText" Style="{StaticResource Caption}" FontFamily="Consolas" TextWrapping="Wrap"/>
+                </StackPanel>
+
+                <TextBlock Text="ISSUED TO / ISSUER" Style="{StaticResource Label}" Margin="0,0,0,2"/>
+                <TextBlock x:Name="SubjectText" Style="{StaticResource Caption}" Margin="0,0,0,2" TextWrapping="Wrap"/>
+                <TextBlock x:Name="IssuerText" Style="{StaticResource Caption}" Margin="0,0,0,10" TextWrapping="Wrap"/>
+
+                <TextBlock Text="หมดอายุ" Style="{StaticResource Label}" Margin="0,0,0,2"/>
+                <TextBlock x:Name="ExpiresText" Style="{StaticResource Caption}"/>
+            </StackPanel>
+        </Border>
+
+        <!-- checkbox ยืนยันสำหรับโหมด IsChanged เท่านั้น - ปกติ (เจอครั้งแรก) ซ่อนไว้และไม่บังคับ -->
+        <CheckBox x:Name="VerifiedCheckBox" Content="ฉันตรวจสอบ thumbprint นี้กับผู้ดูแลระบบแล้ว"
+                  Margin="0,14,0,0" Visibility="Collapsed" Checked="VerifiedCheckBox_CheckedChanged" Unchecked="VerifiedCheckBox_CheckedChanged"/>
+
+        <TextBlock x:Name="StatusText" Style="{StaticResource Caption}" TextWrapping="Wrap" Margin="0,12,0,0"/>
+
+        <Grid Margin="0,16,0,0">
+            <Button Content="ยกเลิก" Style="{StaticResource ButtonSecondary}"
+                    Padding="10,5" FontSize="11" HorizontalAlignment="Right" Margin="0,0,120,0" Click="CancelButton_Click"/>
+            <Button x:Name="TrustButton" Content="ไว้ใจ certificate นี้" Style="{StaticResource ButtonPrimary}"
+                    HorizontalAlignment="Right" Click="TrustButton_Click"/>
+        </Grid>
+    </StackPanel>
+</Window>
