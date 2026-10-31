@@ -407,10 +407,15 @@ namespace OnionProcOparetor.Server.Migrations
                     b.Property<bool>("RequireSignedMatch")
                         .HasColumnType("INTEGER");
 
+                    b.Property<int?>("RoomId")
+                        .HasColumnType("INTEGER");
+
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("TEXT");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("RoomId");
 
                     b.ToTable("Rules");
                 });
@@ -501,6 +506,9 @@ namespace OnionProcOparetor.Server.Migrations
                         .IsRequired()
                         .HasColumnType("TEXT");
 
+                    b.Property<int?>("RoomId")
+                        .HasColumnType("INTEGER");
+
                     b.Property<int?>("SourceCatalogId")
                         .HasColumnType("INTEGER");
 
@@ -512,6 +520,8 @@ namespace OnionProcOparetor.Server.Migrations
                         .HasColumnType("TEXT");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("RoomId");
 
                     b.HasIndex("UrlPattern")
                         .IsUnique();

@@ -15,4 +15,10 @@ public class RuleDto
     public string? ActionCommand { get; set; }
     public string? ActionArguments { get; set; }
     public bool IsEnabled { get; set; } = true;
+
+    /// <summary>ห้องที่กฎนี้ใช้ด้วย (WP2-3, 2026-10-31) - null = ใช้กับทุกห้อง</summary>
+    public int? RoomId { get; set; }
+
+    /// <summary>โชว์ในคอลัมน์ "ใช้กับ" - Rules.razor เป็นคนเซ็ตชื่อจริงให้หลังโหลด room list เสร็จ</summary>
+    public string ScopeText { get; set; } = "ทุกห้อง";
 }

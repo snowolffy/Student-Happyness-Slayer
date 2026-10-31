@@ -75,7 +75,14 @@ public static class PollEndpoints
             // ของ clientGuid นี้ (ถ้ามี) ชนะเสมอ 100% ไม่มี merge/priority ซับซ้อน - เครื่องอื่นไม่เห็นผลอะไรเลย
             // เพราะ query filter ด้วย ClientGuid นี้เท่านั้น ผลลัพธ์ยังเป็น List<Rule> รูปแบบเดิมทุกอย่าง
             // (Agent ฝั่งรับไม่ต้องรู้เรื่อง override เลย - แค่ apply list ที่ได้เหมือนเดิม)
-            var allRules = await db.Rules.ToListAsync();
+            // กฎรายห้อง (WP2-3, 2026-10-31) - RoomId == null คือ "ใช้กับทุกห้อง" ผ่านด่านนี้เสมอไม่ว่าเครื่อง
+            // จะอยู่ห้องไหน ส่วน RoomId ที่เจาะจงต้องตรงกับ client.RoomId เป๊ะ ๆ เท่านั้น ถ้าเครื่องนี้ยังไม่
+            // จัดห้อง (client.RoomId == null) เงื่อนไขหลังจะกลาย เป็น r.RoomId == null ซ้ำกับเงื่อนไขแรกพอดี
+            // ผลคือเครื่องที่ยังไม่จัดห้องเห็นแค่กฎที่ใช้กับทุกห้องเท่านั้น ไม่เห็นกฎของห้องใดห้องหนึ่งเลย -
+            // ตรงตามเกณฑ์เสร็จของ WP2-3 ("เครื่องในห้อง A ไม่ได้รับกฎของห้อง B")
+            var allRules = await db.Rules
+                .Where(r => r.RoomId == null || r.RoomId == client.RoomId)
+                .ToListAsync();
             var ruleOverrides = await db.RuleOverrides
                 .Where(o => o.ClientGuid == clientGuid)
                 .ToDictionaryAsync(o => o.RuleId, o => o.IsEnabled);
@@ -85,7 +92,10 @@ public static class PollEndpoints
 
             // Website Control (2026-09-11) - เหมือน rules ข้างบนแต่ไม่มี override ต่อเครื่อง (ยังไม่ทำในรอบแรก)
             // ส่งเฉพาะกฎที่ IsEnabled เท่านั้น - Agent ไม่ต้องกรองซ้ำ ได้ list เดียวไปเขียน registry ตรงๆ
-            var websiteRules = await db.WebsiteRules.Where(r => r.IsEnabled).ToListAsync();
+            // กรองตามห้องเหมือน Rules ข้างบน (WP2-3)
+            var websiteRules = await db.WebsiteRules
+                .Where(r => r.IsEnabled && (r.RoomId == null || r.RoomId == client.RoomId))
+                .ToListAsync();
 
             // fallback path สำหรับ command ที่ยังไม่ถึง Agent ผ่าน SignalR (เช่น เครื่อง disconnect อยู่ตอนที่ถูกสั่ง)
             // Agent จะเห็น command เหล่านี้ผ่าน poll รอบถัดไปเสมอ ไม่ว่า SignalR จะต่อติดอยู่หรือไม่ก็ตาม

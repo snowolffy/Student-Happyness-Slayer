@@ -498,6 +498,13 @@ public partial class DashboardWindow : Window
             ApplyLiveViewClientList();
 
             _allRules = await _apiClient.GetRulesAsync();
+            // WP2-3: เติมคอลัมน์ "ใช้กับ" - _allRooms โหลดมาแล้วข้างบนเสมอในลำดับนี้
+            foreach (var rule in _allRules)
+            {
+                rule.ScopeText = rule.RoomId is null
+                    ? "ทุกห้อง"
+                    : _allRooms.FirstOrDefault(r => r.Id == rule.RoomId)?.Name ?? "ห้อง (ลบไปแล้ว)";
+            }
             ApplyRulesFilter();
 
             _allLogs = await _apiClient.GetLogsAsync();

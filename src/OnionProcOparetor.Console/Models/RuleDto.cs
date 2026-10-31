@@ -16,6 +16,9 @@ public class RuleDto
     public string? ActionArguments { get; set; }
     public bool IsEnabled { get; set; } = true;
 
+    /// <summary>ห้องที่กฎนี้ใช้ด้วย (WP2-3, 2026-10-31) - null = ใช้กับทุกห้อง</summary>
+    public int? RoomId { get; set; }
+
     /// <summary>
     /// ข้อความบนปุ่มสลับสถานะในตาราง Rules - บอก "สิ่งที่จะเกิดถ้ากด" ไม่ใช่คำว่า "TOGGLE"
     ///
@@ -23,4 +26,11 @@ public class RuleDto
     /// แล้วกฎจะเปิดหรือปิด - ซึ่งเป็นข้อมูลที่ปุ่มควรบอกเองอยู่แล้ว
     /// </summary>
     public string ToggleActionText => IsEnabled ? "ปิดใช้" : "เปิดใช้";
+
+    /// <summary>
+    /// โชว์ในคอลัมน์ "ใช้กับ" ของตาราง (WP2-3) - endpoint ไม่ join ชื่อห้องมาให้ตรงๆ (แค่ RoomId)
+    /// DashboardWindow.xaml.cs เป็นคนเซ็ตชื่อจริงให้หลังโหลด room list เสร็จ เหตุผลและ pattern เดียวกับ
+    /// WebsiteRuleDto.SourceText
+    /// </summary>
+    public string ScopeText { get; set; } = "ทุกห้อง";
 }

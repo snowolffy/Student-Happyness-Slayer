@@ -32,6 +32,12 @@ public class WebsiteRule
     /// </summary>
     public int? SourceCatalogId { get; set; }
 
+    /// <summary>
+    /// ห้องที่กฎนี้ใช้ด้วย (WP2-3, 2026-10-31) - null = ใช้กับทุกห้อง เหตุผลและ pattern เดียวกับ
+    /// Rule.RoomId (ดูที่นั่น) ดู Endpoints/PollEndpoints.cs สำหรับจุดที่กรองกฎตามห้องของเครื่อง
+    /// </summary>
+    public int? RoomId { get; set; }
+
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 }

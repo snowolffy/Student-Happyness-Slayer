@@ -1,4 +1,6 @@
-﻿using System.Windows;
+﻿using System.Linq;
+using System.Windows;
+using System.Windows.Controls;
 using OnionProcOparetor.Console.Models;
 using OnionProcOparetor.Console.Services;
 
@@ -18,6 +20,9 @@ public partial class AddEditRuleWindow : Window
 {
     private readonly ApiClient _apiClient;
     private readonly int _ruleId;
+
+    /// <summary>RoomId ที่ต้องเลือกให้ตรงใน RoomCombo หลังโหลดรายการห้องเสร็จ (WP2-3) - null = "ทุกห้อง"</summary>
+    private readonly int? _initialRoomId;
 
     /// <summary>Add mode - ฟอร์มว่าง</summary>
     public AddEditRuleWindow(ApiClient apiClient) : this(apiClient, existingRule: null, titleSuffix: null)
@@ -52,6 +57,7 @@ public partial class AddEditRuleWindow : Window
         InitializeComponent();
         _apiClient = apiClient;
         _ruleId = existingRule?.Id ?? 0;
+        _initialRoomId = existingRule?.RoomId;
 
         TitleText.Text = titleSuffix ?? "Add Rule";
 
@@ -63,6 +69,28 @@ public partial class AddEditRuleWindow : Window
         IsEnabledCheckBox.IsChecked = existingRule?.IsEnabled ?? true;
         ActionCommandBox.Text = existingRule?.ActionCommand ?? string.Empty;
         ActionArgumentsBox.Text = existingRule?.ActionArguments ?? string.Empty;
+
+        // โหลดรายการห้องแบบ async ตอน Loaded (ตาม pattern เดียวกับ RuleOverridesWindow/
+        // WebsiteCatalogSourcesWindow) - constructor สั่ง await ตรงๆ ไม่ได้
+        Loaded += async (_, _) => await LoadRoomsAsync();
+    }
+
+    /// <summary>เติม RoomCombo: ตัวเลือกแรกเสมอคือ "ทุกห้อง" (Tag=null) ตามด้วยห้องทั้งหมด แล้วเลือกคืน
+    /// ให้ตรงกับ _initialRoomId ถ้ามี (edit mode) - ถ้าห้องนั้นหายไปแล้วถอยไป "ทุกห้อง" (WP2-3)</summary>
+    private async Task LoadRoomsAsync()
+    {
+        var rooms = await _apiClient.GetRoomsAsync();
+
+        RoomCombo.Items.Clear();
+        RoomCombo.Items.Add(new ComboBoxItem { Content = "ทุกห้อง", Tag = null });
+        foreach (var room in rooms.OrderBy(r => r.Name))
+        {
+            RoomCombo.Items.Add(new ComboBoxItem { Content = room.Name, Tag = room.Id });
+        }
+
+        var toSelect = RoomCombo.Items.Cast<ComboBoxItem>()
+            .FirstOrDefault(i => Equals(i.Tag, _initialRoomId));
+        RoomCombo.SelectedItem = toSelect ?? RoomCombo.Items[0];
     }
 
     private async void SaveButton_Click(object sender, RoutedEventArgs e)
@@ -79,6 +107,7 @@ public partial class AddEditRuleWindow : Window
         var processNameContains = ProcessNameContainsBox.Text.Trim();
         var actionCommand = ActionCommandBox.Text.Trim();
         var actionArguments = ActionArgumentsBox.Text.Trim();
+        var roomId = (RoomCombo.SelectedItem as ComboBoxItem)?.Tag as int?;
 
         var rule = new RuleDto
         {
@@ -90,7 +119,8 @@ public partial class AddEditRuleWindow : Window
             KillProcess = KillProcessCheckBox.IsChecked ?? false,
             ActionCommand = string.IsNullOrEmpty(actionCommand) ? null : actionCommand,
             ActionArguments = string.IsNullOrEmpty(actionArguments) ? null : actionArguments,
-            IsEnabled = IsEnabledCheckBox.IsChecked ?? true
+            IsEnabled = IsEnabledCheckBox.IsChecked ?? true,
+            RoomId = roomId
         };
 
         StatusText.Text = "กำลังบันทึก...";

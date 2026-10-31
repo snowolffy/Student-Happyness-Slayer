@@ -90,6 +90,7 @@
                         <DataGridTextColumn Header="ชื่อกฎ" Binding="{Binding Name}" Width="130"/>
                         <DataGridTextColumn Header="รูปแบบ URL" Binding="{Binding UrlPattern}" Width="*"/>
                         <DataGridTextColumn Header="ที่มา" Binding="{Binding SourceText}" Width="120"/>
+                        <DataGridTextColumn Header="ใช้กับ" Binding="{Binding ScopeText}" Width="110"/>
                         <DataGridTemplateColumn Header="จัดการ" Width="250">
                             <DataGridTemplateColumn.CellTemplate>
                                 <DataTemplate>

@@ -24,7 +24,11 @@
                          ToolTip="รูปแบบ URL ตาม Chrome/Edge policy เช่น 'roblox.com' หรือ '*.roblox.com'"/>
 
                 <CheckBox x:Name="IsEnabledCheckBox" Content="เปิดใช้งานกฎนี้"
-                          Foreground="{DynamicResource Brush.Text.Primary}"/>
+                          Foreground="{DynamicResource Brush.Text.Primary}" Margin="0,0,0,12"/>
+
+                <!-- WP2-3 (2026-10-31): เหตุผลและ pattern เดียวกับ AddEditRuleWindow -->
+                <TextBlock Text="ใช้กับ (ห้อง)" Style="{StaticResource Label}" Margin="0,0,0,4"/>
+                <ComboBox x:Name="RoomCombo" Height="35"/>
             </StackPanel>
         </Border>
 

@@ -35,6 +35,10 @@ public static class RuleEndpoints
             // WP4: แก้กฎถาวรเป็นสิทธิ์ Admin เท่านั้น (ตาราง Admin/Teacher ใน docs/roadmap.md)
             if (RequireAdmin(admin) is { } forbidden) return forbidden;
 
+            // WP2-3: RoomId ต้องเป็น null (ทุกห้อง) หรืออ้างถึงห้องที่มีอยู่จริงเท่านั้น
+            if (rule.RoomId is not null && !await db.Rooms.AnyAsync(r => r.Id == rule.RoomId))
+                return Results.BadRequest(new { error = "ไม่พบห้องที่ระบุ" });
+
             rule.CreatedAt = DateTime.UtcNow;
             rule.UpdatedAt = DateTime.UtcNow;
             db.Rules.Add(rule);
@@ -79,6 +83,10 @@ public static class RuleEndpoints
             var rule = await db.Rules.FindAsync(id);
             if (rule is null) return Results.NotFound();
 
+            // WP2-3: RoomId ต้องเป็น null (ทุกห้อง) หรืออ้างถึงห้องที่มีอยู่จริงเท่านั้น
+            if (updated.RoomId is not null && !await db.Rooms.AnyAsync(r => r.Id == updated.RoomId))
+                return Results.BadRequest(new { error = "ไม่พบห้องที่ระบุ" });
+
             rule.Name = updated.Name;
             rule.PublisherName = updated.PublisherName;
             rule.ProcessNameContains = updated.ProcessNameContains;
@@ -87,6 +95,7 @@ public static class RuleEndpoints
             rule.ActionCommand = updated.ActionCommand;
             rule.ActionArguments = updated.ActionArguments;
             rule.IsEnabled = updated.IsEnabled;
+            rule.RoomId = updated.RoomId;
             rule.UpdatedAt = DateTime.UtcNow;
 
             await db.SaveChangesAsync();

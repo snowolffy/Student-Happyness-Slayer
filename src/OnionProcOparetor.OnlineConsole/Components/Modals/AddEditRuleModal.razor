@@ -39,6 +39,17 @@
             <input type="checkbox" @bind="_rule.IsEnabled" /> Enabled
         </label>
     </div>
+    @* WP2-3 (2026-10-31): เลือกห้องที่กฎนี้ใช้ด้วย - ว่าง ("") = ใช้กับทุกห้อง เหมือน _roomFilter ใน Home.razor *@
+    <div class="form-row">
+        <label>ใช้กับ</label>
+        <select @bind="_roomIdText">
+            <option value="">ทุกห้อง</option>
+            @foreach (var room in _rooms)
+            {
+                <option value="@room.Id">@room.Name</option>
+            }
+        </select>
+    </div>
 
     @if (!string.IsNullOrEmpty(_error))
     {
@@ -58,11 +69,21 @@
     [Parameter] public EventCallback OnSaved { get; set; }
 
     private RuleDto _rule = new();
+    private List<RoomDto> _rooms = new();
     private bool _busy;
     private string? _error;
 
-    protected override void OnInitialized()
+    /// <summary>bind target ของ &lt;select&gt; - HTML select ใช้ string เสมอ ว่าง = "ทุกห้อง" (null)</summary>
+    private string _roomIdText
     {
+        get => _rule.RoomId?.ToString() ?? string.Empty;
+        set => _rule.RoomId = int.TryParse(value, out var id) ? id : null;
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        _rooms = await Api.GetRoomsAsync();
+
         if (InitialRule is not null)
         {
             // copy so cancelling doesn't leave the caller's list holding a half-edited object
@@ -76,7 +97,8 @@
                 KillProcess = InitialRule.KillProcess,
                 ActionCommand = InitialRule.ActionCommand,
                 ActionArguments = InitialRule.ActionArguments,
-                IsEnabled = InitialRule.IsEnabled
+                IsEnabled = InitialRule.IsEnabled,
+                RoomId = InitialRule.RoomId
             };
         }
     }
