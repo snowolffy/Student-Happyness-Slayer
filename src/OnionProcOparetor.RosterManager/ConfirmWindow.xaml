@@ -1,0 +1,23 @@
+<Window x:Class="OnionProcOparetor.RosterManager.ConfirmWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="ยืนยัน"
+        Width="420" SizeToContent="Height"
+        WindowStartupLocation="CenterOwner"
+        ResizeMode="NoResize"
+        Icon="/Theme/icon.ico"
+        Style="{StaticResource AppDialogWindow}">
+    <!-- dialog ยืนยันทั่วไป (ลบ/ปิดใช้งาน/เลื่อนชั้น) - เล็กกว่า Console's ConfirmWindow (ไม่มีโหมด
+        "พิมพ์คำยืนยัน" เพราะ WP3-2 ไม่มีจุดที่ทำลายข้อมูลรุนแรงพอจะต้องการขั้นนั้น - การเลื่อนชั้นมี
+        การสำรอง DB อัตโนมัติอยู่แล้วฝั่ง Server) -->
+    <StackPanel Margin="24">
+        <TextBlock x:Name="TitleText" FontSize="16" FontWeight="Bold" TextWrapping="Wrap" Margin="0,0,0,8"/>
+        <TextBlock x:Name="MessageText" Style="{StaticResource Body}" TextWrapping="Wrap" Margin="0,0,0,20"/>
+        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+            <Button x:Name="CancelButton" Content="ยกเลิก" Style="{StaticResource ButtonSecondary}"
+                    Margin="0,0,8,0" Click="CancelButton_Click"/>
+            <Button x:Name="ConfirmButton" Content="ยืนยัน" Style="{StaticResource ButtonPrimary}"
+                    Click="ConfirmButton_Click"/>
+        </StackPanel>
+    </StackPanel>
+</Window>

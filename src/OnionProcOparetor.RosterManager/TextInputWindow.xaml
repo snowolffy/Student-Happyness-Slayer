@@ -1,0 +1,21 @@
+<Window x:Class="OnionProcOparetor.RosterManager.TextInputWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="กรอกข้อมูล"
+        Width="400" SizeToContent="Height"
+        WindowStartupLocation="CenterOwner"
+        ResizeMode="NoResize"
+        Icon="/Theme/icon.ico"
+        Style="{StaticResource AppDialogWindow}">
+    <!-- dialog กรอกข้อความสั้นๆ ทั่วไป ใช้กับ "ย้ายห้อง" แบบกลุ่มใน RosterWindow (nf-roster มีแค่ปุ่ม
+         "ย้ายห้อง" โดยไม่มี mock ของ dialog ย่อยนี้ในภาพ - เดาจากพฤติกรรมที่สมเหตุสมผลที่สุด: ถามชื่อ
+         ห้องปลายทางแล้วย้ายทุกคนที่เลือกไปห้องนั้น) -->
+    <StackPanel Margin="24">
+        <TextBlock x:Name="MessageText" Style="{StaticResource Body}" TextWrapping="Wrap" Margin="0,0,0,10"/>
+        <TextBox x:Name="InputBox" Style="{StaticResource RoundedTextBox}" Margin="0,0,0,18"/>
+        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+            <Button x:Name="CancelButton" Content="ยกเลิก" Style="{StaticResource ButtonSecondary}" Margin="0,0,8,0" Click="CancelButton_Click"/>
+            <Button x:Name="OkButton" Content="ตกลง" Style="{StaticResource ButtonPrimary}" Click="OkButton_Click"/>
+        </StackPanel>
+    </StackPanel>
+</Window>

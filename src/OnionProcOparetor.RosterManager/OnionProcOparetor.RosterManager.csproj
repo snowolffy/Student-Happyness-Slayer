@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyName>OnionProcOparetor.RosterManager</AssemblyName>
+    <RootNamespace>OnionProcOparetor.RosterManager</RootNamespace>
+    <ApplicationIcon>Theme\icon.ico</ApplicationIcon>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Theme มาจากการคัดลอกโฟลเดอร์ Console/Theme ตรงๆ (ดู docs/roadmap.md WP3-2 "ใช้ theme token
+         ชุดเดียวกับ Console ให้คัดลอกโฟลเดอร์ Theme มา เพราะ repo นี้ไม่มี shared library") -->
+    <Resource Include="Theme\logo.png" />
+    <Resource Include="Theme\logo-source.png" />
+    <Resource Include="Theme\icon.ico" />
+
+    <!-- หน้าล็อกอิน (WP3-2) - ภาพฝั่งซ้ายของการ์ดล็อกอิน (placeholder ตอนนี้ เหมือน Console's WP7) -
+         สองรายการนี้ชี้ไฟล์เดียวกันโดยเจตนา คนละ item type (ดู Console.csproj comment เดิม):
+           - Resource: ฝังเข้าตัว exe เป็น pack resource - fallback เมื่อไม่มีไฟล์ "ข้างแอป"
+           - None + CopyToOutputDirectory: สำเนาไฟล์จริงที่ Assets\LoginHero.png ข้าง .exe ให้ครู
+             เปลี่ยนภาพเองได้โดยไม่ต้อง build ใหม่ -->
+    <Resource Include="Assets\LoginHero.png" />
+    <None Include="Assets\LoginHero.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+</Project>
