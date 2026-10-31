@@ -9,7 +9,8 @@ param(
     [Parameter(Mandatory = $true)][string]$InstallDir,
     [Parameter(Mandatory = $true)][string]$ServerAddr,
     [string]$FallbackServerAddr = "",
-    [string]$UninstallPassword = ""
+    [string]$UninstallPassword = "",
+    [string]$EmergencyTotpSecret = ""
 )
 
 $ErrorActionPreference = "Continue"
@@ -73,6 +74,23 @@ function Install-ServerCertificate([string]$ServerAddr, [string]$InstallDir) {
     }
 }
 
+# รหัสฉุกเฉิน TOTP (WP3-4, 2026-10-31) - patch เข้า Client\appsettings.json เท่านั้น (ClientTray ไม่ต้อง
+# รู้ secret เลย - AgentTray ยิง POST ไปที่ Agent local API /emergency/verify แทน ให้ Agent เป็นคนตรวจ
+# offline เอง) ว่าง = ข้ามไปเงียบๆ (เครื่องนั้นไม่มีฟีเจอร์นี้ ไม่ hard-fail การติดตั้ง) ไม่ idempotent-safe
+# เหมือน Patch-BaseUrl ตรงที่ไม่ได้ match placeholder เดิมก่อนเขียนทับ (แทนที่ทั้งค่า "Secret": "..."
+# เดิมไม่ว่าจะเป็นอะไรก็ตาม) - รองรับ repair/reinstall ด้วย secret ใหม่ได้โดยไม่ต้องสนใจค่าที่อยู่ก่อนหน้า
+function Patch-EmergencyTotpSecret([string]$AppSettingsPath, [string]$Secret) {
+    if (-not (Test-Path $AppSettingsPath)) {
+        Write-Log "SKIP emergency secret patch (file not found): $AppSettingsPath"
+        return
+    }
+
+    $content = Get-Content -Raw -Encoding utf8 -Path $AppSettingsPath
+    $patched = $content -replace '("EmergencySettings"\s*:\s*\{[^}]*?"Secret"\s*:\s*)"[^"]*"', ('$1"' + $Secret + '"')
+    Set-Content -Path $AppSettingsPath -Value $patched -Encoding utf8 -NoNewline
+    Write-Log "Patched EmergencySettings:Secret in: $AppSettingsPath"
+}
+
 $newBaseUrl = "http://$ServerAddr"
 
 # FALLBACKSERVERADDR ที่ WiX ส่งมาอาจเป็น ":8787" (blank IP + default port property) ถ้าครูไม่ได้กรอก
@@ -88,6 +106,15 @@ Write-Log "InstallDir=$InstallDir ServerAddr=$ServerAddr FallbackServerAddr=$Fal
 #    ไม่ต้อง sc.exe create ซ้ำที่นี่ ซ้ำแล้วจะ error "service already exists" เฉยๆ)
 Patch-BaseUrl -AppSettingsPath (Join-Path $InstallDir "Client\appsettings.json") -NewBaseUrl $newBaseUrl
 Patch-BaseUrl -AppSettingsPath (Join-Path $InstallDir "ClientTray\appsettings.json") -NewBaseUrl $newBaseUrl
+
+# รหัสฉุกเฉิน (WP3-4) - เฉพาะ Client (Agent Service) เท่านั้น ClientTray ไม่ต้องรู้ secret เลย (ดู
+# comment เต็มบน Patch-EmergencyTotpSecret) ว่าง = ข้ามเงียบๆ
+if (-not [string]::IsNullOrWhiteSpace($EmergencyTotpSecret)) {
+    Patch-EmergencyTotpSecret -AppSettingsPath (Join-Path $InstallDir "Client\appsettings.json") -Secret $EmergencyTotpSecret
+}
+else {
+    Write-Log "SKIP emergency secret patch (ไม่ได้ส่ง EMERGENCYTOTPSECRET มา) - เครื่องนี้จะไม่มีรหัสฉุกเฉินใช้งาน"
+}
 
 # 1.5) ติดตั้ง cert ของ Server ลง trust store (WP1) - ทำหลัง patch BaseUrl (ใช้ $ServerAddr ตัวเดียวกัน)
 #      ไม่ว่า BaseUrl ที่ patch ไปจะเป็น http หรือ https ก็ตาม (เผื่ออนาคตสลับ newBaseUrl เป็น https

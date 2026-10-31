@@ -173,6 +173,11 @@ public partial class App : System.Windows.Application
             // Visibility เอาเข้า/ออกจาก contextMenu.Items เอง ไม่ Create ใหม่ทุกครั้งที่สถานะเปลี่ยน
             _notMeMenuItem.Click += (_, _) => _ = PerformStudentLogoutAsync(StudentSessionEndReason.NotMe);
             _logoutMenuItem.Click += (_, _) => _ = PerformStudentLogoutAsync(StudentSessionEndReason.ManualLogout);
+            // รหัสฉุกเฉิน (WP3-4, 2026-10-31) - เมนูนี้เป็นจุดเข้าถึงชั่วคราวเท่านั้น (ของจริงควรขึ้นอัตโนมัติ
+            // แทนจอล็อกอินตอนติดต่อ Server ไม่ได้ - เป็นงานต่อสายที่ WP3-3 ต้องทำทีหลัง ดูรายงาน WP3-4)
+            var emergencyMenuItem = new System.Windows.Controls.MenuItem { Header = "รหัสฉุกเฉิน..." };
+            emergencyMenuItem.Click += (_, _) => new EmergencyWindow(_apiClient).Show();
+            contextMenu.Items.Add(emergencyMenuItem);
 
             contextMenu.Items.Add(new System.Windows.Controls.Separator());
 

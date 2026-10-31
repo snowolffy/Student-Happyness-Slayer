@@ -196,12 +196,36 @@
                             </StackPanel>
                         </Border>
 
-                        <!-- ==== รหัสฉุกเฉิน - placeholder ตั้งใจเว้นว่างตามที่ orchestrator สั่ง (เป็นงานของ WP3-4) ==== -->
+                        <!-- ==== รหัสฉุกเฉิน (WP3-4, 2026-10-31) - ตรงตาม nf-settings-more.dc.html หัวข้อ "รหัสฉุกเฉิน"
+                             QR+key/ทดสอบอยู่ใน EmergencyCodeQrWindow (dialog แยก), ประวัติอยู่ใน EmergencyCodeUsageWindow
+                             secret เอง (EmergencyCodeSettingsDto.SecretBase32) โหลดมาเก็บไว้ที่นี่ ไม่ expose ผ่าน XAML
+                             ตรงๆ (ส่งต่อให้ dialog ตอนเปิดเท่านั้น) ==== -->
                         <Border Style="{StaticResource Card}" Margin="0,0,0,12">
                             <StackPanel>
                                 <TextBlock Text="รหัสฉุกเฉิน" Style="{StaticResource Label}" Margin="0,0,0,8"/>
-                                <TextBlock Text="ยังไม่เปิดใช้งาน - เป็นงานของ WP3-4 (TOTP + QR + Apps Script)"
-                                           Style="{StaticResource Caption}" TextWrapping="Wrap"/>
+                                <TextBlock Text="ใช้ตอนติดต่อ Server ไม่ได้เท่านั้น - secret ฝังในเครื่องนักเรียนตอนติดตั้ง Agent (MSI property), Agent ตรวจรหัสเองแบบ offline"
+                                           Style="{StaticResource Caption}" TextWrapping="Wrap" Margin="0,0,0,10"/>
+
+                                <TextBlock x:Name="EmergencyCodeStatusText" Text="กำลังโหลด..." Style="{StaticResource Body}"
+                                           TextWrapping="Wrap" Margin="0,0,0,10"/>
+
+                                <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                                    <Button Content="แสดง QR..." Style="{StaticResource ButtonSecondary}"
+                                            Padding="10,9" FontSize="12" Click="ShowEmergencyCodeQrButton_Click"/>
+                                    <Button Content="ประวัติการใช้..." Style="{StaticResource ButtonSecondary}"
+                                            Padding="10,9" FontSize="12" Margin="8,0,0,0" Click="ShowEmergencyCodeUsageButton_Click"/>
+                                </StackPanel>
+
+                                <TextBlock Text="หน้าเว็บ Google Apps Script (ทางเลือกแทนแอป)" Style="{StaticResource Caption}" Margin="0,0,0,4"/>
+                                <TextBlock Text="ติดตั้งจาก docs/apps-script/emergency-code.gs - secret เก็บใน Script Properties ของโปรเจกต์ Apps Script เอง (คัดลอก key จากหน้าต่าง &quot;แสดง QR...&quot; ไปวางตอนตั้งค่าครั้งเดียว) จำกัดให้เปิดได้เฉพาะบัญชีครูที่กำหนดในสคริปต์ และบันทึกว่าใครเปิดดู"
+                                           Style="{StaticResource Caption}" TextWrapping="Wrap" Margin="0,0,0,10"/>
+
+                                <Border Height="1" Margin="0,0,0,10" Background="{DynamicResource Brush.Border.Default}"/>
+
+                                <Button x:Name="RotateEmergencyCodeButton" Content="เปลี่ยน secret ใหม่..." Style="{StaticResource ButtonSecondary}"
+                                        HorizontalAlignment="Left" Padding="10,9" FontSize="12" Click="RotateEmergencyCodeButton_Click"/>
+                                <TextBlock Text="ใช้เมื่อสงสัยว่า secret รั่ว - ต้องลง Agent MSI ใหม่ทุกเครื่องและแก้ Script Properties ของ Apps Script ด้วย ไม่งั้นเครื่องนักเรียนจะยังตรวจด้วย secret เก่า"
+                                           Style="{StaticResource Caption}" TextWrapping="Wrap" Margin="0,6,0,0"/>
                             </StackPanel>
                         </Border>
 

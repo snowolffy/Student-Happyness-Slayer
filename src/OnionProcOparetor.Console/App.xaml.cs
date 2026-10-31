@@ -314,6 +314,28 @@ public partial class App : Application
             System.Windows.Threading.DispatcherPriority.ApplicationIdle,
             () =>
             {
+                // --scroll=bottom (WP3-4, 2026-10-31) - หน้ายาวๆ อย่าง "ตั้งค่า" มีการ์ดอยู่ใต้ fold ที่
+                // ScrollViewer ของหน้าไม่โชว์แต่แรก ใช้ตรวจการ์ดที่อยู่ล่างสุดโดยไม่ต้อง resize จอ/แก้ไฟล์
+                // ชั่วคราว - เลื่อน ScrollViewer ตัวแรกที่เจอในหน้าต่างไปสุดท้ายก่อนเรนเดอร์
+                if (args.Contains("--scroll=bottom"))
+                {
+                    FindMostScrollableViewer(window)?.ScrollToEnd();
+                    window.UpdateLayout();
+                }
+
+                // --scroll-to=<x:Name> (WP3-4, 2026-10-31) - เจาะจงกว่า --scroll=bottom สำหรับหน้า
+                // ยาวๆ ที่การ์ดที่ต้องตรวจอยู่กลางหน้า ไม่ใช่ท้ายสุด (เช่น การ์ด "รหัสฉุกเฉิน" ใน
+                // SettingsPage) ใช้ FrameworkElement.BringIntoView() แทนการเดา ScrollViewer offset เอง
+                var scrollToArg = args.FirstOrDefault(a => a.StartsWith("--scroll-to=", StringComparison.Ordinal));
+                if (scrollToArg is not null)
+                {
+                    var elementName = scrollToArg["--scroll-to=".Length..];
+                    if (FindElementByName(window, elementName) is FrameworkElement target)
+                    {
+                        target.BringIntoView();
+                        window.UpdateLayout();
+                    }
+                }
                 // วัดตำแหน่ง/ขนาดตาราง Clients ลง console.log (WP6) - เกณฑ์ "ตารางไม่ขยับตอนแผงเปิดหรือ
                 // ตอนประกาศโผล่" พิสูจน์ด้วยตัวเลขเทียบกันระหว่างภาพ ไม่ใช่ด้วยการเพ่งภาพสองใบ
                 if (window is DashboardWindow dashboard && dashboard.ClientsGrid.IsVisible)
@@ -339,6 +361,59 @@ public partial class App : Application
 
                 Shutdown();
             });
+    }
+
+    /// <summary>
+    /// ใช้กับ --scroll=bottom เท่านั้น - หน้าต่างมี ScrollViewer หลายตัวพร้อมกันได้ (sidebar, แท็บอื่นที่
+    /// ยังไม่ unload, ฯลฯ) ตัวแรกที่เจอแบบ depth-first ไม่ใช่ตัวที่ต้องการเสมอไป - เลือกตัวที่ "เหลือให้
+    /// เลื่อนได้มากที่สุด" (ExtentHeight - ViewportHeight) แทน ซึ่งคือเนื้อหาของแท็บที่กำลังเปิดดูอยู่จริง
+    /// </summary>
+    private static System.Windows.Controls.ScrollViewer? FindMostScrollableViewer(DependencyObject root)
+    {
+        System.Windows.Controls.ScrollViewer? best = null;
+        var bestScrollable = 0.0;
+        CollectScrollViewers(root, ref best, ref bestScrollable);
+        return best;
+    }
+
+    /// <summary>ใช้กับ --scroll-to=&lt;x:Name&gt; - หา FrameworkElement ที่ชื่อนี้แบบ depth-first ทั้งหน้าต่าง (รวมแท็บที่ไม่ได้โชว์อยู่ด้วย ถ้า visual tree ยัง realize อยู่)</summary>
+    private static FrameworkElement? FindElementByName(DependencyObject node, string name)
+    {
+        if (node is FrameworkElement fe && fe.Name == name)
+        {
+            return fe;
+        }
+
+        var count = System.Windows.Media.VisualTreeHelper.GetChildrenCount(node);
+        for (var i = 0; i < count; i++)
+        {
+            var found = FindElementByName(System.Windows.Media.VisualTreeHelper.GetChild(node, i), name);
+            if (found is not null)
+            {
+                return found;
+            }
+        }
+
+        return null;
+    }
+
+    private static void CollectScrollViewers(DependencyObject node, ref System.Windows.Controls.ScrollViewer? best, ref double bestScrollable)
+    {
+        if (node is System.Windows.Controls.ScrollViewer sv)
+        {
+            var scrollable = sv.ExtentHeight - sv.ViewportHeight;
+            if (scrollable > bestScrollable)
+            {
+                bestScrollable = scrollable;
+                best = sv;
+            }
+        }
+
+        var count = System.Windows.Media.VisualTreeHelper.GetChildrenCount(node);
+        for (var i = 0; i < count; i++)
+        {
+            CollectScrollViewers(System.Windows.Media.VisualTreeHelper.GetChild(node, i), ref best, ref bestScrollable);
+        }
     }
 #endif
 }

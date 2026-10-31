@@ -62,6 +62,12 @@ public class AppDbContext : DbContext
     /// <summary>ประวัติการเข้าเว็บที่ Agent ส่งขึ้นมาทุก 1 นาที (WP2-4, 2026-10-31) - ดู Models/WebVisit.cs</summary>
     public DbSet<WebVisit> WebVisits => Set<WebVisit>();
 
+    /// <summary>secret ของรหัสฉุกเฉิน TOTP แถวเดียว (WP3-4, 2026-10-31) - ดู Models/EmergencyCodeSettings.cs</summary>
+    public DbSet<EmergencyCodeSettings> EmergencyCodeSettings => Set<EmergencyCodeSettings>();
+
+    /// <summary>ประวัติการใช้รหัสฉุกเฉิน ที่ Agent ส่งขึ้นมาตอนกลับมาออนไลน์ (WP3-4, 2026-10-31) - ดู Models/EmergencyCodeUsage.cs</summary>
+    public DbSet<EmergencyCodeUsage> EmergencyCodeUsages => Set<EmergencyCodeUsage>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
@@ -207,6 +213,10 @@ public class AppDbContext : DbContext
         // query หลักของ /api/web-visits/top-domains (GroupBy Domain) + ตัวกรองโดเมนในหน้าประวัติเว็บ
         modelBuilder.Entity<WebVisit>()
             .HasIndex(v => v.Domain);
+
+        // ประวัติการใช้รหัสฉุกเฉิน (WP3-4, 2026-10-31) - หน้าตั้งค่าแสดง "ล่าสุด" + "ดูทั้งหมด" เรียงตามเวลาเสมอ
+        modelBuilder.Entity<EmergencyCodeUsage>()
+            .HasIndex(u => u.UsedAtUtc);
 
         // เผื่อ query ประวัติของเครื่องเดียวเจาะจง (ยังไม่มี UI ใช้ตรงนี้ในรอบแรก แต่ pattern เดียวกับ
         // LogEntry.(ClientGuid, Timestamp) ข้างบน - เครื่อง 40 ตัวจะมี WebVisit มากกว่าตารางอื่นๆ ทั้งหมด

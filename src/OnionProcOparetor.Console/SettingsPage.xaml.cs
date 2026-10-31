@@ -150,6 +150,7 @@ public partial class SettingsPage : UserControl
         AdminSettingsPanel.Visibility = Visibility.Visible;
 
         await LoadSignInSettingsAsync();
+        await LoadEmergencyCodeSettingsAsync();
         await LoadCertificateThumbprintAsync();
         await LoadBackupSettingsAsync();
     }
@@ -222,6 +223,95 @@ public partial class SettingsPage : UserControl
         {
             ToastService.Error(message);
         }
+    }
+
+    // ==================== รหัสฉุกเฉิน (WP3-4, 2026-10-31) ====================
+
+    private EmergencyCodeSettingsDto? _emergencyCodeSettings;
+
+    private async Task LoadEmergencyCodeSettingsAsync()
+    {
+        _emergencyCodeSettings = await _apiClient!.GetEmergencyCodeSettingsAsync();
+        if (_emergencyCodeSettings is null)
+        {
+            EmergencyCodeStatusText.Text = "โหลดสถานะรหัสฉุกเฉินไม่สำเร็จ";
+            return;
+        }
+
+        var rotated = _emergencyCodeSettings.RotatedAt is { } rotatedAt
+            ? $"เปลี่ยนล่าสุด {TimeDisplay.Text(rotatedAt)} โดย {_emergencyCodeSettings.RotatedByUsername}"
+            : $"สร้างตอนติดตั้งระบบ {TimeDisplay.Text(_emergencyCodeSettings.CreatedAt)} (ยังไม่เคยเปลี่ยน)";
+
+        var usage = _emergencyCodeSettings.LastUsageAt is { } lastUsageAt
+            ? $"ใช้แล้ว {_emergencyCodeSettings.UsageCount} ครั้ง - ล่าสุด: {_emergencyCodeSettings.LastUsageMachineName} · {TimeDisplay.Text(lastUsageAt)}"
+            : "ยังไม่เคยถูกใช้";
+
+        EmergencyCodeStatusText.Text = $"{rotated}\n{usage}";
+    }
+
+    private async void ShowEmergencyCodeQrButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_apiClient is null)
+        {
+            return;
+        }
+
+        // โหลดใหม่เสมอก่อนเปิด (ไม่ใช้ค่าที่ cache ไว้ตั้งแต่เปิดหน้า) เผื่อมีคนเปลี่ยน secret จากเครื่องอื่นระหว่างนั้น
+        var settings = await _apiClient.GetEmergencyCodeSettingsAsync();
+        if (settings is null)
+        {
+            ToastService.Error("โหลดข้อมูลรหัสฉุกเฉินไม่สำเร็จ");
+            return;
+        }
+
+        _emergencyCodeSettings = settings;
+        new EmergencyCodeQrWindow(_apiClient, settings) { Owner = Window.GetWindow(this) }.ShowDialog();
+    }
+
+    private void ShowEmergencyCodeUsageButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_apiClient is null)
+        {
+            return;
+        }
+
+        new EmergencyCodeUsageWindow(_apiClient) { Owner = Window.GetWindow(this) }.ShowDialog();
+    }
+
+    private async void RotateEmergencyCodeButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_apiClient is null)
+        {
+            return;
+        }
+
+        var confirmed = System.Windows.MessageBox.Show(
+            "เปลี่ยน secret รหัสฉุกเฉินใหม่ทั้งหมด?\n\nรหัสเก่าจะใช้ไม่ได้อีกทันที ต้องลง Agent MSI ใหม่ทุกเครื่องและแก้ Script Properties ของ Apps Script ด้วย ไม่งั้นเครื่องนักเรียนจะยังตรวจด้วย secret เก่าที่ติดตั้งไว้",
+            "ยืนยันเปลี่ยน secret",
+            System.Windows.MessageBoxButton.YesNo,
+            System.Windows.MessageBoxImage.Warning);
+
+        if (confirmed != System.Windows.MessageBoxResult.Yes)
+        {
+            return;
+        }
+
+        RotateEmergencyCodeButton.IsEnabled = false;
+        var (settings, message) = await _apiClient.RotateEmergencyCodeAsync();
+
+        if (settings is not null)
+        {
+            ToastService.Success(message);
+            await LoadEmergencyCodeSettingsAsync();
+            // เปิด QR ใหม่ให้ครูสแกนต่อทันที - ไม่งั้นต้องกด "แสดง QR..." แยกอีกรอบเพื่อเอา secret ใหม่ไปใส่ MSI/Apps Script
+            new EmergencyCodeQrWindow(_apiClient, settings) { Owner = Window.GetWindow(this) }.ShowDialog();
+        }
+        else
+        {
+            ToastService.Error(message);
+        }
+
+        RotateEmergencyCodeButton.IsEnabled = true;
     }
 
     private async Task LoadCertificateThumbprintAsync()

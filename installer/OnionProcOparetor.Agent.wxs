@@ -71,6 +71,14 @@
     <Property Id="FALLBACKSERVERIP" Secure="yes" />
     <Property Id="FALLBACKSERVERPORT" Value="8787" Secure="yes" />
 
+    <!-- รหัสฉุกเฉิน TOTP (WP3-4, 2026-10-31) - Base32 secret ที่ Console สร้าง/rotate ไว้แล้ว (ปุ่ม
+         "แสดง QR..."/"เปลี่ยน secret ใหม่..." ในหน้าตั้งค่า) ไม่มี UI wizard field ให้พิมพ์ (ต่างจาก
+         SERVERADDR/UNINSTPWD1 ด้านบนที่มี dialog ของตัวเอง) - ตั้งใจให้ส่งผ่าน command line เท่านั้น
+         (เช่น `msiexec /i OnionAgent.msi SERVERADDR=... EMERGENCYTOTPSECRET=<base32key> /quiet`)
+         เพราะเป็นค่าที่ต้องเหมือนกันทุกเครื่องในการ deploy รอบเดียว พิมพ์ผ่าน UI ทีละเครื่อง 40 รอบ
+         เสี่ยงพิมพ์ผิดมากกว่า - ไม่มี default (ว่าง = ปิดฟีเจอร์นี้ไปเลยสำหรับเครื่องนั้น ไม่ hard-fail) -->
+    <Property Id="EMERGENCYTOTPSECRET" Secure="yes" />
+
     <Property Id="UNINSTPWD1" Secure="yes" />
     <Property Id="UNINSTPWD2" Secure="yes" />
     <Property Id="WIXUI_EXITDIALOGOPTIONALCHECKBOXTEXT" Value="Launch Onion ProcOparetor Agent" />
@@ -336,7 +344,7 @@
          the whole uninstall with exit 1603. Confirmed by an actual failed live `msiexec /x` on
          this build before this condition was added, not assumed. -->
     <CustomAction Id="SetupClientProps" Property="SetupClient"
-      Value="&quot;[System64Folder]WindowsPowerShell\v1.0\powershell.exe&quot; -NoProfile -NonInteractive -ExecutionPolicy Bypass -File &quot;[#SetupClientPs1]&quot; -InstallDir &quot;[INSTALLFOLDER]\&quot; -ServerAddr &quot;[SERVERADDR]&quot; -FallbackServerAddr &quot;[FALLBACKSERVERADDR]&quot; -UninstallPassword &quot;[UNINSTPWD1]&quot;" />
+      Value="&quot;[System64Folder]WindowsPowerShell\v1.0\powershell.exe&quot; -NoProfile -NonInteractive -ExecutionPolicy Bypass -File &quot;[#SetupClientPs1]&quot; -InstallDir &quot;[INSTALLFOLDER]\&quot; -ServerAddr &quot;[SERVERADDR]&quot; -FallbackServerAddr &quot;[FALLBACKSERVERADDR]&quot; -UninstallPassword &quot;[UNINSTPWD1]&quot; -EmergencyTotpSecret &quot;[EMERGENCYTOTPSECRET]&quot;" />
     <CustomAction Id="SetupClient" BinaryRef="Wix4UtilCA_$(sys.BUILDARCHSHORT)" DllEntry="WixQuietExec"
       Execute="deferred" Return="check" Impersonate="no" />
 
