@@ -394,10 +394,18 @@ public partial class DashboardWindow : Window
             await LoadAllDataAsync();
 
             // AUDIT LOG ไม่รวมอยู่ใน LoadAllDataAsync (volume สูง โหลดเฉพาะตอนแท็บ active เท่านั้น) -
-            // รีเฟรชหน้าปัจจุบันเพิ่มเฉพาะตอนแท็บนี้เปิดอยู่จริง
-            if (ReferenceEquals(MainTabControl.SelectedItem, AuditLogTabItem))
+            // รีเฟรชหน้าปัจจุบันเพิ่มเฉพาะตอนแท็บย่อย Audit เปิดอยู่จริง (WP3-5: Audit ย้ายจาก TabItem
+            // แยกมาเป็นแท็บย่อยใน LogsTabItem - ดู SetLogsSubTab/_auditSubTabSelected)
+            if (ReferenceEquals(MainTabControl.SelectedItem, LogsTabItem) && _auditSubTabSelected)
             {
                 await LoadActivityLogPageAsync();
+            }
+
+            // ประวัติการใช้เครื่อง (WP3-5) - ไม่รวมอยู่ใน LoadAllDataAsync ด้วยเหตุผลเดียวกัน โหลดเฉพาะ
+            // ตอนแท็บนี้ active เท่านั้น
+            if (ReferenceEquals(MainTabControl.SelectedItem, AttendanceTabItem))
+            {
+                await LoadAttendanceAsync();
             }
         };
         _autoRefreshTimer.Start();
@@ -409,6 +417,14 @@ public partial class DashboardWindow : Window
             _auditLogFilterDebounceTimer.Stop();
             _auditLogPage = 1;
             await LoadActivityLogPageAsync();
+        };
+
+        // debounce ช่องค้นหา Attendance (WP3-5) - เหตุผลเดียวกับ Audit Log ข้างบน
+        _attendanceFilterDebounceTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(400) };
+        _attendanceFilterDebounceTimer.Tick += async (_, _) =>
+        {
+            _attendanceFilterDebounceTimer.Stop();
+            await LoadAttendanceAsync();
         };
 
         // อัพเดต interval แบบ live ทันทีที่บันทึก Settings ใหม่ - ไม่ต้อง restart Console (ดู SettingsWindow)
@@ -752,7 +768,7 @@ public partial class DashboardWindow : Window
                     else
                     {
                         ToastService.Info("หน้ารายงานผลถูกปิดไปแล้ว - ประวัติคำสั่งดูได้ที่ Audit Log",
-                            "เปิด Audit Log", () => MainTabControl.SelectedItem = AuditLogTabItem);
+                            "เปิด Audit Log", () => SelectAuditLogSubTab());
                     }
                 });
         }
@@ -1018,6 +1034,21 @@ public partial class DashboardWindow : Window
         InspectorConnectionBadge.Content = client.UsingFallback ? "TAILSCALE" : "LAN";
         InspectorConnectionBadge.Tag = client.UsingFallback ? "Warning" : "Online";
 
+        // การ์ด "นักเรียนที่ใช้อยู่" + ปุ่ม "บังคับ logout นักเรียน" (WP3-5, 2026-10-31) - โผล่เฉพาะตอน
+        // มีคน login อยู่ (ดู ClientMachineDto.HasActiveStudent/StudentDisplayText)
+        if (client.HasActiveStudent)
+        {
+            InspectorStudentCard.Visibility = Visibility.Visible;
+            InspectorStudentName.Text = client.CurrentStudentName;
+            InspectorStudentDetail.Text = client.CurrentStudentCode;
+            InspectorForceLogoutButton.Visibility = Visibility.Visible;
+        }
+        else
+        {
+            InspectorStudentCard.Visibility = Visibility.Collapsed;
+            InspectorForceLogoutButton.Visibility = Visibility.Collapsed;
+        }
+
         InspectorIp.Text = string.IsNullOrWhiteSpace(client.LastKnownIp) ? "-" : client.LastKnownIp;
         InspectorLastSeenLabel.Text = TimeDisplay.Header("เห็นล่าสุด");
         InspectorLastSeen.Text = TimeDisplay.Text(client.LastSeenAt);
@@ -1157,6 +1188,39 @@ public partial class DashboardWindow : Window
         await LoadAllDataAsync();
     }
 
+    /// <summary>
+    /// บังคับ logout นักเรียนที่ใช้เครื่องนี้อยู่ (WP3-5, 2026-10-31) - GET /api/clients ไม่มี sessionId
+    /// ติดมาด้วย (มีแค่ CurrentStudentId/Code/Name) จึงต้องถาม GET /api/students/sessions/active/{clientGuid}
+    /// ใหม่ตอนกดปุ่มเพื่อเอา sessionId มาสั่ง force-logout ต่อ (ดู ApiClient.ForceLogoutStudentSessionAsync)
+    /// </summary>
+    private async void InspectorForceLogoutButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_inspectedClient is not { } client || !client.HasActiveStudent)
+        {
+            return;
+        }
+
+        var confirmed = ConfirmWindow.Show(
+            $"บังคับ logout นักเรียน \"{client.CurrentStudentName}\" ({client.CurrentStudentCode}) จากเครื่อง \"{client.MachineName}\"?",
+            "ยืนยันบังคับ logout", this);
+        if (!confirmed)
+        {
+            return;
+        }
+
+        var active = await _apiClient.GetActiveStudentSessionAsync(client.ClientGuid);
+        if (active is not { Active: true, SessionId: { } sessionId })
+        {
+            ToastService.Error("ไม่พบ session ที่เปิดอยู่ของเครื่องนี้ (อาจออกจากระบบไปแล้ว)");
+            await LoadAllDataAsync();
+            return;
+        }
+
+        var (success, message) = await _apiClient.ForceLogoutStudentSessionAsync(sessionId);
+        ShowResultToast(success, message);
+        await LoadAllDataAsync();
+    }
+
     private async void InspectorRuleOverridesButton_Click(object sender, RoutedEventArgs e)
     {
         if (_inspectedClient is not { } client)
@@ -1287,6 +1351,43 @@ public partial class DashboardWindow : Window
     private int _auditLogPage = 1;
     private int _auditLogTotalCount;
     private readonly DispatcherTimer _auditLogFilterDebounceTimer;
+
+    /// <summary>
+    /// true = sub-tab "Audit" ของ LogsTabItem กำลังแสดงอยู่ (WP3-5, 2026-10-31) - Logs/Audit เดิมเป็น
+    /// 2 TabItem แยกบน MainTabControl รวมมาเป็นหน้าเดียว 2 sub-tab ตาม wireframe con-logs.dc.html
+    /// ตัวนี้แทนที่การเทียบ MainTabControl.SelectedItem == AuditLogTabItem แบบเดิมทั้งหมด (Audit ไม่ใช่
+    /// TabItem ของ MainTabControl อีกต่อไป - ดู SetLogsSubTab/SelectAuditLogSubTab)
+    /// </summary>
+    private bool _auditSubTabSelected;
+
+    /// <summary>สลับ sub-tab Activity/Audit ของ LogsTabItem - สลับ Visibility ของเนื้อหา + สไตล์ปุ่ม (ปุ่มที่เลือกอยู่ = ButtonPrimary)</summary>
+    private void SetLogsSubTab(bool isAudit)
+    {
+        _auditSubTabSelected = isAudit;
+        ActivityLogSubTabContent.Visibility = isAudit ? Visibility.Collapsed : Visibility.Visible;
+        AuditLogSubTabContent.Visibility = isAudit ? Visibility.Visible : Visibility.Collapsed;
+        ActivityLogSubTabButton.Style = (Style)FindResource(isAudit ? "ButtonSecondary" : "ButtonPrimary");
+        AuditLogSubTabButton.Style = (Style)FindResource(isAudit ? "ButtonPrimary" : "ButtonSecondary");
+    }
+
+    private async void LogsSubTabButton_Click(object sender, RoutedEventArgs e)
+    {
+        var isAudit = ReferenceEquals(sender, AuditLogSubTabButton);
+        SetLogsSubTab(isAudit);
+
+        if (isAudit)
+        {
+            await LoadActivityLogPageAsync();
+        }
+    }
+
+    /// <summary>ใช้จากที่อื่นที่อยากเปิด Console ไปตรงหน้า Audit Log เลย (เช่น toast "เปิด Audit Log" ด้านบน)</summary>
+    private async void SelectAuditLogSubTab()
+    {
+        MainTabControl.SelectedItem = LogsTabItem;
+        SetLogsSubTab(isAudit: true);
+        await LoadActivityLogPageAsync();
+    }
 
     private void ApplyClientsFilter()
     {
@@ -1595,6 +1696,99 @@ public partial class DashboardWindow : Window
         await LoadActivityLogPageAsync();
     }
 
+    // ==================== Attendance tab: ประวัติการใช้เครื่อง (WP3-5, 2026-10-31) ====================
+    // ตรงตาม wireframe docs/wireframes/nf-attendance.dc.html - ใช้ดูประกอบเท่านั้น ไม่ใช่ใบเช็คชื่อทางการ
+    // (ดู docs/roadmap.md "ไม่มีตาราง/คาบเรียน") โหลดเฉพาะตอนแท็บ active เหมือน Audit Log ข้างบน (pattern
+    // เดียวกัน - volume อาจสูงถ้าโรงเรียนใช้งานมานาน)
+
+    private List<StudentSessionHistoryRowDto> _attendanceRows = new();
+    private readonly DispatcherTimer _attendanceFilterDebounceTimer;
+    private bool _attendanceRoomComboPopulated;
+
+    /// <summary>เติม AttendanceRoomFilterCombo ครั้งเดียวจาก _allRooms ที่โหลดไว้แล้ว (ตัวกรองห้องแท็บ
+    /// Clients) - ไม่มี "ยังไม่จัดห้อง" เหมือนตัวกรองของ Clients เพราะ GET /api/students/sessions/history
+    /// รับแค่ roomId int? ธรรมดา ไม่รองรับ sentinel แบบนั้น</summary>
+    private void PopulateAttendanceRoomFilterCombo()
+    {
+        var options = new List<RoomFilterOption> { new() { RoomIdOrSentinel = null, Label = "ทุกห้อง" } };
+        options.AddRange(_allRooms.Select(r => new RoomFilterOption { RoomIdOrSentinel = r.Id, Label = r.Name }));
+
+        var previousSelection = (AttendanceRoomFilterCombo.SelectedItem as RoomFilterOption)?.RoomIdOrSentinel;
+        AttendanceRoomFilterCombo.ItemsSource = options;
+        AttendanceRoomFilterCombo.SelectedItem = options.FirstOrDefault(o => o.RoomIdOrSentinel == previousSelection) ?? options[0];
+        _attendanceRoomComboPopulated = true;
+    }
+
+    /// <summary>เติม AttendanceClassFilterCombo จากห้องเรียนที่ปรากฏจริงในผลลัพธ์ล่าสุด (ไม่มี endpoint
+    /// แยกสำหรับ "รายชื่อห้องเรียนทั้งหมด" - Student.ClassName เป็น string ธรรมดา ไม่ใช่ตารางแยก)</summary>
+    private void PopulateAttendanceClassFilterCombo()
+    {
+        var previousSelection = AttendanceClassFilterCombo.SelectedItem as string;
+        var classNames = _attendanceRows
+            .Select(r => r.Student?.ClassName)
+            .Where(c => !string.IsNullOrWhiteSpace(c))
+            .Distinct()
+            .OrderBy(c => c, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        var options = new List<string> { "ทุกห้องเรียน" };
+        options.AddRange(classNames!);
+
+        AttendanceClassFilterCombo.ItemsSource = options;
+        AttendanceClassFilterCombo.SelectedItem = options.FirstOrDefault(o => o == previousSelection) ?? options[0];
+    }
+
+    private async Task LoadAttendanceAsync()
+    {
+        if (_apiClient is null)
+        {
+            return;
+        }
+
+        if (!_attendanceRoomComboPopulated)
+        {
+            PopulateAttendanceRoomFilterCombo();
+        }
+
+        var roomId = (AttendanceRoomFilterCombo.SelectedItem as RoomFilterOption)?.RoomIdOrSentinel;
+        var className = AttendanceClassFilterCombo.SelectedItem as string;
+        if (className == "ทุกห้องเรียน")
+        {
+            className = null;
+        }
+        var search = string.IsNullOrWhiteSpace(AttendanceSearchBox.Text) ? null : AttendanceSearchBox.Text.Trim();
+
+        _attendanceRows = await _apiClient.GetStudentSessionHistoryAsync(roomId: roomId, className: className, search: search);
+        PopulateAttendanceClassFilterCombo();
+
+        AttendanceGrid.ItemsSource = _attendanceRows;
+        AttendanceEmptyText.Visibility = _attendanceRows.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    private async void AttendanceFilter_Changed(object sender, SelectionChangedEventArgs e)
+    {
+        if (_apiClient is null)
+        {
+            return; // ยิงระหว่าง InitializeComponent
+        }
+
+        await LoadAttendanceAsync();
+    }
+
+    /// <summary>debounce 400ms กันยิง request ทุกตัวอักษรที่พิมพ์ (pattern เดียวกับ AuditLogClientGuidFilter_TextChanged)</summary>
+    private void AttendanceSearchBox_TextChanged(object sender, TextChangedEventArgs e)
+    {
+        if (_apiClient is null)
+        {
+            return;
+        }
+
+        _attendanceFilterDebounceTimer.Stop();
+        _attendanceFilterDebounceTimer.Start();
+    }
+
+    private async void AttendanceRefreshButton_Click(object sender, RoutedEventArgs e) => await LoadAttendanceAsync();
+
     // ==================== Step 4d: embedded VNC screen view ====================
 
     /// <summary>
@@ -1717,9 +1911,16 @@ public partial class DashboardWindow : Window
             await CloseAllLiveViewSessionsAsync();
         }
 
-        if (e.AddedItems.Contains(AuditLogTabItem))
+        // Logs/Audit ถูกรวมเป็น LogsTabItem เดียว (WP3-5) - โหลด Audit ใหม่ตอนสลับเข้ามาที่แท็บนี้ถ้า
+        // sub-tab ที่เหลือค้างไว้คือ Audit (เช่นสลับออกไปแท็บอื่นแล้วย้อนกลับมา)
+        if (e.AddedItems.Contains(LogsTabItem) && _auditSubTabSelected)
         {
             await LoadActivityLogPageAsync();
+        }
+
+        if (e.AddedItems.Contains(AttendanceTabItem))
+        {
+            await LoadAttendanceAsync();
         }
     }
 

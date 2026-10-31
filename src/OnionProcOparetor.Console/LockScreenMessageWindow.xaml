@@ -1,0 +1,32 @@
+<Window x:Class="OnionProcOparetor.Console.LockScreenMessageWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="ล็อกหน้าจอ"
+        Width="440"
+        SizeToContent="Height"
+        WindowStartupLocation="CenterOwner"
+        ResizeMode="NoResize"
+        Icon="/Theme/icon.ico"
+        Style="{StaticResource AppDialogWindow}">
+    <!-- WP3-5 (2026-10-31) - ตรงตาม wireframe docs/wireframes/con-dialogs.dc.html dialog "ล็อกหน้าจอ"
+         (note: "ใหม่: แก้ข้อความได้") เว้นว่าง = ใช้ข้อความเริ่มต้นจากหน้าตั้งค่า Sign-in
+         (SignInSettings.LockScreenDefaultMessage) - ไม่ได้ตรวจ/เติม default message ตรงนี้เอง ฝาก
+         Agent/AgentTray เป็นคนเติมเมื่อ payload ไม่มีข้อความมา (ดู comment ใน ActionPanelWindow.xaml.cs
+         LockButton_Click - ยังไม่มีผลจริงจนกว่า WP3-3 จะทำ Agent/AgentTray รองรับ message ใน payload) -->
+    <StackPanel Margin="20">
+        <TextBlock Text="ล็อกหน้าจอ" Style="{StaticResource Heading2}" Margin="0,0,0,16"/>
+
+        <TextBlock Text="ข้อความบนจอล็อก (เฉพาะครั้งนี้)" Style="{StaticResource Label}" Margin="0,0,0,6"/>
+        <TextBox x:Name="MessageInputBox" Height="90" Style="{StaticResource RoundedTextBox}"
+                 TextWrapping="Wrap" AcceptsReturn="True" VerticalScrollBarVisibility="Auto" Margin="0,0,0,8"/>
+        <TextBlock Text="เว้นว่าง = ใช้ข้อความเริ่มต้นจากหน้าตั้งค่า"
+                   Style="{StaticResource Caption}" TextWrapping="Wrap" Margin="0,0,0,16"/>
+
+        <Grid>
+            <Button Content="ยกเลิก" Style="{StaticResource ButtonSecondary}"
+                    Padding="10,5" FontSize="11" HorizontalAlignment="Right" Margin="0,0,70,0" Click="CancelButton_Click"/>
+            <Button Content="ล็อก" Style="{StaticResource ButtonPrimary}"
+                    HorizontalAlignment="Right" Click="LockButton_Click"/>
+        </Grid>
+    </StackPanel>
+</Window>

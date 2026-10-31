@@ -191,6 +191,9 @@ else
                     </dd>
                     <dt>เห็นล่าสุด</dt>
                     <dd><TimeAgo Value="client.LastSeenAt" /></dd>
+                    @* นักเรียน (WP3-5, 2026-10-31) - ตรงตาม wireframe con-clients.dc.html คอลัมน์ "นักเรียน" *@
+                    <dt>นักเรียน</dt>
+                    <dd>@client.StudentDisplayText</dd>
                 </dl>
 
                 <div class="data-card-actions">
@@ -218,6 +221,7 @@ else
                     <th class="sortable @SortClass(SortKey.Status)" @onclick="() => Sort(SortKey.Status)">Status <span class="sort-caret">@Caret(SortKey.Status)</span></th>
                     <th>Enforcement</th>
                     <th>Connection</th>
+                    <th>นักเรียน</th>
                     <th class="sortable @SortClass(SortKey.LastSeen)" @onclick="() => Sort(SortKey.LastSeen)">Last Seen <span class="sort-caret">@Caret(SortKey.LastSeen)</span></th>
                     <th></th>
                 </tr>
@@ -236,6 +240,7 @@ else
                         <td><span class="badge @(client.IsOnline ? "badge-online" : "badge-offline")">@(client.IsOnline ? "ONLINE" : "OFFLINE")</span></td>
                         <td><span class="badge @EnforcementBadgeClass(client)" title="@EnforcementBadgeHint(client)">@EnforcementLabelEn(client)</span></td>
                         <td>@(client.UsingFallback ? "Tailscale" : "LAN")</td>
+                        <td>@client.StudentDisplayText</td>
                         <td><TimeAgo Value="client.LastSeenAt" /></td>
                         <td>
                             <div style="display:flex; gap:.3rem">

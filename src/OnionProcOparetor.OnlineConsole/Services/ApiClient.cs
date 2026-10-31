@@ -344,6 +344,27 @@ public class ApiClient
         return result ?? new List<LogEntryDto>();
     }
 
+    /// <summary>"ประวัติการใช้เครื่อง" บนมือถือ (WP3-5, 2026-10-31) - ported from
+    /// OnionProcOparetor.Console/Services/ApiClient.cs GetStudentSessionHistoryAsync</summary>
+    public async Task<List<StudentSessionHistoryRowDto>> GetStudentSessionHistoryAsync(
+        int? roomId = null, string? className = null, string? search = null, int take = 500)
+    {
+        var query = new List<string> { $"take={take}" };
+        if (roomId is not null) query.Add($"roomId={roomId.Value}");
+        if (!string.IsNullOrWhiteSpace(className)) query.Add($"className={Uri.EscapeDataString(className)}");
+        if (!string.IsNullOrWhiteSpace(search)) query.Add($"search={Uri.EscapeDataString(search)}");
+
+        try
+        {
+            var result = await _httpClient.GetFromJsonAsync<List<StudentSessionHistoryRowDto>>($"/api/students/sessions/history?{string.Join('&', query)}");
+            return result ?? new List<StudentSessionHistoryRowDto>();
+        }
+        catch (Exception)
+        {
+            return new List<StudentSessionHistoryRowDto>();
+        }
+    }
+
     public async Task<ActivityLogPageDto> GetActivityLogAsync(
         string? category = null, string? minSeverity = null, string? clientGuid = null,
         int page = 1, int pageSize = 100)

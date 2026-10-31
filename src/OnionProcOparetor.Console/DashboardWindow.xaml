@@ -445,6 +445,17 @@
                                             </DataTemplate>
                                         </DataGridTemplateColumn.CellTemplate>
                                     </DataGridTemplateColumn>
+                                    <!-- คอลัมน์นักเรียน (WP3-5, 2026-10-31) - "ชื่อ · รหัส" หรือ "—" ถ้ายังไม่มีใคร login
+                                         ตรงตาม wireframe con-clients.dc.html คอลัมน์ "นักเรียน" - ข้อมูลมาจาก
+                                         ClientMachineDto.CurrentStudent* ที่ GET /api/clients เติมมาให้แล้ว (WP3-1) -->
+                                    <DataGridTemplateColumn Header="นักเรียน" Width="170" SortMemberPath="CurrentStudentName">
+                                        <DataGridTemplateColumn.CellTemplate>
+                                            <DataTemplate>
+                                                <TextBlock Text="{Binding StudentDisplayText}" TextTrimming="CharacterEllipsis"
+                                                           ToolTip="{Binding StudentDisplayText}" VerticalAlignment="Center"/>
+                                            </DataTemplate>
+                                        </DataGridTemplateColumn.CellTemplate>
+                                    </DataGridTemplateColumn>
                                     <DataGridTemplateColumn Header="Client GUID" Width="240">
                                         <DataGridTemplateColumn.CellTemplate>
                                             <DataTemplate>
@@ -533,6 +544,21 @@
                                                 <Border Height="1" Margin="0,8,0,12"
                                                         Background="{DynamicResource Brush.Border.Default}"/>
 
+                                                <!-- การ์ด "นักเรียนที่ใช้อยู่" (WP3-5, 2026-10-31) - โผล่เฉพาะตอนมีคน
+                                                     login อยู่บนเครื่องนี้ ตรงตาม wireframe con-clients.dc.html
+                                                     (กล่องสีฟ้าอ่อนใน inspector) - ซ่อนไปเลยถ้าไม่มีใคร login แทนที่จะ
+                                                     โชว์ "—" ค้างไว้ เพราะไม่มีประโยชน์ที่จะเปลืองที่ตอนไม่มีข้อมูล -->
+                                                <Border x:Name="InspectorStudentCard" Padding="8" Margin="0,0,0,8" CornerRadius="6"
+                                                        Background="{DynamicResource Brush.Badge.Accent.Background}" Visibility="Collapsed">
+                                                    <StackPanel>
+                                                        <TextBlock Text="นักเรียนที่ใช้อยู่" Style="{StaticResource Caption}"/>
+                                                        <TextBlock x:Name="InspectorStudentName" FontWeight="Bold" FontSize="13" Margin="0,2,0,0"
+                                                                   TextTrimming="CharacterEllipsis"/>
+                                                        <TextBlock x:Name="InspectorStudentDetail" Style="{StaticResource Caption}" Margin="0,2,0,0"
+                                                                   TextTrimming="CharacterEllipsis"/>
+                                                    </StackPanel>
+                                                </Border>
+
                                                 <!-- ปุ่มอยู่เหนือรายละเอียด ไม่ใช่ใต้: พอเลือกเครื่องแล้ว สิ่งที่ตั้งใจ
                                                      จะทำไม่ควรอยู่ใต้เส้นที่ต้องเลื่อนลงไปหา -->
                                                 <Button Content="ดูหน้าจอเครื่องนี้" Style="{StaticResource ButtonPrimary}"
@@ -541,6 +567,15 @@
                                                 <Button Content="ดูโปรแกรมที่เปิดอยู่" Style="{StaticResource ButtonSecondary}"
                                                         HorizontalAlignment="Stretch" Margin="0,0,0,6"
                                                         Click="InspectorProcessesButton_Click"/>
+                                                <!-- ปุ่ม "บังคับ logout นักเรียน" (WP3-5, 2026-10-31) - โผล่เฉพาะตอนมีคน
+                                                     login อยู่ ตรงตาม wireframe con-clients.dc.html ใช้ API ของ WP3-1
+                                                     (POST /api/students/sessions/{id}/force-logout) - sessionId ดึงจาก
+                                                     GET /api/students/sessions/active/{clientGuid} ตอนกดปุ่ม เพราะ
+                                                     GET /api/clients ไม่มี sessionId ติดมาด้วย (ดู InspectorForceLogoutButton_Click) -->
+                                                <Button x:Name="InspectorForceLogoutButton" Content="บังคับ logout นักเรียน"
+                                                        Style="{StaticResource ButtonSecondary}"
+                                                        HorizontalAlignment="Stretch" Margin="0,0,0,6" Visibility="Collapsed"
+                                                        Click="InspectorForceLogoutButton_Click"/>
                                                 <Button Content="ดูคำสั่งที่ค้างอยู่" Style="{StaticResource ButtonSecondary}"
                                                         HorizontalAlignment="Stretch" Margin="0,0,0,6"
                                                         Click="InspectorPendingCommandsButton_Click"/>
@@ -808,196 +843,282 @@
                     <local:WebsiteControlPage x:Name="WebsiteControlPage" Margin="0,12,0,0"/>
                 </TabItem>
 
-                <!-- ========== Logs tab ========== -->
-                <TabItem Header="Logs" controls:Nav.Icon="file-text" controls:Nav.Group="บันทึก">
+                <!-- ========== Logs tab (WP3-5, 2026-10-31: รวม Activity Logs + Audit Log เป็นหน้าเดียว
+                     2 แท็บย่อย ตรงตาม wireframe docs/wireframes/con-logs.dc.html - เดิมเป็น 2 TabItem
+                     บน sidebar คนละรายการ (เหลือ 1 รายการ sidebar ชื่อ "Logs / Audit" ตอนนี้) เนื้อหา/
+                     ชื่อ control/event handler ของทั้งสองฝั่งเหมือนเดิมทุกตัว ย้ายมาอยู่ใต้ Grid คนละอัน
+                     ที่สลับ Visibility กันเท่านั้น (ดู SetLogsSubTab ใน .xaml.cs) ========== -->
+                <TabItem x:Name="LogsTabItem" Header="Logs / Audit" controls:Nav.Icon="file-text" controls:Nav.Group="บันทึก">
                     <Grid Margin="0,12,0,0">
                         <Grid.RowDefinitions>
-                            <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="*"/>
+                            <RowDefinition Height="Auto"/>   <!-- หัวข้อ -->
+                            <RowDefinition Height="Auto"/>   <!-- แท็บย่อย Activity/Audit -->
+                            <RowDefinition Height="*"/>      <!-- เนื้อหาของแท็บย่อยที่เลือก -->
                         </Grid.RowDefinitions>
 
-                        <TextBlock Grid.Row="0" Text="Activity Logs" Style="{StaticResource Heading2}"/>
+                        <TextBlock Grid.Row="0" Text="Logs" Style="{StaticResource Heading2}"/>
 
-                        <TextBox Grid.Row="1" x:Name="LogsSearchBox" Width="250" Height="35" HorizontalAlignment="Left" Margin="0,10,0,0"
-                                Style="{StaticResource SearchTextBox}"
-                                Tag="ค้นหา machine/process/publisher..." TextChanged="LogsSearchBox_TextChanged"/>
+                        <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,10,0,0">
+                            <Button x:Name="ActivityLogSubTabButton" Content="Activity (โปรแกรมที่ถูกจับ)"
+                                    Style="{StaticResource ButtonPrimary}" Padding="12,6" FontSize="12"
+                                    Click="LogsSubTabButton_Click"/>
+                            <Button x:Name="AuditLogSubTabButton" Content="Audit (ใครทำอะไร)"
+                                    Style="{StaticResource ButtonSecondary}" Padding="12,6" FontSize="12" Margin="8,0,0,0"
+                                    Click="LogsSubTabButton_Click"/>
+                        </StackPanel>
 
                         <Grid Grid.Row="2" Margin="0,10,0,0">
-                            <Border CornerRadius="12" ClipToBounds="True"
-                                    Background="{DynamicResource Brush.Background.Card}"
-                                    BorderBrush="{DynamicResource Brush.Border.Default}" BorderThickness="1">
-                            <DataGrid x:Name="LogsGrid" AutoGenerateColumns="False" IsReadOnly="True"
-                                    Background="Transparent"
-                                    BorderThickness="0"
-                                    RowBackground="{DynamicResource Brush.Background.Card}"
-                                    AlternatingRowBackground="{DynamicResource Brush.Background.Card}"
-                                    HorizontalGridLinesBrush="{DynamicResource Brush.Border.Default}"
-                                    VerticalGridLinesBrush="{DynamicResource Brush.Border.Default}"
-                                    RowHeight="40" CanUserAddRows="False"
-                                    ColumnHeaderStyle="{StaticResource ConsoleGridColumnHeaderStyle}"
-                                    RowStyle="{StaticResource ConsoleGridRowStyle}"
-                                    CellStyle="{StaticResource ConsoleGridCellStyle}">
-                                <DataGrid.Resources>
-                                    <Style x:Key="LogSignedBadge" TargetType="ContentControl" BasedOn="{StaticResource StatusBadge}">
-                                        <Setter Property="Tag" Value="Danger"/>
-                                        <Setter Property="Content" Value="UNSIGNED"/>
-                                        <Style.Triggers>
-                                            <DataTrigger Binding="{Binding WasSignedMatch}" Value="True">
+                            <!-- ===== แท็บย่อย Activity (เดิมคือ TabItem "Logs") ===== -->
+                            <Grid x:Name="ActivityLogSubTabContent">
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="*"/>
+                                </Grid.RowDefinitions>
+
+                                <TextBox Grid.Row="0" x:Name="LogsSearchBox" Width="250" Height="35" HorizontalAlignment="Left"
+                                        Style="{StaticResource SearchTextBox}"
+                                        Tag="ค้นหา machine/process/publisher..." TextChanged="LogsSearchBox_TextChanged"/>
+
+                                <Grid Grid.Row="1" Margin="0,10,0,0">
+                                    <Border CornerRadius="12" ClipToBounds="True"
+                                            Background="{DynamicResource Brush.Background.Card}"
+                                            BorderBrush="{DynamicResource Brush.Border.Default}" BorderThickness="1">
+                                    <DataGrid x:Name="LogsGrid" AutoGenerateColumns="False" IsReadOnly="True"
+                                            Background="Transparent"
+                                            BorderThickness="0"
+                                            RowBackground="{DynamicResource Brush.Background.Card}"
+                                            AlternatingRowBackground="{DynamicResource Brush.Background.Card}"
+                                            HorizontalGridLinesBrush="{DynamicResource Brush.Border.Default}"
+                                            VerticalGridLinesBrush="{DynamicResource Brush.Border.Default}"
+                                            RowHeight="40" CanUserAddRows="False"
+                                            ColumnHeaderStyle="{StaticResource ConsoleGridColumnHeaderStyle}"
+                                            RowStyle="{StaticResource ConsoleGridRowStyle}"
+                                            CellStyle="{StaticResource ConsoleGridCellStyle}">
+                                        <DataGrid.Resources>
+                                            <Style x:Key="LogSignedBadge" TargetType="ContentControl" BasedOn="{StaticResource StatusBadge}">
+                                                <Setter Property="Tag" Value="Danger"/>
+                                                <Setter Property="Content" Value="UNSIGNED"/>
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding WasSignedMatch}" Value="True">
+                                                        <Setter Property="Tag" Value="Online"/>
+                                                        <Setter Property="Content" Value="SIGNED"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </DataGrid.Resources>
+                                        <DataGrid.Columns>
+                                            <DataGridTextColumn controls:TimeColumn.Header="เวลา" Binding="{Binding Timestamp, Converter={StaticResource DisplayTimeConverter}}" SortMemberPath="Timestamp" Width="150"/>
+                                            <DataGridTextColumn Header="เครื่อง" Binding="{Binding MachineName}" Width="130"/>
+                                            <DataGridTextColumn Header="ไฟล์โปรแกรม" Binding="{Binding ProcessPath}" Width="220"/>
+                                            <DataGridTextColumn Header="ผู้เผยแพร่" Binding="{Binding DetectedPublisher}" Width="160"/>
+                                            <DataGridTemplateColumn Header="มีลายเซ็น" Width="100" SortMemberPath="WasSignedMatch">
+                                                <DataGridTemplateColumn.CellTemplate>
+                                                    <DataTemplate>
+                                                        <ContentControl Style="{StaticResource LogSignedBadge}"/>
+                                                    </DataTemplate>
+                                                </DataGridTemplateColumn.CellTemplate>
+                                            </DataGridTemplateColumn>
+                                            <DataGridTextColumn Header="กฎที่ตรง" Binding="{Binding MatchedRuleName}" Width="120"/>
+                                            <DataGridTextColumn Header="สิ่งที่ทำ" Binding="{Binding ActionTaken}" Width="150"/>
+                                        </DataGrid.Columns>
+                                    </DataGrid>
+                                    </Border>
+                                    <ContentControl x:Name="LogsEmptyText"
+                                                    Style="{StaticResource EmptyState}" controls:Nav.Icon="file-text"
+                                                    Content="ยังไม่มี log" Tag="log จะถูกบันทึกเมื่อ Agent ตรวจพบหรือปิดโปรแกรมตามกฎ"
+                                                    Visibility="Collapsed"/>
+                                </Grid>
+                            </Grid>
+
+                            <!-- ===== แท็บย่อย Audit (เดิมคือ TabItem "Audit Log") - ไม่ผูกกับ auto-refresh
+                                 ทุก tick แบบแท็บ Activity (ดู DashboardWindow.xaml.cs LoadActivityLogPageAsync)
+                                 โหลดเฉพาะตอนแท็บย่อยนี้ active เท่านั้น กัน volume สูงไม่ให้โหลดทั้งหมดฝั่ง
+                                 client ทุก 10 วิ ===== -->
+                            <Grid x:Name="AuditLogSubTabContent" Visibility="Collapsed">
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="*"/>
+                                </Grid.RowDefinitions>
+
+                                <Grid Grid.Row="0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="8"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="8"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <ComboBox Grid.Column="0" x:Name="AuditLogCategoryFilter" Width="160" Height="35" VerticalAlignment="Center"
+                                            SelectedIndex="0" SelectionChanged="AuditLogFilter_Changed">
+                                        <ComboBoxItem Content="ทุกหมวด"/>
+                                        <ComboBoxItem Content="AdminAction"/>
+                                        <ComboBoxItem Content="AgentConnectivity"/>
+                                        <ComboBoxItem Content="SystemEvent"/>
+                                    </ComboBox>
+                                    <ComboBox Grid.Column="2" x:Name="AuditLogSeverityFilter" Width="160" Height="35" VerticalAlignment="Center"
+                                            SelectedIndex="0" SelectionChanged="AuditLogFilter_Changed">
+                                        <ComboBoxItem Content="ทุกระดับ"/>
+                                        <ComboBoxItem Content="Info ขึ้นไป"/>
+                                        <ComboBoxItem Content="Warning ขึ้นไป"/>
+                                        <ComboBoxItem Content="Error ขึ้นไป"/>
+                                    </ComboBox>
+                                    <TextBox Grid.Column="4" x:Name="AuditLogClientGuidFilter" Width="260" Height="35" VerticalAlignment="Center"
+                                            Style="{StaticResource SearchTextBox}"
+                                            Tag="Client GUID (เว้นว่าง = ทุกเครื่อง)" TextChanged="AuditLogClientGuidFilter_TextChanged"/>
+                                </Grid>
+
+                                <Grid Grid.Row="1" Margin="0,10,0,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="8"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="12"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <Button Grid.Column="0" Style="{StaticResource ButtonSecondary}"
+                                            Padding="10,5" FontSize="11" Click="AuditLogPrevButton_Click">
+                                        <StackPanel Orientation="Horizontal">
+                                            <controls:IconPresenter Icon="chevron-left" IconSize="14" VerticalAlignment="Center"/>
+                                            <TextBlock Text="ก่อนหน้า" Margin="6,0,0,0" VerticalAlignment="Center"/>
+                                        </StackPanel>
+                                    </Button>
+                                    <Button Grid.Column="2" Style="{StaticResource ButtonSecondary}"
+                                            Padding="10,5" FontSize="11" Click="AuditLogNextButton_Click">
+                                        <StackPanel Orientation="Horizontal">
+                                            <TextBlock Text="ถัดไป" Margin="0,0,6,0" VerticalAlignment="Center"/>
+                                            <controls:IconPresenter Icon="chevron-right" IconSize="14" VerticalAlignment="Center"/>
+                                        </StackPanel>
+                                    </Button>
+                                    <TextBlock Grid.Column="4" x:Name="AuditLogPageInfoText" VerticalAlignment="Center"
+                                            Foreground="{DynamicResource Brush.Text.Secondary}"/>
+                                </Grid>
+
+                                <Grid Grid.Row="2" Margin="0,10,0,0">
+                                    <Border CornerRadius="12" ClipToBounds="True"
+                                            Background="{DynamicResource Brush.Background.Card}"
+                                            BorderBrush="{DynamicResource Brush.Border.Default}" BorderThickness="1">
+                                    <DataGrid x:Name="AuditLogGrid" AutoGenerateColumns="False" IsReadOnly="True"
+                                            Background="Transparent"
+                                            BorderThickness="0"
+                                            RowBackground="{DynamicResource Brush.Background.Card}"
+                                            AlternatingRowBackground="{DynamicResource Brush.Background.Card}"
+                                            HorizontalGridLinesBrush="{DynamicResource Brush.Border.Default}"
+                                            VerticalGridLinesBrush="{DynamicResource Brush.Border.Default}"
+                                            RowHeight="40" CanUserAddRows="False"
+                                            ColumnHeaderStyle="{StaticResource ConsoleGridColumnHeaderStyle}"
+                                            RowStyle="{StaticResource ConsoleGridRowStyle}"
+                                            CellStyle="{StaticResource ConsoleGridCellStyle}">
+                                        <DataGrid.Resources>
+                                            <Style x:Key="AuditLogSeverityBadge" TargetType="ContentControl" BasedOn="{StaticResource StatusBadge}">
                                                 <Setter Property="Tag" Value="Online"/>
-                                                <Setter Property="Content" Value="SIGNED"/>
-                                            </DataTrigger>
-                                        </Style.Triggers>
-                                    </Style>
-                                </DataGrid.Resources>
-                                <DataGrid.Columns>
-                                    <DataGridTextColumn controls:TimeColumn.Header="เวลา" Binding="{Binding Timestamp, Converter={StaticResource DisplayTimeConverter}}" SortMemberPath="Timestamp" Width="150"/>
-                                    <DataGridTextColumn Header="เครื่อง" Binding="{Binding MachineName}" Width="130"/>
-                                    <DataGridTextColumn Header="ไฟล์โปรแกรม" Binding="{Binding ProcessPath}" Width="220"/>
-                                    <DataGridTextColumn Header="ผู้เผยแพร่" Binding="{Binding DetectedPublisher}" Width="160"/>
-                                    <DataGridTemplateColumn Header="มีลายเซ็น" Width="100" SortMemberPath="WasSignedMatch">
-                                        <DataGridTemplateColumn.CellTemplate>
-                                            <DataTemplate>
-                                                <ContentControl Style="{StaticResource LogSignedBadge}"/>
-                                            </DataTemplate>
-                                        </DataGridTemplateColumn.CellTemplate>
-                                    </DataGridTemplateColumn>
-                                    <DataGridTextColumn Header="กฎที่ตรง" Binding="{Binding MatchedRuleName}" Width="120"/>
-                                    <DataGridTextColumn Header="สิ่งที่ทำ" Binding="{Binding ActionTaken}" Width="150"/>
-                                </DataGrid.Columns>
-                            </DataGrid>
-                            </Border>
-                            <ContentControl x:Name="LogsEmptyText"
-                                            Style="{StaticResource EmptyState}" controls:Nav.Icon="file-text"
-                                            Content="ยังไม่มี log" Tag="log จะถูกบันทึกเมื่อ Agent ตรวจพบหรือปิดโปรแกรมตามกฎ"
-                                            Visibility="Collapsed"/>
+                                                <Setter Property="Content" Value="{Binding Severity}"/>
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding Severity}" Value="Warning">
+                                                        <Setter Property="Tag" Value="Warning"/>
+                                                    </DataTrigger>
+                                                    <DataTrigger Binding="{Binding Severity}" Value="Error">
+                                                        <Setter Property="Tag" Value="Danger"/>
+                                                    </DataTrigger>
+                                                    <DataTrigger Binding="{Binding Severity}" Value="Critical">
+                                                        <Setter Property="Tag" Value="Danger"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </DataGrid.Resources>
+                                        <DataGrid.Columns>
+                                            <DataGridTextColumn controls:TimeColumn.Header="เวลา" Binding="{Binding Timestamp, Converter={StaticResource DisplayTimeConverter}}" SortMemberPath="Timestamp" Width="150"/>
+                                            <DataGridTextColumn Header="หมวด" Binding="{Binding Category}" Width="130"/>
+                                            <DataGridTemplateColumn Header="ระดับ" Width="90" SortMemberPath="Severity">
+                                                <DataGridTemplateColumn.CellTemplate>
+                                                    <DataTemplate>
+                                                        <ContentControl Style="{StaticResource AuditLogSeverityBadge}"/>
+                                                    </DataTemplate>
+                                                </DataGridTemplateColumn.CellTemplate>
+                                            </DataGridTemplateColumn>
+                                            <DataGridTextColumn Header="เหตุการณ์" Binding="{Binding EventType}" Width="150"/>
+                                            <DataGridTextColumn Header="รายละเอียด" Binding="{Binding Description}" Width="*"/>
+                                            <DataGridTextColumn Header="เครื่อง" Binding="{Binding TargetMachineName}" Width="130"/>
+                                            <DataGridTextColumn Header="ผู้ใช้ที่ทำ" Binding="{Binding ActorUsername}" Width="110"/>
+                                        </DataGrid.Columns>
+                                    </DataGrid>
+                                    </Border>
+                                    <ContentControl x:Name="AuditLogEmptyText"
+                                                    Style="{StaticResource EmptyState}" controls:Nav.Icon="clock"
+                                                    Content="ยังไม่มี activity log" Tag="ทุกการกระทำจากหน้า Console จะถูกบันทึกไว้ที่นี่"
+                                                    Visibility="Collapsed"/>
+                                </Grid>
+                            </Grid>
                         </Grid>
                     </Grid>
                 </TabItem>
 
-                <!-- ========== Audit Log tab ==========
-                     ตั้งชื่อ "AUDIT LOG" (ไม่ใช้ "Activity Logs" ซ้ำกับหัวข้อในแท็บ LOGS ข้างบน - แท็บนั้น
-                     คือ log การตรวจจับ process ที่ agent ส่งเข้ามา คนละเรื่องกับแท็บนี้ที่เป็น audit การกระทำ
-                     ของครู + agent connectivity + system warning/error)
-                     ไม่ผูกกับ auto-refresh ทุก tick แบบแท็บอื่น (ดู DashboardWindow.xaml.cs
-                     LoadActivityLogPageAsync) - โหลดเฉพาะตอนแท็บนี้ active เท่านั้น กัน volume สูงไม่ให้
-                     โหลดทั้งหมดฝั่ง client ทุก 10 วิ -->
-                <TabItem x:Name="AuditLogTabItem" Header="Audit Log" controls:Nav.Icon="clock" controls:Nav.Group="">
+                <!-- ========== Attendance tab (ประวัติการใช้เครื่อง, WP3-5, 2026-10-31) ==========
+                     ตรงตาม wireframe docs/wireframes/nf-attendance.dc.html - ใช้ดูประกอบเท่านั้น ไม่ใช่
+                     ใบเช็คชื่อทางการ (ดู docs/roadmap.md "ไม่มีตาราง/คาบเรียน") โหลดเฉพาะตอนแท็บนี้ active
+                     เท่านั้น (pattern เดียวกับ Audit Log ข้างบน) -->
+                <TabItem x:Name="AttendanceTabItem" Header="ประวัติการใช้เครื่อง" controls:Nav.Icon="activity" controls:Nav.Group="">
                     <Grid Margin="0,12,0,0">
                         <Grid.RowDefinitions>
-                            <RowDefinition Height="Auto"/>
                             <RowDefinition Height="Auto"/>
                             <RowDefinition Height="Auto"/>
                             <RowDefinition Height="*"/>
                         </Grid.RowDefinitions>
 
-                        <TextBlock Grid.Row="0" Text="Audit Log" Style="{StaticResource Heading2}"/>
-
-                        <Grid Grid.Row="1" Margin="0,10,0,0">
+                        <Grid Grid.Row="0">
                             <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="Auto"/>
-                                <ColumnDefinition Width="8"/>
-                                <ColumnDefinition Width="Auto"/>
-                                <ColumnDefinition Width="8"/>
+                                <ColumnDefinition Width="*"/>
                                 <ColumnDefinition Width="Auto"/>
                             </Grid.ColumnDefinitions>
-                            <ComboBox Grid.Column="0" x:Name="AuditLogCategoryFilter" Width="160" Height="35" VerticalAlignment="Center"
-                                    SelectedIndex="0" SelectionChanged="AuditLogFilter_Changed">
-                                <ComboBoxItem Content="ทุกหมวด"/>
-                                <ComboBoxItem Content="AdminAction"/>
-                                <ComboBoxItem Content="AgentConnectivity"/>
-                                <ComboBoxItem Content="SystemEvent"/>
-                            </ComboBox>
-                            <ComboBox Grid.Column="2" x:Name="AuditLogSeverityFilter" Width="160" Height="35" VerticalAlignment="Center"
-                                    SelectedIndex="0" SelectionChanged="AuditLogFilter_Changed">
-                                <ComboBoxItem Content="ทุกระดับ"/>
-                                <ComboBoxItem Content="Info ขึ้นไป"/>
-                                <ComboBoxItem Content="Warning ขึ้นไป"/>
-                                <ComboBoxItem Content="Error ขึ้นไป"/>
-                            </ComboBox>
-                            <TextBox Grid.Column="4" x:Name="AuditLogClientGuidFilter" Width="260" Height="35" VerticalAlignment="Center"
-                                    Style="{StaticResource SearchTextBox}"
-                                    Tag="Client GUID (เว้นว่าง = ทุกเครื่อง)" TextChanged="AuditLogClientGuidFilter_TextChanged"/>
+                            <StackPanel Grid.Column="0">
+                                <TextBlock Text="ประวัติการใช้เครื่อง" Style="{StaticResource Heading2}"/>
+                                <TextBlock Text="ใครใช้เครื่องไหน เมื่อไร นานเท่าไร - ไว้ดูประกอบ ไม่ใช่ใบเช็คชื่อ"
+                                           Style="{StaticResource Caption}" Margin="0,2,0,0"/>
+                            </StackPanel>
                         </Grid>
+
+                        <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,10,0,0" VerticalAlignment="Center">
+                            <ComboBox x:Name="AttendanceRoomFilterCombo" Width="180" Height="34" Margin="0,0,8,0"
+                                     VerticalAlignment="Center" DisplayMemberPath="Label"
+                                     SelectionChanged="AttendanceFilter_Changed"/>
+                            <ComboBox x:Name="AttendanceClassFilterCombo" Width="160" Height="34" Margin="0,0,8,0"
+                                     VerticalAlignment="Center" SelectionChanged="AttendanceFilter_Changed"/>
+                            <TextBox x:Name="AttendanceSearchBox" Width="200" Height="34"
+                                    Style="{StaticResource SearchTextBox}" VerticalAlignment="Center" Margin="0,0,8,0"
+                                    Tag="ค้นหานักเรียน..." TextChanged="AttendanceSearchBox_TextChanged"/>
+                            <Button Content="รีเฟรช" Style="{StaticResource ButtonSecondary}"
+                                    Padding="12,6" FontSize="12" Click="AttendanceRefreshButton_Click"/>
+                        </StackPanel>
 
                         <Grid Grid.Row="2" Margin="0,10,0,0">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="Auto"/>
-                                <ColumnDefinition Width="8"/>
-                                <ColumnDefinition Width="Auto"/>
-                                <ColumnDefinition Width="12"/>
-                                <ColumnDefinition Width="Auto"/>
-                            </Grid.ColumnDefinitions>
-                            <Button Grid.Column="0" Style="{StaticResource ButtonSecondary}"
-                                    Padding="10,5" FontSize="11" Click="AuditLogPrevButton_Click">
-                                <StackPanel Orientation="Horizontal">
-                                    <controls:IconPresenter Icon="chevron-left" IconSize="14" VerticalAlignment="Center"/>
-                                    <TextBlock Text="ก่อนหน้า" Margin="6,0,0,0" VerticalAlignment="Center"/>
-                                </StackPanel>
-                            </Button>
-                            <Button Grid.Column="2" Style="{StaticResource ButtonSecondary}"
-                                    Padding="10,5" FontSize="11" Click="AuditLogNextButton_Click">
-                                <StackPanel Orientation="Horizontal">
-                                    <TextBlock Text="ถัดไป" Margin="0,0,6,0" VerticalAlignment="Center"/>
-                                    <controls:IconPresenter Icon="chevron-right" IconSize="14" VerticalAlignment="Center"/>
-                                </StackPanel>
-                            </Button>
-                            <TextBlock Grid.Column="4" x:Name="AuditLogPageInfoText" VerticalAlignment="Center"
-                                    Foreground="{DynamicResource Brush.Text.Secondary}"/>
-                        </Grid>
-
-                        <Grid Grid.Row="3" Margin="0,10,0,0">
                             <Border CornerRadius="12" ClipToBounds="True"
                                     Background="{DynamicResource Brush.Background.Card}"
                                     BorderBrush="{DynamicResource Brush.Border.Default}" BorderThickness="1">
-                            <DataGrid x:Name="AuditLogGrid" AutoGenerateColumns="False" IsReadOnly="True"
-                                    Background="Transparent"
-                                    BorderThickness="0"
-                                    RowBackground="{DynamicResource Brush.Background.Card}"
-                                    AlternatingRowBackground="{DynamicResource Brush.Background.Card}"
-                                    HorizontalGridLinesBrush="{DynamicResource Brush.Border.Default}"
-                                    VerticalGridLinesBrush="{DynamicResource Brush.Border.Default}"
-                                    RowHeight="40" CanUserAddRows="False"
-                                    ColumnHeaderStyle="{StaticResource ConsoleGridColumnHeaderStyle}"
-                                    RowStyle="{StaticResource ConsoleGridRowStyle}"
-                                    CellStyle="{StaticResource ConsoleGridCellStyle}">
-                                <DataGrid.Resources>
-                                    <Style x:Key="AuditLogSeverityBadge" TargetType="ContentControl" BasedOn="{StaticResource StatusBadge}">
-                                        <Setter Property="Tag" Value="Online"/>
-                                        <Setter Property="Content" Value="{Binding Severity}"/>
-                                        <Style.Triggers>
-                                            <DataTrigger Binding="{Binding Severity}" Value="Warning">
-                                                <Setter Property="Tag" Value="Warning"/>
-                                            </DataTrigger>
-                                            <DataTrigger Binding="{Binding Severity}" Value="Error">
-                                                <Setter Property="Tag" Value="Danger"/>
-                                            </DataTrigger>
-                                            <DataTrigger Binding="{Binding Severity}" Value="Critical">
-                                                <Setter Property="Tag" Value="Danger"/>
-                                            </DataTrigger>
-                                        </Style.Triggers>
-                                    </Style>
-                                </DataGrid.Resources>
-                                <DataGrid.Columns>
-                                    <DataGridTextColumn controls:TimeColumn.Header="เวลา" Binding="{Binding Timestamp, Converter={StaticResource DisplayTimeConverter}}" SortMemberPath="Timestamp" Width="150"/>
-                                    <DataGridTextColumn Header="หมวด" Binding="{Binding Category}" Width="130"/>
-                                    <DataGridTemplateColumn Header="ระดับ" Width="90" SortMemberPath="Severity">
-                                        <DataGridTemplateColumn.CellTemplate>
-                                            <DataTemplate>
-                                                <ContentControl Style="{StaticResource AuditLogSeverityBadge}"/>
-                                            </DataTemplate>
-                                        </DataGridTemplateColumn.CellTemplate>
-                                    </DataGridTemplateColumn>
-                                    <DataGridTextColumn Header="เหตุการณ์" Binding="{Binding EventType}" Width="150"/>
-                                    <DataGridTextColumn Header="รายละเอียด" Binding="{Binding Description}" Width="*"/>
-                                    <DataGridTextColumn Header="เครื่อง" Binding="{Binding TargetMachineName}" Width="130"/>
-                                    <DataGridTextColumn Header="ผู้ใช้ที่ทำ" Binding="{Binding ActorUsername}" Width="110"/>
-                                </DataGrid.Columns>
-                            </DataGrid>
+                                <DataGrid x:Name="AttendanceGrid" AutoGenerateColumns="False" IsReadOnly="True"
+                                        Background="Transparent"
+                                        BorderThickness="0"
+                                        RowBackground="{DynamicResource Brush.Background.Card}"
+                                        AlternatingRowBackground="{DynamicResource Brush.Background.Card}"
+                                        HorizontalGridLinesBrush="{DynamicResource Brush.Border.Default}"
+                                        VerticalGridLinesBrush="{DynamicResource Brush.Border.Default}"
+                                        RowHeight="40" CanUserAddRows="False"
+                                        ColumnHeaderStyle="{StaticResource ConsoleGridColumnHeaderStyle}"
+                                        RowStyle="{StaticResource ConsoleGridRowStyle}"
+                                        CellStyle="{StaticResource ConsoleGridCellStyle}">
+                                    <DataGrid.Columns>
+                                        <DataGridTextColumn Header="นักเรียน" Binding="{Binding Student.FullName}" Width="170"/>
+                                        <DataGridTextColumn Header="ห้องเรียน" Binding="{Binding Student.ClassName}" Width="100"/>
+                                        <DataGridTextColumn Header="เครื่อง" Binding="{Binding MachineName}" Width="110"/>
+                                        <DataGridTextColumn controls:TimeColumn.Header="เข้า" Binding="{Binding StartedAt, Converter={StaticResource DisplayTimeConverter}}" SortMemberPath="StartedAt" Width="150"/>
+                                        <DataGridTextColumn controls:TimeColumn.Header="ออก" Binding="{Binding EndedAt, Converter={StaticResource DisplayTimeConverter}}" SortMemberPath="EndedAt" Width="150"/>
+                                        <DataGridTextColumn Header="นาน" Binding="{Binding DurationText}" Width="100"/>
+                                        <DataGridTextColumn Header="ออกโดย" Binding="{Binding EndReasonText}" Width="150"/>
+                                    </DataGrid.Columns>
+                                </DataGrid>
                             </Border>
-                            <ContentControl x:Name="AuditLogEmptyText"
-                                            Style="{StaticResource EmptyState}" controls:Nav.Icon="clock"
-                                            Content="ยังไม่มี activity log" Tag="ทุกการกระทำจากหน้า Console จะถูกบันทึกไว้ที่นี่"
+                            <ContentControl x:Name="AttendanceEmptyText"
+                                            Style="{StaticResource EmptyState}" controls:Nav.Icon="activity"
+                                            Content="ไม่มีประวัติการใช้เครื่องในช่วงที่เลือก" Tag="ลองล้างตัวกรองหรือเลือกช่วงเวลาอื่น"
                                             Visibility="Collapsed"/>
                         </Grid>
                     </Grid>

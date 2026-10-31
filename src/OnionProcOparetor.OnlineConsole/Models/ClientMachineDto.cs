@@ -24,4 +24,13 @@ public class ClientMachineDto
 
     public int? SeatRow { get; set; }
     public int? SeatCol { get; set; }
+
+    /// <summary>นักเรียนที่ login อยู่บนเครื่องนี้ตอนนี้ (WP3-5, 2026-10-31) - มาจาก GET /api/clients ตรงๆ
+    /// (Server เติมมาเฉพาะตอนมี StudentSession ที่ยังเปิดอยู่ของเครื่องนี้ - ดู ClientEndpoints.cs)</summary>
+    public int? CurrentStudentId { get; set; }
+    public string? CurrentStudentCode { get; set; }
+    public string? CurrentStudentName { get; set; }
+
+    public bool HasActiveStudent => CurrentStudentId is not null;
+    public string StudentDisplayText => HasActiveStudent ? $"{CurrentStudentName} · {CurrentStudentCode}" : "—";
 }

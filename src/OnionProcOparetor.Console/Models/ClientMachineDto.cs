@@ -26,6 +26,23 @@ public class ClientMachineDto
     public int? SeatCol { get; set; }
 
     /// <summary>
+    /// นักเรียนที่ login อยู่บนเครื่องนี้ตอนนี้ (WP3-5, 2026-10-31) - มาจาก GET /api/clients ตรงๆ (Server
+    /// เติมมาเฉพาะตอนมี StudentSession ที่ยังเปิดอยู่ของเครื่องนี้ - ดู ClientEndpoints.cs) ทั้งสาม field
+    /// เป็น null พร้อมกันเสมอถ้ายังไม่มีใคร login
+    /// </summary>
+    public int? CurrentStudentId { get; set; }
+    public string? CurrentStudentCode { get; set; }
+    public string? CurrentStudentName { get; set; }
+
+    /// <summary>true = มีนักเรียน login อยู่บนเครื่องนี้ตอนนี้ - ใช้ซ่อน/แสดงคอลัมน์และการ์ด "นักเรียนที่ใช้อยู่"</summary>
+    public bool HasActiveStudent => CurrentStudentId is not null;
+
+    /// <summary>ข้อความแสดงในคอลัมน์ "นักเรียน" ของตาราง Clients - "ชื่อ · รหัส" หรือ "—" ถ้าไม่มีใคร login</summary>
+    public string StudentDisplayText => HasActiveStudent
+        ? $"{CurrentStudentName} · {CurrentStudentCode}"
+        : "—";
+
+    /// <summary>
     /// คำนวณฝั่ง Server (ClientMachine.IsOnline) ส่งมาเป็น field นี้ตรงๆ ทั้งจาก GET /api/clients และ
     /// SignalR ClientStatusChanged - ไม่คำนวณเองฝั่ง Console อีกต่อไป (เดิมมี IsOffline คำนวณจาก
     /// LastSeenAt ที่นี่แยกกับ IsMissingUnexpectedly ที่คำนวณฝั่ง Server คนละเกณฑ์กัน สับสน และเสี่ยง

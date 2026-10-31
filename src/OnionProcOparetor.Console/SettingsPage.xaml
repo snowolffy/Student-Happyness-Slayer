@@ -7,95 +7,246 @@
 
          ต่างจากหน้าต่างเดิมตรงที่ไม่มี "ยกเลิก" ที่ปิดหน้าต่าง - มีแค่ "บันทึก" กับ "คืนค่าที่บันทึกไว้"
          (ล้างสิ่งที่พิมพ์ค้างไว้) และทุกครั้งที่สลับกลับมาหน้านี้ ช่องต่าง ๆ จะถูกเติมจากค่าที่บันทึกไว้จริง
-         ใหม่เสมอ ของที่พิมพ์ค้างไว้แต่ไม่ได้กดบันทึกจะไม่หลอกว่าบันทึกแล้ว -->
+         ใหม่เสมอ ของที่พิมพ์ค้างไว้แต่ไม่ได้กดบันทึกจะไม่หลอกว่าบันทึกแล้ว
+
+         WP3-5 (2026-10-31): แยกเป็น 2 คอลัมน์ตาม wireframe docs/wireframes/con-settings.dc.html -
+         "Console เครื่องนี้" (ของเดิมทั้งหมด ไม่แก้พฤติกรรม) ซ้าย / "ทั้งระบบ (Admin)" ขวา (ใหม่ - Sign-in,
+         Staff session, รหัสฉุกเฉิน, ความปลอดภัย HTTPS, สำรองข้อมูล) คอลัมน์ขวาเรียก API ของ WP3-1
+         (SignInSettingsEndpoints.cs, SecurityEndpoints.cs) ที่ Admin เท่านั้นเข้าถึงได้ - ซ่อนทั้งคอลัมน์
+         ให้ Teacher เห็นแค่ข้อความอธิบาย กัน 403 ที่งงๆ (Server เป็นคนกันจริงอยู่แล้ว นี่แค่ UX) -->
     <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
-        <StackPanel MaxWidth="640" HorizontalAlignment="Left" Margin="0,0,8,0">
+        <StackPanel Margin="0,0,8,0">
             <TextBlock Text="ตั้งค่า" Style="{StaticResource Heading2}" Margin="0,0,0,16"/>
 
-            <Border Style="{StaticResource Card}" Margin="0,0,0,12">
-                <StackPanel>
-                    <TextBlock Text="การแสดงเวลา" Style="{StaticResource Label}" Margin="0,0,0,8"/>
-                    <RadioButton x:Name="ThaiTimeRadio" GroupName="TimeMode" Margin="0,0,0,6"
-                                 Content="เวลาไทย (UTC+7)"/>
-                    <RadioButton x:Name="UtcTimeRadio" GroupName="TimeMode" Margin="0,0,0,8"
-                                 Content="UTC (แบบเดิม)"/>
-                    <TextBlock Text="ใช้กับเวลาในทุกตาราง (เห็นล่าสุด, Logs, Audit Log, ผู้ใช้) - Server เก็บเวลาเป็น UTC เสมอ ตัวเลือกนี้เปลี่ยนแค่การแสดงผลบนเครื่องนี้"
-                               Style="{StaticResource Caption}" TextWrapping="Wrap"/>
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" MaxWidth="640"/>
+                    <ColumnDefinition Width="24"/>
+                    <ColumnDefinition Width="*" MaxWidth="640"/>
+                </Grid.ColumnDefinitions>
+
+                <!-- ==================== คอลัมน์ซ้าย: Console เครื่องนี้ (ของเดิมทั้งหมด) ==================== -->
+                <StackPanel Grid.Column="0">
+                    <TextBlock Text="Console เครื่องนี้" Style="{StaticResource Label}" Margin="0,0,0,10"/>
+
+                    <Border Style="{StaticResource Card}" Margin="0,0,0,12">
+                        <StackPanel>
+                            <TextBlock Text="การแสดงเวลา" Style="{StaticResource Label}" Margin="0,0,0,8"/>
+                            <RadioButton x:Name="ThaiTimeRadio" GroupName="TimeMode" Margin="0,0,0,6"
+                                         Content="เวลาไทย (UTC+7)"/>
+                            <RadioButton x:Name="UtcTimeRadio" GroupName="TimeMode" Margin="0,0,0,8"
+                                         Content="UTC (แบบเดิม)"/>
+                            <TextBlock Text="ใช้กับเวลาในทุกตาราง (เห็นล่าสุด, Logs, Audit Log, ผู้ใช้) - Server เก็บเวลาเป็น UTC เสมอ ตัวเลือกนี้เปลี่ยนแค่การแสดงผลบนเครื่องนี้"
+                                       Style="{StaticResource Caption}" TextWrapping="Wrap"/>
+                        </StackPanel>
+                    </Border>
+
+                    <Border Style="{StaticResource Card}" Margin="0,0,0,12">
+                        <StackPanel>
+                            <TextBlock Text="จำนวนหน้าจอที่เปิดดูพร้อมกันได้สูงสุด" Style="{StaticResource Label}" Margin="0,0,0,6"/>
+                            <TextBox x:Name="VncLimitBox" Width="100" HorizontalAlignment="Left" Style="{StaticResource RoundedTextBox}" Margin="0,0,0,8"/>
+                            <TextBlock Text="จำนวนเครื่องสูงสุดที่เปิดดูหน้าจอ (Screen View) พร้อมกันได้"
+                                       Style="{StaticResource Caption}" TextWrapping="Wrap"/>
+                        </StackPanel>
+                    </Border>
+
+                    <Border Style="{StaticResource Card}" Margin="0,0,0,12">
+                        <StackPanel>
+                            <TextBlock Text="รีเฟรชข้อมูลอัตโนมัติทุกกี่วินาที" Style="{StaticResource Label}" Margin="0,0,0,6"/>
+                            <TextBox x:Name="PollIntervalBox" Width="100" HorizontalAlignment="Left" Style="{StaticResource RoundedTextBox}" Margin="0,0,0,8"/>
+                            <TextBlock Text="ความถี่โหลดข้อมูล Clients/Rules/Logs/Users ใหม่อัตโนมัติของ Dashboard"
+                                       Style="{StaticResource Caption}" TextWrapping="Wrap"/>
+                        </StackPanel>
+                    </Border>
+
+                    <Border Style="{StaticResource Card}" Margin="0,0,0,12">
+                        <StackPanel>
+                            <TextBlock Text="Server host / port เริ่มต้น" Style="{StaticResource Label}" Margin="0,0,0,6"/>
+                            <Grid Margin="0,0,0,8">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="12"/>
+                                    <ColumnDefinition Width="90"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBox Grid.Column="0" x:Name="ServerHostBox" Style="{StaticResource RoundedTextBox}"/>
+                                <TextBox Grid.Column="2" x:Name="ServerPortBox" Style="{StaticResource RoundedTextBox}"/>
+                            </Grid>
+                            <TextBlock Text="ใช้เป็นค่าเริ่มต้นในหน้า Connect ครั้งถัดไป"
+                                       Style="{StaticResource Caption}" TextWrapping="Wrap"/>
+                        </StackPanel>
+                    </Border>
+
+                    <Border Style="{StaticResource Card}" Margin="0,0,0,12">
+                        <StackPanel>
+                            <CheckBox x:Name="KeepLiveViewOpenCheckBox"
+                                      Content="คงการเชื่อมต่อไว้เมื่อออกจากแท็บ LIVE VIEW" Margin="0,0,0,8"/>
+                            <TextBlock Text="ค่า default คือปิดทั้งหมดเมื่อออกจากแท็บ"
+                                       Style="{StaticResource Caption}" TextWrapping="Wrap" Margin="0,0,0,14"/>
+
+                            <CheckBox x:Name="ShowTailscaleActionsCheckBox"
+                                      Content="แสดงปุ่ม Tailscale ในแผงคำสั่ง" Margin="0,0,0,8"/>
+                            <TextBlock Text="TAILSCALE LOCK / UNLOCK / STATUS / LOGIN เป็นงานดูแลเครือข่าย ไม่ใช่งานคุมห้องเรียน ค่า default คือซ่อนไว้เพื่อให้แผงคำสั่งเหลือเฉพาะปุ่มที่ใช้จริงทุกวัน"
+                                       Style="{StaticResource Caption}" TextWrapping="Wrap"/>
+                        </StackPanel>
+                    </Border>
+
+                    <StackPanel Orientation="Horizontal" Margin="0,4,0,20">
+                        <Button Content="บันทึก" Style="{StaticResource ButtonPrimary}" Click="SaveButton_Click"/>
+                        <Button Content="คืนค่าที่บันทึกไว้" Style="{StaticResource ButtonSecondary}" Margin="8,0,0,0"
+                                ToolTip="ล้างค่าที่แก้ไว้แต่ยังไม่ได้บันทึก" Click="ResetButton_Click"/>
+                    </StackPanel>
+
+                    <Border Style="{StaticResource Card}" Margin="0,0,0,12">
+                        <StackPanel>
+                            <TextBlock Text="บัญชีของฉัน" Style="{StaticResource Label}" Margin="0,0,0,8"/>
+                            <Button x:Name="ChangeMyPasswordButton" Content="เปลี่ยนรหัสผ่านของฉัน..." HorizontalAlignment="Left"
+                                    Style="{StaticResource ButtonSecondary}" Padding="10,9" FontSize="12" Margin="0,0,0,8" Click="ChangeMyPasswordButton_Click"/>
+                            <TextBlock Text="เปลี่ยน password ของ account ที่ login อยู่ตอนนี้เท่านั้น"
+                                       Style="{StaticResource Caption}" TextWrapping="Wrap"/>
+                        </StackPanel>
+                    </Border>
+
+                    <Border Style="{StaticResource Card}" Margin="0,0,0,12">
+                        <StackPanel>
+                            <TextBlock Text="เกี่ยวกับโปรแกรม" Style="{StaticResource Label}" Margin="0,0,0,8"/>
+                            <Button Content="ดูเวอร์ชันและข้อมูลโปรแกรม..." HorizontalAlignment="Left"
+                                    Style="{StaticResource ButtonSecondary}" Padding="10,9" FontSize="12" Click="AboutButton_Click"/>
+                        </StackPanel>
+                    </Border>
                 </StackPanel>
-            </Border>
 
-            <Border Style="{StaticResource Card}" Margin="0,0,0,12">
-                <StackPanel>
-                    <TextBlock Text="จำนวนหน้าจอที่เปิดดูพร้อมกันได้สูงสุด" Style="{StaticResource Label}" Margin="0,0,0,6"/>
-                    <TextBox x:Name="VncLimitBox" Width="100" HorizontalAlignment="Left" Style="{StaticResource RoundedTextBox}" Margin="0,0,0,8"/>
-                    <TextBlock Text="จำนวนเครื่องสูงสุดที่เปิดดูหน้าจอ (Screen View) พร้อมกันได้"
-                               Style="{StaticResource Caption}" TextWrapping="Wrap"/>
+                <!-- ==================== คอลัมน์ขวา: ทั้งระบบ (Admin) - WP3-5 ==================== -->
+                <StackPanel Grid.Column="2">
+                    <TextBlock Text="ทั้งระบบ (Admin)" Style="{StaticResource Label}" Margin="0,0,0,10"/>
+
+                    <!-- Teacher เห็นแค่ข้อความนี้ - ตารางสิทธิ์ใน roadmap บอกชัดว่า Teacher แก้ตั้งค่าระบบไม่ได้
+                         (endpoint ของ WP3-1 ทุกตัวในคอลัมน์นี้ตรวจ RequireAdmin อยู่แล้ว นี่แค่กัน 403 ที่งงๆ) -->
+                    <Border x:Name="AdminOnlyNoticeCard" Style="{StaticResource Card}" Margin="0,0,0,12" Visibility="Collapsed">
+                        <TextBlock Text="เฉพาะบัญชี Admin จึงตั้งค่าส่วนนี้ได้"
+                                   Style="{StaticResource Body}" TextWrapping="Wrap"/>
+                    </Border>
+
+                    <StackPanel x:Name="AdminSettingsPanel">
+                        <!-- ==== Sign-in นักเรียน (nf-signin-settings) ==== -->
+                        <Border Style="{StaticResource Card}" Margin="0,0,0,12">
+                            <StackPanel>
+                                <TextBlock Text="Sign-in นักเรียน" Style="{StaticResource Label}" Margin="0,0,0,8"/>
+
+                                <TextBlock Text="บังคับล็อกอินก่อนใช้เครื่อง" Style="{StaticResource Caption}" Margin="0,0,0,4"/>
+                                <ComboBox x:Name="RequireLoginModeCombo" HorizontalAlignment="Left" Width="220" Margin="0,0,0,10">
+                                    <ComboBoxItem Content="ปิด - ใช้เครื่องได้เลยแบบเดิม"/>
+                                    <ComboBoxItem Content="เปิด - ทุกห้อง"/>
+                                    <ComboBoxItem Content="เปิด - เลือกห้อง"/>
+                                </ComboBox>
+
+                                <CheckBox x:Name="GuestModeCheckBox" Content="เปิดโหมด guest (เข้าใช้แบบไม่ระบุชื่อได้)" Margin="0,0,0,8"/>
+                                <CheckBox x:Name="EmergencyCodeEnabledCheckBox" Content="ใช้รหัสฉุกเฉินได้เมื่อ Server ล่ม" Margin="0,0,0,10"/>
+
+                                <Border Height="1" Margin="0,0,0,10" Background="{DynamicResource Brush.Border.Default}"/>
+
+                                <TextBlock Text="ความยาวรหัสผ่านขั้นต่ำ" Style="{StaticResource Caption}" Margin="0,0,0,4"/>
+                                <TextBox x:Name="PasswordMinLengthBox" Width="70" HorizontalAlignment="Left"
+                                         Style="{StaticResource RoundedTextBox}" Margin="0,0,0,8"/>
+                                <CheckBox x:Name="ForceChangePasswordCheckBox" Content="บังคับเปลี่ยนรหัสตอนล็อกอินครั้งแรก" Margin="0,0,0,8"/>
+                                <TextBlock Text="ล็อกบัญชีเมื่อกรอกผิดกี่ครั้ง" Style="{StaticResource Caption}" Margin="0,0,0,4"/>
+                                <TextBox x:Name="LockoutFailedAttemptsBox" Width="70" HorizontalAlignment="Left"
+                                         Style="{StaticResource RoundedTextBox}" Margin="0,0,0,10"/>
+
+                                <Border Height="1" Margin="0,0,0,10" Background="{DynamicResource Brush.Border.Default}"/>
+
+                                <TextBlock Text="บัญชีเดียวล็อกอินหลายเครื่องพร้อมกัน" Style="{StaticResource Caption}" Margin="0,0,0,4"/>
+                                <ComboBox x:Name="MultiDeviceModeCombo" HorizontalAlignment="Left" Width="260" Margin="0,0,0,10">
+                                    <ComboBoxItem Content="ห้าม - เตะเครื่องเก่าออก"/>
+                                    <ComboBoxItem Content="ห้าม - ไม่ให้เข้าเครื่องใหม่"/>
+                                    <ComboBoxItem Content="อนุญาต"/>
+                                </ComboBox>
+
+                                <TextBlock Text="ออกจากระบบเองเมื่อไม่ได้ใช้งาน (นาที)" Style="{StaticResource Caption}" Margin="0,0,0,4"/>
+                                <TextBox x:Name="AutoLogoutIdleMinutesBox" Width="70" HorizontalAlignment="Left"
+                                         Style="{StaticResource RoundedTextBox}" Margin="0,0,0,8"/>
+                                <CheckBox x:Name="LogoutOnShutdownCheckBox" Content="ออกจากระบบเมื่อปิด/รีสตาร์ทเครื่อง" Margin="0,0,0,10"/>
+
+                                <Border Height="1" Margin="0,0,0,10" Background="{DynamicResource Brush.Border.Default}"/>
+
+                                <CheckBox x:Name="TeacherCanResetPasswordCheckBox" Content="Teacher รีเซ็ตรหัสนักเรียนได้" Margin="0,0,0,8"/>
+                                <CheckBox x:Name="ShowStudentNameCheckBox" Content="แสดงชื่อนักเรียนใน Console" Margin="0,0,0,10"/>
+
+                                <TextBlock Text="ข้อความบนจอล็อกอิน" Style="{StaticResource Caption}" Margin="0,0,0,4"/>
+                                <TextBox x:Name="LoginScreenMessageBox" Style="{StaticResource RoundedTextBox}" Margin="0,0,0,8"/>
+                                <TextBlock Text="ข้อความเริ่มต้นตอนครูล็อกจอ (ครูพิมพ์ทับเฉพาะครั้งได้ตอนกดล็อก)" Style="{StaticResource Caption}" Margin="0,0,0,4"/>
+                                <TextBox x:Name="LockScreenDefaultMessageBox" Style="{StaticResource RoundedTextBox}" Margin="0,0,0,10"/>
+
+                                <StackPanel Orientation="Horizontal">
+                                    <Button Content="บันทึก Sign-in" Style="{StaticResource ButtonPrimary}" Click="SaveSignInSettingsButton_Click"/>
+                                    <Button Content="โหลดใหม่" Style="{StaticResource ButtonSecondary}" Margin="8,0,0,0" Click="ReloadSignInSettingsButton_Click"/>
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- ==== Staff session - ไม่มี API ตั้งค่าแยกในรอบนี้ (ดู StaffSessionEndpoints.cs:
+                             "ยังไม่ทำ UI/behavior เต็มของ Staff session ในรอบนี้") แสดงค่า default ที่โค้ด
+                             hardcode ไว้แบบอ่านอย่างเดียว ไม่มีปุ่มบันทึก ==== -->
+                        <Border Style="{StaticResource Card}" Margin="0,0,0,12">
+                            <StackPanel>
+                                <TextBlock Text="Staff session" Style="{StaticResource Label}" Margin="0,0,0,8"/>
+                                <TextBlock Text="เวลาเริ่มต้น 30 นาที · สูงสุด 120 นาที (ค่า default ที่ตั้งไว้ในโค้ด Server - ยังไม่มีหน้าตั้งค่าแยกในรอบนี้)"
+                                           Style="{StaticResource Body}" TextWrapping="Wrap" Margin="0,0,0,4"/>
+                                <TextBlock Text="ตั้งค่า &quot;ใครเปิดได้ / อนุญาตต่อเวลา / แจ้ง Console&quot; ต้องมี API ใหม่จาก Server ก่อน"
+                                           Style="{StaticResource Caption}" TextWrapping="Wrap"/>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- ==== รหัสฉุกเฉิน - placeholder ตั้งใจเว้นว่างตามที่ orchestrator สั่ง (เป็นงานของ WP3-4) ==== -->
+                        <Border Style="{StaticResource Card}" Margin="0,0,0,12">
+                            <StackPanel>
+                                <TextBlock Text="รหัสฉุกเฉิน" Style="{StaticResource Label}" Margin="0,0,0,8"/>
+                                <TextBlock Text="ยังไม่เปิดใช้งาน - เป็นงานของ WP3-4 (TOTP + QR + Apps Script)"
+                                           Style="{StaticResource Caption}" TextWrapping="Wrap"/>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- ==== ความปลอดภัย (HTTPS) - thumbprint จาก GET /security/certificate/thumbprint เท่านั้น
+                             ไม่มีปุ่มกู้คืน/สร้างใหม่ (ไม่มี endpoint ใน API ที่มี) ==== -->
+                        <Border Style="{StaticResource Card}" Margin="0,0,0,12">
+                            <StackPanel>
+                                <TextBlock Text="ความปลอดภัย (HTTPS)" Style="{StaticResource Label}" Margin="0,0,0,8"/>
+                                <TextBlock Text="Thumbprint ของใบรับรอง Server" Style="{StaticResource Caption}" Margin="0,0,0,4"/>
+                                <TextBlock x:Name="CertificateThumbprintText" Text="กำลังโหลด..." Style="{StaticResource Body}"
+                                           TextWrapping="Wrap" FontFamily="Consolas" Margin="0,0,0,10"/>
+                                <Button Content="ส่งออก .cer..." Style="{StaticResource ButtonSecondary}"
+                                        HorizontalAlignment="Left" Click="ExportCertificateButton_Click"/>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- ==== สำรองข้อมูล - ไม่มีปุ่มกู้คืน (restore) เพราะไม่มี endpoint ==== -->
+                        <Border Style="{StaticResource Card}" Margin="0,0,0,12">
+                            <StackPanel>
+                                <TextBlock Text="สำรองข้อมูล" Style="{StaticResource Label}" Margin="0,0,0,8"/>
+
+                                <TextBlock Text="สำรองอัตโนมัติ" Style="{StaticResource Caption}" Margin="0,0,0,4"/>
+                                <ComboBox x:Name="BackupFrequencyCombo" HorizontalAlignment="Left" Width="180" Margin="0,0,0,10">
+                                    <ComboBoxItem Content="ทุกวัน 18:00"/>
+                                    <ComboBoxItem Content="ทุกสัปดาห์"/>
+                                </ComboBox>
+
+                                <TextBlock Text="เก็บย้อนหลังกี่ชุด" Style="{StaticResource Caption}" Margin="0,0,0,4"/>
+                                <TextBox x:Name="BackupRetentionCountBox" Width="70" HorizontalAlignment="Left"
+                                         Style="{StaticResource RoundedTextBox}" Margin="0,0,0,10"/>
+
+                                <TextBlock Text="ที่เก็บ (ว่าง = ค่า default ของ Server)" Style="{StaticResource Caption}" Margin="0,0,0,4"/>
+                                <TextBox x:Name="BackupStoragePathBox" Style="{StaticResource RoundedTextBox}" Margin="0,0,0,10"/>
+
+                                <TextBlock x:Name="BackupLastRunText" Style="{StaticResource Caption}" TextWrapping="Wrap" Margin="0,0,0,10"/>
+
+                                <StackPanel Orientation="Horizontal">
+                                    <Button Content="บันทึกตั้งค่า" Style="{StaticResource ButtonPrimary}" Click="SaveBackupSettingsButton_Click"/>
+                                    <Button Content="สำรองตอนนี้" Style="{StaticResource ButtonSecondary}" Margin="8,0,0,0" Click="BackupNowButton_Click"/>
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
                 </StackPanel>
-            </Border>
-
-            <Border Style="{StaticResource Card}" Margin="0,0,0,12">
-                <StackPanel>
-                    <TextBlock Text="รีเฟรชข้อมูลอัตโนมัติทุกกี่วินาที" Style="{StaticResource Label}" Margin="0,0,0,6"/>
-                    <TextBox x:Name="PollIntervalBox" Width="100" HorizontalAlignment="Left" Style="{StaticResource RoundedTextBox}" Margin="0,0,0,8"/>
-                    <TextBlock Text="ความถี่โหลดข้อมูล Clients/Rules/Logs/Users ใหม่อัตโนมัติของ Dashboard"
-                               Style="{StaticResource Caption}" TextWrapping="Wrap"/>
-                </StackPanel>
-            </Border>
-
-            <Border Style="{StaticResource Card}" Margin="0,0,0,12">
-                <StackPanel>
-                    <TextBlock Text="Server host / port เริ่มต้น" Style="{StaticResource Label}" Margin="0,0,0,6"/>
-                    <Grid Margin="0,0,0,8">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="12"/>
-                            <ColumnDefinition Width="90"/>
-                        </Grid.ColumnDefinitions>
-                        <TextBox Grid.Column="0" x:Name="ServerHostBox" Style="{StaticResource RoundedTextBox}"/>
-                        <TextBox Grid.Column="2" x:Name="ServerPortBox" Style="{StaticResource RoundedTextBox}"/>
-                    </Grid>
-                    <TextBlock Text="ใช้เป็นค่าเริ่มต้นในหน้า Connect ครั้งถัดไป"
-                               Style="{StaticResource Caption}" TextWrapping="Wrap"/>
-                </StackPanel>
-            </Border>
-
-            <Border Style="{StaticResource Card}" Margin="0,0,0,12">
-                <StackPanel>
-                    <CheckBox x:Name="KeepLiveViewOpenCheckBox"
-                              Content="คงการเชื่อมต่อไว้เมื่อออกจากแท็บ LIVE VIEW" Margin="0,0,0,8"/>
-                    <TextBlock Text="ค่า default คือปิดทั้งหมดเมื่อออกจากแท็บ"
-                               Style="{StaticResource Caption}" TextWrapping="Wrap" Margin="0,0,0,14"/>
-
-                    <CheckBox x:Name="ShowTailscaleActionsCheckBox"
-                              Content="แสดงปุ่ม Tailscale ในแผงคำสั่ง" Margin="0,0,0,8"/>
-                    <TextBlock Text="TAILSCALE LOCK / UNLOCK / STATUS / LOGIN เป็นงานดูแลเครือข่าย ไม่ใช่งานคุมห้องเรียน ค่า default คือซ่อนไว้เพื่อให้แผงคำสั่งเหลือเฉพาะปุ่มที่ใช้จริงทุกวัน"
-                               Style="{StaticResource Caption}" TextWrapping="Wrap"/>
-                </StackPanel>
-            </Border>
-
-            <StackPanel Orientation="Horizontal" Margin="0,4,0,20">
-                <Button Content="บันทึก" Style="{StaticResource ButtonPrimary}" Click="SaveButton_Click"/>
-                <Button Content="คืนค่าที่บันทึกไว้" Style="{StaticResource ButtonSecondary}" Margin="8,0,0,0"
-                        ToolTip="ล้างค่าที่แก้ไว้แต่ยังไม่ได้บันทึก" Click="ResetButton_Click"/>
-            </StackPanel>
-
-            <Border Style="{StaticResource Card}" Margin="0,0,0,12">
-                <StackPanel>
-                    <TextBlock Text="บัญชีของฉัน" Style="{StaticResource Label}" Margin="0,0,0,8"/>
-                    <Button x:Name="ChangeMyPasswordButton" Content="เปลี่ยนรหัสผ่านของฉัน..." HorizontalAlignment="Left"
-                            Style="{StaticResource ButtonSecondary}" Padding="10,9" FontSize="12" Margin="0,0,0,8" Click="ChangeMyPasswordButton_Click"/>
-                    <TextBlock Text="เปลี่ยน password ของ account ที่ login อยู่ตอนนี้เท่านั้น"
-                               Style="{StaticResource Caption}" TextWrapping="Wrap"/>
-                </StackPanel>
-            </Border>
-
-            <Border Style="{StaticResource Card}" Margin="0,0,0,12">
-                <StackPanel>
-                    <TextBlock Text="เกี่ยวกับโปรแกรม" Style="{StaticResource Label}" Margin="0,0,0,8"/>
-                    <Button Content="ดูเวอร์ชันและข้อมูลโปรแกรม..." HorizontalAlignment="Left"
-                            Style="{StaticResource ButtonSecondary}" Padding="10,9" FontSize="12" Click="AboutButton_Click"/>
-                </StackPanel>
-            </Border>
+            </Grid>
         </StackPanel>
     </ScrollViewer>
 </UserControl>

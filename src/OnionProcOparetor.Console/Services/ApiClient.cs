@@ -761,6 +761,191 @@ public class ApiClient
         }
     }
 
+    // ==================== WP3-5 (2026-10-31) - Sign-in ส่วน Console ====================
+    // Server ของ WP3-1 ทำ API ไว้ครบแล้ว (SignInSettingsEndpoints.cs, StudentSessionEndpoints.cs,
+    // SecurityEndpoints.cs) ส่วนนี้แค่เพิ่มเมธอดเรียกฝั่ง Console - ไม่แก้ Server
+
+    /// <summary>คืน null ถ้าอ่านไม่ได้ (Admin เท่านั้น - Teacher ที่เรียกจะได้ 403 แล้ว GetFromJsonAsync throw)</summary>
+    public async Task<SignInSettingsDto?> GetSignInSettingsAsync()
+    {
+        try
+        {
+            return await _httpClient.GetFromJsonAsync<SignInSettingsDto>("/api/settings/signin");
+        }
+        catch (Exception)
+        {
+            return null;
+        }
+    }
+
+    public async Task<(bool Success, string Message)> UpdateSignInSettingsAsync(SignInSettingsDto settings)
+    {
+        try
+        {
+            var response = await _httpClient.PutAsJsonAsync("/api/settings/signin", new
+            {
+                settings.RequireLoginMode,
+                settings.RequireLoginRoomIdsCsv,
+                settings.GuestModeEnabled,
+                settings.EmergencyCodeEnabled,
+                settings.PasswordMinLength,
+                settings.ForceChangePasswordOnFirstLogin,
+                settings.LockoutFailedAttempts,
+                settings.MultiDeviceMode,
+                settings.AutoLogoutIdleMinutes,
+                settings.LogoutOnShutdown,
+                settings.TeacherCanResetPassword,
+                settings.ShowStudentNameInConsole,
+                settings.LoginScreenMessage,
+                settings.LockScreenDefaultMessage
+            });
+
+            if (response.IsSuccessStatusCode)
+            {
+                return (true, "บันทึกตั้งค่า Sign-in แล้ว");
+            }
+
+            return (false, await ExtractErrorAsync(response, $"บันทึกไม่สำเร็จ: {response.StatusCode}"));
+        }
+        catch (HttpRequestException ex)
+        {
+            return (false, $"ต่อ server ไม่ได้: {ex.Message}");
+        }
+    }
+
+    public async Task<BackupSettingsDto?> GetBackupSettingsAsync()
+    {
+        try
+        {
+            return await _httpClient.GetFromJsonAsync<BackupSettingsDto>("/api/settings/backup");
+        }
+        catch (Exception)
+        {
+            return null;
+        }
+    }
+
+    public async Task<(bool Success, string Message)> UpdateBackupSettingsAsync(int frequency, int retentionCount, string? storagePath)
+    {
+        try
+        {
+            var response = await _httpClient.PutAsJsonAsync("/api/settings/backup", new { frequency, retentionCount, storagePath });
+            return response.IsSuccessStatusCode
+                ? (true, "บันทึกตั้งค่าสำรองข้อมูลแล้ว")
+                : (false, await ExtractErrorAsync(response, $"บันทึกไม่สำเร็จ: {response.StatusCode}"));
+        }
+        catch (HttpRequestException ex)
+        {
+            return (false, $"ต่อ server ไม่ได้: {ex.Message}");
+        }
+    }
+
+    /// <summary>ปุ่ม "สำรองตอนนี้" - ไม่มี endpoint กู้คืน (restore) ใน API ตั้งใจไม่ทำปุ่มนั้น (ดู BackupSettingsDto)</summary>
+    public async Task<(bool Success, string Message)> BackupNowAsync()
+    {
+        try
+        {
+            var response = await _httpClient.PostAsync("/api/settings/backup/now", null);
+            return response.IsSuccessStatusCode
+                ? (true, "สำรองข้อมูลสำเร็จ")
+                : (false, await ExtractErrorAsync(response, $"สำรองไม่สำเร็จ: {response.StatusCode}"));
+        }
+        catch (HttpRequestException ex)
+        {
+            return (false, $"ต่อ server ไม่ได้: {ex.Message}");
+        }
+    }
+
+    /// <summary>thumbprint ของ cert Server ใช้งานอยู่ (GET /security/certificate/thumbprint - ไม่ต้อง auth, text/plain ธรรมดา)</summary>
+    public async Task<string?> GetCertificateThumbprintAsync()
+    {
+        try
+        {
+            var response = await _httpClient.GetAsync("/security/certificate/thumbprint");
+            return response.IsSuccessStatusCode ? (await response.Content.ReadAsStringAsync()).Trim() : null;
+        }
+        catch (Exception)
+        {
+            return null;
+        }
+    }
+
+    /// <summary>ไฟล์ .cer ดิบของ Server (ไม่ต้อง auth) - ใช้กับปุ่ม "ส่งออก .cer" ในหน้าตั้งค่า</summary>
+    public async Task<byte[]?> DownloadCertificateAsync()
+    {
+        try
+        {
+            return await _httpClient.GetByteArrayAsync("/security/certificate");
+        }
+        catch (Exception)
+        {
+            return null;
+        }
+    }
+
+    /// <summary>session ที่เปิดอยู่ของเครื่องหนึ่ง - ใช้ดึง sessionId มาสั่ง force-logout (GET /api/clients ไม่มี sessionId ติดมาด้วย)</summary>
+    public async Task<ActiveStudentSessionDto?> GetActiveStudentSessionAsync(string clientGuid)
+    {
+        try
+        {
+            return await _httpClient.GetFromJsonAsync<ActiveStudentSessionDto>($"/api/students/sessions/active/{clientGuid}");
+        }
+        catch (Exception)
+        {
+            return null;
+        }
+    }
+
+    public async Task<(bool Success, string Message)> ForceLogoutStudentSessionAsync(int sessionId)
+    {
+        try
+        {
+            var response = await _httpClient.PostAsJsonAsync($"/api/students/sessions/{sessionId}/force-logout", new { });
+            return response.IsSuccessStatusCode
+                ? (true, "บังคับ logout นักเรียนแล้ว")
+                : (false, await ExtractErrorAsync(response, $"บังคับ logout ไม่สำเร็จ: {response.StatusCode}"));
+        }
+        catch (HttpRequestException ex)
+        {
+            return (false, $"ต่อ server ไม่ได้: {ex.Message}");
+        }
+    }
+
+    /// <summary>"ประวัติการใช้เครื่อง" (nf-attendance) - from/to เป็น UTC เสมอ (caller แปลงจากเวลาไทยก่อนส่งถ้าจำเป็น)</summary>
+    public async Task<List<StudentSessionHistoryRowDto>> GetStudentSessionHistoryAsync(
+        DateTime? from = null, DateTime? to = null, int? roomId = null, string? className = null, string? search = null, int take = 500)
+    {
+        var query = new List<string> { $"take={take}" };
+        if (from is not null) query.Add($"from={Uri.EscapeDataString(from.Value.ToString("O"))}");
+        if (to is not null) query.Add($"to={Uri.EscapeDataString(to.Value.ToString("O"))}");
+        if (roomId is not null) query.Add($"roomId={roomId.Value}");
+        if (!string.IsNullOrWhiteSpace(className)) query.Add($"className={Uri.EscapeDataString(className)}");
+        if (!string.IsNullOrWhiteSpace(search)) query.Add($"search={Uri.EscapeDataString(search)}");
+
+        try
+        {
+            var result = await _httpClient.GetFromJsonAsync<List<StudentSessionHistoryRowDto>>($"/api/students/sessions/history?{string.Join('&', query)}");
+            return result ?? new List<StudentSessionHistoryRowDto>();
+        }
+        catch (Exception)
+        {
+            return new List<StudentSessionHistoryRowDto>();
+        }
+    }
+
+    /// <summary>ใช้ร่วมกันทุกเมธอดใน WP3-5 ที่ต้องอ่าน { "error": "..." } จาก response ที่ไม่สำเร็จ (pattern เดิมของไฟล์นี้แต่แยกเป็น helper กันก๊อปซ้ำ 6 ที่)</summary>
+    private static async Task<string> ExtractErrorAsync(HttpResponseMessage response, string fallback)
+    {
+        try
+        {
+            var error = await response.Content.ReadFromJsonAsync<ErrorResponse>();
+            return !string.IsNullOrEmpty(error?.Error) ? error.Error : fallback;
+        }
+        catch
+        {
+            return fallback;
+        }
+    }
 }
 
 /// <summary>โครงสร้าง error response ทั่วไปที่ server คืนมา เช่น { "error": "..." }</summary>

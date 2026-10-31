@@ -1,0 +1,125 @@
+@page "/attendance"
+@rendermode InteractiveServer
+@inherits AuthenticatedPageBase
+
+@* ประวัติการใช้เครื่อง (WP3-5, 2026-10-31) - mobile companion of the WPF Console's Attendance tab.
+   Matches docs/wireframes/nf-attendance.dc.html. For reference/overview only, not an official
+   attendance record (see docs/roadmap.md "ไม่มีตาราง/คาบเรียน"). *@
+
+<PageTitle>ประวัติการใช้เครื่อง - OnionProcOparetor Online Console</PageTitle>
+
+<div class="page-head">
+    <div>
+        <h2 class="heading2" style="margin:0">ประวัติการใช้เครื่อง</h2>
+        <div class="page-subtitle">ใครใช้เครื่องไหน เมื่อไร นานเท่าไร - ไว้ดูประกอบ ไม่ใช่ใบเช็คชื่อ</div>
+    </div>
+</div>
+
+<div class="toolbar">
+    <select @bind="_roomFilter" @bind:after="LoadAsync" style="max-width:190px" aria-label="กรองตามห้อง">
+        <option value="">ทุกห้อง</option>
+        @foreach (var room in _rooms)
+        {
+            <option value="@room.Id">@room.Name</option>
+        }
+    </select>
+    <SearchBox Value="@_search" ValueChanged="OnSearchChanged" Placeholder="ค้นหานักเรียน..." AriaLabel="ค้นหานักเรียน" />
+    <span class="spacer"></span>
+    <button class="btn btn-secondary @(_refreshing ? "is-busy" : "")" @onclick="RefreshAsync">
+        <Icon Name="refresh-cw" Size="15" /> รีเฟรช
+    </button>
+</div>
+
+@if (_loading)
+{
+    @for (var i = 0; i < 6; i++) { <div class="skeleton skeleton-card"></div> }
+}
+else if (_rows.Count == 0)
+{
+    <div class="card">
+        <EmptyState IconName="clock" Title="ไม่มีประวัติการใช้เครื่องในช่วงที่เลือก" Detail="ลองล้างตัวกรองหรือค้นหาคำอื่น" />
+    </div>
+}
+else
+{
+    <div class="card-list narrow-only">
+        @foreach (var row in _rows)
+        {
+            <div class="data-card" @key="row.Id">
+                <div class="data-card-head">
+                    <div style="flex:1; min-width:0">
+                        <div class="data-card-title">@(row.Student?.FullName ?? "(ไม่ทราบนักเรียน)")</div>
+                        <div class="data-card-sub">@row.Student?.ClassName · @row.MachineName</div>
+                    </div>
+                    <span class="badge @(row.IsActive ? "badge-online" : "badge-offline")">@(row.IsActive ? "ใช้อยู่" : "จบแล้ว")</span>
+                </div>
+                <dl class="data-card-rows">
+                    <dt>เข้า</dt><dd><TimeAgo Value="row.StartedAt" /></dd>
+                    <dt>นาน</dt><dd>@row.DurationText</dd>
+                    <dt>ออกโดย</dt><dd>@row.EndReasonText</dd>
+                </dl>
+            </div>
+        }
+    </div>
+
+    <div class="table-scroll wide-only">
+        <table>
+            <thead>
+                <tr>
+                    <th>นักเรียน</th><th>ห้องเรียน</th><th>เครื่อง</th><th>เข้า</th><th>ออก</th><th>นาน</th><th>ออกโดย</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var row in _rows)
+                {
+                    <tr @key="row.Id">
+                        <td>@(row.Student?.FullName ?? "(ไม่ทราบนักเรียน)") <span class="caption mono">@row.Student?.StudentCode</span></td>
+                        <td>@row.Student?.ClassName</td>
+                        <td>@row.MachineName</td>
+                        <td><TimeAgo Value="row.StartedAt" /></td>
+                        <td>@(row.EndedAt is { } ended ? ended.ToString("HH:mm") : "-")</td>
+                        <td>@row.DurationText</td>
+                        <td>@row.EndReasonText</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+}
+
+@code {
+    private List<StudentSessionHistoryRowDto> _rows = new();
+    private List<RoomDto> _rooms = new();
+    private string _roomFilter = string.Empty;
+    private string _search = string.Empty;
+    private bool _loading = true;
+    private bool _refreshing;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await base.OnInitializedAsync();
+        _rooms = await Api.GetRoomsAsync();
+        await LoadAsync();
+        _loading = false;
+    }
+
+    private async Task LoadAsync()
+    {
+        int? roomId = int.TryParse(_roomFilter, out var parsed) ? parsed : null;
+        _rows = await Api.GetStudentSessionHistoryAsync(roomId: roomId, search: string.IsNullOrWhiteSpace(_search) ? null : _search);
+    }
+
+    private async Task OnSearchChanged(string value)
+    {
+        _search = value;
+        await LoadAsync();
+        StateHasChanged();
+    }
+
+    private async Task RefreshAsync()
+    {
+        _refreshing = true;
+        await LoadAsync();
+        _refreshing = false;
+    }
+}

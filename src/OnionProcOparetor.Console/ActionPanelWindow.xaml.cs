@@ -296,8 +296,22 @@ public partial class ActionPanelWindow : Window
     }
 
     // Lock ไม่ต้อง confirm (ทำคืนง่าย - ครูกด Unlock จาก panel นี้ได้ทันที)
-    private void LockButton_Click(object sender, RoutedEventArgs e) =>
-        SendToTargets("LockWorkstation", null, "Lock Workstation");
+    //
+    // WP3-5 (2026-10-31): เพิ่มกล่องข้อความทับเฉพาะครั้งก่อนส่งคำสั่ง ตรงตาม wireframe
+    // docs/wireframes/con-dialogs.dc.html dialog "ล็อกหน้าจอ" - **ยังไม่มีผลจริงที่เครื่องนักเรียน**
+    // จนกว่า WP3-3 จะแก้ Agent/AgentTray ให้รองรับ: ตอนนี้ CommandProcessor.HandleShowLockScreenAsync
+    // (Agent) ไม่อ่าน payload เลย (ไม่มีพารามิเตอร์ payloadJson ด้วยซ้ำ) และ AgentTrayNotifier.
+    // SendShowLockScreenAsync ไม่มีช่องส่งข้อความไปด้วย ส่ง { message } ไปล่วงหน้าตรงนี้ไว้ก่อน
+    // (forward-compatible) เพื่อให้ WP3-3 ไม่ต้องย้อนมาแก้ฝั่ง Console อีก - ห้ามแก้ Agent/AgentTray
+    // ในงานนี้ (เป็นขอบเขตของ WP3-3) ดูรายงาน WP3-5 สำหรับรายละเอียด
+    private void LockButton_Click(object sender, RoutedEventArgs e)
+    {
+        var dialog = new LockScreenMessageWindow { Owner = this };
+        if (dialog.ShowDialog() == true)
+        {
+            SendToTargets("LockWorkstation", new { message = dialog.Message }, "Lock Workstation");
+        }
+    }
 
     private void UnlockButton_Click(object sender, RoutedEventArgs e) =>
         SendToTargets("UnlockWorkstation", null, "Unlock Workstation");
