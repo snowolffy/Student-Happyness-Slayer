@@ -50,6 +50,15 @@ public class AppDbContext : DbContext
     /// <summary>ตั้งค่า "ป้องกันการเลี่ยง" ของ Website Control (WP2-1, 2026-10-31) - ดู Models/BrowserHardeningSettings.cs</summary>
     public DbSet<BrowserHardeningSettings> BrowserHardeningSettings => Set<BrowserHardeningSettings>();
 
+    /// <summary>ชุด Allow-list สำเร็จรูป/กำหนดเอง ของ "โหมดสอบ" (WP2-2, 2026-10-31) - ดู Models/AllowListPreset.cs</summary>
+    public DbSet<AllowListPreset> AllowListPresets => Set<AllowListPreset>();
+
+    /// <summary>โดเมนของแต่ละชุด Allow-list (WP2-2, 2026-10-31) - ดู Models/AllowListPresetDomain.cs</summary>
+    public DbSet<AllowListPresetDomain> AllowListPresetDomains => Set<AllowListPresetDomain>();
+
+    /// <summary>ประวัติ "โหมดสอบ" แต่ละครั้ง (WP2-2, 2026-10-31) - ดู Models/ExamSession.cs</summary>
+    public DbSet<ExamSession> ExamSessions => Set<ExamSession>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
@@ -145,6 +154,17 @@ public class AppDbContext : DbContext
         modelBuilder.Entity<WebsiteRule>()
             .HasIndex(r => r.RoomId);
 
+        // โดเมนของชุด Allow-list (WP2-2, 2026-10-31) - query หลักคือ "โดเมนทั้งหมดของชุดนี้" ทุกครั้งที่
+        // แก้ชุดในหน้า Website Control และทุกครั้งที่ประกอบ allow-list ตอนเปิด/poll โหมดสอบ
+        modelBuilder.Entity<AllowListPresetDomain>()
+            .HasIndex(d => d.PresetId);
+
+        // query หลักของ /api/poll (ทุก 30 วิ x 40 เครื่อง): หา ExamSession ที่ "ยังไม่จบ" (EndedAt null)
+        // ก่อนเสมอ แล้วเทียบ RoomId/ClientGuidsCsv ในโค้ด (ไม่ query ด้วย RoomId ตรงๆ เพราะ
+        // ClientGuidsCsv เป็น CSV string match แบบ exact ไม่ได้ด้วย SQL index)
+        modelBuilder.Entity<ExamSession>()
+            .HasIndex(e => e.EndedAt);
+
         // รหัสนักเรียนต้องไม่ซ้ำกัน (WP3-1, 2026-10-31) - ใช้ login ได้เหมือน Username ของ AdminUser ข้างบน
         modelBuilder.Entity<Student>()
             .HasIndex(s => s.StudentCode)
@@ -207,6 +227,70 @@ public class AppDbContext : DbContext
                 BlockOtherBrowsers = false,
                 UpdatedAt = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc)
             }
+        );
+
+        // ---- ชุด Allow-list สำเร็จรูป (WP2-2, 2026-10-31) ----
+        // Id ของทั้ง Preset และ Domain ต้องตั้งตรงๆ (ไม่ปล่อยให้ EF auto-increment เอง) เพราะ HasData
+        // ต้องระบุ key ที่แน่นอนเสมอ - เหตุผล DateTime คงที่เดียวกับ seed อื่นๆ ข้างบน (ห้าม
+        // DateTime.UtcNow ใน HasData ไม่งั้น EF มองว่า model ไม่นิ่งแล้ว throw PendingModelChangesWarning)
+        //
+        // รายชื่อโดเมนประกอบนี้เป็น best-effort จากการอ่านเอกสาร/สังเกตการใช้งานจริงของแต่ละบริการ
+        // (ไม่มีเครื่องมือ browser ให้ทดสอบจริงตอนเขียน WP นี้ - ดู docs/roadmap.md WP2-2 "เกณฑ์เสร็จ"
+        // ที่ระบุไว้ตรงๆ ว่าต้องทดสอบเปิดเว็บจริงในแล็บ) ครู/Admin แก้เพิ่ม/ลบโดเมนได้เองที่ Website
+        // Control › ชุด Allow-list ถ้าเจอว่าเปิดไม่ครบ
+        var seedTime = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+        modelBuilder.Entity<AllowListPreset>().HasData(
+            new AllowListPreset { Id = 1, Name = "Google Forms", IsBuiltIn = true, CreatedAt = seedTime, UpdatedAt = seedTime },
+            new AllowListPreset { Id = 2, Name = "Google Classroom", IsBuiltIn = true, CreatedAt = seedTime, UpdatedAt = seedTime },
+            new AllowListPreset { Id = 3, Name = "Quizizz / Wayground", IsBuiltIn = true, CreatedAt = seedTime, UpdatedAt = seedTime },
+            new AllowListPreset { Id = 4, Name = "Kahoot", IsBuiltIn = true, CreatedAt = seedTime, UpdatedAt = seedTime },
+            new AllowListPreset { Id = 5, Name = "Scratch", IsBuiltIn = true, CreatedAt = seedTime, UpdatedAt = seedTime },
+            new AllowListPreset { Id = 6, Name = "Canva", IsBuiltIn = true, CreatedAt = seedTime, UpdatedAt = seedTime }
+        );
+
+        modelBuilder.Entity<AllowListPresetDomain>().HasData(
+            // Google Forms (7 โดเมน - ตรงกับ wireframe con-website-allow.dc.html)
+            new AllowListPresetDomain { Id = 1, PresetId = 1, Domain = "docs.google.com" },
+            new AllowListPresetDomain { Id = 2, PresetId = 1, Domain = "forms.gle" },
+            new AllowListPresetDomain { Id = 3, PresetId = 1, Domain = "accounts.google.com" },
+            new AllowListPresetDomain { Id = 4, PresetId = 1, Domain = "ssl.gstatic.com" },
+            new AllowListPresetDomain { Id = 5, PresetId = 1, Domain = "www.gstatic.com" },
+            new AllowListPresetDomain { Id = 6, PresetId = 1, Domain = "fonts.googleapis.com" },
+            new AllowListPresetDomain { Id = 7, PresetId = 1, Domain = "lh3.googleusercontent.com" },
+
+            // Google Classroom (9 โดเมน - ต่อยอดจาก Google Forms เพิ่ม classroom.google.com/drive)
+            new AllowListPresetDomain { Id = 8, PresetId = 2, Domain = "classroom.google.com" },
+            new AllowListPresetDomain { Id = 9, PresetId = 2, Domain = "drive.google.com" },
+            new AllowListPresetDomain { Id = 10, PresetId = 2, Domain = "docs.google.com" },
+            new AllowListPresetDomain { Id = 11, PresetId = 2, Domain = "accounts.google.com" },
+            new AllowListPresetDomain { Id = 12, PresetId = 2, Domain = "ssl.gstatic.com" },
+            new AllowListPresetDomain { Id = 13, PresetId = 2, Domain = "www.gstatic.com" },
+            new AllowListPresetDomain { Id = 14, PresetId = 2, Domain = "fonts.googleapis.com" },
+            new AllowListPresetDomain { Id = 15, PresetId = 2, Domain = "lh3.googleusercontent.com" },
+            new AllowListPresetDomain { Id = 16, PresetId = 2, Domain = "ogs.google.com" },
+
+            // Quizizz / Wayground (4 โดเมน - รีแบรนด์เป็น Wayground แล้วแต่โดเมนเก่ายังใช้งานอยู่)
+            new AllowListPresetDomain { Id = 17, PresetId = 3, Domain = "quizizz.com" },
+            new AllowListPresetDomain { Id = 18, PresetId = 3, Domain = "cdn.quizizz.com" },
+            new AllowListPresetDomain { Id = 19, PresetId = 3, Domain = "wayground.com" },
+            new AllowListPresetDomain { Id = 20, PresetId = 3, Domain = "cdn.wayground.com" },
+
+            // Kahoot (3 โดเมน)
+            new AllowListPresetDomain { Id = 21, PresetId = 4, Domain = "kahoot.it" },
+            new AllowListPresetDomain { Id = 22, PresetId = 4, Domain = "kahoot.com" },
+            new AllowListPresetDomain { Id = 23, PresetId = 4, Domain = "akamaized.net" },
+
+            // Scratch (3 โดเมน)
+            new AllowListPresetDomain { Id = 24, PresetId = 5, Domain = "scratch.mit.edu" },
+            new AllowListPresetDomain { Id = 25, PresetId = 5, Domain = "assets.scratch.mit.edu" },
+            new AllowListPresetDomain { Id = 26, PresetId = 5, Domain = "cdn.scratch.mit.edu" },
+
+            // Canva (5 โดเมน)
+            new AllowListPresetDomain { Id = 27, PresetId = 6, Domain = "canva.com" },
+            new AllowListPresetDomain { Id = 28, PresetId = 6, Domain = "www.canva.com" },
+            new AllowListPresetDomain { Id = 29, PresetId = 6, Domain = "static.canva.com" },
+            new AllowListPresetDomain { Id = 30, PresetId = 6, Domain = "media-public.canva.com" },
+            new AllowListPresetDomain { Id = 31, PresetId = 6, Domain = "app-api.canva.com" }
         );
     }
 }

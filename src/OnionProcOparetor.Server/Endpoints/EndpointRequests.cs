@@ -67,3 +67,21 @@ record TamperReportRequest(
     string? ReasonCode,
     string? Detail,
     DateTime? DetectedAtUtc);
+
+/// <summary>สร้าง/แก้ชื่อชุด Allow-list (WP2-2, 2026-10-31) - โดเมนจัดการแยกผ่าน AddDomainRequest ข้างล่าง</summary>
+record AllowListPresetRequest(string Name);
+
+/// <summary>เพิ่มโดเมนหนึ่งรายการเข้าชุด Allow-list ที่มีอยู่แล้ว (WP2-2, 2026-10-31)</summary>
+record AddDomainRequest(string Domain);
+
+/// <summary>
+/// เริ่ม "โหมดสอบ" (WP2-2, 2026-10-31) - ต้องระบุเป้าหมายอย่างใดอย่างหนึ่งเท่านั้นระหว่าง RoomId กับ
+/// ClientGuids (บังคับที่ ExamSessionEndpoints) PresetIds เลือกได้หลายชุด ExtraDomains เป็นโดเมนที่
+/// พิมพ์เองเพิ่มเติม - DurationMinutes แปลงเป็น ExpiresAt ที่ endpoint (ต้อง > 0 เสมอ ไม่มีโหมด "ไม่มีกำหนด")
+/// </summary>
+record StartExamSessionRequest(
+    int? RoomId,
+    List<string>? ClientGuids,
+    List<int>? PresetIds,
+    List<string>? ExtraDomains,
+    int DurationMinutes);

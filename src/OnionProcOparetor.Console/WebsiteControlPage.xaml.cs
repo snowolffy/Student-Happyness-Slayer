@@ -26,6 +26,10 @@ public partial class WebsiteControlPage : UserControl
     {
         BlockTab.Initialize(apiClient);
         AntiEvasionTab.Initialize(apiClient);
+        // WP2-2 (2026-10-31): แท็บนี้ไม่ว่างแล้ว (เนื้อหาจริงของ WP2-2 มาแทน EmptyState เดิม) ต้องมี
+        // ApiClient เหมือน BlockTab/AntiEvasionTab - จุดเดียวที่ WP2-2 ต้องแตะไฟล์นี้ (x:Name +
+        // บรรทัดนี้) นอกเหนือจาก WebsiteAllowListPlaceholderTab.xaml(.cs) เอง ดู comment เดิมในไฟล์นั้น
+        AllowListTab.Initialize(apiClient);
     }
 
     /// <summary>

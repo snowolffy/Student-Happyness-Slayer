@@ -144,6 +144,17 @@ public class AgentTrayNotifier
     }
 
     /// <summary>
+    /// สั่งให้ AgentTray ขึ้น/ลบป้ายมุมขวาล่าง "โหมดสอบ · เหลือ N นาที" (WP2-2, 2026-10-31) - ผู้เรียก
+    /// (Worker.ScanRunningProcessesAsync) ส่งเฉพาะตอน "สถานะเปลี่ยนจริง" เท่านั้น (ดู comment ที่จุดเรียก)
+    /// ไม่ใช่ทุก enforcement tick - expiresAtUtc = null สั่งให้ซ่อนป้าย
+    /// </summary>
+    public Task<bool> SendExamModeStatusAsync(DateTime? expiresAtUtc, CancellationToken ct)
+    {
+        var envelope = new AgentTrayPipeMessage { Type = "ExamModeStatus", ExamModeExpiresAtUtc = expiresAtUtc };
+        return SendAsync(envelope, $"ExamModeStatus (expiresAtUtc: {expiresAtUtc})", ct);
+    }
+
+    /// <summary>
     /// คืน true ถ้าส่งถึง AgentTray สำเร็จจริง, false ถ้าไม่สำเร็จ (ยังคง fail-secure เหมือนเดิม -
     /// ไม่ throw ออกไป เพื่อไม่ให้ command processing ทั้งสายพัง) ผู้เรียกใช้ค่านี้ไปรายงาน
     /// "ผลจริง" กลับ Server ได้ (ดู CommandProcessor) - เดิม method นี้คืน void เลยไม่มีใคร

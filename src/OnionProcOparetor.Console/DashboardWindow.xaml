@@ -300,6 +300,12 @@
                                         Padding="12,6" FontSize="11" Margin="8,0,0,0"
                                         ToolTip="ส่งข้อความขึ้นจอนักเรียน - เลือกได้ว่าทุกเครื่องหรือเฉพาะที่เลือกไว้"
                                         Click="BroadcastMessageButton_Click" VerticalAlignment="Center"/>
+                                <!-- "เปิดโหมดสอบ" (WP2-2, 2026-10-31) - บล็อกทุกเว็บยกเว้น allow-list ชั่วคราว
+                                     ดู wireframe nf-exam.dc.html + ExamModeWindow -->
+                                <Button Content="เปิดโหมดสอบ" Style="{StaticResource ButtonSecondary}"
+                                        Padding="12,6" FontSize="11" Margin="8,0,0,0"
+                                        ToolTip="allow-list ชั่วคราวสำหรับสอบ - เลือกได้ว่าทั้งห้องหรือเฉพาะที่เลือกไว้"
+                                        Click="OpenExamModeButton_Click" VerticalAlignment="Center"/>
                             </StackPanel>
 
                             <Border Grid.Column="1" x:Name="ClientsSelectionBar" Style="{StaticResource SelectionBar}"

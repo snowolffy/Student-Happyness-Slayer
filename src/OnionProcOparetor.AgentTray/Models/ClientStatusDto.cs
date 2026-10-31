@@ -11,4 +11,8 @@ public class ClientStatusDto
     public bool LastPollSucceeded { get; set; }
     public bool Bypassed { get; set; }
     public bool UsingFallback { get; set; }
+
+    /// <summary>null = ไม่มีโหมดสอบทำงานอยู่ (WP2-2, 2026-10-31) - ใช้ตั้งค่าป้ายมุมขวาล่างตอน AgentTray
+    /// เพิ่งเริ่มทำงาน (เช่น user ล็อกอินใหม่กลางโหมดสอบ) ก่อนจะมี push message ครั้งถัดไปมาอัปเดต</summary>
+    public DateTime? ExamModeExpiresAtUtc { get; set; }
 }

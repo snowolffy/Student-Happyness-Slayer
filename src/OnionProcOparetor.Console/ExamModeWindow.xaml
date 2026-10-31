@@ -1,0 +1,77 @@
+<Window x:Class="OnionProcOparetor.Console.ExamModeWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="เปิดโหมดสอบ"
+        Width="640"
+        SizeToContent="Height"
+        WindowStartupLocation="CenterOwner"
+        ResizeMode="NoResize"
+        Icon="/Theme/icon.ico"
+        Style="{StaticResource AppDialogWindow}">
+    <!-- "เปิดโหมดสอบ" (WP2-2, 2026-10-31) - ตาม wireframe nf-exam.dc.html (เลย์เอาต์ปรับเป็นคอลัมน์
+         เดียวให้เข้ากับรูปแบบ dialog อื่นๆ ของแอปนี้ ซึ่งเป็น StackPanel แนวตั้งเสมอ ไม่ใช่ grid 2 คอลัมน์
+         เหมือนใน wireframe - จุดต่างที่ตั้งใจ ไม่ใช่จุดพลาด) เปิดจากปุ่ม "เปิดโหมดสอบ" บนแถบคำสั่งของ
+         Clients (ดู DashboardWindow.OpenExamModeButton_Click) -->
+    <StackPanel Margin="20" MaxHeight="640">
+        <TextBlock Text="เปิดโหมดสอบ" Style="{StaticResource Heading2}"/>
+        <TextBlock Text="ทุกเว็บถูกบล็อก ยกเว้นที่เลือกไว้ข้างล่าง · โปรแกรมยังโดนกฎเดิมตามปกติ"
+                   Style="{StaticResource Caption}" Margin="0,2,0,16" TextWrapping="Wrap"/>
+
+        <TextBlock Text="1 · เว็บที่อนุญาต (เลือกชุดสำเร็จรูปได้หลายชุด)" Style="{StaticResource Label}" Margin="0,0,0,8"/>
+        <ItemsControl x:Name="PresetsList" Margin="0,0,0,8">
+            <ItemsControl.ItemsPanel>
+                <ItemsPanelTemplate>
+                    <WrapPanel/>
+                </ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+            <ItemsControl.ItemTemplate>
+                <DataTemplate>
+                    <CheckBox Content="{Binding Preset.Name}" IsChecked="{Binding IsChecked}"
+                              Margin="0,0,16,8" Checked="PresetCheckBox_Changed" Unchecked="PresetCheckBox_Changed"/>
+                </DataTemplate>
+            </ItemsControl.ItemTemplate>
+        </ItemsControl>
+
+        <TextBlock Text="เว็บเพิ่มเติม (บรรทัดละหนึ่ง)" FontSize="12" Margin="0,0,0,4"/>
+        <TextBox x:Name="ExtraDomainsTextBox" Height="56" Style="{StaticResource PlaceholderTextBox}"
+                 Tag="exam.school.ac.th" TextWrapping="Wrap" AcceptsReturn="True"
+                 VerticalScrollBarVisibility="Auto" Margin="0,0,0,16"
+                 TextChanged="ExtraDomainsTextBox_TextChanged"/>
+
+        <TextBlock Text="2 · ใช้กับ" Style="{StaticResource Label}" Margin="0,0,0,8"/>
+        <Grid Margin="0,0,0,16">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+            <StackPanel Grid.Column="0">
+                <RadioButton x:Name="ScopeRoomRadio" GroupName="ExamScope" Content="ทั้งห้อง" Margin="0,0,0,8" Checked="ScopeRadio_Changed"/>
+                <RadioButton x:Name="ScopeSelectedRadio" GroupName="ExamScope" Checked="ScopeRadio_Changed"/>
+            </StackPanel>
+            <ComboBox x:Name="RoomCombo" Grid.Column="1" Width="220" HorizontalAlignment="Left"
+                      VerticalAlignment="Top" DisplayMemberPath="Name" SelectionChanged="RoomCombo_SelectionChanged"/>
+        </Grid>
+
+        <TextBlock Text="3 · นานแค่ไหน (ต้องเลือก ปิดเองอัตโนมัติ)" Style="{StaticResource Label}" Margin="0,0,0,8"/>
+        <StackPanel Orientation="Horizontal" Margin="0,0,0,16">
+            <ToggleButton x:Name="Duration30Button" Content="30 นาที" Style="{StaticResource PillTabButton}" Margin="0,0,8,0" Click="DurationPill_Click"/>
+            <ToggleButton x:Name="Duration50Button" Content="50 นาที" Style="{StaticResource PillTabButton}" Margin="0,0,8,0" Click="DurationPill_Click" IsChecked="True"/>
+            <ToggleButton x:Name="Duration60Button" Content="60 นาที" Style="{StaticResource PillTabButton}" Margin="0,0,8,0" Click="DurationPill_Click"/>
+            <TextBlock Text="หรือกำหนดเอง (นาที):" FontSize="12" VerticalAlignment="Center" Margin="8,0,8,0"/>
+            <TextBox x:Name="CustomMinutesTextBox" Width="70" Style="{StaticResource RoundedTextBox}" TextChanged="CustomMinutesTextBox_TextChanged"/>
+        </StackPanel>
+
+        <Border Background="{DynamicResource Brush.Background.Sunken}" CornerRadius="8" Padding="12,10" Margin="0,0,0,16">
+            <TextBlock x:Name="SummaryText" FontSize="13" TextWrapping="Wrap"/>
+        </Border>
+
+        <TextBlock x:Name="StatusText" Style="{StaticResource Caption}" TextWrapping="Wrap" Margin="0,0,0,12"/>
+
+        <Grid>
+            <Button Content="ยกเลิก" Style="{StaticResource ButtonSecondary}"
+                    Padding="10,5" FontSize="11" HorizontalAlignment="Right" Margin="0,0,120,0" Click="CancelButton_Click"/>
+            <Button x:Name="StartButton" Content="เริ่มโหมดสอบ" Style="{StaticResource ButtonPrimary}"
+                    HorizontalAlignment="Right" Click="StartButton_Click"/>
+        </Grid>
+    </StackPanel>
+</Window>

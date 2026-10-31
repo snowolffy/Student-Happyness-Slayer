@@ -66,6 +66,288 @@ namespace OnionProcOparetor.Server.Migrations
                     b.ToTable("AdminUsers");
                 });
 
+            modelBuilder.Entity("OnionProcOparetor.Server.Models.AllowListPreset", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("IsBuiltIn")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("AllowListPresets");
+
+                    b.HasData(
+                        new
+                        {
+                            Id = 1,
+                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            IsBuiltIn = true,
+                            Name = "Google Forms",
+                            UpdatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc)
+                        },
+                        new
+                        {
+                            Id = 2,
+                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            IsBuiltIn = true,
+                            Name = "Google Classroom",
+                            UpdatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc)
+                        },
+                        new
+                        {
+                            Id = 3,
+                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            IsBuiltIn = true,
+                            Name = "Quizizz / Wayground",
+                            UpdatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc)
+                        },
+                        new
+                        {
+                            Id = 4,
+                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            IsBuiltIn = true,
+                            Name = "Kahoot",
+                            UpdatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc)
+                        },
+                        new
+                        {
+                            Id = 5,
+                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            IsBuiltIn = true,
+                            Name = "Scratch",
+                            UpdatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc)
+                        },
+                        new
+                        {
+                            Id = 6,
+                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            IsBuiltIn = true,
+                            Name = "Canva",
+                            UpdatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc)
+                        });
+                });
+
+            modelBuilder.Entity("OnionProcOparetor.Server.Models.AllowListPresetDomain", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Domain")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("PresetId")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PresetId");
+
+                    b.ToTable("AllowListPresetDomains");
+
+                    b.HasData(
+                        new
+                        {
+                            Id = 1,
+                            Domain = "docs.google.com",
+                            PresetId = 1
+                        },
+                        new
+                        {
+                            Id = 2,
+                            Domain = "forms.gle",
+                            PresetId = 1
+                        },
+                        new
+                        {
+                            Id = 3,
+                            Domain = "accounts.google.com",
+                            PresetId = 1
+                        },
+                        new
+                        {
+                            Id = 4,
+                            Domain = "ssl.gstatic.com",
+                            PresetId = 1
+                        },
+                        new
+                        {
+                            Id = 5,
+                            Domain = "www.gstatic.com",
+                            PresetId = 1
+                        },
+                        new
+                        {
+                            Id = 6,
+                            Domain = "fonts.googleapis.com",
+                            PresetId = 1
+                        },
+                        new
+                        {
+                            Id = 7,
+                            Domain = "lh3.googleusercontent.com",
+                            PresetId = 1
+                        },
+                        new
+                        {
+                            Id = 8,
+                            Domain = "classroom.google.com",
+                            PresetId = 2
+                        },
+                        new
+                        {
+                            Id = 9,
+                            Domain = "drive.google.com",
+                            PresetId = 2
+                        },
+                        new
+                        {
+                            Id = 10,
+                            Domain = "docs.google.com",
+                            PresetId = 2
+                        },
+                        new
+                        {
+                            Id = 11,
+                            Domain = "accounts.google.com",
+                            PresetId = 2
+                        },
+                        new
+                        {
+                            Id = 12,
+                            Domain = "ssl.gstatic.com",
+                            PresetId = 2
+                        },
+                        new
+                        {
+                            Id = 13,
+                            Domain = "www.gstatic.com",
+                            PresetId = 2
+                        },
+                        new
+                        {
+                            Id = 14,
+                            Domain = "fonts.googleapis.com",
+                            PresetId = 2
+                        },
+                        new
+                        {
+                            Id = 15,
+                            Domain = "lh3.googleusercontent.com",
+                            PresetId = 2
+                        },
+                        new
+                        {
+                            Id = 16,
+                            Domain = "ogs.google.com",
+                            PresetId = 2
+                        },
+                        new
+                        {
+                            Id = 17,
+                            Domain = "quizizz.com",
+                            PresetId = 3
+                        },
+                        new
+                        {
+                            Id = 18,
+                            Domain = "cdn.quizizz.com",
+                            PresetId = 3
+                        },
+                        new
+                        {
+                            Id = 19,
+                            Domain = "wayground.com",
+                            PresetId = 3
+                        },
+                        new
+                        {
+                            Id = 20,
+                            Domain = "cdn.wayground.com",
+                            PresetId = 3
+                        },
+                        new
+                        {
+                            Id = 21,
+                            Domain = "kahoot.it",
+                            PresetId = 4
+                        },
+                        new
+                        {
+                            Id = 22,
+                            Domain = "kahoot.com",
+                            PresetId = 4
+                        },
+                        new
+                        {
+                            Id = 23,
+                            Domain = "akamaized.net",
+                            PresetId = 4
+                        },
+                        new
+                        {
+                            Id = 24,
+                            Domain = "scratch.mit.edu",
+                            PresetId = 5
+                        },
+                        new
+                        {
+                            Id = 25,
+                            Domain = "assets.scratch.mit.edu",
+                            PresetId = 5
+                        },
+                        new
+                        {
+                            Id = 26,
+                            Domain = "cdn.scratch.mit.edu",
+                            PresetId = 5
+                        },
+                        new
+                        {
+                            Id = 27,
+                            Domain = "canva.com",
+                            PresetId = 6
+                        },
+                        new
+                        {
+                            Id = 28,
+                            Domain = "www.canva.com",
+                            PresetId = 6
+                        },
+                        new
+                        {
+                            Id = 29,
+                            Domain = "static.canva.com",
+                            PresetId = 6
+                        },
+                        new
+                        {
+                            Id = 30,
+                            Domain = "media-public.canva.com",
+                            PresetId = 6
+                        },
+                        new
+                        {
+                            Id = 31,
+                            Domain = "app-api.canva.com",
+                            PresetId = 6
+                        });
+                });
+
             modelBuilder.Entity("OnionProcOparetor.Server.Models.AuthToken", b =>
                 {
                     b.Property<int>("Id")
@@ -285,6 +567,51 @@ namespace OnionProcOparetor.Server.Migrations
                     b.HasIndex("RoomId");
 
                     b.ToTable("ClientMachines");
+                });
+
+            modelBuilder.Entity("OnionProcOparetor.Server.Models.ExamSession", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("ClientGuidsCsv")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("EndedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("EndedReason")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("ExpiresAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ExtraDomainsCsv")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("PresetIdsCsv")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<int?>("RoomId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("StartedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("StartedByUsername")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("EndedAt");
+
+                    b.ToTable("ExamSessions");
                 });
 
             modelBuilder.Entity("OnionProcOparetor.Server.Models.GlobalState", b =>

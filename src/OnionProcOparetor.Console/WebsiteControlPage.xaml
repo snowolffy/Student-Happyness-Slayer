@@ -57,7 +57,7 @@
                 <local:WebsiteBlockTab x:Name="BlockTab" Margin="0,14,0,0"/>
             </TabItem>
             <TabItem Header="ชุด Allow-list">
-                <local:WebsiteAllowListPlaceholderTab Margin="0,14,0,0"/>
+                <local:WebsiteAllowListPlaceholderTab x:Name="AllowListTab" Margin="0,14,0,0"/>
             </TabItem>
             <TabItem Header="ป้องกันการเลี่ยง">
                 <local:WebsiteAntiEvasionTab x:Name="AntiEvasionTab" Margin="0,14,0,0"/>
