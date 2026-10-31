@@ -43,6 +43,15 @@ public class Rule
     /// <summary>กฎนี้เปิดใช้งานอยู่ไหม</summary>
     public bool IsEnabled { get; set; } = true;
 
+    /// <summary>
+    /// ห้องที่กฎนี้ใช้ด้วย (WP2-3, 2026-10-31) - null = ใช้กับทุกห้อง (ค่าเริ่มต้นของกฎเดิมทุกกฎก่อน
+    /// migration นี้ และของกฎใหม่ที่ไม่เลือกห้อง) ไม่ใส่ FK/navigation property ไปที่ Models/Room.cs
+    /// ตั้งใจ - เดินตาม pattern เดียวกับ ClientMachine.RoomId (เป็น int? เปล่าๆ, endpoint เป็นคนดูแล
+    /// referential integrity เอง) เพื่อให้ migration เป็น additive ล้วนๆ
+    /// ดู Endpoints/PollEndpoints.cs สำหรับจุดที่กรองกฎตามห้องของเครื่อง
+    /// </summary>
+    public int? RoomId { get; set; }
+
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 }

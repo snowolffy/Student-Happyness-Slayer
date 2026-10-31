@@ -68,6 +68,10 @@ public static class WebsiteRuleEndpoints
             // WP4: กฎบล็อกเว็บถาวรเป็นสิทธิ์ Admin เท่านั้นเหมือน /api/rules
             if (RequireAdmin(admin) is { } forbidden) return forbidden;
 
+            // WP2-3: RoomId ต้องเป็น null (ทุกห้อง) หรืออ้างถึงห้องที่มีอยู่จริงเท่านั้น
+            if (rule.RoomId is not null && !await db.Rooms.AnyAsync(r => r.Id == rule.RoomId))
+                return Results.BadRequest(new { error = "ไม่พบห้องที่ระบุ" });
+
             rule.CreatedAt = DateTime.UtcNow;
             rule.UpdatedAt = DateTime.UtcNow;
             db.WebsiteRules.Add(rule);
@@ -110,9 +114,14 @@ public static class WebsiteRuleEndpoints
             var rule = await db.WebsiteRules.FindAsync(id);
             if (rule is null) return Results.NotFound();
 
+            // WP2-3: RoomId ต้องเป็น null (ทุกห้อง) หรืออ้างถึงห้องที่มีอยู่จริงเท่านั้น
+            if (updated.RoomId is not null && !await db.Rooms.AnyAsync(r => r.Id == updated.RoomId))
+                return Results.BadRequest(new { error = "ไม่พบห้องที่ระบุ" });
+
             rule.Name = updated.Name;
             rule.UrlPattern = updated.UrlPattern;
             rule.IsEnabled = updated.IsEnabled;
+            rule.RoomId = updated.RoomId;
             rule.UpdatedAt = DateTime.UtcNow;
 
             await db.SaveChangesAsync();

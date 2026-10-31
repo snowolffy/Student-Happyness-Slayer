@@ -122,6 +122,14 @@ public class AppDbContext : DbContext
         modelBuilder.Entity<ClientMachine>()
             .HasIndex(c => c.RoomId);
 
+        // กฎรายห้อง (WP2-3, 2026-10-31) - /api/poll กรองทั้ง Rules และ WebsiteRules ด้วย RoomId ทุกรอบ
+        // poll ของทั้ง 40 เครื่อง เหตุผลเดียวกับ index ของ ClientMachine.RoomId ข้างบน
+        modelBuilder.Entity<Rule>()
+            .HasIndex(r => r.RoomId);
+
+        modelBuilder.Entity<WebsiteRule>()
+            .HasIndex(r => r.RoomId);
+
         // Seed ค่าเริ่มต้นของ GlobalState ให้มี row เดียวเสมอ (Id = 1, เปิดใช้งานเป็นค่าเริ่มต้น)
         // สำคัญ: ต้องใช้ค่า DateTime แบบ fixed/static เท่านั้น ห้ามใช้ DateTime.UtcNow หรือ
         // Guid.NewGuid() ใน HasData() เด็ดขาด เพราะ EF Core จะมองว่า model "ไม่นิ่ง" แล้ว throw

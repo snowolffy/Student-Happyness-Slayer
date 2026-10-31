@@ -16,6 +16,17 @@
             <input type="checkbox" @bind="_rule.IsEnabled" /> Enabled
         </label>
     </div>
+    @* WP2-3 (2026-10-31): เหตุผลและ pattern เดียวกับ AddEditRuleModal *@
+    <div class="form-row">
+        <label>ใช้กับ</label>
+        <select @bind="_roomIdText">
+            <option value="">ทุกห้อง</option>
+            @foreach (var room in _rooms)
+            {
+                <option value="@room.Id">@room.Name</option>
+            }
+        </select>
+    </div>
 
     @if (!string.IsNullOrEmpty(_error))
     {
@@ -35,11 +46,21 @@
     [Parameter] public EventCallback OnSaved { get; set; }
 
     private WebsiteRuleDto _rule = new();
+    private List<RoomDto> _rooms = new();
     private bool _busy;
     private string? _error;
 
-    protected override void OnInitialized()
+    /// <summary>bind target ของ &lt;select&gt; - เหตุผลเดียวกับ AddEditRuleModal._roomIdText</summary>
+    private string _roomIdText
     {
+        get => _rule.RoomId?.ToString() ?? string.Empty;
+        set => _rule.RoomId = int.TryParse(value, out var id) ? id : null;
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        _rooms = await Api.GetRoomsAsync();
+
         if (InitialRule is not null)
         {
             // copy so cancelling doesn't leave the caller's list holding a half-edited object
@@ -48,7 +69,8 @@
                 Id = InitialRule.Id,
                 Name = InitialRule.Name,
                 UrlPattern = InitialRule.UrlPattern,
-                IsEnabled = InitialRule.IsEnabled
+                IsEnabled = InitialRule.IsEnabled,
+                RoomId = InitialRule.RoomId
             };
         }
     }

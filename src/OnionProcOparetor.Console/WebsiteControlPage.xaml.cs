@@ -28,6 +28,7 @@ public partial class WebsiteControlPage : UserControl
 
     private List<WebsiteRuleDto> _currentPageRules = new();
     private List<WebsiteCatalogSourceDto> _catalogSources = new();
+    private List<RoomDto> _rooms = new();
     private int _page = 1;
     private int _totalCount;
 
@@ -79,6 +80,9 @@ public partial class WebsiteControlPage : UserControl
             _catalogSources = await _apiClient.GetWebsiteCatalogSourcesAsync();
             RebuildSourceFilterCombo();
 
+            // WP2-3: ใช้ join ชื่อห้องเข้าคอลัมน์ "ใช้กับ" เหมือนที่ catalog source join คอลัมน์ "ที่มา"
+            _rooms = await _apiClient.GetRoomsAsync();
+
             var (search, sourceCatalogId, manualOnly) = ReadCurrentFilter();
             var pageResult = await _apiClient.GetWebsiteRulesAsync(search, sourceCatalogId, manualOnly, _page, PageSize);
 
@@ -88,6 +92,9 @@ public partial class WebsiteControlPage : UserControl
                 rule.SourceText = rule.SourceCatalogId is null
                     ? "พิมพ์เอง"
                     : _catalogSources.FirstOrDefault(s => s.Id == rule.SourceCatalogId)?.Name ?? "Catalog (ลบไปแล้ว)";
+                rule.ScopeText = rule.RoomId is null
+                    ? "ทุกห้อง"
+                    : _rooms.FirstOrDefault(r => r.Id == rule.RoomId)?.Name ?? "ห้อง (ลบไปแล้ว)";
             }
 
             RulesGrid.ItemsSource = _currentPageRules;

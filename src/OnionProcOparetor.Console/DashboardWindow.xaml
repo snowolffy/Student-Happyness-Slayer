@@ -761,6 +761,7 @@
                                     <DataGridTextColumn Header="ต้องมีลายเซ็น" Binding="{Binding RequireSignedMatch}" Width="90"/>
                                     <DataGridTextColumn Header="ปิดโปรแกรม" Binding="{Binding KillProcess}" Width="50"/>
                                     <DataGridTextColumn Header="คำสั่งที่รัน" Binding="{Binding ActionCommand}" Width="150"/>
+                                    <DataGridTextColumn Header="ใช้กับ" Binding="{Binding ScopeText}" Width="110"/>
                                     <DataGridTemplateColumn Header="จัดการ" Width="250">
                                         <DataGridTemplateColumn.CellTemplate>
                                             <DataTemplate>

@@ -66,7 +66,7 @@ else
                     <div style="flex:1; min-width:0">
                         <div class="data-card-title">@rule.Name</div>
                         <div class="data-card-sub mono truncate">@rule.UrlPattern</div>
-                        <div class="caption">ที่มา: @rule.SourceText</div>
+                        <div class="caption">ที่มา: @rule.SourceText · ใช้กับ: @rule.ScopeText</div>
                     </div>
                     <button class="badge @(rule.IsEnabled ? "badge-online" : "badge-offline")"
                             style="border:none; cursor:pointer" @onclick="() => ToggleAsync(rule)">
@@ -90,7 +90,7 @@ else
         <table>
             <thead>
                 <tr>
-                    <th>Status</th><th>Name</th><th>URL Pattern</th><th>ที่มา</th><th></th>
+                    <th>Status</th><th>Name</th><th>URL Pattern</th><th>ที่มา</th><th>ใช้กับ</th><th></th>
                 </tr>
             </thead>
             <tbody>
@@ -105,6 +105,7 @@ else
                         <td><strong>@rule.Name</strong></td>
                         <td class="mono">@rule.UrlPattern</td>
                         <td>@rule.SourceText</td>
+                        <td>@rule.ScopeText</td>
                         <td>
                             <div style="display:flex; gap:.3rem">
                                 <button class="btn btn-secondary btn-sm" @onclick="() => _editing = rule">EDIT</button>
@@ -155,6 +156,7 @@ else
 @code {
     private WebsiteRulesPageDto _page = new();
     private List<WebsiteCatalogSourceDto> _catalogSources = new();
+    private List<RoomDto> _rooms = new();
     private int _pageNum = 1;
     private readonly int _pageSize = 100;
     private string _search = string.Empty;
@@ -170,6 +172,7 @@ else
     {
         await base.OnInitializedAsync();
         _catalogSources = await Api.GetWebsiteCatalogSourcesAsync();
+        _rooms = await Api.GetRoomsAsync();
         await LoadAsync();
         _loading = false;
     }
@@ -185,11 +188,15 @@ else
             _pageNum, _pageSize);
 
         var sourceNames = _catalogSources.ToDictionary(s => s.Id, s => s.Name);
+        var roomNames = _rooms.ToDictionary(r => r.Id, r => r.Name);
         foreach (var rule in _page.Items)
         {
             rule.SourceText = rule.SourceCatalogId is null
                 ? "พิมพ์เอง"
                 : sourceNames.GetValueOrDefault(rule.SourceCatalogId.Value, "Catalog (ลบไปแล้ว)");
+            rule.ScopeText = rule.RoomId is null
+                ? "ทุกห้อง"
+                : roomNames.GetValueOrDefault(rule.RoomId.Value, "ห้อง (ลบไปแล้ว)");
         }
     }
 

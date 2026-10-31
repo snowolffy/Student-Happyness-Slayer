@@ -55,6 +55,7 @@ else
                     {
                         <dt>คำสั่งเพิ่มเติม</dt><dd class="mono truncate">@rule.ActionCommand</dd>
                     }
+                    <dt>ใช้กับ</dt><dd>@rule.ScopeText</dd>
                 </dl>
 
                 <div class="data-card-actions">
@@ -74,7 +75,7 @@ else
             <thead>
                 <tr>
                     <th>Status</th><th>Name</th><th>Publisher</th><th>Name Contains</th>
-                    <th>Signed Only</th><th>Kill</th><th>Action Command</th><th></th>
+                    <th>Signed Only</th><th>Kill</th><th>Action Command</th><th>ใช้กับ</th><th></th>
                 </tr>
             </thead>
             <tbody>
@@ -92,6 +93,7 @@ else
                         <td>@(rule.RequireSignedMatch ? "Yes" : "No")</td>
                         <td>@(rule.KillProcess ? "Yes" : "No")</td>
                         <td class="mono">@rule.ActionCommand</td>
+                        <td>@rule.ScopeText</td>
                         <td>
                             <div style="display:flex; gap:.3rem">
                                 <button class="btn btn-secondary btn-sm" @onclick="() => _editing = rule">EDIT</button>
@@ -125,6 +127,7 @@ else
 
 @code {
     private List<RuleDto> _rules = new();
+    private List<RoomDto> _rooms = new();
     private RuleDto? _editing;
     private RuleDto? _deleting;
     private bool _loading = true;
@@ -132,11 +135,23 @@ else
     protected override async Task OnInitializedAsync()
     {
         await base.OnInitializedAsync();
+        // WP2-3: ห้องไม่เปลี่ยนบ่อยเท่ากฎ แต่โหลดคู่กับ _rules ทุกครั้งกันห้องที่เพิ่ง
+        // สร้าง/ลบจากอีกแท็บยังไม่อัปเดต (เหตุผลเดียวกับ Home.razor)
+        _rooms = await Api.GetRoomsAsync();
         await LoadAsync();
         _loading = false;
     }
 
-    private async Task LoadAsync() => _rules = await Api.GetRulesAsync();
+    private async Task LoadAsync()
+    {
+        _rules = await Api.GetRulesAsync();
+        foreach (var rule in _rules)
+        {
+            rule.ScopeText = rule.RoomId is null
+                ? "ทุกห้อง"
+                : _rooms.FirstOrDefault(r => r.Id == rule.RoomId)?.Name ?? "ห้อง (ลบไปแล้ว)";
+        }
+    }
 
     /// <summary>The one-line "what does this rule actually match" summary for the phone card, assembled
     /// from whichever criteria the rule uses. The table shows those as separate columns; a card has no
