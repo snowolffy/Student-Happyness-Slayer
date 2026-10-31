@@ -79,6 +79,10 @@
          อัปเกรดมาไม่ควรจู่ๆ ได้ service ใหม่ที่ตัวเองไม่ได้ขอ ต้องเลือกเอง (opt-in) เสมอไม่ว่าจะติดตั้ง
          ใหม่หรืออัปเกรดก็ตาม -->
     <Property Id="INSTALLONLINECONSOLE" Value="0" Secure="yes" />
+    <!-- Roster Manager (WP3-2, 2026-10-31) - โปรแกรม WPF แยกสำหรับจัดการรายชื่อ/บัญชีนักเรียน ต่อ
+         Server เครื่องไหนก็ได้ (เหมือน Console ไม่ต้องรันเครื่องเดียวกับ Server) default "0" (ไม่ติ๊ก)
+         เพราะส่วนใหญ่ไม่ต้องใช้ทุกเครื่องที่ลง Console ไว้ (ครูทั่วไปไม่ได้จัดการบัญชีนักเรียน) -->
+    <Property Id="INSTALLROSTERMANAGER" Value="0" Secure="yes" />
 
     <!-- อ่านว่าคราวก่อนลงอะไรไว้ เพื่อ pre-ติ๊กให้ตรงตอน upgrade
          สำคัญ: MajorUpgrade ของ product นี้เป็นแบบถอนเก่า-ลงใหม่ ถ้าไม่มีตรงนี้ การอัปเกรดเครื่องที่
@@ -99,6 +103,13 @@
       <RegistrySearch Id="PrevOnlineConsoleSearch" Root="HKLM" Key="Software\OnionProcOparetor\Install"
                       Name="OnlineConsoleInstalled" Type="raw" />
     </Property>
+    <!-- Roster Manager (WP3-2) - ไม่มี build ไหนก่อนหน้านี้เคยเขียนค่านี้เลย (ฟีเจอร์เพิ่งมี) จึงว่างเปล่า
+         เสมอสำหรับเครื่องอัปเกรดทุกเครื่อง ตรงกับ INSTALLROSTERMANAGER default "0" ด้านบนพอดี (pattern
+         เดียวกับ PREV_ONLINECONSOLE ตอนเพิ่ม Online Console) -->
+    <Property Id="PREV_ROSTERMANAGER">
+      <RegistrySearch Id="PrevRosterManagerSearch" Root="HKLM" Key="Software\OnionProcOparetor\Install"
+                      Name="RosterManagerInstalled" Type="raw" />
+    </Property>
     <!-- ตัวชี้ว่า "เวอร์ชันที่ติดตั้งอยู่รู้จักการเลือก feature แล้ว" (ดู UninstallArpEntryComponent)
          ต้องใช้ตัวนี้ ไม่ใช่ ARP DisplayName ที่ build เก่าก็มี - ไม่งั้นการอัปเกรดครั้งแรกจากทุก
          เครื่องที่ลงอยู่ตอนนี้จะติ๊กออกทั้งสองช่องแล้วกลายเป็นไม่ติดตั้งอะไรเลย -->
@@ -116,6 +127,8 @@
                  Condition="PREV_LAYOUT AND NOT PREV_CONSOLE" />
     <SetProperty Id="INSTALLONLINECONSOLE" Value="0" After="AppSearch" Sequence="ui"
                  Condition="PREV_LAYOUT AND NOT PREV_ONLINECONSOLE" />
+    <SetProperty Id="INSTALLROSTERMANAGER" Value="0" After="AppSearch" Sequence="ui"
+                 Condition="PREV_LAYOUT AND NOT PREV_ROSTERMANAGER" />
 
     <!-- ==================== Directory layout ====================
          Unchanged from before the split ("Onion ProcOparetor", not renamed) so this keeps
@@ -125,6 +138,7 @@
         <Directory Id="ServerDir" Name="Server" />
         <Directory Id="ConsoleDir" Name="Console" />
         <Directory Id="OnlineConsoleDir" Name="OnlineConsole" />
+        <Directory Id="RosterManagerDir" Name="RosterManager" />
         <Directory Id="UninstallHelperDir" Name="UninstallHelper" />
       </Directory>
     </StandardDirectory>
@@ -178,6 +192,15 @@
       <ComponentRef Id="OnlineConsoleExeComponent" />
     </Feature>
 
+    <!-- Roster Manager (WP3-2, 2026-10-31) - โปรแกรม WPF แยกไม่มี service/firewall rule เป็นของตัวเอง
+         (ต่อ Server ผ่าน HTTP/HTTPS ปกติเหมือน Console) default ไม่ติ๊ก (ดู INSTALLROSTERMANAGER) -->
+    <Feature Id="RosterManagerFeature" Level="1"
+             Title="Roster Manager (จัดการรายชื่อนักเรียน)"
+             Description="โปรแกรมแยกสำหรับ Admin ใช้นำเข้า/จัดการบัญชีนักเรียน พิมพ์ใบรหัสผ่าน และเลื่อนชั้นปีการศึกษา - ต่อ Server เครื่องไหนก็ได้ ไม่ต้องลงเครื่องเดียวกับ Server">
+      <ComponentGroupRef Id="RosterManagerFiles" />
+      <ComponentRef Id="RosterManagerExeComponent" />
+    </Feature>
+
     <!-- ==================== Harvested files ==================== -->
     <ComponentGroup Id="ServerFiles" Directory="ServerDir">
       <Files Include="$(var.PublishDir)\OnionProcOparetor.Server\**">
@@ -194,6 +217,12 @@
     <ComponentGroup Id="OnlineConsoleFiles" Directory="OnlineConsoleDir">
       <Files Include="$(var.PublishDir)\OnionProcOparetor.OnlineConsole\**">
         <Exclude Files="$(var.PublishDir)\OnionProcOparetor.OnlineConsole\OnionProcOparetor.OnlineConsole.exe" />
+      </Files>
+    </ComponentGroup>
+
+    <ComponentGroup Id="RosterManagerFiles" Directory="RosterManagerDir">
+      <Files Include="$(var.PublishDir)\OnionProcOparetor.RosterManager\**">
+        <Exclude Files="$(var.PublishDir)\OnionProcOparetor.RosterManager\OnionProcOparetor.RosterManager.exe" />
       </Files>
     </ComponentGroup>
 
@@ -257,6 +286,18 @@
       <fire:FirewallException Id="OnlineConsoleFirewallRule" Name="OnionProcOparetor Online Console" Port="8788" Protocol="tcp" Scope="any" />
 
       <RegistryValue Root="HKLM" Key="Software\OnionProcOparetor\Install" Name="OnlineConsoleInstalled"
+                     Type="integer" Value="1" />
+    </Component>
+
+    <!-- Roster Manager (WP3-2): shortcut only, no service - ต่อ Server ผ่าน HTTP/HTTPS ปกติเหมือน
+         Console ไม่ใช่ loopback proxy แบบ Online Console จึงไม่มี firewall rule ของตัวเอง -->
+    <Component Id="RosterManagerExeComponent" Directory="RosterManagerDir" Guid="*">
+      <File Id="RosterManagerExeFile" Source="$(var.PublishDir)\OnionProcOparetor.RosterManager\OnionProcOparetor.RosterManager.exe" KeyPath="yes">
+        <Shortcut Id="RosterManagerShortcut" Directory="AppProgramMenuFolder" Name="Onion ProcOparetor Roster Manager"
+                   WorkingDirectory="RosterManagerDir" Advertise="no" Icon="AppIcon.ico" />
+      </File>
+      <RemoveFolder Id="RemoveAppProgramMenuFolder_RosterManager" Directory="AppProgramMenuFolder" On="uninstall" />
+      <RegistryValue Root="HKLM" Key="Software\OnionProcOparetor\Install" Name="RosterManagerInstalled"
                      Type="integer" Value="1" />
     </Component>
 
@@ -434,11 +475,14 @@
 
       <!-- Height 270 -> 332 (2026-09-20, +62 = ระยะห่างเดิมระหว่างแถว checkbox หนึ่งแถว) เพื่อให้ที่
            สำหรับ OnlineConsoleCheck/Help แถวที่สาม - ทุก control ตั้งแต่ Hint ลงไปขยับลง 62 เท่ากัน
-           (คำนวณแล้ว: ช่องว่างระหว่างแต่ละ control กับขอบล่างยังเท่าเดิมทุกจุด) -->
-      <Dialog Id="ComponentsDlg" Width="370" Height="332" Title="!(loc.InstallDirDlg_Title)">
+           (คำนวณแล้ว: ช่องว่างระหว่างแต่ละ control กับขอบล่างยังเท่าเดิมทุกจุด)
+
+           332 -> 394 (WP3-2, 2026-10-31): +62 เท่ากันอีกรอบ สำหรับ RosterManagerCheck/Help แถวที่สี่
+           ใช้ตำแหน่งเดิมของ Hint (y=250) เป็นจุดวาง แล้วดัน Hint/BottomLine/ปุ่มลงอีก 62 ทั้งชุด -->
+      <Dialog Id="ComponentsDlg" Width="370" Height="394" Title="!(loc.InstallDirDlg_Title)">
         <Control Id="Banner" Type="Bitmap" X="0" Y="0" Width="370" Height="44" TabSkip="no" Text="!(loc.InstallDirDlgBannerBitmap)" />
         <Control Id="BannerLine" Type="Line" X="0" Y="44" Width="370" Height="0" />
-        <Control Id="BottomLine" Type="Line" X="0" Y="296" Width="370" Height="0" />
+        <Control Id="BottomLine" Type="Line" X="0" Y="358" Width="370" Height="0" />
 
         <Control Id="Title" Type="Text" X="15" Y="6" Width="280" Height="15" Transparent="yes" NoPrefix="yes" Text="Choose what to install" />
         <Control Id="Description" Type="Text" X="25" Y="23" Width="330" Height="15" Transparent="yes" NoPrefix="yes" Text="เลือกเฉพาะส่วนที่เครื่องนี้ต้องใช้จริง" />
@@ -460,14 +504,21 @@
         <Control Id="OnlineConsoleHelp" Type="Text" X="38" Y="202" Width="316" Height="34"
                  Text="เว็บคอนโซลสำหรับดูสถานะ/สั่งงานจากมือถือผ่าน Tailscale - ต้องมี Tailscale ติดตั้ง+เชื่อมต่ออยู่แล้ว และต้องติ๊ก Server ด้วย (รันเครื่องเดียวกัน)" />
 
-        <Control Id="Hint" Type="Text" X="24" Y="250" Width="330" Height="34"
+        <!-- Roster Manager (WP3-2, 2026-10-31) - ไม่ผูกกับ Server/Console เลย (ต่อ Server เครื่องไหน
+             ก็ได้ตอนล็อกอิน เหมือน Console) จึงไม่มี error-dialog gate แบบ Online Console -->
+        <Control Id="RosterManagerCheck" Type="CheckBox" X="24" Y="246" Width="330" Height="16"
+                 Property="INSTALLROSTERMANAGER" CheckBoxValue="1" Text="Roster Manager (จัดการรายชื่อนักเรียน)" />
+        <Control Id="RosterManagerHelp" Type="Text" X="38" Y="264" Width="316" Height="34"
+                 Text="โปรแกรมแยกสำหรับ Admin นำเข้า/จัดการบัญชีนักเรียน พิมพ์ใบรหัสผ่าน และเลื่อนชั้นปีการศึกษา - ต่อ Server เครื่องไหนก็ได้ ไม่ต้องลงเครื่องเดียวกับ Server" />
+
+        <Control Id="Hint" Type="Text" X="24" Y="312" Width="330" Height="34"
                  Text="ถ้าเครื่องนี้เป็นเครื่องครูที่ใช้คุมอย่างเดียว ให้ติ๊กแค่ Console - จะได้ไม่มี service และ firewall rule ที่ไม่ได้ใช้ค้างอยู่บนเครื่อง" />
 
-        <Control Id="Back" Type="PushButton" X="180" Y="305" Width="56" Height="17" Text="!(loc.WixUIBack)">
+        <Control Id="Back" Type="PushButton" X="180" Y="367" Width="56" Height="17" Text="!(loc.WixUIBack)">
           <Publish Event="NewDialog" Value="InstallDirDlg" />
         </Control>
 
-        <Control Id="Next" Type="PushButton" X="236" Y="305" Width="56" Height="17" Default="yes" Text="!(loc.WixUINext)">
+        <Control Id="Next" Type="PushButton" X="236" Y="367" Width="56" Height="17" Default="yes" Text="!(loc.WixUINext)">
           <!-- ลำดับสำคัญ: AddLocal/Remove ต้องมาก่อน NewDialog เสมอ เพราะ ControlEvent ทำงานตาม
                ลำดับที่ประกาศ - ถ้า NewDialog มาก่อน หน้า VerifyReady จะสรุปจาก state เก่า -->
           <Publish Event="AddLocal" Value="ServerFeature" Condition="INSTALLSERVER = &quot;1&quot;" />
@@ -476,6 +527,8 @@
           <Publish Event="Remove" Value="ConsoleFeature" Condition="INSTALLCONSOLE &lt;&gt; &quot;1&quot;" />
           <Publish Event="AddLocal" Value="OnlineConsoleFeature" Condition="INSTALLONLINECONSOLE = &quot;1&quot;" />
           <Publish Event="Remove" Value="OnlineConsoleFeature" Condition="INSTALLONLINECONSOLE &lt;&gt; &quot;1&quot;" />
+          <Publish Event="AddLocal" Value="RosterManagerFeature" Condition="INSTALLROSTERMANAGER = &quot;1&quot;" />
+          <Publish Event="Remove" Value="RosterManagerFeature" Condition="INSTALLROSTERMANAGER &lt;&gt; &quot;1&quot;" />
 
           <!-- ไม่ติ๊กเลยสักอัน = ไม่มีอะไรให้ติดตั้ง ต้องกันไว้ ไม่งั้นจะได้ ARP entry เปล่าๆ
                ที่ชี้ไปยัง product ที่ไม่มีไฟล์อะไรเลย -->
@@ -495,14 +548,16 @@
 
           <!-- Online Console ต้องพึ่ง Server เครื่องเดียวกันเสมอ (proxy เข้า /api/auth/login ของ Server
                ที่ 127.0.0.1:8787 ตรงๆ) เลือก OnlineConsole โดยไม่เลือก Server จึงเป็น config ที่พังตั้งแต่
-               ติดตั้ง ต้องกันไว้เหมือนกับกรณี "ไม่ติ๊กอะไรเลย" ข้างบน -->
+               ติดตั้ง ต้องกันไว้เหมือนกับกรณี "ไม่ติ๊กอะไรเลย" ข้างบน - Roster Manager (WP3-2) ไม่มี
+               dependency แบบนั้น (ต่อ Server เครื่องไหนก็ได้ตอนล็อกอิน) จึงแค่เพิ่มเข้าไปในเงื่อนไข "มี
+               อย่างน้อยหนึ่งอย่างถูกเลือก" เท่านั้น ไม่เพิ่มเงื่อนไข dependency ใหม่ -->
           <Publish Event="SpawnDialog" Value="ErrorMsgDlg"
-                   Condition="(INSTALLSERVER &lt;&gt; &quot;1&quot; AND INSTALLCONSOLE &lt;&gt; &quot;1&quot; AND INSTALLONLINECONSOLE &lt;&gt; &quot;1&quot;) OR (INSTALLONLINECONSOLE = &quot;1&quot; AND INSTALLSERVER &lt;&gt; &quot;1&quot;)" />
+                   Condition="(INSTALLSERVER &lt;&gt; &quot;1&quot; AND INSTALLCONSOLE &lt;&gt; &quot;1&quot; AND INSTALLONLINECONSOLE &lt;&gt; &quot;1&quot; AND INSTALLROSTERMANAGER &lt;&gt; &quot;1&quot;) OR (INSTALLONLINECONSOLE = &quot;1&quot; AND INSTALLSERVER &lt;&gt; &quot;1&quot;)" />
           <Publish Event="NewDialog" Value="VerifyReadyDlg"
-                   Condition="(INSTALLSERVER = &quot;1&quot; OR INSTALLCONSOLE = &quot;1&quot; OR INSTALLONLINECONSOLE = &quot;1&quot;) AND (INSTALLONLINECONSOLE &lt;&gt; &quot;1&quot; OR INSTALLSERVER = &quot;1&quot;)" />
+                   Condition="(INSTALLSERVER = &quot;1&quot; OR INSTALLCONSOLE = &quot;1&quot; OR INSTALLONLINECONSOLE = &quot;1&quot; OR INSTALLROSTERMANAGER = &quot;1&quot;) AND (INSTALLONLINECONSOLE &lt;&gt; &quot;1&quot; OR INSTALLSERVER = &quot;1&quot;)" />
         </Control>
 
-        <Control Id="Cancel" Type="PushButton" X="304" Y="305" Width="56" Height="17" Cancel="yes" Text="!(loc.WixUICancel)">
+        <Control Id="Cancel" Type="PushButton" X="304" Y="367" Width="56" Height="17" Cancel="yes" Text="!(loc.WixUICancel)">
           <Publish Event="SpawnDialog" Value="CancelDlg" />
         </Control>
       </Dialog>

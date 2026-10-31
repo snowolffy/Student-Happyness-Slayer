@@ -1,4 +1,4 @@
-﻿# Publish ทั้ง 6 โปรเจกต์ของ OnionProcOparetor ลง ..\publish\<ProjectName>\ (path ที่ทั้ง 2 .wxs's
+﻿# Publish ทั้ง 7 โปรเจกต์ของ OnionProcOparetor ลง ..\publish\<ProjectName>\ (path ที่ทั้ง 2 .wxs's
 # <Files Include=...> คาดหวังไว้พอดี) แล้ว compile installer 2 ตัวแยกกันผ่าน wix build ต่อให้อัตโนมัติ:
 # OnionProcOparetor-Agent-Setup.msi (Client Agent เท่านั้น - เครื่อง lab นักเรียน) และ
 # OnionProcOparetor-Server-Console-Setup.msi (Server+Console เท่านั้น - เครื่องครู/admin) แทนที่ MSI
@@ -40,6 +40,7 @@ $projects = @(
     @{ Name = "OnionProcOparetor.Server";           Path = "src\OnionProcOparetor.Server\OnionProcOparetor.Server.csproj" },
     @{ Name = "OnionProcOparetor.Console";          Path = "src\OnionProcOparetor.Console\OnionProcOparetor.Console.csproj" },
     @{ Name = "OnionProcOparetor.OnlineConsole";    Path = "src\OnionProcOparetor.OnlineConsole\OnionProcOparetor.OnlineConsole.csproj" },
+    @{ Name = "OnionProcOparetor.RosterManager";    Path = "src\OnionProcOparetor.RosterManager\OnionProcOparetor.RosterManager.csproj" },
     @{ Name = "OnionProcOparetor.Agent";            Path = "src\OnionProcOparetor.Agent\OnionProcOparetor.Agent.csproj" },
     @{ Name = "OnionProcOparetor.AgentTray";        Path = "src\OnionProcOparetor.AgentTray\OnionProcOparetor.AgentTray.csproj" },
     @{ Name = "OnionProcOparetor.UninstallHelper";  Path = "src\OnionProcOparetor.UninstallHelper\OnionProcOparetor.UninstallHelper.csproj" }
@@ -80,7 +81,7 @@ if (-not $allSucceeded) {
 }
 
 Write-Host ""
-Write-Host "All 6 projects published successfully." -ForegroundColor Green
+Write-Host "All 7 projects published successfully." -ForegroundColor Green
 
 # ---- compile the .msi via WiX v5 (dotnet tool) - primary installer output ----
 # WiX is pinned to v5.0.2 (installer\.wix\extensions\) rather than whatever "wix" resolves

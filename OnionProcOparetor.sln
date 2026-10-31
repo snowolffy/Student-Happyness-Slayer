@@ -19,6 +19,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "OnionProcOparetor.OnlineCon
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "OnionProcOparetor.RemoteBridge", "src\OnionProcOparetor.RemoteBridge\OnionProcOparetor.RemoteBridge.csproj", "{94DC3962-C4E7-4D97-9F82-2305FCAFF282}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "OnionProcOparetor.RosterManager", "src\OnionProcOparetor.RosterManager\OnionProcOparetor.RosterManager.csproj", "{A20C0C6A-EFBB-40F1-8013-DFA286599082}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -113,6 +115,18 @@ Global
 		{94DC3962-C4E7-4D97-9F82-2305FCAFF282}.Release|x64.Build.0 = Release|Any CPU
 		{94DC3962-C4E7-4D97-9F82-2305FCAFF282}.Release|x86.ActiveCfg = Release|Any CPU
 		{94DC3962-C4E7-4D97-9F82-2305FCAFF282}.Release|x86.Build.0 = Release|Any CPU
+		{A20C0C6A-EFBB-40F1-8013-DFA286599082}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{A20C0C6A-EFBB-40F1-8013-DFA286599082}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{A20C0C6A-EFBB-40F1-8013-DFA286599082}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{A20C0C6A-EFBB-40F1-8013-DFA286599082}.Debug|x64.Build.0 = Debug|Any CPU
+		{A20C0C6A-EFBB-40F1-8013-DFA286599082}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{A20C0C6A-EFBB-40F1-8013-DFA286599082}.Debug|x86.Build.0 = Debug|Any CPU
+		{A20C0C6A-EFBB-40F1-8013-DFA286599082}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{A20C0C6A-EFBB-40F1-8013-DFA286599082}.Release|Any CPU.Build.0 = Release|Any CPU
+		{A20C0C6A-EFBB-40F1-8013-DFA286599082}.Release|x64.ActiveCfg = Release|Any CPU
+		{A20C0C6A-EFBB-40F1-8013-DFA286599082}.Release|x64.Build.0 = Release|Any CPU
+		{A20C0C6A-EFBB-40F1-8013-DFA286599082}.Release|x86.ActiveCfg = Release|Any CPU
+		{A20C0C6A-EFBB-40F1-8013-DFA286599082}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -121,5 +135,6 @@ Global
 		{DAAED6AF-0184-471D-9504-BB3959F47FF9} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
 		{89297E05-8137-4125-A398-2C6775C0CD6B} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
 		{1DACDDA0-ED42-4331-B827-C28BC18FF99D} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
+		{A20C0C6A-EFBB-40F1-8013-DFA286599082} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
 	EndGlobalSection
 EndGlobal

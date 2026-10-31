@@ -1,0 +1,38 @@
+<Window x:Class="OnionProcOparetor.RosterManager.AddEditStudentWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="เพิ่มนักเรียน"
+        Width="440" SizeToContent="Height"
+        WindowStartupLocation="CenterOwner"
+        ResizeMode="NoResize"
+        Icon="/Theme/icon.ico"
+        Style="{StaticResource AppDialogWindow}">
+    <!-- เพิ่ม/แก้นักเรียนทีละคน - ปุ่ม "เพิ่มนักเรียน…" บน nf-roster และปุ่ม "แก้ข้อมูล…" ของ aside -->
+    <StackPanel Margin="24">
+        <TextBlock x:Name="TitleText" FontSize="18" FontWeight="Bold" Margin="0,0,0,16"/>
+
+        <TextBlock Text="รหัสนักเรียน" Style="{StaticResource Label}" Margin="0,0,0,6"/>
+        <TextBox x:Name="StudentCodeBox" Style="{StaticResource RoundedTextBox}" Margin="0,0,0,14"/>
+
+        <TextBlock Text="ชื่อ-สกุล" Style="{StaticResource Label}" Margin="0,0,0,6"/>
+        <TextBox x:Name="FullNameBox" Style="{StaticResource RoundedTextBox}" Margin="0,0,0,14"/>
+
+        <TextBlock Text="เมลโรงเรียน (ไม่บังคับ)" Style="{StaticResource Label}" Margin="0,0,0,6"/>
+        <TextBox x:Name="EmailBox" Style="{StaticResource RoundedTextBox}" Margin="0,0,0,14"/>
+
+        <TextBlock Text="ชั้น/ห้องเรียน" Style="{StaticResource Label}" Margin="0,0,0,6"/>
+        <TextBox x:Name="ClassNameBox" Style="{StaticResource RoundedTextBox}" Margin="0,0,0,14"/>
+
+        <StackPanel x:Name="PasswordPanel">
+            <TextBlock Text="รหัสผ่านเริ่มต้น (เว้นว่าง = สุ่ม 6 หลักให้อัตโนมัติ)" Style="{StaticResource Label}" Margin="0,0,0,6"/>
+            <TextBox x:Name="PasswordBox" Style="{StaticResource RoundedTextBox}" Margin="0,0,0,8"/>
+            <CheckBox x:Name="ForceChangeCheckBox" Content="บังคับเปลี่ยนรหัสตอนล็อกอินครั้งแรก" IsChecked="True" Margin="0,0,0,18"/>
+        </StackPanel>
+
+        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+            <Button x:Name="CancelButton" Content="ยกเลิก" Style="{StaticResource ButtonSecondary}" Margin="0,0,8,0" Click="CancelButton_Click"/>
+            <Button x:Name="SaveButton" Content="บันทึก" Style="{StaticResource ButtonPrimary}" Click="SaveButton_Click"/>
+        </StackPanel>
+        <TextBlock x:Name="StatusText" Margin="0,12,0,0" TextWrapping="Wrap" FontSize="12"/>
+    </StackPanel>
+</Window>

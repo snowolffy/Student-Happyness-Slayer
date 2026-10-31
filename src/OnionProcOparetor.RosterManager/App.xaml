@@ -1,0 +1,18 @@
+<Application x:Class="OnionProcOparetor.RosterManager.App"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             ThemeMode="Light"
+             StartupUri="LoginWindow.xaml">
+    <!-- เหมือน Console/App.xaml ทุกจุด (ดู comment เต็มที่นั่น) - ThemeMode="Light" ที่นี่เป็นแค่ค่าตั้งต้น
+         ตอน parse XAML เท่านั้น ค่าจริงถูกตั้งทับทันทีโดย ThemeService.Initialize() ใน OnStartup -->
+    <Application.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="Theme/Colors.Light.xaml"/>
+                <ResourceDictionary Source="Theme/Icons.xaml"/>
+                <ResourceDictionary Source="Theme/Typography.xaml"/>
+                <ResourceDictionary Source="Theme/Controls.xaml"/>
+            </ResourceDictionary.MergedDictionaries>
+        </ResourceDictionary>
+    </Application.Resources>
+</Application>
