@@ -1,0 +1,282 @@
+@page "/exam-mode"
+@rendermode InteractiveServer
+@inherits AuthenticatedPageBase
+@inject NavigationManager Navigation
+@inject ToastService Toasts
+
+@* "เปิดโหมดสอบ" บนมือถือ (leftover ของ WP2-2, 2026-10-31) - ตาม wireframe oc-exam.dc.html - API ฝั่ง Server
+   (ExamSessionEndpoints/AllowListPresetEndpoints) ทำไว้แล้วตั้งแต่รอบ WP2-2 บน Console หน้านี้คือฝั่ง
+   OnlineConsole ที่ค้างไว้ (ดู docs/roadmap.md ขั้น 2 แถว "ค้าง")
+
+   ต่างจาก ExamModeWindow (WPF) ตรงที่เป้าหมาย (ห้อง/เครื่องที่เลือก) มาจาก query string แทนตัวเลือกในหน้าเดียวกัน
+   - ตรงกับ wireframe ที่โชว์ "3 · ใช้กับ" เป็นข้อความนิ่งๆ ไม่ใช่ radio/dropdown เพราะครูเลือกเป้าหมายมาจากหน้า
+   Clients ก่อนแล้ว (ดู ปุ่ม "เปิดโหมดสอบ" ใน Home.razor) การเลือกห้อง/เครื่องซ้ำอีกชั้นในหน้านี้จะเป็นงานซ้ำ
+   บนจอที่เล็กอยู่แล้ว *@
+
+<PageTitle>เปิดโหมดสอบ - OnionProcOparetor Online Console</PageTitle>
+
+<div class="page-head">
+    <div>
+        <h2 class="heading2" style="margin:0">เปิดโหมดสอบ</h2>
+        <div class="page-subtitle">ทุกเว็บถูกบล็อก ยกเว้นที่เลือกไว้ข้างล่าง · โปรแกรมยังโดนกฎเดิมตามปกติ</div>
+    </div>
+    <span class="spacer"></span>
+    <button class="btn btn-secondary" @onclick='() => Navigation.NavigateTo("/")'>
+        <Icon Name="chevron-left" Size="15" /> กลับ
+    </button>
+</div>
+
+@if (_loading)
+{
+    @for (var i = 0; i < 3; i++) { <div class="skeleton skeleton-card"></div> }
+}
+else if (!HasTarget)
+{
+    @* ไม่มี roomId หรือ clients ติดมาใน query string - เข้าหน้านี้ตรงๆ โดยไม่ได้เลือกเป้าหมายมาก่อน *@
+    <div class="card">
+        <EmptyState IconName="alert-triangle" Title="ยังไม่ได้เลือกเป้าหมาย"
+                    Detail="กลับไปหน้า Clients แล้วเลือกห้องหรือเครื่องก่อน จึงกดเปิดโหมดสอบได้" />
+    </div>
+}
+else if (_activeSession is not null)
+{
+    @* มีโหมดสอบทำงานอยู่กับเป้าหมายนี้แล้ว (ตรวจจาก roomId ตรงกัน หรือเครื่องที่เลือกไว้ทับกับ ClientGuids ของ
+       session - ดู FindActiveSessionForTarget) แทนฟอร์มเริ่มด้วยสถานะ + ปุ่มยกเลิก กันเริ่มซ้ำสองชุดทับกัน *@
+    <div class="card">
+        <div class="data-card-head" style="margin-bottom:.6rem">
+            <Icon Name="shield" Size="20" />
+            <div style="flex:1; min-width:0">
+                <div class="data-card-title">โหมดสอบกำลังทำงานอยู่</div>
+                <div class="data-card-sub">@_activeSession.TargetDescription · เปิดโดย @_activeSession.StartedByUsername</div>
+            </div>
+        </div>
+        <dl class="data-card-rows">
+            <dt>เว็บที่เปิด</dt><dd>@string.Join(", ", _activeSession.AllowedDomains)</dd>
+            <dt>ถึง</dt><dd>@_activeSession.ExpiresAt.ToLocalTime().ToString("HH:mm")</dd>
+        </dl>
+        <button class="btn btn-danger btn-block" style="margin-top:.8rem" disabled="@_submitting" @onclick="CancelActiveSessionAsync">
+            <Icon Name="x" Size="15" /> ยกเลิกโหมดสอบ
+        </button>
+    </div>
+}
+else
+{
+    <section style="display:flex; flex-direction:column; gap:.6rem">
+        <p class="field-label" style="margin:0">1 · เว็บที่อนุญาต</p>
+
+        @if (_presets.Count == 0)
+        {
+            <div class="caption">โหลดชุด Allow-list จาก Server ไม่สำเร็จ - ยังพิมพ์เว็บเพิ่มเติมเองได้ด้านล่าง</div>
+        }
+        else
+        {
+            @foreach (var preset in _presets)
+            {
+                <label class="exam-preset @(_selectedPresetIds.Contains(preset.Id) ? "exam-preset-on" : "")">
+                    <input type="checkbox" checked="@_selectedPresetIds.Contains(preset.Id)"
+                           @onchange="e => TogglePreset(preset.Id, (bool)e.Value!)" />
+                    <span style="flex:1">@preset.Name</span>
+                    <span class="caption">@preset.DomainCountText</span>
+                </label>
+            }
+        }
+
+        <div class="form-row" style="margin-top:.3rem">
+            <label for="extraDomains">เว็บเพิ่มเติม (บรรทัดละหนึ่ง)</label>
+            <textarea id="extraDomains" rows="3" placeholder="exam.school.ac.th" @bind="_extraDomainsText"></textarea>
+        </div>
+
+        <p class="field-label" style="margin:.4rem 0 0">2 · นานแค่ไหน</p>
+        <div class="chip-row" style="margin-bottom:0">
+            @foreach (var minutes in DurationChoices)
+            {
+                <button type="button" class="chip @(CustomMinutes is null && _durationMinutes == minutes ? "active" : "")"
+                        @onclick="() => SelectDurationPill(minutes)">@minutes น.</button>
+            }
+        </div>
+        <div class="form-row" style="margin-top:.3rem">
+            <label for="customMinutes">หรือกำหนดเอง (นาที)</label>
+            <input type="number" id="customMinutes" min="1" @bind="_customMinutesText" @bind:event="oninput" />
+        </div>
+
+        <p class="field-label" style="margin:.4rem 0 0">3 · ใช้กับ</p>
+        <span>@TargetDescription()</span>
+
+        <div class="card" style="background:var(--bg-sunken); box-shadow:none; padding:.7rem .8rem">
+            @if (DomainCount == 0)
+            {
+                <span>สรุป: ยังไม่ได้เลือกเว็บที่อนุญาตเลย - ต้องเลือกชุดสำเร็จรูปหรือพิมพ์เว็บเพิ่มเติมอย่างน้อยหนึ่งรายการ</span>
+            }
+            else
+            {
+                <span>สรุป: @TargetDescription() · เปิดได้ @DomainCount โดเมน · ถึง @DateTime.Now.AddMinutes(GetSelectedDurationMinutes()).ToString("HH:mm") แล้วกลับเป็นกฎปกติเอง แม้ครูลืมปิดหรือเครื่องครูดับ</span>
+            }
+        </div>
+
+        @if (_statusMessage is not null)
+        {
+            <span class="@(_statusIsError ? "error-text" : "status-text")">@_statusMessage</span>
+        }
+
+        <button class="btn btn-primary btn-block" disabled="@_submitting" @onclick="StartExamSessionAsync">
+            <Icon Name="shield" Size="15" /> เริ่มโหมดสอบ
+        </button>
+    </section>
+}
+
+@code {
+    [SupplyParameterFromQuery(Name = "roomId")]
+    [Parameter]
+    public int? RoomId { get; set; }
+
+    /// <summary>GUID ของเครื่องที่เลือกไว้ คั่นด้วยคอมมา - ส่งมาจากหน้า Clients (ดู Home.razor)</summary>
+    [SupplyParameterFromQuery(Name = "clients")]
+    [Parameter]
+    public string? ClientsQuery { get; set; }
+
+    private static readonly int[] DurationChoices = { 30, 50, 60 };
+
+    private List<AllowListPresetDto> _presets = new();
+    private readonly HashSet<int> _selectedPresetIds = new();
+    private string _extraDomainsText = string.Empty;
+
+    private int _durationMinutes = 50;
+    private string _customMinutesText = string.Empty;
+
+    /// <summary>คำนวณจากข้อความสดทุกครั้ง ไม่เก็บเป็น field แยก เพราะ @@bind ของ textbox นี้เป็น field ธรรมดา
+    /// (ไม่ใช่ [Parameter]) การเปลี่ยนค่าจะไม่ไปเรียก OnParametersSet ให้ sync ซ้ำ ต้อง derive ตรงๆ ตอนใช้งาน</summary>
+    private int? CustomMinutes => int.TryParse(_customMinutesText, out var parsed) && parsed > 0 ? parsed : null;
+
+    private List<string> _clientGuids = new();
+    private RoomDto? _room;
+    private ExamSessionDto? _activeSession;
+
+    private bool _loading = true;
+    private bool _submitting;
+    private string? _statusMessage;
+    private bool _statusIsError;
+
+    private bool HasTarget => RoomId is not null || _clientGuids.Count > 0;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await base.OnInitializedAsync();
+
+        _clientGuids = (ClientsQuery ?? string.Empty)
+            .Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
+            .ToList();
+
+        if (HasTarget)
+        {
+            if (RoomId is not null)
+            {
+                var rooms = await Api.GetRoomsAsync();
+                _room = rooms.FirstOrDefault(r => r.Id == RoomId);
+            }
+
+            // โหลดชุด Allow-list + เช็คว่ามีโหมดสอบทำงานอยู่กับเป้าหมายนี้แล้วหรือไม่ พร้อมกัน
+            _presets = await Api.GetAllowListPresetsAsync();
+            var active = await Api.GetActiveExamSessionsAsync();
+            _activeSession = FindActiveSessionForTarget(active);
+        }
+
+        _loading = false;
+    }
+
+    /// <summary>ตรงกับเป้าหมายปัจจุบัน = roomId เดียวกัน หรือเครื่องที่เลือกไว้ทับกับ ClientGuids ของ session
+    /// อย่างน้อยหนึ่งเครื่อง (ไม่ต้องทับทั้งหมด - แค่พอจะเตือนไม่ให้เริ่มซ้ำบนเครื่องที่โดนคุมอยู่แล้ว)</summary>
+    private ExamSessionDto? FindActiveSessionForTarget(List<ExamSessionDto> active)
+    {
+        if (RoomId is not null)
+        {
+            return active.FirstOrDefault(s => s.RoomId == RoomId);
+        }
+
+        return active.FirstOrDefault(s => s.ClientGuids.Intersect(_clientGuids, StringComparer.OrdinalIgnoreCase).Any());
+    }
+
+    private string TargetDescription() => RoomId is not null
+        ? $"ทั้งห้อง {_room?.Name ?? "(ไม่พบห้อง)"} ({_room?.ClientCount ?? 0} เครื่อง)"
+        : $"{_clientGuids.Count} เครื่องที่เลือกไว้";
+
+    private void TogglePreset(int presetId, bool isChecked)
+    {
+        if (isChecked) _selectedPresetIds.Add(presetId); else _selectedPresetIds.Remove(presetId);
+    }
+
+    private List<string> GetExtraDomains() =>
+        _extraDomainsText
+            .Split('\n', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
+            .ToList();
+
+    /// <summary>ปุ่ม pill 30/50/60 นาที - เลือกปุ่มใหม่แล้วเคลียร์ช่องกำหนดเองทิ้งเสมอ (กันค่าสองที่ขัดกัน
+    /// เหมือน DurationPill_Click ของ ExamModeWindow ฝั่ง WPF)</summary>
+    private void SelectDurationPill(int minutes)
+    {
+        _durationMinutes = minutes;
+        _customMinutesText = string.Empty;
+    }
+
+    private int GetSelectedDurationMinutes() => CustomMinutes ?? _durationMinutes;
+
+    private int DomainCount =>
+        _presets.Where(p => _selectedPresetIds.Contains(p.Id)).Sum(p => p.Domains.Count) + GetExtraDomains().Count;
+
+    private async Task StartExamSessionAsync()
+    {
+        var presetIds = _selectedPresetIds.ToList();
+        var extraDomains = GetExtraDomains();
+
+        if (presetIds.Count == 0 && extraDomains.Count == 0)
+        {
+            SetStatus("ต้องเลือกชุด Allow-list หรือพิมพ์เว็บเพิ่มเติมอย่างน้อยหนึ่งรายการ", isError: true);
+            return;
+        }
+
+        _submitting = true;
+        SetStatus(null, isError: false);
+
+        var result = await Api.StartExamSessionAsync(
+            roomId: RoomId,
+            clientGuids: RoomId is null ? _clientGuids : null,
+            presetIds: presetIds,
+            extraDomains: extraDomains,
+            durationMinutes: GetSelectedDurationMinutes());
+
+        _submitting = false;
+
+        if (result is null)
+        {
+            SetStatus("เริ่มโหมดสอบไม่สำเร็จ - ตรวจสอบว่าเลือกเป้าหมายและเว็บที่อนุญาตไว้ถูกต้องแล้ว", isError: true);
+            return;
+        }
+
+        _activeSession = result;
+        Toasts.Success("เริ่มโหมดสอบแล้ว", result.TargetDescription);
+    }
+
+    private async Task CancelActiveSessionAsync()
+    {
+        if (_activeSession is null) return;
+
+        _submitting = true;
+        var ok = await Api.CancelExamSessionAsync(_activeSession.Id);
+        _submitting = false;
+
+        if (ok)
+        {
+            Toasts.Success("ยกเลิกโหมดสอบแล้ว");
+            _activeSession = null;
+        }
+        else
+        {
+            Toasts.Error("ยกเลิกไม่สำเร็จ", "ต่อ Server ไม่ได้ หรือโหมดสอบนี้จบไปแล้ว");
+        }
+    }
+
+    private void SetStatus(string? message, bool isError)
+    {
+        _statusMessage = message;
+        _statusIsError = isError;
+    }
+}

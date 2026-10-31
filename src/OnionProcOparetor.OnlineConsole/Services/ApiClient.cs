@@ -338,6 +338,74 @@ public class ApiClient
         return response.IsSuccessStatusCode;
     }
 
+    // ---- โหมดสอบ + ชุด Allow-list (WP2-2, 2026-10-31) - ported from OnionProcOparetor.Console/Services/ApiClient.cs ----
+
+    /// <summary>คืน empty list ถ้าอ่านไม่ได้ (Server รุ่นเก่า/ไม่มีสิทธิ์) - หน้าเปิดโหมดสอบยังพิมพ์เว็บเพิ่มเติมเองได้ต่อ ดู ExamMode.razor</summary>
+    public async Task<List<AllowListPresetDto>> GetAllowListPresetsAsync()
+    {
+        try
+        {
+            var result = await _httpClient.GetFromJsonAsync<List<AllowListPresetDto>>("/api/allowlist-presets");
+            return result ?? new List<AllowListPresetDto>();
+        }
+        catch (Exception)
+        {
+            return new List<AllowListPresetDto>();
+        }
+    }
+
+    /// <summary>คืน null ถ้าเริ่มไม่สำเร็จ (validation ไม่ผ่าน/ไม่มีสิทธิ์) - ผู้เรียกต้องการ summary กลับไปแสดงผลทันทีด้วย (ไม่ใช่แค่ bool)</summary>
+    public async Task<ExamSessionDto?> StartExamSessionAsync(
+        int? roomId, List<string>? clientGuids, List<int> presetIds, List<string> extraDomains, int durationMinutes)
+    {
+        try
+        {
+            var response = await _httpClient.PostAsJsonAsync("/api/exam-sessions/start", new
+            {
+                roomId,
+                clientGuids,
+                presetIds,
+                extraDomains,
+                durationMinutes
+            });
+
+            return response.IsSuccessStatusCode
+                ? await response.Content.ReadFromJsonAsync<ExamSessionDto>()
+                : null;
+        }
+        catch (Exception)
+        {
+            return null;
+        }
+    }
+
+    public async Task<bool> CancelExamSessionAsync(int id)
+    {
+        try
+        {
+            var response = await _httpClient.PostAsync($"/api/exam-sessions/{id}/cancel", null);
+            return response.IsSuccessStatusCode;
+        }
+        catch (Exception)
+        {
+            return false;
+        }
+    }
+
+    /// <summary>คืน empty list ถ้าอ่านไม่ได้ - ใช้เช็คว่ามีโหมดสอบกำลังทำงานอยู่กับเป้าหมายนี้แล้วหรือไม่ (ดู ExamMode.razor)</summary>
+    public async Task<List<ExamSessionDto>> GetActiveExamSessionsAsync()
+    {
+        try
+        {
+            var result = await _httpClient.GetFromJsonAsync<List<ExamSessionDto>>("/api/exam-sessions/active");
+            return result ?? new List<ExamSessionDto>();
+        }
+        catch (Exception)
+        {
+            return new List<ExamSessionDto>();
+        }
+    }
+
     public async Task<List<LogEntryDto>> GetLogsAsync(int take = 100)
     {
         var result = await _httpClient.GetFromJsonAsync<List<LogEntryDto>>($"/api/logs?take={take}");
