@@ -200,6 +200,56 @@ orchestrator ส่ง WP0, WP5 และ WP6 ออกพร้อมกัน�
 
 ---
 
+## งานแทรกหลังขั้น 1: C1 เทียบ UI กับ wireframe
+- **ไฟล์:** `src/OnionProcOparetor.Console/` + `src/OnionProcOparetor.OnlineConsole/` เฉพาะหน้าที่ขั้น 1 แตะ
+- **งาน:** ทุกหน้าที่ขั้น 1 แตะ ได้แก่ login, Clients+inspector, ผู้ใช้, ตั้งค่า, Program Review, Website Control, Logs และฝั่ง OnlineConsole คือ Clients/Users
+  - จับภาพแล้วเทียบกับไฟล์ใน `docs/wireframes/`
+  - **แก้เองได้เฉพาะจุดเล็ก** ที่ wireframe กับ roadmap ตรงกันชัดเจน เช่น ข้อความปุ่ม ลำดับ คอลัมน์ที่ขาด
+  - **จุดใหญ่ให้แค่ลิสต์ไว้** เช่น การจัดวางทั้งหน้า หรือสิ่งที่ต้องเพิ่ม API
+- **เกณฑ์เสร็จ:** ตารางสรุป "หน้า · ตรง/ต่าง · แก้แล้ว/รอตัดสิน" + ภาพก่อน/หลัง
+
+---
+
+## ขั้น 2: Website · work packages
+อ้างอิง wireframe: `con-website`, `con-website-allow`, `con-website-history`, `nf-exam`, `oc-exam`, `st-session` (ป้ายโหมดสอบ)
+
+**ลำดับ migration:** WP2-3 → WP2-2 → WP2-4 (ตามลำดับ merge) · ถ้า merge แล้ว ModelSnapshot ชนกัน ให้ rebase แล้วสร้าง migration ใหม่
+**ข้อจำกัดในการทดสอบ:** ฝั่ง Agent ห้ามเขียน policy ของเบราว์เซอร์ใต้ HKLM บนเครื่อง dev ให้ทำ registry root เป็นพารามิเตอร์ แล้วทดสอบกับ key ทดลองใต้ HKCU และลบทิ้งหลังทดสอบ
+
+### WP2-3: กฎรายห้อง (migration)
+- **งาน:** `Rule` และ `WebsiteRule` เพิ่ม `RoomId` แบบ nullable (null = ทุกห้อง)
+  - `/api/poll` ส่งเฉพาะกฎที่ตรงกับห้องของเครื่องนั้น หรือกฎของทุกห้อง
+  - Console และ OnlineConsole: เพิ่มคอลัมน์ "ใช้กับ" และตัวเลือกห้องในหน้าต่างเพิ่ม/แก้กฎ
+- **เกณฑ์เสร็จ:** เครื่องในห้อง A ไม่ได้รับกฎของห้อง B · กฎเดิมยังใช้กับทุกห้อง
+
+### WP2-1: ป้องกันการเลี่ยง (browser hardening)
+- **งาน:** ตั้งค่าเปิด/ปิดได้ทีละข้อจาก Server (เก็บในตารางตั้งค่าของระบบ)
+  - Agent เขียน Chrome/Edge policy ได้แก่ `ExtensionInstallBlocklist`=`*`, ปิด Guest/InPrivate/Incognito, `DeveloperToolsAvailability`, `DnsOverHttpsMode`=off และล็อก proxy
+  - ปิด enforcement หรือ bypass แล้วต้องล้าง policy เหล่านี้ เหมือนพฤติกรรมของ URLBlocklist เดิม
+  - "บล็อกเบราว์เซอร์อื่น" = สร้างกฎใน Program Control สำหรับ Firefox, Opera, Brave ฯลฯ
+  - Console: เพิ่มแท็บ "ป้องกันการเลี่ยง" ในหน้า Website Control
+- **เกณฑ์เสร็จ:** ทดสอบการเขียนและล้าง policy กับ key ทดลอง · Console บันทึกค่าได้จริง
+
+### WP2-2: โหมดสอบ + ชุด Allow-list (migration)
+- **งาน:**
+  - ตาราง `AllowListPreset` (ชื่อ + รายการโดเมน) พร้อมชุดสำเร็จรูป Google Forms, Google Classroom (รวมโดเมนประกอบ เช่น accounts.google.com, gstatic.com), Quizizz, Kahoot, Scratch, Canva
+  - ตาราง `ExamSession` เก็บห้องหรือเครื่องเป้าหมาย, ชุดที่เลือก, เวลาเริ่ม และ `ExpiresAt` (ต้องมีเสมอ)
+  - `/api/poll` ส่ง exam mode ไปให้ Agent แล้ว Agent เขียน `URLBlocklist=["*"]` + `URLAllowlist` · หมดเวลาแล้วกลับเป็นกฎปกติเอง แม้ Server จะล่ม
+  - AgentTray: ป้ายมุมขวาล่าง "โหมดสอบ · เหลือ N นาที"
+  - Console: หน้าต่างเปิดโหมดสอบ + แท็บชุด Allow-list · OnlineConsole: หน้าเปิดโหมดสอบ
+  - ประกาศ "โหมดสอบกำลังทำงาน" ในแถบหัวของ Console
+- **เกณฑ์เสร็จ:** ทดสอบหมดเวลาเองทั้งฝั่ง Server และฝั่ง Agent (ตรรกะ) · ชุดสำเร็จรูปเปิดได้จริงในเบราว์เซอร์ (ทดสอบบนเครื่อง dev ด้วย key ทดลองไม่ได้ ให้ระบุไว้ว่าต้องทดสอบในแล็บ)
+
+### WP2-4: ประวัติเว็บ (migration)
+- **งาน:**
+  - Agent สำเนาไฟล์ History (SQLite) ของ Chrome/Edge ของ user ที่ล็อกอินอยู่ แล้วอ่านเฉพาะ URL ใหม่ตั้งแต่ครั้งก่อน ส่งขึ้น Server เป็นชุดทุก 1 นาที
+  - Server: ตาราง `WebVisit` (เครื่อง, เวลา, โดเมน, หัวเรื่อง, ถูกบล็อกหรือไม่) + retention ใช้ค่าเดียวกับ ActivityLog
+  - Console: แท็บประวัติเว็บ (กรอง, สรุปเว็บที่เข้าบ่อย, ปุ่ม "บล็อกโดเมนที่เลือก")
+  - คอลัมน์นักเรียนยังว่างจนกว่าขั้น 3 จะทำ
+- **เกณฑ์เสร็จ:** อ่าน History ไฟล์ทดลองแล้วส่งขึ้น Server ทดสอบได้ · Console แสดงและกรองได้
+
+---
+
 ## ข้อมูลอ้างอิงในโค้ด (ณ 30 ต.ค. 2569)
 
 - **Endpoint ของ Server:** อยู่ใน `Server/Endpoints/<Group>Endpoints.cs` 14 กลุ่ม (หลัง WP0) · Program.cs เหลือแค่ตั้งค่า + `app.MapXxxEndpoints()` · `MapCommandEndpoints(eventCommandLifetime)` รับพารามิเตอร์เพิ่ม · DTO อยู่ใน `Endpoints/EndpointRequests.cs`
