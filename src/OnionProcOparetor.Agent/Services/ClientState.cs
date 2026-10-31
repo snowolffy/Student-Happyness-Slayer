@@ -26,6 +26,19 @@ public class ClientState
     /// </summary>
     public int? PollIntervalOverrideSeconds { get; private set; }
 
+    // ---- Sign-in (WP3-3, 2026-10-31) - cache ดิบจาก poll ล่าสุด ยังไม่ผสมกับ bypass/enabled (Worker.cs
+    // เป็นคนผสมอีกชั้นก่อนตัดสินใจแจ้ง AgentTray จริง - เหมือน pattern ของ ExamModeState) ----
+    public bool RequireLogin { get; private set; }
+    public string? LoginScreenMessage { get; private set; }
+    public string? LockScreenDefaultMessage { get; private set; }
+    public int AutoLogoutIdleMinutes { get; private set; } = 15;
+
+    /// <summary>นักเรียนที่ login อยู่ที่เครื่องนี้ตอนนี้ (ถ้ามี) - AgentTray เป็นคนแจ้งเข้ามาหลัง login/
+    /// logout สำเร็จกับ Server ตรงๆ (ดู POST /student-session ใน Program.cs) Agent ไม่ตรวจ/ไม่ validate
+    /// ซ้ำ แค่เก็บไว้แนบไปกับ poll (ให้เห็นใน query string) และ log local เท่านั้น</summary>
+    public string? CurrentStudentCode { get; private set; }
+    public string? CurrentStudentName { get; private set; }
+
     public void UpdatePollResult(bool enabled, int rulesCount, bool succeeded)
     {
         IsEnabled = enabled;
@@ -35,6 +48,25 @@ public class ClientState
     }
 
     public void SetPollIntervalOverride(int? seconds) => PollIntervalOverrideSeconds = seconds;
+
+    /// <summary>เรียกจาก Worker.cs ทุกครั้งที่ poll สำเร็จ (ดู ExecuteAsync) - sync ดิบจาก Server ตรงๆ</summary>
+    public void UpdateSignInSettings(bool requireLogin, string? loginScreenMessage, string? lockScreenDefaultMessage, int autoLogoutIdleMinutes)
+    {
+        RequireLogin = requireLogin;
+        LoginScreenMessage = loginScreenMessage;
+        LockScreenDefaultMessage = lockScreenDefaultMessage;
+        AutoLogoutIdleMinutes = autoLogoutIdleMinutes;
+    }
+
+    /// <summary>เรียกจาก POST /student-session (local loopback API) ตอน AgentTray login/เปลี่ยนรหัสผ่านสำเร็จกับ Server</summary>
+    public void SetCurrentStudent(string? code, string? name)
+    {
+        CurrentStudentCode = code;
+        CurrentStudentName = name;
+    }
+
+    /// <summary>เรียกจาก POST /student-session ตอน AgentTray logout (ไม่ว่าด้วยวิธีไหน)</summary>
+    public void ClearCurrentStudent() => SetCurrentStudent(null, null);
 
     public void AddLog(LogEntryDto log)
     {

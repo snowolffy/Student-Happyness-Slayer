@@ -88,6 +88,11 @@ public class Worker : BackgroundService
     private bool _lastNotifiedExamActive;
     private DateTime? _lastNotifiedExamExpiresAtUtc;
 
+    // Sign-in (WP3-3, 2026-10-31) - เหตุผลเดียวกับ _lastNotifiedExamActive ข้างบน (ส่งให้ AgentTray
+    // เฉพาะตอนสถานะเปลี่ยนจริง) ผสม bypass/enabled เข้ากับ ClientState.RequireLogin ดิบก่อนเทียบเสมอ
+    private bool _lastNotifiedRequireLogin;
+    private string? _lastNotifiedLoginScreenMessage;
+
     public Worker(
         ILogger<Worker> logger,
         ServerClient serverClient,
@@ -195,7 +200,7 @@ public class Worker : BackgroundService
             }
             else
             {
-                polled = await _serverClient.PollAsync(_clientGuid, _machineName, stoppingToken, _programControl.BlocklistVersion);
+                polled = await _serverClient.PollAsync(_clientGuid, _machineName, stoppingToken, _programControl.BlocklistVersion, _state.CurrentStudentCode);
             }
 
             if (polled is not null)
@@ -208,6 +213,10 @@ public class Worker : BackgroundService
                 // (else branch ข้างล่าง) ตั้งใจไม่แตะ _examMode เลย - ให้มันหมดเวลาด้วยนาฬิกาตัวเองต่อไป
                 // (ดู ExamModeState.IsActive) แม้ Server จะล่มระหว่างนั้นก็ตาม
                 _examMode.UpdateFromServer(polled.ExamMode);
+
+                // Sign-in (WP3-3, 2026-10-31) - cache ดิบจาก poll เหมือน ExamMode ด้านบน ตัดสินใจ "ต้อง
+                // แจ้ง AgentTray ไหม" จริงอยู่ที่ ScanRunningProcessesAsync (ผสมกับ bypass/enabled อีกชั้น)
+                _state.UpdateSignInSettings(polled.RequireLogin, polled.LoginScreenMessage, polled.LockScreenDefaultMessage, polled.AutoLogoutIdleMinutes);
 
                 _state.UpdatePollResult(polled.Enabled, polled.Rules.Count, succeeded: true);
                 _state.SetPollIntervalOverride(polled.PollIntervalOverrideSeconds);
@@ -569,6 +578,18 @@ public class Worker : BackgroundService
             _lastNotifiedExamActive = examActive;
             _lastNotifiedExamExpiresAtUtc = currentExpiresAtUtc;
             await _agentTrayNotifier.SendExamModeStatusAsync(currentExpiresAtUtc, CancellationToken.None);
+        }
+
+        // "ต้องล็อกอินไหม" (WP3-3, 2026-10-31) - เหตุผลเดียวกับ examActive ข้างบน (ครูเปิด bypass เพื่อ
+        // "แก้ไขเครื่องชั่วคราว" ต้องใช้เครื่องได้ทันทีโดยไม่ต้องให้นักเรียน login ก่อน) ส่งแจ้ง AgentTray
+        // เฉพาะตอนสถานะเปลี่ยนจริง (เริ่ม/เลิกบังคับ/ข้อความเปลี่ยน) เหมือน ExamModeStatus
+        var effectiveRequireLogin = !_bypassState.IsBypassed && _lastKnownState.Enabled && _state.RequireLogin;
+        var currentLoginScreenMessage = _state.LoginScreenMessage;
+        if (effectiveRequireLogin != _lastNotifiedRequireLogin || currentLoginScreenMessage != _lastNotifiedLoginScreenMessage)
+        {
+            _lastNotifiedRequireLogin = effectiveRequireLogin;
+            _lastNotifiedLoginScreenMessage = currentLoginScreenMessage;
+            await _agentTrayNotifier.SendSignInStatusAsync(effectiveRequireLogin, currentLoginScreenMessage, CancellationToken.None);
         }
 
         // ป้องกันการเลี่ยง (WP2-1, 2026-10-31) - เหตุผล apply ทุกรอบ/เคลียร์ตอน bypass หรือ enforcement

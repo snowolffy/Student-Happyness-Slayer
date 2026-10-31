@@ -64,9 +64,12 @@ public class ServerClient
         IsUsingFallback = isFallback;
     }
 
-    /// <summary>ดึง rules + enabled state ล่าสุดจาก server คืน null ถ้าติดต่อไม่ได้</summary>
-    public Task<PollResponse?> PollAsync(string clientGuid, string machineName, CancellationToken ct, string? blocklistVersion = null) =>
-        PollViaAsync(ActiveBaseUrl, IsUsingFallback, clientGuid, machineName, ct, blocklistVersion);
+    /// <summary>ดึง rules + enabled state ล่าสุดจาก server คืน null ถ้าติดต่อไม่ได้ - studentCode (WP3-3,
+    /// 2026-10-31) แค่แนบไปให้เห็นใน log ฝั่ง Server เฉยๆ (ดู ClientState.CurrentStudentCode) ไม่มีผลต่อ
+    /// การตัดสินใจของ poll เลย - "ตัวจริง" ของนักเรียนที่ login อยู่มาจาก StudentSession ที่ AgentTray
+    /// สร้างตรงกับ Server อยู่แล้ว (ดู StudentAuthEndpoints) ไม่ได้พึ่ง query param นี้</summary>
+    public Task<PollResponse?> PollAsync(string clientGuid, string machineName, CancellationToken ct, string? blocklistVersion = null, string? studentCode = null) =>
+        PollViaAsync(ActiveBaseUrl, IsUsingFallback, clientGuid, machineName, ct, blocklistVersion, studentCode);
 
     /// <summary>
     /// ช่วงเริ่มทำงาน (WP5): แข่ง poll ระหว่าง LAN (primary) กับ Tailscale (fallback) ดู StartupRouteRace
@@ -84,6 +87,8 @@ public class ServerClient
             token => PollViaAsync(fallbackBaseUrl, true, clientGuid, machineName, token, blocklistVersion),
             StartupRouteRace.PrimaryHeadStart,
             ct);
+        // หมายเหตุ: ไม่แนบ studentCode ที่นี่ตั้งใจ - ช่วง startup race เกิดเร็วมากหลัง service เพิ่งเริ่ม
+        // (ก่อนจะมีใคร login ทันเวลา) ไม่คุ้มเพิ่มพารามิเตอร์ที่ไม่มีผลต่อ logic อะไรเลย (ดู PollAsync)
 
         if (result.Response is not null)
         {
@@ -105,7 +110,7 @@ public class ServerClient
             attempt => ExponentialBackoffRetryPolicy.GetDelay(attempt),
             ct);
 
-    private async Task<PollResponse?> PollViaAsync(string baseUrl, bool viaFallback, string clientGuid, string machineName, CancellationToken ct, string? blocklistVersion)
+    private async Task<PollResponse?> PollViaAsync(string baseUrl, bool viaFallback, string clientGuid, string machineName, CancellationToken ct, string? blocklistVersion, string? studentCode = null)
     {
         try
         {
@@ -117,7 +122,11 @@ public class ServerClient
             var blocklistParam = string.IsNullOrEmpty(blocklistVersion)
                 ? string.Empty
                 : $"&blocklistVersion={Uri.EscapeDataString(blocklistVersion)}";
-            var url = baseUrl.TrimEnd('/') + $"/api/poll/{clientGuid}?machineName={Uri.EscapeDataString(machineName)}&usingFallback={(viaFallback ? "true" : "false")}{blocklistParam}";
+            // studentCode (WP3-3, 2026-10-31) - ดู doc comment บน PollAsync ว่าทำไมไม่มีผลต่อ logic ใดๆ
+            var studentParam = string.IsNullOrEmpty(studentCode)
+                ? string.Empty
+                : $"&studentCode={Uri.EscapeDataString(studentCode)}";
+            var url = baseUrl.TrimEnd('/') + $"/api/poll/{clientGuid}?machineName={Uri.EscapeDataString(machineName)}&usingFallback={(viaFallback ? "true" : "false")}{blocklistParam}{studentParam}";
             var response = await _httpClient.GetFromJsonAsync<PollResponse>(url, ct);
             return response;
         }

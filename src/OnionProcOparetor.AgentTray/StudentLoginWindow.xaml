@@ -1,0 +1,159 @@
+<Window x:Class="OnionProcOparetor.AgentTray.StudentLoginWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="เข้าสู่ระบบ"
+        WindowStyle="None"
+        WindowState="Maximized"
+        Topmost="True"
+        ResizeMode="NoResize"
+        ShowInTaskbar="False"
+        Style="{StaticResource AppWindowStyle}">
+    <!--
+        จอล็อกอินนักเรียน (WP3-3, 2026-10-31) - ตาม wireframe docs/wireframes/st-login.dc.html และ
+        st-login-states.dc.html การ์ดลอยแบ่งสองฝั่ง: ซ้ายภาพ Assets\LoginHero.png + ข้อความจากหน้าตั้งค่า
+        ขวาฟอร์ม (สลับเนื้อหาตาม FormState - ดู .xaml.cs) พื้นหลังจุดเรียงแบบตาราง (DrawingBrush ก๊อปจาก
+        Console/MainWindow.xaml โครงสร้างเป๊ะๆ ตามที่ roadmap สั่ง เปลี่ยนแค่ brush key เป็นของ AgentTray
+        เอง เพราะ AgentTray ไม่มี DynamicResource ธีมมืด/สว่างแบบ Console)
+
+        ต่างจาก LockScreenWindow: ไม่มี keyboard/mouse hook เลย (นักเรียนต้องพิมพ์ในฟอร์มได้ปกติ) กัน
+        แค่ Alt+F4/ปิดหน้าต่างผ่าน WPF (OnClosing cancel ใน .xaml.cs) - เป็น soft gate ระดับแอปตามที่
+        docs/roadmap.md ระบุไว้ ("ล็อกอินที่ระดับแอปบนจอล็อกของ AgentTray" ไม่ใช่ OS-level lock)
+    -->
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- ==================== พื้นหลังจุดเรียงแบบตาราง (Grid.RowSpan="3" ให้คลุมทั้งหน้าต่าง) ==================== -->
+        <Rectangle Grid.RowSpan="3" IsHitTestVisible="False">
+            <Rectangle.Fill>
+                <DrawingBrush TileMode="Tile" Viewport="0,0,20,20" ViewportUnits="Absolute"
+                              Viewbox="0,0,20,20" ViewboxUnits="Absolute">
+                    <DrawingBrush.Drawing>
+                        <GeometryDrawing>
+                            <GeometryDrawing.Brush>
+                                <SolidColorBrush Color="{StaticResource CardBorderColor}"/>
+                            </GeometryDrawing.Brush>
+                            <GeometryDrawing.Geometry>
+                                <EllipseGeometry Center="10,10" RadiusX="1.2" RadiusY="1.2"/>
+                            </GeometryDrawing.Geometry>
+                        </GeometryDrawing>
+                    </DrawingBrush.Drawing>
+                </DrawingBrush>
+            </Rectangle.Fill>
+        </Rectangle>
+
+        <!-- ==================== แถบหัว ==================== -->
+        <Grid Grid.Row="0" Margin="28,14">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            <TextBlock x:Name="RoomHeaderText" Grid.Column="0" Text="ห้องปฏิบัติการคอมพิวเตอร์" FontSize="13"/>
+            <TextBlock x:Name="ClockText" Grid.Column="1" Text="" FontSize="13"/>
+        </Grid>
+
+        <!-- ==================== การ์ดล็อกอิน ==================== -->
+        <Border Grid.Row="1" Width="860" Height="480" CornerRadius="14"
+                HorizontalAlignment="Center" VerticalAlignment="Center"
+                Background="{StaticResource CardBrush}"
+                BorderBrush="{StaticResource CardBorderBrush}" BorderThickness="1">
+            <Border.Effect>
+                <DropShadowEffect BlurRadius="36" ShadowDepth="10" Direction="270" Opacity="0.24" Color="Black"/>
+            </Border.Effect>
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="340"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+
+                <!-- ==================== ซ้าย: ภาพ + ข้อความจากหน้าตั้งค่า ==================== -->
+                <Border Grid.Column="0" Background="{StaticResource BrandBrush}">
+                    <Border.Clip>
+                        <RectangleGeometry RadiusX="14" RadiusY="14" Rect="0,0,340,480"/>
+                    </Border.Clip>
+                    <Grid>
+                        <Image x:Name="HeroImage" Stretch="UniformToFill"/>
+                        <StackPanel VerticalAlignment="Bottom" Margin="20">
+                            <TextBlock x:Name="LoginScreenMessageText" Text="" FontSize="12"
+                                       Foreground="White" TextWrapping="Wrap" Opacity="0.9"/>
+                        </StackPanel>
+                    </Grid>
+                </Border>
+
+                <!-- ==================== ขวา: ฟอร์ม (สลับตาม FormState) ==================== -->
+                <Grid Grid.Column="1" Margin="40,0">
+                    <!-- state: Login (ปกติ/ผิด/ล็อก) -->
+                    <StackPanel x:Name="LoginPanel" VerticalAlignment="Center">
+                        <TextBlock Text="เข้าสู่ระบบเพื่อใช้งานเครื่อง" FontSize="20" FontWeight="Bold" Margin="0,0,0,14"/>
+
+                        <Border x:Name="LoginErrorBanner" Background="#FDECEA" BorderBrush="{StaticResource AccentRedBrush}"
+                                BorderThickness="1.5" CornerRadius="6" Padding="10" Margin="0,0,0,12" Visibility="Collapsed">
+                            <TextBlock x:Name="LoginErrorText" TextWrapping="Wrap" FontSize="12.5"
+                                       Foreground="{StaticResource AccentRedBrush}"/>
+                        </Border>
+
+                        <TextBlock Text="เมลโรงเรียน หรือ รหัสนักเรียน" Style="{StaticResource LabelText}"/>
+                        <TextBox x:Name="IdentifierBox" Margin="0,0,0,12" FontSize="14" Padding="8,7"/>
+
+                        <TextBlock Text="รหัสผ่าน" Style="{StaticResource LabelText}"/>
+                        <PasswordBox x:Name="PasswordBox" Margin="0,0,0,16" FontSize="14" Padding="8,7"
+                                     KeyDown="PasswordBox_KeyDown"/>
+
+                        <Button x:Name="LoginButton" Content="เข้าสู่ระบบ" Height="40"
+                                Style="{StaticResource PrimaryButton}" Click="LoginButton_Click"/>
+
+                        <TextBlock Text="ลืมรหัสผ่าน กรุณาติดต่อครูผู้สอน" FontSize="12"
+                                   Foreground="{StaticResource TextSecondaryBrush}" Margin="0,10,0,0"/>
+
+                        <Border BorderBrush="{StaticResource CardBorderBrush}" BorderThickness="0,1,0,0" Margin="0,14,0,0" Padding="0,12,0,0">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="สำหรับครู: Staff session" FontSize="12.5" Foreground="{StaticResource BrandDarkBrush}"
+                                           Cursor="Hand" MouseLeftButtonUp="StaffSessionLink_Click" TextDecorations="Underline"/>
+                                <TextBlock Text="   รหัสฉุกเฉิน (ยังไม่พร้อมใช้งาน)" FontSize="12.5"
+                                           Foreground="{StaticResource TextSecondaryBrush}" Margin="18,0,0,0"/>
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+
+                    <!-- state: บัญชีใช้อยู่ที่เครื่องอื่น -->
+                    <StackPanel x:Name="LoggedInElsewherePanel" VerticalAlignment="Center" Visibility="Collapsed">
+                        <Border Background="#FDF3E7" BorderBrush="#B45309" BorderThickness="1.5" CornerRadius="6" Padding="12" Margin="0,0,0,16">
+                            <TextBlock x:Name="LoggedInElsewhereText" TextWrapping="Wrap" FontSize="13"/>
+                        </Border>
+                        <Button x:Name="ForceLoginButton" Content="ใช้ที่เครื่องนี้แทน" Height="40"
+                                Style="{StaticResource PrimaryButton}" Margin="0,0,0,10" Click="ForceLoginButton_Click"/>
+                        <Button x:Name="CancelForceLoginButton" Content="ยกเลิก" Height="36"
+                                Style="{StaticResource SecondaryButton}" Click="CancelForceLoginButton_Click"/>
+                    </StackPanel>
+
+                    <!-- state: บังคับตั้งรหัสใหม่ -->
+                    <StackPanel x:Name="MustChangePasswordPanel" VerticalAlignment="Center" Visibility="Collapsed">
+                        <TextBlock x:Name="MustChangePasswordGreeting" Text="กรุณาตั้งรหัสผ่านใหม่ก่อนใช้งาน"
+                                   FontSize="16" FontWeight="Bold" TextWrapping="Wrap" Margin="0,0,0,16"/>
+                        <TextBlock Text="รหัสผ่านใหม่" Style="{StaticResource LabelText}"/>
+                        <PasswordBox x:Name="NewPasswordBox" Margin="0,0,0,12" FontSize="14" Padding="8,7"/>
+                        <TextBlock Text="ยืนยันรหัสผ่านใหม่" Style="{StaticResource LabelText}"/>
+                        <PasswordBox x:Name="ConfirmPasswordBox" Margin="0,0,0,8" FontSize="14" Padding="8,7"/>
+                        <TextBlock x:Name="ChangePasswordErrorText" TextWrapping="Wrap" FontSize="12"
+                                   Foreground="{StaticResource AccentRedBrush}" Margin="0,0,0,8" Visibility="Collapsed"/>
+                        <Button x:Name="SavePasswordButton" Content="บันทึกแล้วเข้าใช้งาน" Height="40"
+                                Style="{StaticResource PrimaryButton}" Click="SavePasswordButton_Click"/>
+                    </StackPanel>
+                </Grid>
+            </Grid>
+        </Border>
+
+        <!-- ==================== แถบล่าง: ปุ่มปิดเครื่อง/รีสตาร์ท (ใครก็กดได้ - ไม่มีตอนครูล็อก) ==================== -->
+        <Grid Grid.Row="2" Margin="28,0,28,14">
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                <Button x:Name="ShutdownButton" Content="ปิดเครื่อง" Height="38" Padding="14,0"
+                        Style="{StaticResource SecondaryButton}" Margin="0,0,8,0" Click="ShutdownButton_Click"/>
+                <Button x:Name="RestartButton" Content="รีสตาร์ท" Height="38" Padding="14,0"
+                        Style="{StaticResource SecondaryButton}" Click="RestartButton_Click"/>
+            </StackPanel>
+        </Grid>
+    </Grid>
+</Window>

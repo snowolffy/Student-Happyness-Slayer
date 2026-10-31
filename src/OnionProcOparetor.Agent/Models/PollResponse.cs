@@ -42,6 +42,24 @@ public class PollResponse
     /// ตัวเอง ไม่ต้องรอ Server บอกว่า "หมดแล้ว" อีกครั้ง (ทำงานต่อได้แม้ Server ล่มระหว่างที่ poll ไม่ติด)
     /// </summary>
     public ExamModeDto? ExamMode { get; set; }
+
+    /// <summary>
+    /// "ต้องล็อกอินก่อนใช้เครื่องไหม" (WP3-3, 2026-10-31) - คำนวณมาจาก SignInSettings.RequireLoginMode
+    /// ของเครื่องนี้แล้ว (ดู PollEndpoints.cs) Agent ไม่ต้องรู้เรื่อง RequireLoginMode/ห้องเลย แค่เชื่อ
+    /// ค่า bool นี้ตรงๆ ดู Worker.cs ที่ผสมกับ bypass/enabled อีกชั้นก่อนแจ้ง AgentTray (เหมือน ExamMode)
+    /// </summary>
+    public bool RequireLogin { get; set; }
+
+    /// <summary>ข้อความบนจอล็อกอินนักเรียน (SignInSettings.LoginScreenMessage) - null/ว่าง = ไม่แสดง</summary>
+    public string? LoginScreenMessage { get; set; }
+
+    /// <summary>ข้อความเริ่มต้นตอนครูล็อกจอ (SignInSettings.LockScreenDefaultMessage) - ใช้เมื่อครูไม่ได้
+    /// พิมพ์ข้อความทับเฉพาะครั้งตอนกดล็อก (ดู CommandProcessor.HandleShowLockScreenAsync)</summary>
+    public string? LockScreenDefaultMessage { get; set; }
+
+    /// <summary>ออกจากระบบเองเมื่อไม่ได้ใช้งานกี่นาที (SignInSettings.AutoLogoutIdleMinutes) - AgentTray
+    /// เป็นคนจับเวลา idle จริง (ดู IdleActivityMonitor) Agent แค่ relay ค่านี้ผ่าน status/push เท่านั้น</summary>
+    public int AutoLogoutIdleMinutes { get; set; } = 15;
 }
 
 /// <summary>ส่วนหนึ่งของ PollResponse - ดู ExamMode ด้านบน</summary>

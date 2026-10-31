@@ -29,6 +29,11 @@ namespace OnionProcOparetor.Agent.Models;
 ///   ส่งเฉพาะตอน "เปลี่ยนสถานะจริง" เท่านั้น (เริ่ม/จบ/เวลาเปลี่ยนเพราะยกเลิกก่อนกำหนด) ไม่ส่งทุก
 ///   enforcement tick - ตัวป้ายฝั่ง AgentTray นับถอยหลังเองจาก ExamModeExpiresAtUtc ที่ได้รับครั้งเดียว
 ///   (ดู ExamModeBadgeWindow) Message/Title/RequestingConsoleSessionId ไม่ใช้
+/// - "ShowLockScreen" (แก้ WP3-3, 2026-10-31) — ใช้ Message ด้วยแล้ว: ข้อความที่ตัดสินแล้ว (payload จาก
+///   Console ถ้ามี ไม่งั้น SignInSettings.LockScreenDefaultMessage จาก Server) null/ว่าง = ให้ AgentTray
+///   ใช้ค่า const ของตัวเอง (LockScreenWindow.LockMessage) เป็น fail-safe สุดท้าย
+/// - "SignInStatus" (WP3-3, 2026-10-31) — แจ้งสถานะ "ต้องล็อกอินไหม" ให้ขึ้น/ลบจอล็อกอินนักเรียน (ใช้
+///   RequireLogin + Message = ข้อความบนจอล็อกอิน) ส่งเฉพาะตอน "เปลี่ยนสถานะจริง" เหมือน ExamModeStatus
 ///
 /// สำคัญ: ไฟล์นี้ถูก "ก๊อปมือ" ไว้ 2 ที่ (Agent/Models + AgentTray/Models) เพราะ solution นี้
 /// ไม่มี shared class library ระหว่างโปรเจกต์เลย (ดู LogEntryDto ที่ก๊อปแบบเดียวกัน) -
@@ -61,4 +66,7 @@ public class AgentTrayPipeMessage
 
     /// <summary>ใช้เฉพาะ Type = "ExamModeStatus" - null = ไม่มีโหมดสอบทำงานอยู่ (WP2-2, 2026-10-31)</summary>
     public DateTime? ExamModeExpiresAtUtc { get; set; }
+
+    /// <summary>ใช้เฉพาะ Type = "SignInStatus" (WP3-3, 2026-10-31) - true = ต้อง login ก่อนใช้เครื่อง</summary>
+    public bool? RequireLogin { get; set; }
 }

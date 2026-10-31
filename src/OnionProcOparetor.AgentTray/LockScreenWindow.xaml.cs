@@ -58,10 +58,17 @@ public partial class LockScreenWindow : Window
     /// </summary>
     public event Action? AgentDiedWhileLocked;
 
-    public LockScreenWindow(System.Windows.Forms.Screen screen, bool installInputBlocking)
+    /// <summary>
+    /// customMessage (WP3-3, 2026-10-31) - ข้อความที่ Agent ตัดสินแล้ว (payload จาก Console ถ้าครูพิมพ์
+    /// มา ไม่งั้น fallback ไป SignInSettings.LockScreenDefaultMessage จาก Server - ดู
+    /// CommandProcessor.HandleShowLockScreenAsync) null/ว่าง = ใช้ LockMessage (const เดิม) เป็น
+    /// fail-safe สุดท้าย (ไม่ควรเกิดจริงเพราะ Agent resolve มาให้เสมอ แต่กันไว้เผื่อ Agent เวอร์ชันเก่า
+    /// ที่ยังไม่ส่ง Message มาด้วย)
+    /// </summary>
+    public LockScreenWindow(System.Windows.Forms.Screen screen, bool installInputBlocking, string? customMessage = null)
     {
         InitializeComponent();
-        LockMessageText.Text = LockMessage;
+        LockMessageText.Text = string.IsNullOrWhiteSpace(customMessage) ? LockMessage : customMessage;
         _installInputBlocking = installInputBlocking;
 
         PositionToScreen(screen);

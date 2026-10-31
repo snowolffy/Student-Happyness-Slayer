@@ -1,5 +1,9 @@
+using System.IO;
+using System.Linq;
 using System.Windows;
+using System.Windows.Threading;
 using Hardcodet.Wpf.TaskbarNotification;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Win32;
 using OnionProcOparetor.AgentTray.Models;
 using OnionProcOparetor.AgentTray.Services;
@@ -29,9 +33,67 @@ public partial class App : System.Windows.Application
     /// <summary>ป้ายมุมขวาล่าง "โหมดสอบ" (WP2-2, 2026-10-31) - null = ไม่มีโหมดสอบทำงานอยู่ตอนนี้</summary>
     private ExamModeBadgeWindow? _examModeBadgeWindow;
 
+    // ---- Sign-in (WP3-3, 2026-10-31) ----
+    private StudentLoginWindow? _studentLoginWindow;
+    private StaffSessionBadgeWindow? _staffSessionBadgeWindow;
+    private readonly IdleActivityMonitor _idleMonitor = new();
+    private readonly System.Windows.Controls.MenuItem _notMeMenuItem = new() { Header = "ไม่ใช่ฉัน (สลับผู้ใช้)" };
+    private readonly System.Windows.Controls.MenuItem _logoutMenuItem = new() { Header = "ออกจากระบบ" };
+    private readonly System.Windows.Controls.Separator _studentMenuSeparator = new();
+
+    /// <summary>true ล่าสุดที่รู้จาก Agent (pull /status ตอนเริ่ม + push "SignInStatus" ทุกครั้งที่เปลี่ยน) - เก็บไว้ตัดสินใจตอนจบ staff session/logout ว่าต้องเปิดจอล็อกอินกลับมาไหม</summary>
+    private bool _requireLogin;
+    private string? _loginScreenMessage;
+
+    private string? _currentStudentCode;
+    private string? _currentStudentName;
+    private int? _currentSessionId;
+    private StudentApiClient? _studentApiClient;
+
     protected override void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
+
+#if DEBUG
+        // --ui-preview=<ชื่อหน้าต่าง> --shot=<path> (WP3-3, 2026-10-31) - โหมดตรวจ UI เท่านั้น
+        // (DEBUG build เท่านั้น เหมือน pattern ของ Console/App.xaml.cs) เรนเดอร์หน้าต่างใหม่ที่ทำใน
+        // WP นี้เป็น PNG ด้วย RenderTargetBitmap แล้วปิดโปรแกรม - ไม่ต้องมี Agent/Server จริงรันอยู่
+        // เพราะ Agent รันจริงไม่ได้บนเครื่อง dev นี้ (ต้องเป็น LocalSystem/HKLM) หน้าต่างพวกนี้ทนต่อการ
+        // ที่ Agent local API ไม่ตอบอยู่แล้ว (GetStatusAsync คืน null เงียบๆ - ดู ClientApiClient)
+        var previewArg = e.Args.FirstOrDefault(a => a.StartsWith("--ui-preview=", StringComparison.Ordinal));
+        if (previewArg is not null)
+        {
+            var windowName = previewArg["--ui-preview=".Length..];
+            var previewApiClient = new ClientApiClient();
+            Window? preview = windowName switch
+            {
+                "student-login" => new StudentLoginWindow(previewApiClient, "ยินดีต้อนรับสู่ห้องปฏิบัติการคอมพิวเตอร์ 1 - กรุณาใช้งานอย่างเหมาะสม"),
+                "staff-session-start" => new StaffSessionStartWindow(previewApiClient),
+                "staff-session-badge" => new StaffSessionBadgeWindow(previewApiClient),
+                "session-toast" => new SessionToastWindow("เข้าสู่ระบบเป็น สมชาย ใจดี"),
+                "lock-screen" => new LockScreenWindow(System.Windows.Forms.Screen.PrimaryScreen!, installInputBlocking: false, "กรุณาละสายตาจากหน้าจอและฟังครูผู้สอน (ทดสอบ)"),
+                _ => null
+            };
+
+            if (preview is null)
+            {
+                TrayDiagnostics.Log($"--ui-preview: ไม่รู้จักชื่อ '{windowName}' - ปิดโปรแกรม");
+                Shutdown(2);
+                return;
+            }
+
+            // ShowActivated=false ใช้ไม่ได้กับ WindowState=Maximized (WPF throw InvalidOperationException
+            // ตรงๆ) - student-login/lock-screen เป็น Maximized เลยปล่อยให้ activate ตามปกติ (ขึ้นจอจริง
+            // สั้นๆ ระหว่างถ่ายภาพ - ยอมรับได้ เพราะเครื่อง dev นี้มีจอให้ใช้และรันแค่เพื่อตรวจ UI)
+            if (preview.WindowState != WindowState.Maximized)
+            {
+                preview.ShowActivated = false;
+            }
+            preview.Show();
+            CapturePreview(preview, e.Args);
+            return;
+        }
+#endif
 
         // กันรันซ้อนกันหลาย instance ใน session เดียวกัน - จำเป็นเพราะ Agent จะสตาร์ท Tray ใหม่
         // อัตโนมัติทุกครั้งที่ส่ง pipe ไม่สำเร็จ ซึ่งบางครั้ง Tray ก็ยังรันอยู่ดีๆ อยู่แล้ว
@@ -60,6 +122,7 @@ public partial class App : System.Windows.Application
         _broadcastListener.ShutdownNotifyRequested += OnShutdownNotifyRequested;
         _broadcastListener.GetRunningProcessesRequested += OnGetRunningProcessesRequested;
         _broadcastListener.ExamModeStatusChanged += OnExamModeStatusChanged;
+        _broadcastListener.SignInStatusChanged += OnSignInStatusChanged;
         _broadcastListener.Start(_broadcastListenerCts.Token);
 
         // โหมดสอบ (WP2-2, 2026-10-31) - ดึงสถานะเริ่มต้นจาก Agent ทันทีตอน Tray เพิ่งเริ่มทำงาน (เช่น
@@ -68,8 +131,19 @@ public partial class App : System.Windows.Application
         // โหมดสอบจะเปลี่ยนสถานะอีกครั้ง (เริ่ม/จบรอบถัดไป) ซึ่งอาจไม่เกิดขึ้นเลยตลอดคาบที่เหลือ
         _ = InitializeExamModeBadgeFromStatusAsync();
 
+        // Sign-in (WP3-3, 2026-10-31) - เหตุผลเดียวกับ InitializeExamModeBadgeFromStatusAsync ด้านบน
+        _ = InitializeSignInStateFromStatusAsync();
+        _idleMonitor.IdleThresholdReached += OnIdleThresholdReached;
+        _idleMonitor.Start();
+
         // ฟังเหตุการณ์ sleep/resume ของเครื่อง - ดู OnPowerModeChanged ว่าทำไมถึงจำเป็น
         SystemEvents.PowerModeChanged += OnPowerModeChanged;
+
+        // logout นักเรียนอัตโนมัติตอนปิด/รีสตาร์ทเครื่อง (WP3-3, 2026-10-31 - ดู docs/roadmap.md
+        // "logout อัตโนมัติ...เมื่อปิด/รีสตาร์ทเครื่อง") best-effort เท่านั้น: SessionEnding ยิงก่อน
+        // Windows ปิด session จริงไม่กี่วินาที ไม่มีการันตีว่า HTTP call ไปจบก่อนเครื่องดับจริง
+        // (ยอมรับได้ - ไม่ร้ายแรงเท่า session ค้างเป็น "เปิดอยู่" ผิดๆ ถ้าไม่พยายามเลย)
+        SystemEvents.SessionEnding += OnSessionEnding;
 
         // Failsafe path 1 (ดู PhysicalInputBlocker doc comment): winvnc.exe หยุดไม่ว่าเพราะอะไร ต้องคืน
         // สิทธิ์ physical input ทันที - Stopped ยิงจาก background thread เสมอ (ไม่ใช่ UI thread) ต้อง
@@ -94,6 +168,12 @@ public partial class App : System.Windows.Application
             statusMenuItem.Click += (_, _) => OpenLoginWindow();
             contextMenu.Items.Add(statusMenuItem);
 
+            // Sign-in (WP3-3, 2026-10-31) - "ไม่ใช่ฉัน"/"ออกจากระบบ" โชว์เฉพาะตอนมีนักเรียน login อยู่
+            // เท่านั้น (ดู RebuildTrayContextMenu) สร้าง MenuItem ไว้เป็น field ล่วงหน้าแล้วย้าย
+            // Visibility เอาเข้า/ออกจาก contextMenu.Items เอง ไม่ Create ใหม่ทุกครั้งที่สถานะเปลี่ยน
+            _notMeMenuItem.Click += (_, _) => _ = PerformStudentLogoutAsync(StudentSessionEndReason.NotMe);
+            _logoutMenuItem.Click += (_, _) => _ = PerformStudentLogoutAsync(StudentSessionEndReason.ManualLogout);
+
             contextMenu.Items.Add(new System.Windows.Controls.Separator());
 
             var exitMenuItem = new System.Windows.Controls.MenuItem { Header = "Exit Tray" };
@@ -101,6 +181,7 @@ public partial class App : System.Windows.Application
             contextMenu.Items.Add(exitMenuItem);
 
             _trayIcon.ContextMenu = contextMenu;
+            RebuildTrayContextMenu();
 
             // double-click ที่ icon ก็เปิดหน้า login เหมือนกัน
             _trayIcon.TrayMouseDoubleClick += (_, _) => OpenLoginWindow();
@@ -295,8 +376,9 @@ public partial class App : System.Windows.Application
         });
     }
 
-    /// <summary>เรียกจาก background thread ของ pipe message consumer - idempotent (เรียกซ้ำตอนล็อกอยู่แล้วไม่มีผล) เปิด LockScreenWindow แยกหนึ่งตัวต่อจอที่ต่ออยู่ตอนนี้ (ไม่ใช่แค่จอหลัก)</summary>
-    private void OnShowLockScreenRequested()
+    /// <summary>เรียกจาก background thread ของ pipe message consumer - idempotent (เรียกซ้ำตอนล็อกอยู่แล้วไม่มีผล) เปิด LockScreenWindow แยกหนึ่งตัวต่อจอที่ต่ออยู่ตอนนี้ (ไม่ใช่แค่จอหลัก)
+    /// resolvedMessage (WP3-3, 2026-10-31) - ข้อความที่ Agent ตัดสินแล้ว (ดู CommandProcessor.HandleShowLockScreenAsync) ส่งต่อให้ทุกจอเหมือนกัน</summary>
+    private void OnShowLockScreenRequested(string? resolvedMessage)
     {
         Dispatcher.BeginInvoke(() =>
         {
@@ -309,7 +391,7 @@ public partial class App : System.Windows.Application
             for (var i = 0; i < screens.Length; i++)
             {
                 var isOwner = i == 0; // ดู LockScreenWindow doc comment - เจ้าของ hook/watchdog มีแค่จอเดียว
-                var window = new LockScreenWindow(screens[i], installInputBlocking: isOwner);
+                var window = new LockScreenWindow(screens[i], installInputBlocking: isOwner, resolvedMessage);
 
                 if (isOwner)
                 {
@@ -511,15 +593,282 @@ public partial class App : System.Windows.Application
         _examModeBadgeWindow.Show();
     }
 
+    // ==================== Sign-in (WP3-3, 2026-10-31) ====================
+
+    /// <summary>ดึงสถานะ sign-in ปัจจุบันจาก Agent (GET /status) ครั้งเดียวตอน startup - เหตุผลเดียวกับ InitializeExamModeBadgeFromStatusAsync (push ผ่าน pipe ส่งแค่ตอน "สถานะเปลี่ยน" เท่านั้น)</summary>
+    private async Task InitializeSignInStateFromStatusAsync()
+    {
+        var status = await _apiClient.GetStatusAsync();
+        if (status is null)
+        {
+            return; // Agent local API ยังไม่ตอบ (เช่น service กำลังเริ่มพร้อมกันอยู่) - push ครั้งถัดไปมาเติมให้เอง
+        }
+
+        _idleMonitor.UpdateThresholdMinutes(status.AutoLogoutIdleMinutes);
+
+        // sync สถานะนักเรียนที่ Agent จำไว้ (เผื่อ Tray ถูก auto-recover ขึ้นมาใหม่กลางเซสชันที่ login ค้างอยู่แล้ว)
+        if (!string.IsNullOrWhiteSpace(status.CurrentStudentCode))
+        {
+            Dispatcher.BeginInvoke(() =>
+            {
+                _currentStudentCode = status.CurrentStudentCode;
+                _currentStudentName = status.CurrentStudentName;
+                RebuildTrayContextMenu();
+            });
+        }
+
+        Dispatcher.BeginInvoke(() => ApplySignInStatus(status.RequireLogin, status.LoginScreenMessage));
+    }
+
+    /// <summary>เรียกจาก background thread ของ pipe listener (WP3-3, 2026-10-31) - requireLogin/message เปลี่ยนจริงเท่านั้น (ดู Worker.ScanRunningProcessesAsync ฝั่ง Agent)</summary>
+    private void OnSignInStatusChanged(bool requireLogin, string? loginScreenMessage)
+    {
+        Dispatcher.BeginInvoke(() => ApplySignInStatus(requireLogin, loginScreenMessage));
+    }
+
+    /// <summary>จุดเดียวที่ตัดสินใจว่าควรโชว์/ซ่อนจอล็อกอินนักเรียนไหม - เรียกได้ทั้งจาก pull (startup) และ push (เปลี่ยนสถานะ) ต้องอยู่บน UI thread แล้วเท่านั้น</summary>
+    private void ApplySignInStatus(bool requireLogin, string? loginScreenMessage)
+    {
+        _requireLogin = requireLogin;
+        _loginScreenMessage = loginScreenMessage;
+
+        var alreadyLoggedIn = _currentStudentCode is not null;
+        var staffSessionActive = _staffSessionBadgeWindow is not null;
+
+        if (requireLogin && !alreadyLoggedIn && !staffSessionActive)
+        {
+            ShowStudentLoginWindow();
+        }
+        else if ((!requireLogin || alreadyLoggedIn) && !staffSessionActive)
+        {
+            // เลิกบังคับ login แล้ว หรือมีคน login อยู่แล้ว (เช่น login เสร็จไปพอดีก่อนจะได้ค่านี้มา) -
+            // ปิดจอล็อกอินที่ค้างอยู่ (ถ้ามี) ตามที่ roadmap ระบุ "ปิด: เครื่องที่ค้างอยู่หน้าล็อกอินจะ
+            // ปลดเองภายใน 1 รอบ poll"
+            HideStudentLoginWindowIfPresent();
+        }
+        else if (_studentLoginWindow is { } existing)
+        {
+            // staff session กำลังทำงานอยู่ - อัปเดตข้อความไว้เฉยๆ แต่ไม่โชว์ซ้อนทับ (จะโชว์ตอน staff
+            // session จบถ้ายังต้องบังคับ login อยู่ - ดู OnStaffSessionEnded)
+            existing.Hide();
+        }
+    }
+
+    private void ShowStudentLoginWindow()
+    {
+        if (_studentLoginWindow is not null)
+        {
+            _studentLoginWindow.Show();
+            return;
+        }
+
+        var window = new StudentLoginWindow(_apiClient, _loginScreenMessage);
+        window.LoginSucceeded += OnStudentLoginSucceeded;
+        window.StaffSessionRequested += OnStaffSessionRequested;
+        window.Closed += (_, _) => _studentLoginWindow = null;
+        _studentLoginWindow = window;
+        window.Show();
+    }
+
+    private void HideStudentLoginWindowIfPresent()
+    {
+        _studentLoginWindow?.ForceClose();
+        _studentLoginWindow = null;
+    }
+
+    /// <summary>login (หรือเปลี่ยนรหัสผ่านครั้งแรกแล้ว login) สำเร็จ - นักเรียนคนนี้ "เข้าสู่ระบบ" แล้วอย่างเป็นทางการ</summary>
+    private void OnStudentLoginSucceeded(Models.StudentDto student, int? sessionId)
+    {
+        Dispatcher.BeginInvoke(() =>
+        {
+            _currentStudentCode = student.StudentCode;
+            _currentStudentName = student.FullName;
+            _currentSessionId = sessionId;
+            _idleMonitor.Reset();
+            RebuildTrayContextMenu();
+
+            new SessionToastWindow($"เข้าสู่ระบบเป็น {student.FullName}").Show();
+            TrayDiagnostics.Log($"[sign-in] นักเรียน '{student.StudentCode}' ({student.FullName}) เข้าสู่ระบบแล้ว");
+        });
+    }
+
+    /// <summary>กด "สำหรับครู: Staff session" ที่จอล็อกอินนักเรียน - เปิด StaffSessionStartWindow ซ้อนทับ (ไม่ปิดจอล็อกอินนักเรียนทันที เผื่อครูกดยกเลิก)</summary>
+    private void OnStaffSessionRequested()
+    {
+        Dispatcher.BeginInvoke(() =>
+        {
+            var window = new StaffSessionStartWindow(_apiClient);
+            window.StaffSessionStarted += OnStaffSessionStarted;
+            window.ShowDialog();
+        });
+    }
+
+    private void OnStaffSessionStarted(int minutes)
+    {
+        Dispatcher.BeginInvoke(() =>
+        {
+            // ครูเพิ่งเริ่ม staff session จากจอล็อกอินนักเรียน (ไม่ได้ผ่าน StatusWindow) - เก็บกวาด
+            // resource เดียวกับที่ StatusWindow.ToggleBypassButton_Click ทำ (ดู
+            // CleanupInteractiveSessionsForBypass) เผื่อมี VNC/lock screen/physical-input-block ค้างอยู่
+            CleanupInteractiveSessionsForBypass();
+
+            _studentLoginWindow?.Hide();
+
+            var badge = new StaffSessionBadgeWindow(_apiClient);
+            badge.SessionEnded += OnStaffSessionEnded;
+            badge.Closed += (_, _) => _staffSessionBadgeWindow = null;
+            _staffSessionBadgeWindow = badge;
+            badge.Show();
+
+            TrayDiagnostics.Log($"[sign-in] Staff session เริ่มทำงาน ({minutes} นาที)");
+        });
+    }
+
+    private void OnStaffSessionEnded()
+    {
+        Dispatcher.BeginInvoke(() =>
+        {
+            TrayDiagnostics.Log("[sign-in] Staff session จบแล้ว");
+
+            // กลับไปจอล็อกอินนักเรียนถ้ายังต้องบังคับ login อยู่และยังไม่มีใคร login ค้าง (ดู ApplySignInStatus)
+            ApplySignInStatus(_requireLogin, _loginScreenMessage);
+        });
+    }
+
+    /// <summary>เรียกจาก IdleActivityMonitor (UI thread อยู่แล้ว - DispatcherTimer.Tick) - logout อัตโนมัติตาม SignInSettings.AutoLogoutIdleMinutes (ดู docs/roadmap.md)</summary>
+    private void OnIdleThresholdReached()
+    {
+        if (_currentStudentCode is null)
+        {
+            return; // ไม่มีใคร login อยู่ - ไม่มีอะไรให้ logout
+        }
+
+        TrayDiagnostics.Log($"[sign-in] ไม่ได้ใช้งานเกินเวลาที่ตั้งไว้ - logout นักเรียน '{_currentStudentCode}' อัตโนมัติ");
+        _ = PerformStudentLogoutAsync(Models.StudentSessionEndReason.Idle);
+    }
+
+    /// <summary>เครื่องกำลังจะปิด/รีสตาร์ท/ออกจาก session Windows - best-effort logout (ดู doc comment ที่จุด subscribe ใน OnStartup)</summary>
+    private void OnSessionEnding(object sender, Microsoft.Win32.SessionEndingEventArgs e)
+    {
+        if (_currentStudentCode is not null)
+        {
+            _ = PerformStudentLogoutAsync(Models.StudentSessionEndReason.Shutdown);
+        }
+    }
+
+    /// <summary>จุดเดียวที่ logout นักเรียนจริง - ใช้ร่วมกันทั้ง "ไม่ใช่ฉัน"/"ออกจากระบบ" (tray menu), idle timeout, และตอนเครื่องปิด/รีสตาร์ท</summary>
+    private async Task PerformStudentLogoutAsync(Models.StudentSessionEndReason reason)
+    {
+        var clientGuid = (await _apiClient.GetStatusAsync())?.ClientGuid;
+        if (string.IsNullOrWhiteSpace(clientGuid))
+        {
+            return;
+        }
+
+        await GetOrCreateStudentApiClient().LogoutAsync(clientGuid, _currentSessionId, reason);
+        await _apiClient.NotifyStudentSessionAsync(false);
+
+        Dispatcher.BeginInvoke(() =>
+        {
+            _currentStudentCode = null;
+            _currentStudentName = null;
+            _currentSessionId = null;
+            _idleMonitor.Reset();
+            RebuildTrayContextMenu();
+
+            // กลับไปจอล็อกอินถ้ายังต้องบังคับ login อยู่ (เช่น logout เองโดยสมัครใจระหว่างที่ยังบังคับ login)
+            ApplySignInStatus(_requireLogin, _loginScreenMessage);
+        });
+    }
+
+    private StudentApiClient GetOrCreateStudentApiClient()
+    {
+        if (_studentApiClient is not null)
+        {
+            return _studentApiClient;
+        }
+
+        var config = new ConfigurationBuilder()
+            .SetBasePath(AppContext.BaseDirectory)
+            .AddJsonFile("appsettings.json", optional: true)
+            .Build();
+        var baseUrl = config["ServerSettings:BaseUrl"] ?? "http://localhost:8787";
+        var fallbackUrl = config["ServerSettings:FallbackBaseUrl"];
+        _studentApiClient = new StudentApiClient(baseUrl, fallbackUrl);
+        return _studentApiClient;
+    }
+
+    /// <summary>เพิ่ม/ลบรายการ "ไม่ใช่ฉัน"/"ออกจากระบบ" ใน tray context menu ตามว่ามีนักเรียน login อยู่ไหม (WP3-3, 2026-10-31)</summary>
+    private void RebuildTrayContextMenu()
+    {
+        if (_trayIcon?.ContextMenu is not { } menu)
+        {
+            return;
+        }
+
+        var isLoggedIn = _currentStudentCode is not null;
+        var alreadyPresent = menu.Items.Contains(_notMeMenuItem);
+
+        if (isLoggedIn && !alreadyPresent)
+        {
+            var insertAt = Math.Min(1, menu.Items.Count);
+            menu.Items.Insert(insertAt, _studentMenuSeparator);
+            menu.Items.Insert(insertAt + 1, _notMeMenuItem);
+            menu.Items.Insert(insertAt + 2, _logoutMenuItem);
+        }
+        else if (!isLoggedIn && alreadyPresent)
+        {
+            menu.Items.Remove(_studentMenuSeparator);
+            menu.Items.Remove(_notMeMenuItem);
+            menu.Items.Remove(_logoutMenuItem);
+        }
+    }
+
+#if DEBUG
+    /// <summary>--shot=&lt;path&gt; เรนเดอร์หน้าต่างเป็น PNG แล้วปิดโปรแกรม (โหมดตรวจ UI เท่านั้น) - ก๊อปแนวทางเดียวกับ Console/App.xaml.cs CapturePreview เป๊ะๆ (ดู comment ที่นั่นสำหรับเหตุผลที่ต้องเรนเดอร์เองในแอป ไม่จับภาพจาก desktop)</summary>
+    private void CapturePreview(Window window, string[] args)
+    {
+        var shot = args.FirstOrDefault(a => a.StartsWith("--shot=", StringComparison.Ordinal));
+        if (shot is null)
+        {
+            return;
+        }
+
+        var path = shot["--shot=".Length..];
+        window.Dispatcher.BeginInvoke(DispatcherPriority.ApplicationIdle, () =>
+        {
+            var width = window.ActualWidth > 0 ? window.ActualWidth : window.Width;
+            var height = window.ActualHeight > 0 ? window.ActualHeight : window.Height;
+
+            var bitmap = new System.Windows.Media.Imaging.RenderTargetBitmap(
+                (int)width, (int)height, 96, 96, System.Windows.Media.PixelFormats.Pbgra32);
+            bitmap.Render(window);
+
+            var encoder = new System.Windows.Media.Imaging.PngBitmapEncoder();
+            encoder.Frames.Add(System.Windows.Media.Imaging.BitmapFrame.Create(bitmap));
+            using (var stream = File.Create(path))
+            {
+                encoder.Save(stream);
+            }
+
+            Shutdown();
+        });
+    }
+#endif
+
     protected override void OnExit(ExitEventArgs e)
     {
         SystemEvents.PowerModeChanged -= OnPowerModeChanged;
+        SystemEvents.SessionEnding -= OnSessionEnding;
+        _idleMonitor.Stop();
         _broadcastListenerCts.Cancel();
         HideAllLockScreens();
         _physicalInputBlocker.Unblock();
         _vncProcessManager.Stop();
         _shutdownNotifyWindow?.ForceClose();
         _examModeBadgeWindow?.ForceClose();
+        _studentLoginWindow?.ForceClose();
+        _staffSessionBadgeWindow?.ForceClose();
         _jokeShutdownController.Cancel();
         _trayIcon?.Dispose();
         _singleInstanceGuard.Dispose();
