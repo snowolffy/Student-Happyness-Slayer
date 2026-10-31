@@ -948,6 +948,24 @@ input[type=checkbox], input[type=radio] {
 .error-text { color: var(--danger); font-size: 13px; margin: .5rem 0; }
 .status-text { color: var(--text-secondary); font-size: 13px; margin: .5rem 0; }
 
+/* ---- Exam mode preset rows (WP2-2, 2026-10-31) -------------------------------------------------
+   Checkbox-as-row rather than a bare <input>+label pair: on a phone the tap target needs to be the
+   whole row (per docs/wireframes/oc-exam.dc.html), not just the 18px checkbox square. */
+.exam-preset {
+    display: flex;
+    align-items: center;
+    gap: .6rem;
+    padding: .7rem .8rem;
+    min-height: 44px;
+    border: 1.5px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--card);
+    font-size: 14px;
+    cursor: pointer;
+}
+.exam-preset-on { border-color: var(--accent); background: var(--card-raised); }
+.exam-preset input[type=checkbox] { flex-shrink: 0; }
+
 /* ---- Toasts ---------------------------------------------------------------------------------
    Replaces the old pattern of writing a result into a <div class="status-text"> at the top of the
    page: on a phone the top of the page is usually scrolled out of view by the time you tap

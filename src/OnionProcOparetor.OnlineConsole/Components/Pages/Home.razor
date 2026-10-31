@@ -116,6 +116,14 @@ else
             <option value="@room.Id">@room.Name (@room.ClientCount)</option>
         }
     </select>
+    @* เปิดโหมดสอบทั้งห้อง (leftover ของ WP2-2, 2026-10-31) - ปรากฏเมื่อกรองเหลือห้องเดียวเท่านั้น เพราะหน้า
+       ExamMode ไม่มีตัวเลือกห้อง/เครื่องในตัวเอง (ดู comment บนสุดของ ExamMode.razor) ต้องมาจากที่นี่ *@
+    @if (!string.IsNullOrEmpty(_roomFilter) && _roomFilter != "none")
+    {
+        <button class="btn btn-secondary btn-sm" @onclick='() => Navigation.NavigateTo($"exam-mode?roomId={_roomFilter}")'>
+            <Icon Name="shield" Size="14" /> เปิดโหมดสอบ
+        </button>
+    }
     <span class="spacer"></span>
     <button class="btn btn-secondary @(_refreshing ? "is-busy" : "")" @onclick="RefreshAsync">
         <Icon Name="refresh-cw" Size="15" /> รีเฟรช
@@ -270,6 +278,11 @@ else
         <span class="selection-count">เลือก @_selected.Count เครื่อง</span>
         <button class="btn btn-secondary btn-sm" @onclick="() => _broadcastOpen = true">
             <Icon Name="send" Size="14" /> ส่งข้อความ
+        </button>
+        @* เปิดโหมดสอบกับเครื่องที่เลือกไว้ (leftover ของ WP2-2, 2026-10-31) - ส่ง ClientGuid ไม่ใช่ Id เพราะ
+           /api/exam-sessions/start รับ clientGuids (ดู ExamSessionEndpoints.cs) *@
+        <button class="btn btn-secondary btn-sm" @onclick="OpenExamModeForSelection">
+            <Icon Name="shield" Size="14" /> โหมดสอบ
         </button>
         <button class="btn btn-primary btn-sm" @onclick="() => _bulkActionPanelOpen = true">
             <Icon Name="list" Size="14" /> คำสั่ง
@@ -650,6 +663,14 @@ else
             : null;
 
     private void ShowReport(ActionReportRequest request) => _report = request;
+
+    /// <summary>leftover ของ WP2-2 (2026-10-31) - ExamMode.razor รับเป้าหมายจาก query string เท่านั้น ดู
+    /// comment บนสุดของไฟล์นั้นว่าทำไมไม่ให้เลือกห้อง/เครื่องซ้ำอีกชั้นในหน้านั้นเอง</summary>
+    private void OpenExamModeForSelection()
+    {
+        var guids = string.Join(',', SelectedClients().Select(c => c.ClientGuid));
+        Navigation.NavigateTo($"exam-mode?clients={Uri.EscapeDataString(guids)}");
+    }
 
     private void NavigateToScreenView(ClientMachineDto client) => Navigation.NavigateTo($"screen-view/{client.ClientGuid}");
 
