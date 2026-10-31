@@ -259,6 +259,65 @@ orchestrator ส่ง WP0, WP5 และ WP6 ออกพร้อมกัน�
 
 ---
 
+## ขั้น 3: Sign-in · work packages
+อ้างอิง wireframe: `nf-*` (roster, import, password, print, promote, signin-settings, settings-more, attendance), `st-*` (login, login-states, session, staff-start, emergency, locked), `oc-emergency`, `con-settings`, `con-logs`
+
+**ลำดับ:** WP3-1 ต้องเสร็จก่อน (มี model, API และ migration ทั้งหมด) จากนั้น WP3-2 ถึง WP3-5 ทำขนานกันได้ และไม่มี migration เพิ่ม ถ้าจำเป็นต้องสร้าง ให้ทำทีละตัวตามลำดับที่ merge
+
+### WP3-1: Server ของ Sign-in ทั้งหมด (migration)
+- **Model:**
+  - `Student`: รหัสนักเรียน (unique), ชื่อ-สกุล, เมลโรงเรียน (unique nullable), ห้องเรียน (string เช่น "ม.2/3"), password hash, `MustChangePassword`, จำนวนครั้งที่กรอกผิด, `LockedUntil` หรือ `IsLocked`, `IsDisabled`
+  - `StudentSession`: นักเรียน, เครื่อง, เวลาเริ่ม/จบ, วิธีจบ (กดออก / ไม่ได้ใช้งาน / ปิดเครื่อง / ครูสั่ง / ไม่ใช่ฉัน / ถูกเตะเพราะล็อกอินที่อื่น)
+  - ตารางตั้งค่า Sign-in ตาม wireframe `nf-signin-settings`
+- **API สำหรับ Agent/AgentTray:** login นักเรียน (รองรับทั้งรหัสนักเรียนและเมล), logout, เปลี่ยนรหัสครั้งแรก
+  - ตอบเป็นรหัสสถานะที่ชัดเจน ได้แก่ ผิด / ล็อก / ใช้อยู่ที่เครื่องอื่น / ต้องเปลี่ยนรหัส
+  - ใช้กติกา "บัญชีเดียวหลายเครื่อง" ตามค่าที่ตั้งไว้
+- **API สำหรับ Roster:** CRUD, นำเข้า CSV (dry-run + commit), สร้างรหัสเริ่มต้น (สุ่ม 6 หลัก แสดงได้ครั้งเดียว), รีเซ็ตรหัส, ปลดล็อก, ย้ายห้องเรียน, เลื่อนชั้น (สำรอง DB อัตโนมัติก่อนเลื่อน)
+  - สิทธิ์: Admin เท่านั้น ยกเว้นรีเซ็ตรหัสและปลดล็อก ที่ Teacher ทำได้ถ้าเปิดสิทธิ์ไว้
+- **API สำหรับ Console:** นักเรียนที่ใช้เครื่องอยู่ (ใส่ใน clients list), ประวัติการใช้เครื่อง (กรองช่วงเวลา, ห้องคอม, ห้องเรียน), สั่ง logout นักเรียน
+- **อื่นๆ:**
+  - poll ส่งค่า "ต้องล็อกอินไหม" ไปให้ Agent
+  - log ทุกอย่างที่เกิดระหว่าง session ให้ผูกกับนักเรียน
+  - บริการสำรอง DB ตามตั้งค่า `nf-settings-more`
+- **เกณฑ์เสร็จ:** ทดสอบผ่าน API ครบทุกสถานะ · migration บน DB เก่าไม่พัง
+
+### WP3-2: Roster Manager (โปรเจกต์ WPF ใหม่)
+- **ไฟล์:** `src/OnionProcOparetor.RosterManager/` (ใหม่) + เพิ่มเข้า solution + เพิ่มเป็น feature ใหม่ (ไม่ติ๊กเป็นค่าเริ่มต้น) ใน `installer/OnionProcOparetor.ServerConsole.wxs`
+- **งาน:** ทุกหน้าตาม wireframe `nf-roster-login`, `nf-roster`, `nf-import`, `nf-password`, `nf-print`, `nf-promote`
+  - ใช้ theme token ชุดเดียวกับ Console ให้คัดลอกโฟลเดอร์ Theme มา เพราะ repo นี้ไม่มี shared library
+  - ใช้ toast และแถบประกาศแบบเดียวกับ Console
+  - ใบรหัสผ่านพิมพ์ได้และบันทึกเป็น PDF ได้
+
+### WP3-3: จอนักเรียน (AgentTray + Agent)
+- **งาน:** ตาม wireframe `st-login`, `st-login-states`, `st-session`, `st-staff-start`, `st-locked`
+  - **จอล็อกอิน:** การ์ดลอย, ภาพ `Assets\LoginHero.png` ฝังมากับ MSI, พื้นจุดเรียงตาราง, ปุ่มปิดเครื่อง/รีสตาร์ทมุมขวาล่าง
+  - **ระหว่างใช้งาน:** แจ้งชื่อ 5 วินาที + เมนู tray ("ไม่ใช่ฉัน" / ออกจากระบบ) · ออกจากระบบเองเมื่อไม่ได้ใช้งาน
+  - **Staff session:** ใช้ API ของ WP2 · ป้ายมุมขวาล่าง
+  - **จอที่ครูล็อก:** พื้นสีดำ แนวทางการ ข้อความแก้ได้ (ค่าเริ่มต้น + ทับเฉพาะครั้ง) **ห้ามมีปุ่มปิดเครื่อง**
+  - Agent บังคับให้ต้องล็อกอินก่อนเมื่อ Server สั่ง และแนบนักเรียนปัจจุบันไปกับ poll และ log
+- **ทดสอบ:** ทำส่วน UI ด้วยโหมด preview + จับภาพ · Agent รันจริงบนเครื่องนี้ไม่ได้ ให้ระบุไว้
+
+### WP3-4: รหัสฉุกเฉิน (TOTP)
+- **งาน:**
+  - secret ฝังตอนติดตั้ง Agent ผ่าน MSI property หรือไฟล์ที่ MSI วางไว้
+  - Agent ตรวจ TOTP ได้เองโดยไม่ต้องใช้ Server (RFC 6238 ยอมคลาดเคลื่อน ±1 ช่วง)
+  - AgentTray: จอ `st-emergency` ขึ้นเมื่อติดต่อ Server ไม่ได้
+  - บันทึกการใช้รหัสฉุกเฉินไว้ แล้วส่งขึ้น Server ตอนกลับมาออนไลน์
+  - Console: หน้าตั้งค่ารหัสฉุกเฉิน (แสดง QR และ key, ทดสอบรหัส, เปลี่ยน secret)
+  - เพิ่มไฟล์ `docs/apps-script/emergency-code.gs` พร้อมวิธีติดตั้ง: หน้าเว็บ Apps Script แสดงรหัส จำกัดให้เปิดได้เฉพาะบัญชีที่กำหนด บันทึกว่าใครเปิดดู และเก็บ secret ใน Script Properties
+- **เกณฑ์เสร็จ:** รหัสจาก Authenticator และจาก Apps Script (คำนวณด้วยสูตรเดียวกัน) ตรวจผ่านในตัวทดสอบ
+
+### WP3-5: Console ส่วน Sign-in
+- **งาน:**
+  - **หน้าตั้งค่าแบบ 2 คอลัมน์:** "Console เครื่องนี้" / "ทั้งระบบ" รวมหน้า Sign-in, Staff session, รหัสฉุกเฉิน (หน้าจาก WP3-4), HTTPS (ข้อมูลใบรับรอง) และสำรองข้อมูล
+  - **Logs + Audit** รวมเป็นหน้าเดียว 2 แท็บ
+  - **หน้าประวัติการใช้เครื่อง** ตาม wireframe `nf-attendance`
+  - **หน้า Clients:** เพิ่มคอลัมน์นักเรียน + การ์ด "ล็อกอินแล้ว" + ปุ่ม "บังคับ logout" ใน inspector
+  - **หน้าต่างล็อกจอ** พิมพ์ข้อความทับได้
+  - **OnlineConsole:** คอลัมน์นักเรียน + หน้าประวัติการใช้เครื่องบนมือถือ
+
+---
+
 ## ข้อมูลอ้างอิงในโค้ด (ณ 30 ต.ค. 2569)
 
 - **Endpoint ของ Server:** อยู่ใน `Server/Endpoints/<Group>Endpoints.cs` 14 กลุ่ม (หลัง WP0) · Program.cs เหลือแค่ตั้งค่า + `app.MapXxxEndpoints()` · `MapCommandEndpoints(eventCommandLifetime)` รับพารามิเตอร์เพิ่ม · DTO อยู่ใน `Endpoints/EndpointRequests.cs`
