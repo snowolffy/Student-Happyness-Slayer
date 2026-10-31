@@ -166,6 +166,11 @@ builder.Services.AddHostedService<CommandResultTimeoutService>();
 builder.Services.AddScoped<WebsiteCatalogSyncer>();
 builder.Services.AddHostedService<WebsiteCatalogSyncService>();
 
+// ---- Sign-in ขั้น 3 (WP3-1, 2026-10-31) - สำรอง DB ตาม BackupSettings (ดู Models/BackupSettings.cs) ----
+// Scoped เพราะพึ่ง AppDbContext/ActivityLogDbContext ที่เป็น scoped เอง (ต่างจาก singleton อื่นข้างบน)
+builder.Services.AddScoped<DatabaseBackupService>();
+builder.Services.AddHostedService<DatabaseBackupSchedulerService>();
+
 // ---- รองรับ Windows Service host (ให้ publish เป็น service ได้ทีหลัง) ----
 builder.Host.UseWindowsService();
 
@@ -237,5 +242,11 @@ app.MapUserEndpoints();
 app.MapRoomEndpoints();
 app.MapStaffSessionEndpoints(); // WP2 (2026-10-30) - token แทน bypass/set ที่ไม่มี auth
 app.MapSecurityEndpoints(); // WP1 (2026-10-30) - แจก .cer/thumbprint ของ Server เองให้ client
+
+// ---- Sign-in ขั้น 3 (WP3-1, 2026-10-31) ----
+app.MapStudentAuthEndpoints(); // login/logout/เปลี่ยนรหัสผ่านของนักเรียน
+app.MapStudentSessionEndpoints(); // session ที่เปิดอยู่ + ประวัติการใช้เครื่อง + บังคับ logout
+app.MapRosterEndpoints(); // CRUD/นำเข้า CSV/รีเซ็ตรหัส/ปลดล็อก/เลื่อนชั้นของ Roster Manager (WP3-2)
+app.MapSignInSettingsEndpoints(); // ตั้งค่า Sign-in + ตั้งค่า/สั่งสำรองข้อมูล DB
 
 app.Run();

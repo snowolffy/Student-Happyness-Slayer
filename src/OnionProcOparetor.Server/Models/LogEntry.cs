@@ -33,4 +33,12 @@ public class LogEntry
     public string ActionTaken { get; set; } = string.Empty;
 
     public DateTime Timestamp { get; set; } = DateTime.UtcNow;
+
+    /// <summary>
+    /// รหัสนักเรียนที่ login อยู่บนเครื่องนี้ตอนเกิด log นี้ (WP3-1, 2026-10-31) - null = ไม่มีใคร login
+    /// อยู่ หรือ Agent รุ่นเก่าที่ยังไม่ส่งค่านี้มา (ดู docs/roadmap.md "log ทุกอย่างที่เกิดระหว่าง session
+    /// ให้ผูกกับนักเรียน") ฝั่ง Agent แนบมาเองใน POST /api/logs ถ้ามี session เปิดอยู่ ณ ตอนนั้น (งานฝั่ง
+    /// Agent เป็นของ WP3-3 - ไฟล์นี้แค่เตรียมที่เก็บไว้ก่อนแบบ additive)
+    /// </summary>
+    public string? StudentCode { get; set; }
 }

@@ -35,6 +35,18 @@ public class AppDbContext : DbContext
     /// <summary>ห้องแล็บ + ผังที่นั่ง (WP3, 2026-10-30) - ดู Models/Room.cs</summary>
     public DbSet<Room> Rooms => Set<Room>();
 
+    /// <summary>บัญชีนักเรียน (WP3-1, 2026-10-31) - ดู Models/Student.cs</summary>
+    public DbSet<Student> Students => Set<Student>();
+
+    /// <summary>ประวัติการใช้เครื่องของนักเรียน (WP3-1, 2026-10-31) - ดู Models/StudentSession.cs</summary>
+    public DbSet<StudentSession> StudentSessions => Set<StudentSession>();
+
+    /// <summary>ตั้งค่า Sign-in นักเรียนทั้งระบบ แถวเดียว (WP3-1, 2026-10-31) - ดู Models/SignInSettings.cs</summary>
+    public DbSet<SignInSettings> SignInSettings => Set<SignInSettings>();
+
+    /// <summary>ตั้งค่าสำรองข้อมูล DB แถวเดียว (WP3-1, 2026-10-31) - ดู Models/BackupSettings.cs</summary>
+    public DbSet<BackupSettings> BackupSettings => Set<BackupSettings>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
@@ -130,12 +142,52 @@ public class AppDbContext : DbContext
         modelBuilder.Entity<WebsiteRule>()
             .HasIndex(r => r.RoomId);
 
+        // รหัสนักเรียนต้องไม่ซ้ำกัน (WP3-1, 2026-10-31) - ใช้ login ได้เหมือน Username ของ AdminUser ข้างบน
+        modelBuilder.Entity<Student>()
+            .HasIndex(s => s.StudentCode)
+            .IsUnique();
+
+        // เมลโรงเรียนต้องไม่ซ้ำกัน "ถ้ามี" - filtered unique index เพราะไม่ใช่นักเรียนทุกคนมีเมล (nullable)
+        // SQLite ถือว่า NULL ทุกแถวไม่เท่ากัน (ปกติของ unique index อยู่แล้ว) แต่ใส่ HasFilter ไว้ชัดเจน
+        // กันกรณีอนาคตเปลี่ยนไปใช้ provider อื่นที่พฤติกรรมต่างกัน
+        modelBuilder.Entity<Student>()
+            .HasIndex(s => s.SchoolEmail)
+            .IsUnique()
+            .HasFilter("[SchoolEmail] IS NOT NULL");
+
+        // query หลัก: Roster ค้นด้วยชั้น/ห้องเรียน (nf-roster ฝั่งซ้าย) + Console ประวัติ "ห้องเรียนของนักเรียน"
+        modelBuilder.Entity<Student>()
+            .HasIndex(s => s.ClassName);
+
+        // query หลักของ "มี session เปิดอยู่ไหมบนเครื่องนี้" (ทุกครั้งที่ login/poll ต้องเช็ค) - EndedAt ==
+        // null คือ session ที่ยังเปิดอยู่ มีได้แถวเดียวต่อ ClientGuid ในเวลาเดียวกัน (บังคับที่ endpoint)
+        modelBuilder.Entity<StudentSession>()
+            .HasIndex(s => new { s.ClientGuid, s.EndedAt });
+
+        // query หลักของ "นักเรียนคนนี้ login อยู่เครื่องไหนอยู่ไหม" (กติกาบัญชีเดียวหลายเครื่อง - ต้องหาทุก
+        // session ที่เปิดอยู่ของนักเรียนคนนี้ก่อนยอม login เครื่องใหม่)
+        modelBuilder.Entity<StudentSession>()
+            .HasIndex(s => new { s.StudentId, s.EndedAt });
+
+        // ประวัติการใช้เครื่อง (nf-attendance) กรองตามช่วงเวลาเป็นหลักเสมอ
+        modelBuilder.Entity<StudentSession>()
+            .HasIndex(s => s.StartedAt);
+
         // Seed ค่าเริ่มต้นของ GlobalState ให้มี row เดียวเสมอ (Id = 1, เปิดใช้งานเป็นค่าเริ่มต้น)
         // สำคัญ: ต้องใช้ค่า DateTime แบบ fixed/static เท่านั้น ห้ามใช้ DateTime.UtcNow หรือ
         // Guid.NewGuid() ใน HasData() เด็ดขาด เพราะ EF Core จะมองว่า model "ไม่นิ่ง" แล้ว throw
         // PendingModelChangesWarning ตอน Migrate() ทำงาน
         modelBuilder.Entity<GlobalState>().HasData(
             new GlobalState { Id = 1, IsEnabled = true, Note = "Default state", UpdatedAt = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc) }
+        );
+
+        // Seed ค่าเริ่มต้นของ SignInSettings/BackupSettings (WP3-1, 2026-10-31) - เหตุผลเดียวกับ GlobalState
+        // ข้างบน (ต้องมีแถว Id=1 เสมอตั้งแต่ DB ใหม่ที่สุด ไม่ต้องมี GetOrCreate ที่จุดอ่านทุกจุด)
+        modelBuilder.Entity<Models.SignInSettings>().HasData(
+            new Models.SignInSettings { Id = 1, UpdatedAt = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc) }
+        );
+        modelBuilder.Entity<BackupSettings>().HasData(
+            new BackupSettings { Id = 1, UpdatedAt = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc) }
         );
     }
 }

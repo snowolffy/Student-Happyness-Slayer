@@ -29,6 +29,12 @@ namespace OnionProcOparetor.Server.Migrations.ActivityLog
                     b.Property<string>("ActorDisplayName")
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("ActorStudentCode")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int?>("ActorStudentId")
+                        .HasColumnType("INTEGER");
+
                     b.Property<string>("ActorUsername")
                         .HasColumnType("TEXT");
 
@@ -63,6 +69,8 @@ namespace OnionProcOparetor.Server.Migrations.ActivityLog
                     b.HasIndex("Timestamp");
 
                     b.HasIndex("ActorAdminUserId", "Timestamp");
+
+                    b.HasIndex("ActorStudentId", "Timestamp");
 
                     b.HasIndex("Category", "Timestamp");
 

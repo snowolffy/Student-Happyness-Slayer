@@ -55,4 +55,26 @@ public class ActivityLogService : IActivityLogService
         });
         await _db.SaveChangesAsync();
     }
+
+    public async Task LogStudentActionAsync(
+        Student? student,
+        string eventType,
+        string description,
+        string? targetClientGuid = null,
+        string? targetMachineName = null,
+        string? studentCodeOverride = null)
+    {
+        _db.ActivityLogEntries.Add(new ActivityLogEntry
+        {
+            Category = ActivityLogCategory.StudentAction,
+            Severity = ActivityLogSeverity.Info,
+            EventType = eventType,
+            Description = description,
+            ActorStudentId = student?.Id,
+            ActorStudentCode = student?.StudentCode ?? studentCodeOverride,
+            TargetClientGuid = targetClientGuid,
+            TargetMachineName = targetMachineName
+        });
+        await _db.SaveChangesAsync();
+    }
 }

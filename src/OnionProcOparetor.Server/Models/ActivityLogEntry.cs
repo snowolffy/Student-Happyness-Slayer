@@ -33,7 +33,15 @@ public class ActivityLogEntry
     /// </summary>
     public string? ActorDisplayName { get; set; }
 
-    // เครื่องเป้าหมาย (หมวด AdminAction ที่เจาะจงเครื่อง และหมวด AgentConnectivity) - denormalize เช่นกัน
+    /// <summary>
+    /// ผู้กระทำฝั่งนักเรียน (หมวด StudentAction - WP3-1, 2026-10-31) - denormalize เหมือน ActorUsername/
+    /// ActorAdminUserId ข้างบนด้วยเหตุผลเดียวกัน (คนละ DbContext, ต้องอยู่รอดแม้ Student ถูกลบไปแล้ว)
+    /// ใช้คู่กันเสมอ - มีค่าเฉพาะตอน Category == StudentAction
+    /// </summary>
+    public int? ActorStudentId { get; set; }
+    public string? ActorStudentCode { get; set; }
+
+    // เครื่องเป้าหมาย (หมวด AdminAction ที่เจาะจงเครื่อง, AgentConnectivity และ StudentAction) - denormalize เช่นกัน
     public string? TargetClientGuid { get; set; }
     public string? TargetMachineName { get; set; }
 
@@ -45,7 +53,10 @@ public enum ActivityLogCategory
 {
     AdminAction,
     AgentConnectivity,
-    SystemEvent
+    SystemEvent,
+
+    /// <summary>การกระทำของนักเรียนเอง เช่น login/logout/เปลี่ยนรหัสผ่าน (WP3-1, 2026-10-31)</summary>
+    StudentAction
 }
 
 public enum ActivityLogSeverity

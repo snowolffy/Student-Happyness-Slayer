@@ -108,6 +108,24 @@ public class ClientMachine
     public bool HasEverConnectedViaSignalR { get; set; }
 
     /// <summary>
+    /// นักเรียนที่ login อยู่บนเครื่องนี้ตอนนี้ (WP3-1, 2026-10-31) - null = ไม่มีใคร login อยู่ ไม่ persist
+    /// ลง DB (pattern เดียวกับ IsConnectedViaSignalR ข้างบน) ตั้งจากภายนอกก่อน serialize ทุกครั้งที่คืน/
+    /// broadcast ClientMachine ออกไป โดย join จาก StudentSession ที่ EndedAt == null ของ ClientGuid นี้ -
+    /// ดูจุดที่ set: GET /api/clients (Endpoints/ClientEndpoints.cs) เป็นหลัก ยังไม่ set ที่จุดอื่น (poll,
+    /// toggle ฯลฯ) เพราะ Console ดึงรายชื่อนักเรียนที่ใช้งานอยู่จาก GET /api/clients เท่านั้นในรอบนี้
+    /// </summary>
+    [NotMapped]
+    public int? CurrentStudentId { get; set; }
+
+    /// <summary>คู่กับ CurrentStudentId - null เมื่อ CurrentStudentId เป็น null เท่านั้น</summary>
+    [NotMapped]
+    public string? CurrentStudentCode { get; set; }
+
+    /// <summary>คู่กับ CurrentStudentId - null เมื่อ CurrentStudentId เป็น null เท่านั้น</summary>
+    [NotMapped]
+    public string? CurrentStudentName { get; set; }
+
+    /// <summary>
     /// true = เครื่องนี้ยัง online อยู่
     ///
     /// บั๊กจริงที่เจอ (2026-08-20): เดิมใช้ `IsConnectedViaSignalR || LastSeenAt ยังไม่เกิน 90 วิ` เสมอ -

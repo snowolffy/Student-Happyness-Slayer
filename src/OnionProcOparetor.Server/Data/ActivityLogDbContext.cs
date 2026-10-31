@@ -37,5 +37,9 @@ public class ActivityLogDbContext : DbContext
         // filter ตามผู้กระทำใน Console
         modelBuilder.Entity<ActivityLogEntry>()
             .HasIndex(e => new { e.ActorAdminUserId, e.Timestamp });
+
+        // filter ตามนักเรียนผู้กระทำ (WP3-1, 2026-10-31) - เหตุผลเดียวกับ index ของ ActorAdminUserId ข้างบน
+        modelBuilder.Entity<ActivityLogEntry>()
+            .HasIndex(e => new { e.ActorStudentId, e.Timestamp });
     }
 }

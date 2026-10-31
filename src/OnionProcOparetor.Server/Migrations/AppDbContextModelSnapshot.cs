@@ -93,6 +93,47 @@ namespace OnionProcOparetor.Server.Migrations
                     b.ToTable("AuthTokens");
                 });
 
+            modelBuilder.Entity("OnionProcOparetor.Server.Models.BackupSettings", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("Frequency")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime?>("LastBackupAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("LastBackupFileName")
+                        .HasColumnType("TEXT");
+
+                    b.Property<long?>("LastBackupSizeBytes")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("RetentionCount")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("StoragePath")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("BackupSettings");
+
+                    b.HasData(
+                        new
+                        {
+                            Id = 1,
+                            Frequency = 0,
+                            RetentionCount = 14,
+                            UpdatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc)
+                        });
+                });
+
             modelBuilder.Entity("OnionProcOparetor.Server.Models.ClientCommand", b =>
                 {
                     b.Property<int>("Id")
@@ -263,6 +304,9 @@ namespace OnionProcOparetor.Server.Migrations
 
                     b.Property<string>("ProcessPath")
                         .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("StudentCode")
                         .HasColumnType("TEXT");
 
                     b.Property<DateTime>("Timestamp")
@@ -448,6 +492,186 @@ namespace OnionProcOparetor.Server.Migrations
                         .IsUnique();
 
                     b.ToTable("RuleOverrides");
+                });
+
+            modelBuilder.Entity("OnionProcOparetor.Server.Models.SignInSettings", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("AutoLogoutIdleMinutes")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("EmergencyCodeEnabled")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("ForceChangePasswordOnFirstLogin")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("GuestModeEnabled")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("LockScreenDefaultMessage")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("LockoutFailedAttempts")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("LoginScreenMessage")
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("LogoutOnShutdown")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("MultiDeviceMode")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("PasswordMinLength")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("RequireLoginMode")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("RequireLoginRoomIdsCsv")
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("ShowStudentNameInConsole")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("TeacherCanResetPassword")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("SignInSettings");
+
+                    b.HasData(
+                        new
+                        {
+                            Id = 1,
+                            AutoLogoutIdleMinutes = 15,
+                            EmergencyCodeEnabled = true,
+                            ForceChangePasswordOnFirstLogin = true,
+                            GuestModeEnabled = false,
+                            LockScreenDefaultMessage = "กรุณาละสายตาจากหน้าจอและฟังครูผู้สอน",
+                            LockoutFailedAttempts = 5,
+                            LogoutOnShutdown = true,
+                            MultiDeviceMode = 0,
+                            PasswordMinLength = 6,
+                            RequireLoginMode = 0,
+                            ShowStudentNameInConsole = true,
+                            TeacherCanResetPassword = true,
+                            UpdatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc)
+                        });
+                });
+
+            modelBuilder.Entity("OnionProcOparetor.Server.Models.Student", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("ClassName")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("FailedLoginCount")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("FullName")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("IsDisabled")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("IsLocked")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime?>("LastLoginAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("MustChangePassword")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("PasswordHash")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("PasswordSalt")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("SchoolEmail")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("StudentCode")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ClassName");
+
+                    b.HasIndex("SchoolEmail")
+                        .IsUnique()
+                        .HasFilter("[SchoolEmail] IS NOT NULL");
+
+                    b.HasIndex("StudentCode")
+                        .IsUnique();
+
+                    b.ToTable("Students");
+                });
+
+            modelBuilder.Entity("OnionProcOparetor.Server.Models.StudentSession", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("ClientGuid")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<int?>("EndReason")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime?>("EndedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("MachineName")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<int?>("RoomId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("StartedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("StudentId")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("StartedAt");
+
+                    b.HasIndex("ClientGuid", "EndedAt");
+
+                    b.HasIndex("StudentId", "EndedAt");
+
+                    b.ToTable("StudentSessions");
                 });
 
             modelBuilder.Entity("OnionProcOparetor.Server.Models.WebsiteCatalogSource", b =>

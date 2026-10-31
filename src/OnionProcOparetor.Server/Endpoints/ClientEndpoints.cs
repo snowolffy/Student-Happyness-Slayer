@@ -29,6 +29,18 @@ public static class ClientEndpoints
             }
 
             var clients = await query.OrderBy(c => c.MachineName).ToListAsync();
+
+            // นักเรียนที่ login อยู่ตอนนี้ (WP3-1, 2026-10-31) - join StudentSession ที่ยังเปิดอยู่ (EndedAt
+            // == null) ของทุกเครื่องในผลลัพธ์นี้ครั้งเดียว (กัน N+1 query) ดู docs/roadmap.md
+            // "API สำหรับ Console: นักเรียนที่ใช้เครื่องอยู่ (ใส่ใน clients list)"
+            var clientGuids = clients.Select(c => c.ClientGuid).ToList();
+            var activeSessions = await db.StudentSessions
+                .Where(s => s.EndedAt == null && clientGuids.Contains(s.ClientGuid))
+                .ToListAsync();
+            var studentIds = activeSessions.Select(s => s.StudentId).Distinct().ToList();
+            var students = await db.Students.Where(s => studentIds.Contains(s.Id)).ToDictionaryAsync(s => s.Id);
+            var activeSessionByClientGuid = activeSessions.ToDictionary(s => s.ClientGuid);
+
             // เติม IsConnectedViaSignalR + HasEverConnectedViaSignalR ก่อน serialize เสมอ (ไม่ set = default
             // false ทั้งคู่ = IsOnline พึ่ง LastSeenAt อย่างเดียว ยังถูกอยู่แต่ไม่ได้สัญญาณเร็วจาก SignalR - ดู
             // ClientMachine.IsConnectedViaSignalR/HasEverConnectedViaSignalR)
@@ -36,6 +48,14 @@ public static class ClientEndpoints
             {
                 client.IsConnectedViaSignalR = connectionRegistry.IsConnected(client.ClientGuid);
                 client.HasEverConnectedViaSignalR = connectionRegistry.HasEverConnected(client.ClientGuid);
+
+                if (activeSessionByClientGuid.TryGetValue(client.ClientGuid, out var session) &&
+                    students.TryGetValue(session.StudentId, out var student))
+                {
+                    client.CurrentStudentId = student.Id;
+                    client.CurrentStudentCode = student.StudentCode;
+                    client.CurrentStudentName = student.FullName;
+                }
             }
             return Results.Ok(clients);
         });

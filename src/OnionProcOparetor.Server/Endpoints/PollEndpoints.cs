@@ -168,6 +168,23 @@ public static class PollEndpoints
                 blockedHashes = await blockedQuery.Select(v => v.Sha256).ToListAsync();
             }
 
+            // "ต้องล็อกอินไหม" (WP3-1, 2026-10-31) - ดู docs/roadmap.md "poll ส่งค่า 'ต้องล็อกอินไหม' ไปให้
+            // Agent" ตรรกะ: Off = ไม่บังคับเลย, AllRooms = บังคับทุกเครื่อง, SelectedRooms = บังคับเฉพาะ
+            // เครื่องที่ client.RoomId อยู่ในรายการที่ตั้งไว้ (เครื่องที่ยังไม่จัดห้อง = RoomId null ไม่ตรง
+            // กับห้องไหนเลย จึงไม่ถูกบังคับในโหมดนี้) ปิด = ปลดเองภายใน 1 รอบ poll ตามที่ roadmap ระบุ - ทำได้
+            // เองโดยไม่ต้องมี flag พิเศษอะไรเพิ่ม เพราะ requireLogin คำนวณใหม่จากค่าปัจจุบันทุกครั้งที่ poll อยู่แล้ว
+            var signInSettings = await SignInSettingsEndpoints.GetOrCreateSignInSettingsAsync(db);
+            var requireLogin = signInSettings.RequireLoginMode switch
+            {
+                RequireLoginMode.Off => false,
+                RequireLoginMode.AllRooms => true,
+                RequireLoginMode.SelectedRooms => client.RoomId is not null &&
+                    (signInSettings.RequireLoginRoomIdsCsv ?? string.Empty)
+                        .Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
+                        .Contains(client.RoomId.Value.ToString()),
+                _ => false
+            };
+
             return Results.Ok(new
             {
                 enabled = globalEnabled && client.IsEnabled,
@@ -176,7 +193,8 @@ public static class PollEndpoints
                 pollIntervalOverrideSeconds = client.PollIntervalOverrideSeconds,
                 pendingCommands,
                 blocklistVersion = currentBlocklistVersion,
-                blockedHashes
+                blockedHashes,
+                requireLogin
             });
         });
 

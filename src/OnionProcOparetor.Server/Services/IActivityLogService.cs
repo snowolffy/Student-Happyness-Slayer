@@ -23,4 +23,17 @@ public interface IActivityLogService
         string description,
         string clientGuid,
         string? machineName);
+
+    /// <summary>
+    /// บันทึกการกระทำของนักเรียนเอง (WP3-1, 2026-10-31) เช่น StudentLoggedIn, StudentLoggedOut,
+    /// StudentPasswordChanged, StudentAccountLocked - student เป็น null ได้เฉพาะกรณี login ล้มเหลวที่
+    /// ไม่เจอบัญชีจริง (ไม่มี Id ให้ denormalize) ส่วน studentCodeOverride ใช้แทนตอนนั้น
+    /// </summary>
+    Task LogStudentActionAsync(
+        Student? student,
+        string eventType,
+        string description,
+        string? targetClientGuid = null,
+        string? targetMachineName = null,
+        string? studentCodeOverride = null);
 }
