@@ -238,6 +238,31 @@ public class ClientApiClient
         }
     }
 
+    /// <summary>
+    /// ตรวจรหัสฉุกเฉิน (WP3-4, 2026-10-31) - ยิงไป Agent local API ตรงๆ (ไม่ผ่าน Server เลย - Agent
+    /// ตรวจ TOTP แบบ offline ด้วย secret ที่ MSI patch เข้ามา) คืน null ถ้า Agent ไม่ตอบ (ไม่ได้รันอยู่)
+    /// </summary>
+    public async Task<bool?> VerifyEmergencyCodeAsync(string code)
+    {
+        try
+        {
+            var response = await _httpClient.PostAsJsonAsync("/emergency/verify", new { code });
+            if (!response.IsSuccessStatusCode)
+            {
+                return null;
+            }
+
+            var result = await response.Content.ReadFromJsonAsync<EmergencyVerifyResponseDto>();
+            return result?.Unlocked;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private sealed record EmergencyVerifyResponseDto(bool Unlocked, DateTime? UnlockedAtUtc);
+
     /// <summary>รูปร่าง JSON ตอบกลับจาก POST /api/auth/login ฝั่ง Server (ดู AuthEndpoints.cs) - เอาแค่ Token ที่ใช้ต่อ</summary>
     private sealed record LoginResponseDto(string? Token);
 

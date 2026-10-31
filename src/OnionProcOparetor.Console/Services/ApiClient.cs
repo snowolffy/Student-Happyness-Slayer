@@ -1011,6 +1011,75 @@ public class ApiClient
         }
     }
 
+    // ==================== WP3-4 (2026-10-31) - รหัสฉุกเฉิน (TOTP) ====================
+    // เติมการ์ด "รหัสฉุกเฉิน" ที่ WP3-5 เว้นว่างไว้ในคอลัมน์ขวาของหน้าตั้งค่า (SettingsPage.xaml)
+
+    public async Task<EmergencyCodeSettingsDto?> GetEmergencyCodeSettingsAsync()
+    {
+        try
+        {
+            return await _httpClient.GetFromJsonAsync<EmergencyCodeSettingsDto>("/api/settings/emergency-code");
+        }
+        catch (Exception)
+        {
+            return null;
+        }
+    }
+
+    public async Task<(bool Valid, string Message)> TestEmergencyCodeAsync(string code)
+    {
+        try
+        {
+            var response = await _httpClient.PostAsJsonAsync("/api/settings/emergency-code/test", new { code });
+            if (!response.IsSuccessStatusCode)
+            {
+                return (false, await ExtractErrorAsync(response, $"ทดสอบไม่สำเร็จ: {response.StatusCode}"));
+            }
+
+            var result = await response.Content.ReadFromJsonAsync<TestEmergencyCodeResponseDto>();
+            return result?.Valid == true ? (true, "รหัสถูกต้อง") : (false, "รหัสไม่ถูกต้อง หรือหมดเวลาไปแล้ว");
+        }
+        catch (HttpRequestException ex)
+        {
+            return (false, $"ต่อ server ไม่ได้: {ex.Message}");
+        }
+    }
+
+    /// <summary>คืน secret ใหม่ถ้าสำเร็จ (null = ไม่สำเร็จ) - ผู้เรียกต้องเตือนครูว่าต้องลง Agent MSI ใหม่ทุกเครื่อง</summary>
+    public async Task<(EmergencyCodeSettingsDto? Settings, string Message)> RotateEmergencyCodeAsync()
+    {
+        try
+        {
+            var response = await _httpClient.PostAsync("/api/settings/emergency-code/rotate", null);
+            if (!response.IsSuccessStatusCode)
+            {
+                return (null, await ExtractErrorAsync(response, $"เปลี่ยน secret ไม่สำเร็จ: {response.StatusCode}"));
+            }
+
+            var result = await response.Content.ReadFromJsonAsync<EmergencyCodeSettingsDto>();
+            return (result, "เปลี่ยน secret รหัสฉุกเฉินใหม่แล้ว");
+        }
+        catch (HttpRequestException ex)
+        {
+            return (null, $"ต่อ server ไม่ได้: {ex.Message}");
+        }
+    }
+
+    public async Task<List<EmergencyCodeUsageDto>> GetEmergencyCodeUsageAsync()
+    {
+        try
+        {
+            var result = await _httpClient.GetFromJsonAsync<List<EmergencyCodeUsageDto>>("/api/settings/emergency-code/usage?take=100");
+            return result ?? new List<EmergencyCodeUsageDto>();
+        }
+        catch (Exception)
+        {
+            return new List<EmergencyCodeUsageDto>();
+        }
+    }
+
+    private sealed record TestEmergencyCodeResponseDto(bool Valid);
+
     /// <summary>session ที่เปิดอยู่ของเครื่องหนึ่ง - ใช้ดึง sessionId มาสั่ง force-logout (GET /api/clients ไม่มี sessionId ติดมาด้วย)</summary>
     public async Task<ActiveStudentSessionDto?> GetActiveStudentSessionAsync(string clientGuid)
     {

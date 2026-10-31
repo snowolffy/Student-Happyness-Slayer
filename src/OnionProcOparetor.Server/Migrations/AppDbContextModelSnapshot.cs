@@ -569,6 +569,57 @@ namespace OnionProcOparetor.Server.Migrations
                     b.ToTable("ClientMachines");
                 });
 
+            modelBuilder.Entity("OnionProcOparetor.Server.Models.EmergencyCodeSettings", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("RotatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("RotatedByUsername")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("SecretBase32")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("EmergencyCodeSettings");
+                });
+
+            modelBuilder.Entity("OnionProcOparetor.Server.Models.EmergencyCodeUsage", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("ClientGuid")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("MachineName")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("ReceivedAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("UsedAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UsedAtUtc");
+
+                    b.ToTable("EmergencyCodeUsages");
+                });
+
             modelBuilder.Entity("OnionProcOparetor.Server.Models.ExamSession", b =>
                 {
                     b.Property<int>("Id")

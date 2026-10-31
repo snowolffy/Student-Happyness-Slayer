@@ -94,6 +94,12 @@ public partial class App : System.Windows.Application
             statusMenuItem.Click += (_, _) => OpenLoginWindow();
             contextMenu.Items.Add(statusMenuItem);
 
+            // รหัสฉุกเฉิน (WP3-4, 2026-10-31) - เมนูนี้เป็นจุดเข้าถึงชั่วคราวเท่านั้น (ของจริงควรขึ้นอัตโนมัติ
+            // แทนจอล็อกอินตอนติดต่อ Server ไม่ได้ - เป็นงานต่อสายที่ WP3-3 ต้องทำทีหลัง ดูรายงาน WP3-4)
+            var emergencyMenuItem = new System.Windows.Controls.MenuItem { Header = "รหัสฉุกเฉิน..." };
+            emergencyMenuItem.Click += (_, _) => new EmergencyWindow(_apiClient).Show();
+            contextMenu.Items.Add(emergencyMenuItem);
+
             contextMenu.Items.Add(new System.Windows.Controls.Separator());
 
             var exitMenuItem = new System.Windows.Controls.MenuItem { Header = "Exit Tray" };

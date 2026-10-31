@@ -1,0 +1,61 @@
+<Window x:Class="OnionProcOparetor.AgentTray.EmergencyWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Onion ProcOparetor - รหัสฉุกเฉิน"
+        Height="420" Width="460"
+        WindowStartupLocation="CenterScreen"
+        ResizeMode="NoResize"
+        Style="{StaticResource AppWindowStyle}">
+    <!-- WP3-4 (2026-10-31) - ตรงตาม docs/wireframes/st-emergency.dc.html ย่อจากเวอร์ชันเต็มจอ
+         (1280x720, ไม่มีแถบหัว/ปุ่มปิดเครื่อง-รีสตาร์ท) เป็นหน้าต่าง normal ที่เปิดจากเมนู tray
+         ("รหัสฉุกเฉิน...") เพราะหน้า "ล็อกอินนักเรียน" จริง (ที่ wireframe ตั้งใจให้ขึ้นแทน) เป็นงานของ
+         WP3-3 ซึ่งกำลังเขียน LoginWindow.xaml/LockScreenWindow.xaml ใหม่พร้อมกันอยู่คนละ branch - จึง
+         ไม่แก้ 2 ไฟล์นั้นเพื่อกันชนกัน (ดูรายงาน WP3-4 ว่าเป็นจุดที่ยังต้องต่อสายจริงกับ "บังคับล็อกอิน"
+         ทีหลัง) ปุ่ม "ปลดล็อกชั่วคราว" ยิง POST ไปที่ Agent local API /emergency/verify ตรงๆ -->
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <Border Grid.Row="0" Style="{StaticResource BrandHeaderBar}">
+            <StackPanel Orientation="Horizontal">
+                <Border Style="{StaticResource LogoPlaceholder}">
+                    <Image Source="/Theme/logo.png" Stretch="UniformToFill"/>
+                </Border>
+                <StackPanel Margin="10,0,0,0" VerticalAlignment="Center">
+                    <TextBlock Text="Onion ProcOparetor" Style="{StaticResource BrandHeaderTitleText}"/>
+                    <TextBlock Text="รหัสฉุกเฉิน" Style="{StaticResource BrandHeaderSubText}"/>
+                </StackPanel>
+            </StackPanel>
+        </Border>
+
+        <Grid Grid.Row="1" Margin="24">
+            <StackPanel VerticalAlignment="Center">
+                <TextBlock x:Name="ConnectivityText" Text="กำลังตรวจสอบการเชื่อมต่อ Server..."
+                           Style="{StaticResource LabelText}" TextWrapping="Wrap"
+                           HorizontalAlignment="Center" TextAlignment="Center" Margin="0,0,0,16"/>
+
+                <TextBlock Text="ปลดเครื่องด้วยรหัสฉุกเฉิน" FontSize="14" FontWeight="Bold"
+                           Style="{StaticResource LabelText}" HorizontalAlignment="Center" Margin="0,0,0,8"/>
+                <TextBlock Text="ครูเปิดแอป Authenticator บนมือถือ แล้วพิมพ์รหัส 6 หลักที่เห็นตอนนี้"
+                           Style="{StaticResource LabelText}" FontSize="11" TextWrapping="Wrap"
+                           HorizontalAlignment="Center" TextAlignment="Center" Margin="0,0,0,14"/>
+
+                <TextBox x:Name="CodeBox" MaxLength="6" FontSize="26" FontFamily="Consolas"
+                         TextAlignment="Center" Height="52" Margin="0,0,0,14"/>
+
+                <Button x:Name="UnlockButton" Content="ปลดล็อกชั่วคราว" Height="36"
+                        Style="{StaticResource PrimaryButton}" Click="UnlockButton_Click"/>
+
+                <TextBlock x:Name="StatusText" Margin="0,12,0,0" TextWrapping="Wrap"
+                           HorizontalAlignment="Center" TextAlignment="Center"
+                           FontSize="11" Foreground="{StaticResource AccentRedBrush}"/>
+
+                <TextBlock Text="ปลดแล้วเครื่องใช้งานแบบไม่ระบุชื่อ พอ Server กลับมาระบบจะบันทึกย้อนหลังว่าเครื่องนี้ถูกปลดเมื่อไร"
+                           Style="{StaticResource LabelText}" FontSize="10" TextWrapping="Wrap"
+                           HorizontalAlignment="Center" TextAlignment="Center" Margin="0,16,0,0"/>
+            </StackPanel>
+        </Grid>
+    </Grid>
+</Window>

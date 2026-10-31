@@ -1,4 +1,5 @@
 ﻿using OnionProcOparetor.Agent;
+using OnionProcOparetor.Agent.Models;
 using OnionProcOparetor.Agent.Services;
 
 // ---- Diagnostic เขียนไฟล์ตรงๆ ตั้งแต่บรรทัดแรกสุด (ก่อน WebApplication.CreateBuilder) ----
@@ -152,6 +153,13 @@ builder.Services.AddSingleton<ExamModeState>();
 // browser ไว้ใน memory ข้ามทุกรอบเก็บ (ดู comment เต็มใน WebHistoryCollectionService.cs) ----
 builder.Services.AddSingleton<WebHistoryCollectionService>();
 
+// ---- รหัสฉุกเฉิน TOTP (WP3-4, 2026-10-31) - singleton เพราะถือ queue ของการใช้รหัสที่ยังไม่ได้ส่งขึ้น
+// Server ไว้ใน memory ข้าม request/loop iteration ทั้งหมด (ดู comment เต็มใน EmergencyCodeService.cs
+// ว่าทำไมแยก hosted service ของตัวเอง ไม่เกาะ Worker.cs/ServerClient.cs ที่ WP3-3 กำลังแก้พร้อมกันอยู่) ----
+builder.Services.Configure<EmergencySettings>(builder.Configuration.GetSection("EmergencySettings"));
+builder.Services.AddSingleton<EmergencyCodeService>();
+builder.Services.AddHostedService<EmergencyCodeUploadService>();
+
 // ---- ผูก Worker เป็น background service หลัก ----
 builder.Services.AddHostedService<Worker>();
 
@@ -263,8 +271,23 @@ app.MapPost("/bypass/set", async (BypassSetRequest request, BypassCoordinator co
     return Results.Ok(new { bypassed = result.Bypassed });
 });
 
+// ---- รหัสฉุกเฉิน (WP3-4, 2026-10-31) - AgentTray's EmergencyWindow เรียกมาที่นี่ ไม่ต้อง auth
+// เพิ่มเติม (loopback เท่านั้น เหมือน /status - รหัส TOTP เองเป็นตัวพิสูจน์สิทธิ์อยู่แล้ว ไม่เหมือน
+// /bypass/set ที่ไม่มี proof อะไรเลยถ้าไม่มี token) ----
+app.MapPost("/emergency/verify", (EmergencyVerifyRequest request, EmergencyCodeService emergencyCode) =>
+{
+    var unlocked = emergencyCode.TryUnlock(request.Code);
+    return Results.Ok(new { unlocked, unlockedAtUtc = emergencyCode.LastUnlockedAtUtc });
+});
+
+app.MapGet("/emergency/status", (EmergencyCodeService emergencyCode) =>
+{
+    return Results.Ok(new { configured = emergencyCode.IsConfigured, lastUnlockedAtUtc = emergencyCode.LastUnlockedAtUtc });
+});
+
 app.Run();
 
 internal sealed record VncSessionResultRequest(string RequestingConsoleSessionId, bool Success, int Pid, string? Password, string? FailureReason, string? Secret);
 internal sealed record RunningProcessesResultRequest(string RequestingConsoleSessionId, bool Success, System.Text.Json.JsonElement? Processes, string? FailureReason, string? Secret);
 internal sealed record BypassSetRequest(bool Bypassed, string? StaffSessionToken = null);
+internal sealed record EmergencyVerifyRequest(string? Code);
