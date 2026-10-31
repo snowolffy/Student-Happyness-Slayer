@@ -105,6 +105,21 @@
                 <Grid Grid.Column="1" Margin="40,0">
                     <!-- state: Login (ปกติ/ผิด/ล็อก) -->
                     <StackPanel x:Name="LoginPanel" VerticalAlignment="Center">
+                        <!-- WP3-4b (2026-10-31) - โชว์เฉพาะตอนติดต่อ Server ไม่ได้ "และ" เครื่องนี้ตั้งค่ารหัสฉุกเฉินไว้แล้วเท่านั้น
+                             (ดู RefreshEmergencyAndConnectivityStateAsync ใน .xaml.cs) ตรงตามที่ roadmap ระบุ "โชว์เด่นตอน Server ล่ม" -->
+                        <Border x:Name="ServerUnreachableBanner" Background="#FDECEA" BorderBrush="{StaticResource AccentRedBrush}"
+                                BorderThickness="1.5" CornerRadius="6" Padding="12" Margin="0,0,0,16" Visibility="Collapsed">
+                            <StackPanel>
+                                <TextBlock Text="ติดต่อ Server ไม่ได้" FontWeight="Bold" FontSize="13.5"
+                                           Foreground="{StaticResource AccentRedBrush}"/>
+                                <TextBlock Text="ล็อกอินนักเรียนใช้ไม่ได้ชั่วคราว - ครูปลดเครื่องนี้ด้วยรหัสฉุกเฉินได้"
+                                           FontSize="12" TextWrapping="Wrap" Margin="0,4,0,10"/>
+                                <Button x:Name="OpenEmergencyFromBannerButton" Content="ปลดด้วยรหัสฉุกเฉิน..." Height="34"
+                                        Padding="14,0" HorizontalAlignment="Left" Style="{StaticResource SecondaryButton}"
+                                        Click="OpenEmergencyFromBannerButton_Click"/>
+                            </StackPanel>
+                        </Border>
+
                         <TextBlock Text="เข้าสู่ระบบเพื่อใช้งานเครื่อง" FontSize="20" FontWeight="Bold" Margin="0,0,0,14"/>
 
                         <Border x:Name="LoginErrorBanner" Background="#FDECEA" BorderBrush="{StaticResource AccentRedBrush}"
@@ -130,8 +145,12 @@
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock Text="สำหรับครู: Staff session" FontSize="12.5" Foreground="{StaticResource BrandDarkBrush}"
                                            Cursor="Hand" MouseLeftButtonUp="StaffSessionLink_Click" TextDecorations="Underline"/>
-                                <TextBlock Text="   รหัสฉุกเฉิน (ยังไม่พร้อมใช้งาน)" FontSize="12.5"
-                                           Foreground="{StaticResource TextSecondaryBrush}" Margin="18,0,0,0"/>
+                                <!-- WP3-4b (2026-10-31) - เดิมเป็น TextBlock เฉยๆ เขียน "(ยังไม่พร้อมใช้งาน)" ตายตัว
+                                     (WP3-4 ยังไม่ได้ต่อสาย) ตอนนี้สลับข้อความ/คลิกได้ตาม EmergencyCodeConfigured
+                                     จริงจาก Agent /status (ดู ApplyEmergencyCodeAvailability ใน .xaml.cs) -->
+                                <TextBlock x:Name="EmergencyCodeLinkText" Text="   รหัสฉุกเฉิน (ยังไม่พร้อมใช้งาน)" FontSize="12.5"
+                                           Foreground="{StaticResource TextSecondaryBrush}" Margin="18,0,0,0"
+                                           MouseLeftButtonUp="EmergencyCodeLink_Click"/>
                             </StackPanel>
                         </Border>
                     </StackPanel>

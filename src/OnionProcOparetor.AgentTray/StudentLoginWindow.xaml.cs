@@ -23,15 +23,51 @@ public partial class StudentLoginWindow : Window
     private readonly ClientApiClient _agentApiClient;
     private readonly StudentApiClient _studentApiClient;
     private readonly DispatcherTimer _clockTimer;
+    private readonly DispatcherTimer _connectivityTimer;
 
     private bool _allowClose;
     private string? _pendingToken;
+    private bool _emergencyCodeConfigured;
 
     /// <summary>ยิงทันทีที่ login/เปลี่ยนรหัสผ่านสำเร็จ - ก่อนที่ ForceClose() ตัวเองทำงาน (App.xaml.cs ฟังไว้อัปเดตสถานะ + toast + tray menu)</summary>
     public event Action<StudentDto, int?>? LoginSucceeded;
 
     /// <summary>ยิงตอนกด "สำหรับครู: Staff session" - App.xaml.cs เป็นคนเปิด StaffSessionStartWindow (ไม่ทำที่นี่เพื่อไม่ให้หน้าต่างนี้รู้จัก StaffSessionStartWindow เลย)</summary>
     public event Action? StaffSessionRequested;
+
+    /// <summary>
+    /// ยิงทันทีที่ปลดด้วยรหัสฉุกเฉินสำเร็จ (WP3-4b, 2026-10-31) - App.xaml.cs ฟังไว้ปิดจอนี้ทันที แทนที่
+    /// จะรอ Worker.cs ส่ง SignInStatus รอบถัดไป (ปกติ <=10 วิ อยู่แล้วจาก ScanRunningProcessesAsync แต่
+    /// action ที่ครูเพิ่งกดเองควรได้ feedback ทันทีกว่านั้น)
+    /// </summary>
+    public event Action? EmergencyUnlockSucceeded;
+
+    /// <summary>
+    /// โหมดตรวจ UI เท่านั้น (--ui-preview=student-login --server-down) - จำลองสถานะ "ติดต่อ Server
+    /// ไม่ได้" + "ตั้งค่ารหัสฉุกเฉินไว้แล้ว" โดยไม่ต้องมี Agent จริงรันอยู่ (เครื่อง dev นี้รัน Agent จริง
+    /// ไม่ได้ - ต้องเป็น LocalSystem/HKLM) ไม่ได้ #if DEBUG เพราะเป็นแค่ property เปล่าๆ ไม่มีผลอะไรถ้า
+    /// ไม่ถูกตั้ง (เหมือน Console/DashboardWindow.PreviewMode ที่ก็เป็น public property ธรรมดาเช่นกัน
+    /// ส่วนจุดที่ set ค่านี้ใน App.xaml.cs ถึงจะ #if DEBUG)
+    ///
+    /// Custom setter (ไม่ใช่ auto-property เฉยๆ) โดยตั้งใจ: App.xaml.cs ตั้งค่านี้ผ่าน object
+    /// initializer (`new StudentLoginWindow(...) { PreviewForceServerDown = ... }`) ซึ่ง C# รัน
+    /// setter "หลัง" constructor ทำงานเสร็จแล้วเท่านั้น - ถ้าเป็น auto-property เฉยๆ
+    /// RefreshEmergencyAndConnectivityStateAsync() ที่เรียกจาก constructor จะยิงไปแล้วด้วยค่า false
+    /// (default) ก่อนที่ object initializer จะทันตั้งเป็น true เลย (บั๊กจริงที่เจอตอนถ่ายภาพ
+    /// --server-down ครั้งแรก - ได้ภาพเหมือนปกติทุกอย่าง ไม่มีแบนเนอร์) setter นี้ trigger refresh ซ้ำ
+    /// อีกทีให้เอง กันปัญหานี้โดยไม่ต้องเปลี่ยน constructor signature
+    /// </summary>
+    public bool PreviewForceServerDown
+    {
+        get => _previewForceServerDown;
+        set
+        {
+            _previewForceServerDown = value;
+            _ = RefreshEmergencyAndConnectivityStateAsync();
+        }
+    }
+
+    private bool _previewForceServerDown;
 
     public StudentLoginWindow(ClientApiClient agentApiClient, string? loginScreenMessage)
     {
@@ -55,6 +91,61 @@ public partial class StudentLoginWindow : Window
         _clockTimer.Tick += (_, _) => RefreshClock();
         _clockTimer.Start();
         Closed += (_, _) => _clockTimer.Stop();
+
+        // รหัสฉุกเฉิน (WP3-4b, 2026-10-31) - poll เองทุก 5 วิ (loopback ไปที่ Agent บนเครื่องเดียวกัน
+        // เบาพอที่จะ poll ถี่กว่า pipe push ของ Worker ได้โดยไม่กระทบอะไร) เพื่อ: (1) เปิด/ปิดลิงก์
+        // "รหัสฉุกเฉิน" ตาม EmergencyCodeConfigured (2) โชว์/ซ่อนแบนเนอร์เด่นตอนติดต่อ Server ไม่ได้
+        // เริ่มเรียกทันทีครั้งแรกด้วย (ไม่ต้องรอ 5 วิแรก) ไม่ใช้ _clockTimer เดิมเพราะ interval คนละ
+        // ความหมายกัน (เวลาเปลี่ยนทุกวิ แต่ไม่จำเป็นต้องเช็ค connectivity ถี่ขนาดนั้น)
+        _connectivityTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(5) };
+        _connectivityTimer.Tick += async (_, _) => await RefreshEmergencyAndConnectivityStateAsync();
+        _connectivityTimer.Start();
+        Closed += (_, _) => _connectivityTimer.Stop();
+        _ = RefreshEmergencyAndConnectivityStateAsync();
+    }
+
+    /// <summary>
+    /// ดึงสถานะ "ตั้งค่ารหัสฉุกเฉินไว้ไหม" + "ติดต่อ Server ได้ไหม" จาก Agent /status แล้วอัปเดต
+    /// ลิงก์/แบนเนอร์ - คืนเงียบๆ ถ้า Agent local API ไม่ตอบ (คงค่าที่โชว์อยู่เดิมไว้ ไม่กระพริบ UI)
+    /// </summary>
+    private async Task RefreshEmergencyAndConnectivityStateAsync()
+    {
+        bool lastPollSucceeded;
+        bool emergencyCodeConfigured;
+
+        if (PreviewForceServerDown)
+        {
+            lastPollSucceeded = false;
+            emergencyCodeConfigured = true;
+        }
+        else
+        {
+            var status = await _agentApiClient.GetStatusAsync();
+            if (status is null)
+            {
+                return;
+            }
+
+            lastPollSucceeded = status.LastPollSucceeded;
+            emergencyCodeConfigured = status.EmergencyCodeConfigured;
+        }
+
+        ApplyEmergencyCodeAvailability(emergencyCodeConfigured);
+
+        // แบนเนอร์เด่นตามที่ roadmap ระบุ ("จอฉุกเฉินควรขึ้นเมื่อติดต่อ Server ไม่ได้") - โชว์เฉพาะตอน
+        // เครื่องนี้มีรหัสฉุกเฉินให้ใช้จริงเท่านั้น (ไม่มีประโยชน์ถ้าไม่ได้ตั้งค่าไว้)
+        ServerUnreachableBanner.Visibility = (!lastPollSucceeded && emergencyCodeConfigured)
+            ? Visibility.Visible
+            : Visibility.Collapsed;
+    }
+
+    private void ApplyEmergencyCodeAvailability(bool configured)
+    {
+        _emergencyCodeConfigured = configured;
+        EmergencyCodeLinkText.Text = configured ? "   รหัสฉุกเฉิน" : "   รหัสฉุกเฉิน (ยังไม่พร้อมใช้งาน)";
+        EmergencyCodeLinkText.Cursor = configured ? Cursors.Hand : Cursors.Arrow;
+        EmergencyCodeLinkText.TextDecorations = configured ? TextDecorations.Underline : null;
+        EmergencyCodeLinkText.Foreground = (System.Windows.Media.Brush)FindResource(configured ? "BrandDarkBrush" : "TextSecondaryBrush");
     }
 
     /// <summary>ก๊อปแนวทางเดียวกับ Console/MainWindow.xaml.cs LoadHeroImage - โหลดจากไฟล์ข้างแอปก่อน (ให้ครูเปลี่ยนภาพเองได้) fallback ไปภาพฝังในตัว exe ถ้าไม่มี/อ่านไม่ได้ ห้าม throw ขึ้นไปเด็ดขาด</summary>
@@ -245,6 +336,27 @@ public partial class StudentLoginWindow : Window
     }
 
     private void StaffSessionLink_Click(object sender, MouseButtonEventArgs e) => StaffSessionRequested?.Invoke();
+
+    private void EmergencyCodeLink_Click(object sender, MouseButtonEventArgs e) => OpenEmergencyWindow();
+
+    private void OpenEmergencyFromBannerButton_Click(object sender, RoutedEventArgs e) => OpenEmergencyWindow();
+
+    /// <summary>
+    /// เปิด EmergencyWindow ซ้อนทับจอล็อกอินนักเรียน (WP3-4b, 2026-10-31) - ทั้งจากลิงก์เล็กๆ และจาก
+    /// ปุ่มในแบนเนอร์เด่นเรียกตัวนี้ตัวเดียวกัน ไม่ทำอะไรถ้ายังไม่ได้ตั้งค่า secret ไว้ (ลิงก์ถูกปิดอยู่แล้ว
+    /// ตาม ApplyEmergencyCodeAvailability แต่เช็คซ้ำอีกชั้นกันกด race กับตอนกำลัง refresh สถานะอยู่พอดี)
+    /// </summary>
+    private void OpenEmergencyWindow()
+    {
+        if (!_emergencyCodeConfigured)
+        {
+            return;
+        }
+
+        var window = new EmergencyWindow(_agentApiClient) { Owner = this };
+        window.UnlockSucceeded += () => Dispatcher.BeginInvoke(() => EmergencyUnlockSucceeded?.Invoke());
+        window.Show();
+    }
 
     private static void ConfirmThenRunShutdown(string action, string verb)
     {

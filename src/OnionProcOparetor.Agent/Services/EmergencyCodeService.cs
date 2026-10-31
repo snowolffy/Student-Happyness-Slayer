@@ -28,6 +28,14 @@ public sealed class EmergencyCodeService
     private const int StepSeconds = 30;
     private const int WindowSteps = 1; // ±1 ช่วง (30 วิ) ตามที่ roadmap ระบุ
 
+    // WP3-4b (2026-10-31) - ขอบเขตเวลาที่การปลดล็อกมีผล (ปิด gate บังคับ login) กลไกหลักคือ
+    // ClearUnlockOnServerReachable() ที่ Worker.cs เรียกทันทีที่ poll กับ Server สำเร็จอีกครั้ง (ตรงตาม
+    // wireframe st-emergency.dc.html: "พอ Server กลับมา...จะให้ล็อกอินตามปกติอีกครั้ง") ค่า cap นี้เป็น
+    // แค่ safety net กันกรณี Server ไม่กลับมาเลยทั้งวัน (เช่น ล่มข้ามคืน) ไม่ให้เครื่องที่เคยปลดไว้ค้างเป็น
+    // "ไม่บังคับ login" ตลอดไปโดยไม่มีใครรู้ - 8 ชั่วโมง = ประมาณ 1 วันเรียน ยาวพอที่จะไม่รบกวนการใช้งาน
+    // ปกติระหว่างวันเดียวกัน แต่สั้นพอที่จะไม่ข้ามไปถึงวันถัดไปโดยไม่มีใครต้อง login ใหม่เลย
+    private static readonly TimeSpan MaxUnlockDuration = TimeSpan.FromHours(8);
+
     private readonly string? _secretBase32;
     private readonly ILogger<EmergencyCodeService> _logger;
     private readonly ConcurrentQueue<DateTime> _pendingUsage = new();
@@ -46,8 +54,16 @@ public sealed class EmergencyCodeService
     /// <summary>true = เครื่องนี้ตั้งค่า secret ไว้แล้ว (AgentTray ใช้ซ่อน/แสดงปุ่มรหัสฉุกเฉิน)</summary>
     public bool IsConfigured => _secretBase32 is not null;
 
-    /// <summary>เวลาที่ปลดล่าสุดด้วยรหัสฉุกเฉิน (UTC) - null ถ้ายังไม่เคยปลดเลยตั้งแต่ Agent เริ่มทำงานรอบนี้</summary>
+    /// <summary>เวลาที่ปลดล่าสุดด้วยรหัสฉุกเฉิน (UTC) - null ถ้ายังไม่เคยปลดเลยตั้งแต่ Agent เริ่มทำงานรอบนี้ หรือถูกเคลียร์แล้ว (ดู ClearUnlockOnServerReachable)</summary>
     public DateTime? LastUnlockedAtUtc { get; private set; }
+
+    /// <summary>
+    /// true = gate บังคับ login ต้องถูกระงับไว้ตอนนี้ (Worker.cs เป็นคนอ่านค่านี้ไปผสมกับ
+    /// effectiveRequireLogin - WP3-4b, 2026-10-31) เงื่อนไข 2 ชั้น: (1) เคยปลดไว้จริง (2) ยังไม่เกิน
+    /// MaxUnlockDuration (safety cap) - การ "หมดอายุจริง" ตามปกติมาจาก ClearUnlockOnServerReachable()
+    /// ไม่ใช่ตัว cap นี้ (ดู comment บน MaxUnlockDuration)
+    /// </summary>
+    public bool IsUnlockActive => LastUnlockedAtUtc is { } unlockedAt && DateTime.UtcNow - unlockedAt < MaxUnlockDuration;
 
     /// <summary>
     /// ตรวจรหัส 6 หลัก - ถ้าถูก บันทึกเวลาปลดเข้าคิวให้ EmergencyCodeUploadService เอาไปส่ง Server ทีหลัง
@@ -68,8 +84,24 @@ public sealed class EmergencyCodeService
 
         LastUnlockedAtUtc = now;
         _pendingUsage.Enqueue(now);
-        _logger.LogWarning("ปลดเครื่องด้วยรหัสฉุกเฉินสำเร็จที่ {Time} UTC - รอส่งขึ้น Server ตอนกลับมาออนไลน์", now);
+        _logger.LogWarning("ปลดเครื่องด้วยรหัสฉุกเฉินสำเร็จที่ {Time} UTC - รอส่งขึ้น Server ตอนกลับมาออนไลน์ และระงับการบังคับ login ไว้จนกว่าจะติดต่อ Server ได้อีกครั้ง (หรือครบ {MaxHours} ชั่วโมง)", now, MaxUnlockDuration.TotalHours);
         return true;
+    }
+
+    /// <summary>
+    /// เรียกจาก Worker.cs ทันทีที่ poll กับ Server สำเร็จอีกครั้ง (WP3-4b, 2026-10-31) - ตรงตาม
+    /// wireframe st-emergency.dc.html เป๊ะๆ: "พอ Server กลับมา...จะให้ล็อกอินตามปกติอีกครั้ง" ไม่มีผล
+    /// อะไรถ้ายังไม่เคยปลดไว้ (no-op เงียบๆ) - เรียกได้ทุก poll สำเร็จโดยไม่ต้องเช็คก่อนว่าปลดไว้ไหม
+    /// </summary>
+    public void ClearUnlockOnServerReachable()
+    {
+        if (LastUnlockedAtUtc is null)
+        {
+            return;
+        }
+
+        _logger.LogInformation("Server กลับมาติดต่อได้แล้ว - ยกเลิกการระงับบังคับ login ที่ได้จากรหัสฉุกเฉิน (กลับไปบังคับ login ตามปกติ)");
+        LastUnlockedAtUtc = null;
     }
 
     /// <summary>ดึงรายการที่ค้างส่งทั้งหมดออกจากคิว (ใช้ตอนจะยิงอัปโหลด) - ถ้าส่งไม่สำเร็จผู้เรียกต้อง Requeue เอง</summary>

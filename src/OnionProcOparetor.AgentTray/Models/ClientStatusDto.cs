@@ -24,4 +24,7 @@ public class ClientStatusDto
     public int AutoLogoutIdleMinutes { get; set; } = 15;
     public string? CurrentStudentCode { get; set; }
     public string? CurrentStudentName { get; set; }
+
+    /// <summary>true = เครื่องนี้ตั้งค่า secret รหัสฉุกเฉินไว้แล้ว (WP3-4b, 2026-10-31) - StudentLoginWindow ใช้เปิด/ปิดลิงก์ "รหัสฉุกเฉิน"</summary>
+    public bool EmergencyCodeConfigured { get; set; }
 }
