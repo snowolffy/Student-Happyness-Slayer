@@ -16,7 +16,7 @@
 | 1 ฐานราก | **✅ โค้ดครบ (30 ต.ค.)** WP0–WP7 + WP2b + WP4b/WP1b merge เข้า main แล้ว (`926e512`) · **ต้อง field test ในแล็บหลังลง MSI ใหม่:** WP2 (bypass ต้องมี token/หมดอายุเอง), WP2b (callback ต้องมี secret), WP5 (loop + SignalR จริง), WP1 (cert ลง LocalMachine\Root ตอน MSI + SignalR ผ่าน HTTPS) · ยังเป็น HTTP อยู่ (`Security:AllowHttp=true`) จนกว่าจะย้ายระบบ |
 | 1 ข้อจำกัดที่รู้ | pipe squatting: โปรแกรมที่เปิด named pipe ชื่อเดียวกันก่อน tray จะได้ secret ของ WP2b (ต้องมีสิทธิ์ระดับปิด tray ได้อยู่แล้ว ความเสี่ยงต่ำ) · `server.log` บนเครื่อง dev มีบรรทัดจากการทดสอบปนอยู่ |
 | 2 Website | merge แล้ว: WP2-3 กฎรายห้อง, WP2-1 hardening, WP2-2 โหมดสอบ + Allow-list (`c0a66e6`) · กำลังทำ: WP2-4 ประวัติเว็บ · ค้าง: หน้าโหมดสอบใน OnlineConsole (API พร้อมแล้ว) · ต้องตรวจในแล็บ: โดเมนของ preset (โดยเฉพาะ CDN ของ Canva) และชื่อ publisher ของเบราว์เซอร์ที่บล็อก |
-| 3 Sign-in | merge แล้ว: WP3-1 Server, WP3-2 Roster Manager · กำลังทำ: WP3-5 Console · ยังไม่เริ่ม: WP3-3, WP3-4 · ยังไม่มี: เส้นทาง restore backup |
+| 3 Sign-in | merge แล้ว: WP3-1 Server, WP3-2 Roster Manager, WP3-5 Console (`836b34a` + แก้ loop หน้าประวัติการใช้เครื่อง `381662a`) · กำลังทำ: WP3-3 (รวมส่งข้อความจอล็อกจาก Console ไปถึง AgentTray) · ยังไม่เริ่ม: WP3-4 · ยังไม่มี: เส้นทาง restore backup, API ตั้งค่า Staff session (ตอนนี้หน้าตั้งค่าแสดง 30/120 นาทีแบบอ่านอย่างเดียว) · โหมด preview ของหน้าตั้งค่ายังไม่มีข้อมูลตัวอย่าง (ขึ้น toast โหลดไม่สำเร็จ) |
 | 4–5 | ออกแบบเสร็จ (wireframe) · ยังไม่เริ่ม · ขั้น 4 รอคุยเรื่องส่งจอครูก่อน |
 
 งานที่ผู้ใช้รับไปทำเองที่แล็บ: เปิด Wake-on-LAN ใน BIOS · เดินสาย LAN แทน WiFi · เลือกเครื่อง pilot · ตรวจว่ามี Google Workspace สำหรับหน้า Apps Script
