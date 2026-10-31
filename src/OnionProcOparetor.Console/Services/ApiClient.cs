@@ -423,6 +423,90 @@ public class ApiClient
         return response.IsSuccessStatusCode;
     }
 
+    // ---- ชุด Allow-list ของ "โหมดสอบ" (WP2-2, 2026-10-31) ----
+
+    public async Task<List<AllowListPresetDto>> GetAllowListPresetsAsync()
+    {
+        var result = await _httpClient.GetFromJsonAsync<List<AllowListPresetDto>>("/api/allowlist-presets");
+        return result ?? new List<AllowListPresetDto>();
+    }
+
+    public async Task<bool> AddAllowListPresetAsync(string name)
+    {
+        var response = await _httpClient.PostAsJsonAsync("/api/allowlist-presets", new { name });
+        return response.IsSuccessStatusCode;
+    }
+
+    public async Task<bool> RenameAllowListPresetAsync(int id, string name)
+    {
+        var response = await _httpClient.PutAsJsonAsync($"/api/allowlist-presets/{id}", new { name });
+        return response.IsSuccessStatusCode;
+    }
+
+    public async Task<bool> DeleteAllowListPresetAsync(int id)
+    {
+        var response = await _httpClient.DeleteAsync($"/api/allowlist-presets/{id}");
+        return response.IsSuccessStatusCode;
+    }
+
+    public async Task<bool> DuplicateAllowListPresetAsync(int id)
+    {
+        var response = await _httpClient.PostAsync($"/api/allowlist-presets/{id}/duplicate", null);
+        return response.IsSuccessStatusCode;
+    }
+
+    public async Task<bool> AddAllowListPresetDomainAsync(int presetId, string domain)
+    {
+        var response = await _httpClient.PostAsJsonAsync($"/api/allowlist-presets/{presetId}/domains", new { domain });
+        return response.IsSuccessStatusCode;
+    }
+
+    public async Task<bool> DeleteAllowListPresetDomainAsync(int presetId, int domainId)
+    {
+        var response = await _httpClient.DeleteAsync($"/api/allowlist-presets/{presetId}/domains/{domainId}");
+        return response.IsSuccessStatusCode;
+    }
+
+    // ---- โหมดสอบ (WP2-2, 2026-10-31) ----
+
+    /// <summary>คืน null ถ้าเริ่มไม่สำเร็จ (validation ไม่ผ่าน/ไม่มีสิทธิ์) - ต่างจาก false/true ตรงๆ เพราะผู้เรียกต้องการ summary กลับไปแสดงผลทันทีด้วย (ไม่ใช่แค่ bool)</summary>
+    public async Task<ExamSessionDto?> StartExamSessionAsync(
+        int? roomId, List<string>? clientGuids, List<int> presetIds, List<string> extraDomains, int durationMinutes)
+    {
+        var response = await _httpClient.PostAsJsonAsync("/api/exam-sessions/start", new
+        {
+            roomId,
+            clientGuids,
+            presetIds,
+            extraDomains,
+            durationMinutes
+        });
+
+        return response.IsSuccessStatusCode
+            ? await response.Content.ReadFromJsonAsync<ExamSessionDto>()
+            : null;
+    }
+
+    public async Task<bool> CancelExamSessionAsync(int id)
+    {
+        var response = await _httpClient.PostAsync($"/api/exam-sessions/{id}/cancel", null);
+        return response.IsSuccessStatusCode;
+    }
+
+    /// <summary>คืน empty list ถ้าอ่านไม่ได้ (Server รุ่นเก่า/ไม่มีสิทธิ์) - ใช้ขึ้นประกาศ "โหมดสอบกำลังทำงาน" บนแถบหัว (ดู DashboardWindow.RefreshExamModeAnnouncement)</summary>
+    public async Task<List<ExamSessionDto>> GetActiveExamSessionsAsync()
+    {
+        try
+        {
+            var result = await _httpClient.GetFromJsonAsync<List<ExamSessionDto>>("/api/exam-sessions/active");
+            return result ?? new List<ExamSessionDto>();
+        }
+        catch (Exception)
+        {
+            return new List<ExamSessionDto>();
+        }
+    }
+
     /// <summary>Override เฉพาะเครื่องเดียว - ดึง override ทั้งหมดของเครื่องนี้ (Config Rule dialog เอาไปเทียบกับ GetRulesAsync() เพื่อโชว์สถานะ effective ต่อกฎ)</summary>
     public async Task<List<RuleOverrideDto>> GetRuleOverridesAsync(string clientGuid)
     {

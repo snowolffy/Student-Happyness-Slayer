@@ -145,6 +145,9 @@ builder.Services.AddSingleton<WebsiteControlService>();
 // เป็น default parameter เองเวลาไม่มีใคร inject (ดู BrowserHardeningService) ----
 builder.Services.AddSingleton<BrowserHardeningService>();
 
+// ---- โหมดสอบ (WP2-2, 2026-10-31) - เก็บ ExpiresAt/allow-list ใน memory เท่านั้น (เหมือน AgentBypassState) ----
+builder.Services.AddSingleton<ExamModeState>();
+
 // ---- ผูก Worker เป็น background service หลัก ----
 builder.Services.AddHostedService<Worker>();
 
@@ -167,7 +170,7 @@ StartupDiagnostics.WriteLine("Host build เสร็จแล้ว กำล�
 
 // ---- Local API endpoints (สำหรับ AgentTray เท่านั้น) ----
 
-app.MapGet("/status", (ClientState state, AgentBypassState bypassState, ServerClient serverClient) =>
+app.MapGet("/status", (ClientState state, AgentBypassState bypassState, ServerClient serverClient, ExamModeState examMode) =>
 {
     return Results.Ok(new
     {
@@ -182,7 +185,15 @@ app.MapGet("/status", (ClientState state, AgentBypassState bypassState, ServerCl
         // อ่านจาก ServerClient.ActiveBaseUrl ที่เป็นค่าจริงหลังสลับไป fallback แล้วด้วย)
         serverBaseUrl = serverClient.ActiveBaseUrl,
         usingFallback = serverClient.IsUsingFallback,
-        bypassed = bypassState.IsBypassed
+        bypassed = bypassState.IsBypassed,
+        // โหมดสอบ (WP2-2, 2026-10-31) - ให้ AgentTray ดึงค่านี้ได้ตอนเพิ่งเริ่มทำงาน (เช่น user ล็อกอิน
+        // ใหม่กลางโหมดสอบ) แทนที่จะรอ push ผ่าน pipe ซึ่งส่งแค่ตอน "สถานะเปลี่ยน" เท่านั้น (ดู
+        // Worker.ScanRunningProcessesAsync) ใช้เกณฑ์เดียวกับ Worker's examActive เป๊ะๆ (bypass/enforcement
+        // ปิดอยู่ = ไม่ถือว่า "กำลังทำงานอยู่" แม้ ExpiresAtUtc ยังไม่ถึง) กัน badge โชว์ทั้งที่จริงๆ
+        // ไม่ได้ enforce อะไรอยู่เลย
+        examModeExpiresAtUtc = (!bypassState.IsBypassed && state.IsEnabled && examMode.IsActive)
+            ? examMode.ExpiresAtUtc
+            : null
     });
 });
 

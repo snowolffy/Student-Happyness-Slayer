@@ -178,6 +178,42 @@ public static class PollEndpoints
             // เครื่องที่ client.RoomId อยู่ในรายการที่ตั้งไว้ (เครื่องที่ยังไม่จัดห้อง = RoomId null ไม่ตรง
             // กับห้องไหนเลย จึงไม่ถูกบังคับในโหมดนี้) ปิด = ปลดเองภายใน 1 รอบ poll ตามที่ roadmap ระบุ - ทำได้
             // เองโดยไม่ต้องมี flag พิเศษอะไรเพิ่ม เพราะ requireLogin คำนวณใหม่จากค่าปัจจุบันทุกครั้งที่ poll อยู่แล้ว
+            // โหมดสอบ (WP2-2, 2026-10-31) - หา ExamSession ที่ "กำลังทำงานอยู่" และตรงกับเครื่องนี้ (ทั้งห้อง
+            // ของเครื่องนี้ หรือเครื่องนี้อยู่ในรายการที่เลือกไว้) แล้วส่ง ExpiresAt ดิบๆ ไปให้ Agent เก็บไว้
+            // ตัดสินใจ "หมดเวลาเอง" ด้วยนาฬิกาตัวเอง แม้ Server จะล่มระหว่างนั้น (ดู
+            // Agent/Services/ExamModeState.cs - ไม่ใช่ Server เป็นคนบอกว่า "หมดแล้ว" เชิงรุก)
+            // ถ้ามีมากกว่าหนึ่งเซสชันตรงกันพอดี (ไม่ควรเกิดปกติ) เอาตัวที่ ExpiresAt ไกลที่สุด
+            var activeExamSessions = await db.ExamSessions
+                .Where(e => e.EndedAt == null && e.ExpiresAt > nowUtc)
+                .ToListAsync();
+            var matchingExamSession = activeExamSessions
+                .Where(e => e.RoomId is not null
+                    ? e.RoomId == client.RoomId
+                    : (e.ClientGuidsCsv ?? string.Empty)
+                        .Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
+                        .Contains(clientGuid, StringComparer.OrdinalIgnoreCase))
+                .OrderByDescending(e => e.ExpiresAt)
+                .FirstOrDefault();
+
+            object? examMode = null;
+            if (matchingExamSession is not null)
+            {
+                var presetIds = (matchingExamSession.PresetIdsCsv ?? string.Empty)
+                    .Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
+                    .Select(s => int.TryParse(s, out var i) ? i : (int?)null)
+                    .Where(i => i is not null)
+                    .Select(i => i!.Value);
+                var extraDomains = (matchingExamSession.ExtraDomainsCsv ?? string.Empty)
+                    .Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
+
+                var presetDomains = await AllowListPresetEndpoints.GetDomainsForPresetIdsAsync(db, presetIds);
+                var allowedDomains = presetDomains.Concat(extraDomains)
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .ToList();
+
+                examMode = new { expiresAtUtc = matchingExamSession.ExpiresAt, allowedDomains };
+            }
+
             var signInSettings = await SignInSettingsEndpoints.GetOrCreateSignInSettingsAsync(db);
             var requireLogin = signInSettings.RequireLoginMode switch
             {
@@ -200,7 +236,8 @@ public static class PollEndpoints
                 pendingCommands,
                 blocklistVersion = currentBlocklistVersion,
                 blockedHashes,
-                requireLogin
+                requireLogin,
+                examMode
             });
         });
 

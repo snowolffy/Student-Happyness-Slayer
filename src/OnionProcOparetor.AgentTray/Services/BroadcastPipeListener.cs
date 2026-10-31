@@ -98,6 +98,10 @@ public class BroadcastPipeListener
     /// <summary>เรียกทุกครั้งที่ Agent สั่งให้สแกนโปรแกรมที่มีหน้าต่างบน desktop (payload = RequestingConsoleSessionId) - เรียกจาก background thread ไม่ใช่ UI thread</summary>
     public event Action<string>? GetRunningProcessesRequested;
 
+    /// <summary>เรียกทุกครั้งที่ Agent แจ้งสถานะโหมดสอบเปลี่ยน (WP2-2, 2026-10-31) - payload = ExpiresAtUtc
+    /// (null = ไม่มีโหมดสอบแล้ว ซ่อนป้าย) เรียกจาก background thread ไม่ใช่ UI thread</summary>
+    public event Action<DateTime?>? ExamModeStatusChanged;
+
     /// <summary>เริ่มฟัง pipe แบบ fire-and-forget - มี retry loop ในตัว ไม่ throw ออกมาแม้เปิด pipe ไม่สำเร็จ</summary>
     public void Start(CancellationToken ct)
     {
@@ -334,6 +338,10 @@ public class BroadcastPipeListener
                     {
                         GetRunningProcessesRequested?.Invoke(envelope.RequestingConsoleSessionId);
                     }
+                    break;
+
+                case "ExamModeStatus":
+                    ExamModeStatusChanged?.Invoke(envelope.ExamModeExpiresAtUtc);
                     break;
 
                 default:

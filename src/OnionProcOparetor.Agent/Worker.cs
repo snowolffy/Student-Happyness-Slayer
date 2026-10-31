@@ -72,6 +72,15 @@ public class Worker : BackgroundService
     private readonly ProgramControlService _programControl;
     private readonly WebsiteControlService _websiteControl;
     private readonly BrowserHardeningService _browserHardening;
+    private readonly ExamModeState _examMode;
+    private readonly AgentTrayNotifier _agentTrayNotifier;
+
+    // แจ้ง AgentTray เฉพาะตอน "สถานะเปลี่ยนจริง" เท่านั้น (ดู ScanRunningProcessesAsync) - ไม่ใช่ทุก
+    // enforcement tick (10 วิ) เพราะป้ายฝั่ง AgentTray นับถอยหลังเองได้จากค่า ExpiresAtUtc ที่ได้รับ
+    // ครั้งเดียว (ดู ExamModeBadgeWindow) ส่งซ้ำทุก tick จะยิง pipe + อาจ auto-recover สตาร์ท AgentTray
+    // ขึ้นมาใหม่โดยไม่จำเป็นทุก 10 วิ ตลอดช่วงที่โหมดสอบทำงานอยู่ (ดู AgentTrayNotifier.SendAsync)
+    private bool _lastNotifiedExamActive;
+    private DateTime? _lastNotifiedExamExpiresAtUtc;
 
     public Worker(
         ILogger<Worker> logger,
@@ -83,7 +92,9 @@ public class Worker : BackgroundService
         AgentBypassState bypassState,
         ProgramControlService programControl,
         WebsiteControlService websiteControl,
-        BrowserHardeningService browserHardening)
+        BrowserHardeningService browserHardening,
+        ExamModeState examMode,
+        AgentTrayNotifier agentTrayNotifier)
     {
         _logger = logger;
         _serverClient = serverClient;
@@ -95,6 +106,8 @@ public class Worker : BackgroundService
         _programControl = programControl;
         _websiteControl = websiteControl;
         _browserHardening = browserHardening;
+        _examMode = examMode;
+        _agentTrayNotifier = agentTrayNotifier;
         _clientGuid = ClientIdentity.GetOrCreateClientGuid();
         _machineName = ClientIdentity.GetMachineName();
         _state.ClientGuid = _clientGuid;
@@ -177,6 +190,13 @@ public class Worker : BackgroundService
             {
                 _lastKnownState = polled;
                 _programControl.ApplyBlocklist(polled.BlocklistVersion, polled.BlockedHashes);
+
+                // โหมดสอบ (WP2-2, 2026-10-31) - sync เฉพาะตอน poll สำเร็จเท่านั้น (Server ชนะเสมอตอน
+                // ติดต่อได้ ครอบคลุมทั้งเริ่มใหม่/ยกเลิกก่อนเวลา/ไม่มีอะไรเปลี่ยน) ตอน poll ไม่สำเร็จ
+                // (else branch ข้างล่าง) ตั้งใจไม่แตะ _examMode เลย - ให้มันหมดเวลาด้วยนาฬิกาตัวเองต่อไป
+                // (ดู ExamModeState.IsActive) แม้ Server จะล่มระหว่างนั้นก็ตาม
+                _examMode.UpdateFromServer(polled.ExamMode);
+
                 _state.UpdatePollResult(polled.Enabled, polled.Rules.Count, succeeded: true);
                 _state.SetPollIntervalOverride(polled.PollIntervalOverrideSeconds);
                 _logger.LogInformation("Poll สำเร็จ - Enabled: {Enabled}, Rules: {Count} ข้อ",
@@ -500,14 +520,44 @@ public class Worker : BackgroundService
 
     private async Task ScanRunningProcessesAsync()
     {
+        // โหมดสอบ (WP2-2, 2026-10-31) - ต้องผ่าน bypass/enforcement gate เดียวกันกับ website rules
+        // ปกติ (ตั้งใจ: ครูเปิด bypass เพื่อ "แก้ไขเครื่องชั่วคราว" ต้องปลดทุกอย่างจริง ไม่เหลือ
+        // allow-list ค้างอยู่ที่ใครงงได้) _examMode.IsActive คำนวณจากนาฬิกาเครื่องนี้เองทุกครั้งที่อ่าน
+        // (ดู ExamModeState) จึงหมดเวลาเองได้แม้ poll รอบต่อๆ มาจะล้มเหลวเพราะ Server ล่ม
+        var examActive = !_bypassState.IsBypassed && _lastKnownState.Enabled && _examMode.IsActive;
+
         // Website Control (2026-09-11): apply ทุกรอบ scan โดยไม่มี early-return แบบ process rules
         // ข้างล่าง เพราะ registry key ที่เคยเขียนไว้จะ "อยู่ต่อ" ในเซสชันเดียวกันจนกว่าจะมีคนลบจริง
         // (ต่างจาก process kill ที่แค่ไม่ทำอะไรต่อก็พอ) ต้องส่ง empty list เข้าไปเองเมื่อ bypass/ปิด
         // enforcement เพื่อให้ WebsiteControlService เคลียร์ URLBlocklist ออกจริง ไม่ใช่แค่หยุดยุ่งเฉยๆ
-        var websitePatterns = (_bypassState.IsBypassed || !_lastKnownState.Enabled)
-            ? Array.Empty<string>()
-            : _lastKnownState.WebsiteRules.Select(r => r.UrlPattern).ToArray();
-        _websiteControl.Apply(websitePatterns);
+        //
+        // โหมดสอบ: บล็อกทุกเว็บ ("*") ยกเว้นโดเมนที่อนุญาต - แทนที่กฎ WebsiteRule ปกติไปเลยทั้งชุด
+        // ตามที่ wireframe nf-exam ระบุ ("ทุกเว็บถูกบล็อก ยกเว้นที่เลือกไว้ข้างล่าง")
+        string[] websitePatterns;
+        string[]? allowPatterns;
+        if (examActive)
+        {
+            websitePatterns = new[] { "*" };
+            allowPatterns = _examMode.AllowedDomains.ToArray();
+        }
+        else
+        {
+            websitePatterns = (_bypassState.IsBypassed || !_lastKnownState.Enabled)
+                ? Array.Empty<string>()
+                : _lastKnownState.WebsiteRules.Select(r => r.UrlPattern).ToArray();
+            allowPatterns = null;
+        }
+        _websiteControl.Apply(websitePatterns, allowPatterns);
+
+        // แจ้ง AgentTray เฉพาะตอน "สถานะเปลี่ยนจริง" (เริ่ม/จบ/ExpiresAt เปลี่ยนเพราะยกเลิกก่อนเวลา) -
+        // ดู comment ที่ field _lastNotifiedExamActive ว่าทำไมไม่ส่งทุก tick
+        var currentExpiresAtUtc = examActive ? _examMode.ExpiresAtUtc : null;
+        if (examActive != _lastNotifiedExamActive || currentExpiresAtUtc != _lastNotifiedExamExpiresAtUtc)
+        {
+            _lastNotifiedExamActive = examActive;
+            _lastNotifiedExamExpiresAtUtc = currentExpiresAtUtc;
+            await _agentTrayNotifier.SendExamModeStatusAsync(currentExpiresAtUtc, CancellationToken.None);
+        }
 
         // ป้องกันการเลี่ยง (WP2-1, 2026-10-31) - เหตุผล apply ทุกรอบ/เคลียร์ตอน bypass หรือ enforcement
         // ปิดเหมือนกับ WebsiteControlService ข้างบนทุกอย่าง (ดูคอมเมนต์ยาวด้านบน) ส่ง null = เคลียร์ policy

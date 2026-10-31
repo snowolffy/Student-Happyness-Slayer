@@ -24,6 +24,11 @@ namespace OnionProcOparetor.Agent.Models;
 /// - "GetRunningProcesses" — สั่งให้ AgentTray สแกนโปรแกรมที่มีหน้าต่างอยู่บน desktop จริง แล้วส่งผล
 ///   กลับผ่าน local HTTP callback (ใช้ RequestingConsoleSessionId) - ต้องทำจาก AgentTray (รันใน user
 ///   session จริง) ไม่ใช่ Agent (Session 0) เพราะเหตุผลเดียวกับ StartVncSession
+/// - "ExamModeStatus" (WP2-2, 2026-10-31) — แจ้งสถานะ "โหมดสอบ" ให้ขึ้น/ลบป้ายมุมขวาล่าง (ใช้
+///   ExamModeExpiresAtUtc: มีค่า = กำลังทำงานอยู่ แสดงนาทีที่เหลือ, null = ไม่มีโหมดสอบ/จบแล้ว ซ่อนป้าย)
+///   ส่งเฉพาะตอน "เปลี่ยนสถานะจริง" เท่านั้น (เริ่ม/จบ/เวลาเปลี่ยนเพราะยกเลิกก่อนกำหนด) ไม่ส่งทุก
+///   enforcement tick - ตัวป้ายฝั่ง AgentTray นับถอยหลังเองจาก ExamModeExpiresAtUtc ที่ได้รับครั้งเดียว
+///   (ดู ExamModeBadgeWindow) Message/Title/RequestingConsoleSessionId ไม่ใช้
 ///
 /// สำคัญ: ไฟล์นี้ถูก "ก๊อปมือ" ไว้ 2 ที่ (Agent/Models + AgentTray/Models) เพราะ solution นี้
 /// ไม่มี shared class library ระหว่างโปรเจกต์เลย (ดู LogEntryDto ที่ก๊อปแบบเดียวกัน) -
@@ -53,4 +58,7 @@ public class AgentTrayPipeMessage
 
     /// <summary>WP2b: secret ปัจจุบันของ Agent process นี้ (ดู LoopbackSecret) แนบมาทุก message - ไม่ใช้ต่อ Type ใดโดยเฉพาะ</summary>
     public string? Secret { get; set; }
+
+    /// <summary>ใช้เฉพาะ Type = "ExamModeStatus" - null = ไม่มีโหมดสอบทำงานอยู่ (WP2-2, 2026-10-31)</summary>
+    public DateTime? ExamModeExpiresAtUtc { get; set; }
 }

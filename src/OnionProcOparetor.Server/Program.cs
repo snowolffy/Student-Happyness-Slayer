@@ -243,6 +243,8 @@ app.MapRoomEndpoints();
 app.MapStaffSessionEndpoints(); // WP2 (2026-10-30) - token แทน bypass/set ที่ไม่มี auth
 app.MapSecurityEndpoints(); // WP1 (2026-10-30) - แจก .cer/thumbprint ของ Server เองให้ client
 app.MapBrowserHardeningEndpoints(); // WP2-1 (2026-10-31) - ป้องกันการเลี่ยง (browser hardening)
+app.MapAllowListPresetEndpoints(); // WP2-2 (2026-10-31) - ชุด Allow-list สำเร็จรูป/กำหนดเองของโหมดสอบ
+app.MapExamSessionEndpoints(); // WP2-2 (2026-10-31) - เปิด/ยกเลิก/ดูสถานะโหมดสอบ
 
 // ---- Sign-in ขั้น 3 (WP3-1, 2026-10-31) ----
 app.MapStudentAuthEndpoints(); // login/logout/เปลี่ยนรหัสผ่านของนักเรียน

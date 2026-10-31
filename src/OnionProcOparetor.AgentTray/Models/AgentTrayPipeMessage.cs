@@ -13,6 +13,8 @@ namespace OnionProcOparetor.AgentTray.Models;
 /// - "ShowShutdownNotify" — โชว์หน้าต่างนับถอยหลังมุมจอก่อน shutdown/restart (ใช้ Action, DelaySeconds)
 /// - "GetRunningProcesses" — สแกนโปรแกรมที่มีหน้าต่างอยู่บน desktop จริง แล้วส่งผลกลับผ่าน local HTTP
 ///   callback (ใช้ RequestingConsoleSessionId) - ต้องทำจาก AgentTray เพราะรันใน user session จริง
+/// - "ExamModeStatus" (WP2-2, 2026-10-31) — ขึ้น/ลบป้ายมุมขวาล่าง "โหมดสอบ · เหลือ N นาที" (ใช้
+///   ExamModeExpiresAtUtc: มีค่า = แสดงป้ายแล้วนับถอยหลังเอง, null = ซ่อนป้าย) ดู ExamModeBadgeWindow
 ///
 /// ต้อง "ตรงกัน" กับ OnionProcOparetor.Agent/Models/AgentTrayPipeMessage.cs เป๊ะๆ เสมอ เพราะ
 /// solution นี้ไม่มี shared class library ระหว่างโปรเจกต์ (ก๊อปมือแบบเดียวกับ LogEntryDto) -
@@ -38,4 +40,7 @@ public class AgentTrayPipeMessage
 
     /// <summary>WP2b: secret ปัจจุบันของ Agent process (ดู LoopbackSecret ฝั่ง Agent) แนบมาทุก message - ไม่ใช้ต่อ Type ใดโดยเฉพาะ</summary>
     public string? Secret { get; set; }
+
+    /// <summary>ใช้เฉพาะ Type = "ExamModeStatus" - null = ไม่มีโหมดสอบทำงานอยู่ (WP2-2, 2026-10-31)</summary>
+    public DateTime? ExamModeExpiresAtUtc { get; set; }
 }

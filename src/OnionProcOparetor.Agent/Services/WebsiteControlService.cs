@@ -17,10 +17,20 @@ namespace OnionProcOparetor.Agent.Services;
 /// list เข้ามาเองเมื่อ enforcement ปิดอยู่/bypass (ไม่ได้ skip การเรียกแบบที่ process rules ทำ) เพราะ
 /// registry key ที่เคยเขียนไว้จะ "อยู่ต่อ" ในเซสชันเดียวกันจนกว่าจะมีคนลบจริง - ต่างจาก process kill
 /// ที่แค่ไม่ทำอะไรต่อก็พอ
+///
+/// "โหมดสอบ" (WP2-2, 2026-10-31) ใช้ Apply ตัวเดียวกันนี้ - Worker ส่ง blockPatterns = ["*"] (บล็อก
+/// ทุกเว็บ) พร้อม allowPatterns = โดเมนที่อนุญาต (เขียนเป็น URLAllowlist คู่กับ URLBlocklist - Chrome/
+/// Edge ให้ URLAllowlist ชนะ URLBlocklist เสมอตาม semantics ของ policy พวกนี้) ปกติ (ไม่ใช่โหมดสอบ)
+/// allowPatterns จะเป็น null/empty แล้ว URLAllowlist ถูกล้างทิ้งเหมือน URLBlocklist ตอนไม่มีกฎ
+///
+/// Registry root เป็นพารามิเตอร์ (ไม่ใช่ Registry.LocalMachine ตรงๆ) เพื่อทดสอบได้โดยไม่ต้องเขียน
+/// policy จริงใต้ HKLM บนเครื่อง dev (ดู docs/roadmap.md ขั้น 2 "ข้อจำกัดในการทดสอบ") - เหตุผลและ
+/// รูปแบบเดียวกับ BrowserHardeningService ที่ทำแบบนี้ไว้แล้วตั้งแต่ WP2-1
 /// </summary>
 public sealed class WebsiteControlService
 {
-    private const string PolicyListName = "URLBlocklist";
+    private const string BlocklistName = "URLBlocklist";
+    private const string AllowlistName = "URLAllowlist";
 
     private static readonly (string Vendor, string Product)[] Targets =
     {
@@ -29,51 +39,60 @@ public sealed class WebsiteControlService
     };
 
     private readonly ILogger<WebsiteControlService> _logger;
+    private readonly RegistryKey _root;
 
-    public WebsiteControlService(ILogger<WebsiteControlService> logger)
+    public WebsiteControlService(ILogger<WebsiteControlService> logger, RegistryKey? root = null)
     {
         _logger = logger;
+        _root = root ?? Registry.LocalMachine;
     }
 
     /// <summary>
-    /// เขียน registry ให้ตรงกับ patterns ที่ส่งมา - ส่ง empty collection = เคลียร์ blocklist ทิ้งทั้งหมด
+    /// เขียน registry ให้ตรงกับ patterns ที่ส่งมา - ส่ง empty collection ให้ blockPatterns = เคลียร์
+    /// blocklist ทิ้งทั้งหมด allowPatterns ไม่ระบุ/empty = เคลียร์ allowlist ทิ้งด้วย (โหมดปกติ)
     /// ไม่เก็บ "apply แล้ว" flag ไว้ที่ไหนเลย เพราะ registry เองก็โดนล้างทุก reboot เหมือน state
     /// อื่นๆ ของเครื่องแล็บ (idempotent - เรียกซ้ำด้วย patterns เดิมได้เสมอโดยไม่มีผลข้างเคียง)
     /// </summary>
-    public void Apply(IReadOnlyCollection<string> patterns)
+    public void Apply(IReadOnlyCollection<string> blockPatterns, IReadOnlyCollection<string>? allowPatterns = null)
     {
-        var normalized = patterns
-            .Select(p => p?.Trim())
-            .Where(p => !string.IsNullOrEmpty(p))
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .ToList();
+        var normalizedBlock = Normalize(blockPatterns);
+        var normalizedAllow = Normalize(allowPatterns ?? Array.Empty<string>());
 
         foreach (var (vendor, product) in Targets)
         {
             try
             {
-                ApplyToProduct(vendor, product, normalized!);
+                ApplyListToProduct(vendor, product, BlocklistName, normalizedBlock);
+                ApplyListToProduct(vendor, product, AllowlistName, normalizedAllow);
             }
             catch (Exception ex)
             {
-                _logger.LogWarning(ex, "เขียน URLBlocklist policy ของ {Vendor}\\{Product} ไม่สำเร็จ", vendor, product);
+                _logger.LogWarning(ex, "เขียน URLBlocklist/URLAllowlist policy ของ {Vendor}\\{Product} ไม่สำเร็จ", vendor, product);
             }
         }
     }
 
-    private static void ApplyToProduct(string vendor, string product, List<string> patterns)
+    private static List<string> Normalize(IReadOnlyCollection<string> patterns) =>
+        patterns
+            .Select(p => p?.Trim())
+            .Where(p => !string.IsNullOrEmpty(p))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Select(p => p!)
+            .ToList();
+
+    private void ApplyListToProduct(string vendor, string product, string listName, List<string> patterns)
     {
         var basePath = $@"SOFTWARE\Policies\{vendor}\{product}";
 
         if (patterns.Count == 0)
         {
             // ไม่มีกฎเปิดใช้งานอยู่เลย (หรือ enforcement ปิดอยู่) - ลบ subkey ทิ้งทั้งก้อนถ้ามี
-            using var baseKey = Registry.LocalMachine.OpenSubKey(basePath, writable: true);
-            baseKey?.DeleteSubKeyTree(PolicyListName, throwOnMissingSubKey: false);
+            using var baseKey = _root.OpenSubKey(basePath, writable: true);
+            baseKey?.DeleteSubKeyTree(listName, throwOnMissingSubKey: false);
             return;
         }
 
-        using var listKey = Registry.LocalMachine.CreateSubKey($@"{basePath}\{PolicyListName}", writable: true);
+        using var listKey = _root.CreateSubKey($@"{basePath}\{listName}", writable: true);
         if (listKey is null)
         {
             return;

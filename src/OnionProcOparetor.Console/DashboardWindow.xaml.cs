@@ -531,6 +531,11 @@ public partial class DashboardWindow : Window
                 UsersEmptyText.Visibility = users.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
             }
 
+            // โหมดสอบ (WP2-2, 2026-10-31) - ไม่ให้ exception ของ endpoint นี้ (เช่น Server รุ่นเก่า) พา
+            // LoadAllDataAsync ทั้งก้อนเข้า catch ด้านล่าง ทั้งที่ clients/rules/logs โหลดสำเร็จไปแล้ว -
+            // GetActiveExamSessionsAsync จับ exception ของตัวเองคืน empty list อยู่แล้ว (ดู ApiClient)
+            await RefreshExamModeAnnouncementAsync();
+
             StatusText.Text = $"อัพเดตล่าสุด: {DateTime.Now:HH:mm:ss}";
             _announcements.Clear(ServerUnreachableKey);
         }
@@ -550,6 +555,47 @@ public partial class DashboardWindow : Window
     private const string GlobalOffKey = "global-off";
     private const string ServerUnreachableKey = "server-unreachable";
     private const string HubReconnectingKey = "hub-reconnecting";
+    private const string ExamModeActiveKey = "exam-mode-active";
+
+    /// <summary>
+    /// ขึ้น/ลบประกาศ "โหมดสอบกำลังทำงาน" บนแถบหัว (WP2-2, 2026-10-31) - เรียกทุกครั้งที่ LoadAllDataAsync
+    /// ทำงาน (ทุก auto-refresh) เหมือน RefreshGlobalStateUi เพราะครูอีกคนอาจเปิด/ยกเลิกโหมดสอบจากอีก
+    /// เครื่อง Console หรือจาก OnlineConsole ก็ได้ ไม่ใช่แค่จากเครื่องนี้
+    ///
+    /// รวมหลายเซสชันที่ทำงานพร้อมกันเป็นประกาศเดียว (ไม่ใช่หนึ่งประกาศต่อเซสชัน) ตาม pattern เดิมของ
+    /// AnnouncementCenter ที่ไม่รองรับหลายประกาศ key เดียวกันซ้อนกันอยู่แล้ว - ปุ่ม "ยกเลิก" ยกเลิก
+    /// ทุกเซสชันที่กำลังทำงานพร้อมกันทีเดียว (ปกติมีแค่เซสชันเดียวในเวลาเดียวกัน)
+    /// </summary>
+    private async Task RefreshExamModeAnnouncementAsync()
+    {
+        var activeSessions = await _apiClient.GetActiveExamSessionsAsync();
+        if (activeSessions.Count == 0)
+        {
+            _announcements.Clear(ExamModeActiveKey);
+            return;
+        }
+
+        var earliestExpiry = activeSessions.Min(s => s.ExpiresAt);
+        var targetsText = string.Join(", ", activeSessions.Select(s => s.TargetDescription));
+
+        _announcements.Set(new Announcement
+        {
+            Key = ExamModeActiveKey,
+            Severity = AnnouncementSeverity.Info,
+            Title = $"โหมดสอบกำลังทำงาน ({targetsText}) - ถึง {TimeDisplay.TextWithZone(earliestExpiry)} แล้วกลับเป็นกฎปกติเอง",
+            Detail = "ทุกเว็บถูกบล็อกยกเว้นที่อนุญาตไว้ สำหรับเครื่อง/ห้องที่ระบุ ระหว่างโหมดสอบทำงานอยู่",
+            FixText = "ยกเลิกโหมดสอบ",
+            Fix = async () =>
+            {
+                foreach (var session in activeSessions)
+                {
+                    await _apiClient.CancelExamSessionAsync(session.Id);
+                }
+                ToastService.Info("ยกเลิกโหมดสอบแล้ว");
+                await LoadAllDataAsync();
+            }
+        });
+    }
 
     private void ReportServerUnreachable(string reason)
     {
@@ -1245,6 +1291,26 @@ public partial class DashboardWindow : Window
         var selected = ClientsGrid.SelectedItems.Cast<ClientMachineDto>().ToList();
         var panel = new ActionPanelWindow(_apiClient, selected, _allClients, defaultToAll: true) { Owner = this };
         await RunActionPanelAsync(panel);
+    }
+
+    /// <summary>
+    /// ปุ่ม "เปิดโหมดสอบ" บนแถบคำสั่งของ Clients (WP2-2, 2026-10-31) - ส่งเครื่องที่เลือกไว้ + ห้องที่
+    /// กรองอยู่ตอนนี้ (ถ้ามี) ให้ ExamModeWindow เป็นค่าเริ่มต้น ไม่บังคับเลือกเครื่องก่อนเหมือน
+    /// RoomActionsButton (เปิดได้ทันทีแล้วเลือกเป้าหมายในหน้าต่างเองก็ได้)
+    /// </summary>
+    private async void OpenExamModeButton_Click(object sender, RoutedEventArgs e)
+    {
+        var selected = ClientsGrid.SelectedItems.Cast<ClientMachineDto>().ToList();
+        var currentRoomFilterId = (RoomFilterCombo.SelectedItem as RoomFilterOption)?.RoomIdOrSentinel;
+        // sentinel 0 ("ยังไม่จัดห้อง") ไม่ใช่ Room.Id จริง - ไม่ส่งต่อให้ ExamModeWindow เข้าใจผิด
+        var preselectRoomId = currentRoomFilterId is > 0 ? currentRoomFilterId : null;
+
+        var dialog = new ExamModeWindow(_apiClient, selected, _allRooms, preselectRoomId) { Owner = this };
+        if (dialog.ShowDialog() == true && dialog.StartedSession is { } session)
+        {
+            ToastService.Success($"เริ่มโหมดสอบแล้ว ({session.TargetDescription}) ถึง {TimeDisplay.TextWithZone(session.ExpiresAt)}");
+            await LoadAllDataAsync();
+        }
     }
 
     private async void ResetUserPasswordButton_Click(object sender, RoutedEventArgs e)

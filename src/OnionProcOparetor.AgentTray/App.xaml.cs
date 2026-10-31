@@ -26,6 +26,9 @@ public partial class App : System.Windows.Application
     private ShutdownNotifyWindow? _shutdownNotifyWindow;
     private readonly JokeShutdownController _jokeShutdownController = new();
 
+    /// <summary>ป้ายมุมขวาล่าง "โหมดสอบ" (WP2-2, 2026-10-31) - null = ไม่มีโหมดสอบทำงานอยู่ตอนนี้</summary>
+    private ExamModeBadgeWindow? _examModeBadgeWindow;
+
     protected override void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
@@ -56,7 +59,14 @@ public partial class App : System.Windows.Application
         _broadcastListener.UnblockTargetInputRequested += OnUnblockTargetInputRequested;
         _broadcastListener.ShutdownNotifyRequested += OnShutdownNotifyRequested;
         _broadcastListener.GetRunningProcessesRequested += OnGetRunningProcessesRequested;
+        _broadcastListener.ExamModeStatusChanged += OnExamModeStatusChanged;
         _broadcastListener.Start(_broadcastListenerCts.Token);
+
+        // โหมดสอบ (WP2-2, 2026-10-31) - ดึงสถานะเริ่มต้นจาก Agent ทันทีตอน Tray เพิ่งเริ่มทำงาน (เช่น
+        // user ล็อกอินใหม่กลางโหมดสอบ หรือ Tray ถูก auto-recover ขึ้นมาใหม่) เพราะ push ผ่าน pipe ส่ง
+        // แค่ตอน "สถานะเปลี่ยน" เท่านั้น - ถ้าไม่ pull ตรงนี้ Tray ที่เพิ่งเริ่มจะไม่เห็นป้ายเลยจนกว่า
+        // โหมดสอบจะเปลี่ยนสถานะอีกครั้ง (เริ่ม/จบรอบถัดไป) ซึ่งอาจไม่เกิดขึ้นเลยตลอดคาบที่เหลือ
+        _ = InitializeExamModeBadgeFromStatusAsync();
 
         // ฟังเหตุการณ์ sleep/resume ของเครื่อง - ดู OnPowerModeChanged ว่าทำไมถึงจำเป็น
         SystemEvents.PowerModeChanged += OnPowerModeChanged;
@@ -174,6 +184,8 @@ public partial class App : System.Windows.Application
         HideAllLockScreens();
         _shutdownNotifyWindow?.ForceClose();
         _shutdownNotifyWindow = null;
+        _examModeBadgeWindow?.ForceClose();
+        _examModeBadgeWindow = null;
         _jokeShutdownController.Cancel();
 
         // ToList ก่อนวนลูป เพราะ Windows collection เปลี่ยนระหว่างที่ปิดทีละอัน
@@ -455,6 +467,50 @@ public partial class App : System.Windows.Application
         });
     }
 
+    /// <summary>
+    /// ดึงสถานะโหมดสอบปัจจุบันจาก Agent (GET /status) ครั้งเดียวตอน startup - ดู comment ที่จุดเรียก
+    /// ใน OnStartup ว่าทำไมต้อง pull ด้วย ไม่พึ่ง push อย่างเดียว คืนเงียบๆ ถ้า Agent local API ยังไม่
+    /// ตอบ (เช่น service กำลังเริ่มพร้อมกันอยู่) - push message รอบถัดไปจะมาเติมให้เองถ้าพลาดตอนนี้
+    /// </summary>
+    private async Task InitializeExamModeBadgeFromStatusAsync()
+    {
+        var status = await _apiClient.GetStatusAsync();
+        if (status?.ExamModeExpiresAtUtc is { } expiresAtUtc)
+        {
+            Dispatcher.BeginInvoke(() => ShowOrUpdateExamModeBadge(expiresAtUtc));
+        }
+    }
+
+    /// <summary>เรียกจาก background thread ของ pipe listener (WP2-2, 2026-10-31) - expiresAtUtc null = ไม่มีโหมดสอบแล้ว ซ่อนป้าย</summary>
+    private void OnExamModeStatusChanged(DateTime? expiresAtUtc)
+    {
+        Dispatcher.BeginInvoke(() =>
+        {
+            if (expiresAtUtc is { } value)
+            {
+                ShowOrUpdateExamModeBadge(value);
+            }
+            else
+            {
+                _examModeBadgeWindow?.ForceClose();
+                _examModeBadgeWindow = null;
+            }
+        });
+    }
+
+    private void ShowOrUpdateExamModeBadge(DateTime expiresAtUtc)
+    {
+        if (_examModeBadgeWindow is not null)
+        {
+            _examModeBadgeWindow.UpdateExpiresAt(expiresAtUtc);
+            return;
+        }
+
+        _examModeBadgeWindow = new ExamModeBadgeWindow(expiresAtUtc);
+        _examModeBadgeWindow.Closed += (_, _) => _examModeBadgeWindow = null;
+        _examModeBadgeWindow.Show();
+    }
+
     protected override void OnExit(ExitEventArgs e)
     {
         SystemEvents.PowerModeChanged -= OnPowerModeChanged;
@@ -463,6 +519,7 @@ public partial class App : System.Windows.Application
         _physicalInputBlocker.Unblock();
         _vncProcessManager.Stop();
         _shutdownNotifyWindow?.ForceClose();
+        _examModeBadgeWindow?.ForceClose();
         _jokeShutdownController.Cancel();
         _trayIcon?.Dispose();
         _singleInstanceGuard.Dispose();

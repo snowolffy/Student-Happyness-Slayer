@@ -187,6 +187,10 @@ public partial class App : Application
                 "tailscale" => new TailscaleLoginWindow(),
                 "client-settings" => new ClientSettingsWindow(api, sampleClient),
                 "rule-overrides" => new RuleOverridesWindow(api, sampleClient),
+                // WP2-2 (2026-10-31) - โหลดชุด Allow-list จาก Server จริง (ApiClient ยังไม่ login ใน
+                // โหมดนี้) แต่ LoadPresetsAsync จับ exception ไว้แล้วไม่พัง (ดู ExamModeWindow.xaml.cs)
+                "exam-mode" => new ExamModeWindow(
+                    api, [sampleClient], [new Models.RoomDto { Id = 1, Name = "ห้องคอม 1", ClientCount = 40 }], currentRoomFilterId: 1),
                 "pending-commands" => new PendingCommandsWindow(api, sampleClient),
                 "running-processes" => new RunningProcessesWindow(api, new Services.LabHubClient(), sampleClient),
                 "action-panel" => new ActionPanelWindow(api, sampleClient),

@@ -35,4 +35,18 @@ public class PollResponse
     /// จะกลายเป็นล้าง blocklist ทิ้งทุกรอบ poll)
     /// </summary>
     public List<string>? BlockedHashes { get; set; }
+
+    /// <summary>
+    /// "โหมดสอบ" (WP2-2, 2026-10-31) - null = ไม่มีโหมดสอบทำงานอยู่กับเครื่องนี้ ไม่ null = กำลังทำงาน
+    /// อยู่ ดู ExamModeState.UpdateFromServer - Agent เก็บ ExpiresAtUtc ไว้เองแล้วหมดเวลาด้วยนาฬิกา
+    /// ตัวเอง ไม่ต้องรอ Server บอกว่า "หมดแล้ว" อีกครั้ง (ทำงานต่อได้แม้ Server ล่มระหว่างที่ poll ไม่ติด)
+    /// </summary>
+    public ExamModeDto? ExamMode { get; set; }
+}
+
+/// <summary>ส่วนหนึ่งของ PollResponse - ดู ExamMode ด้านบน</summary>
+public class ExamModeDto
+{
+    public DateTime ExpiresAtUtc { get; set; }
+    public List<string> AllowedDomains { get; set; } = new();
 }
