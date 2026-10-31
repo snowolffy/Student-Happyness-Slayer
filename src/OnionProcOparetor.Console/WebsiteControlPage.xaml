@@ -63,7 +63,7 @@
                 <local:WebsiteAntiEvasionTab x:Name="AntiEvasionTab" Margin="0,14,0,0"/>
             </TabItem>
             <TabItem Header="ประวัติเว็บ">
-                <local:WebsiteHistoryPlaceholderTab Margin="0,14,0,0"/>
+                <local:WebsiteHistoryPlaceholderTab x:Name="HistoryTab" Margin="0,14,0,0"/>
             </TabItem>
         </TabControl>
     </Grid>

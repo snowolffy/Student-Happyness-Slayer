@@ -205,6 +205,26 @@ public class ServerClient
     }
 
     /// <summary>
+    /// ส่งชุดประวัติเว็บที่สะสมไว้ขึ้น server (WP2-4, 2026-10-31) - best-effort เหมือน SendLogAsync ไม่
+    /// throw ถ้า fail (ชุดที่ส่งไม่สำเร็จจะหายไปเลย ไม่ retry - รอบถัดไปอีก 1 นาทีจะมีของใหม่มาแทนอยู่ดี
+    /// ไม่ใช่ใบเช็คชื่อทางการที่ต้องครบทุกแถว ดู Services/WebHistoryCollectionService.cs)
+    /// </summary>
+    public async Task SendWebVisitsAsync(List<WebVisitDto> visits, CancellationToken ct)
+    {
+        try
+        {
+            var url = ActiveBaseUrl.TrimEnd('/') + "/api/web-visits";
+            await _httpClient.PostAsJsonAsync(url, new { visits }, ct);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex,
+                "ส่งประวัติเว็บ {Count} รายการขึ้น server ไม่สำเร็จ (จะไม่ retry - รอบถัดไปจะมีของใหม่มาแทน)",
+                visits.Count);
+        }
+    }
+
+    /// <summary>
     /// ยืนยันกับ server ว่า command นี้ได้รับ/ประมวลผลแล้ว (กัน command เดิมถูกส่งซ้ำไปเรื่อยๆ ทุกรอบ poll)
     /// ไม่ throw ถ้า fail - ถ้า ack ไม่สำเร็จ command จะยังเป็น Pending ต่อไป และจะเจอผ่าน poll รอบถัดไปอีก
     /// (ไม่เป็นไร เพราะ CommandProcessor กัน process ซ้ำด้วย commandId ไว้แล้ว)

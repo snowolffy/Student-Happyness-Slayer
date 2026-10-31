@@ -245,6 +245,7 @@ app.MapSecurityEndpoints(); // WP1 (2026-10-30) - แจก .cer/thumbprint ข�
 app.MapBrowserHardeningEndpoints(); // WP2-1 (2026-10-31) - ป้องกันการเลี่ยง (browser hardening)
 app.MapAllowListPresetEndpoints(); // WP2-2 (2026-10-31) - ชุด Allow-list สำเร็จรูป/กำหนดเองของโหมดสอบ
 app.MapExamSessionEndpoints(); // WP2-2 (2026-10-31) - เปิด/ยกเลิก/ดูสถานะโหมดสอบ
+app.MapWebVisitEndpoints(); // WP2-4 (2026-10-31) - ประวัติเว็บที่ Agent ส่งขึ้นมาทุก 1 นาที
 
 // ---- Sign-in ขั้น 3 (WP3-1, 2026-10-31) ----
 app.MapStudentAuthEndpoints(); // login/logout/เปลี่ยนรหัสผ่านของนักเรียน

@@ -59,6 +59,9 @@ public class AppDbContext : DbContext
     /// <summary>ประวัติ "โหมดสอบ" แต่ละครั้ง (WP2-2, 2026-10-31) - ดู Models/ExamSession.cs</summary>
     public DbSet<ExamSession> ExamSessions => Set<ExamSession>();
 
+    /// <summary>ประวัติการเข้าเว็บที่ Agent ส่งขึ้นมาทุก 1 นาที (WP2-4, 2026-10-31) - ดู Models/WebVisit.cs</summary>
+    public DbSet<WebVisit> WebVisits => Set<WebVisit>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
@@ -195,6 +198,21 @@ public class AppDbContext : DbContext
         // ประวัติการใช้เครื่อง (nf-attendance) กรองตามช่วงเวลาเป็นหลักเสมอ
         modelBuilder.Entity<StudentSession>()
             .HasIndex(s => s.StartedAt);
+
+        // ประวัติเว็บ (WP2-4, 2026-10-31) - หน้า "ประวัติเว็บ" กรองตามช่วงเวลาเป็นหลักเสมอ (เหมือน
+        // StudentSession ข้างบน) และ cleanup (MainDbRetentionService) ก็ scan ด้วยคอลัมน์เดียวกัน
+        modelBuilder.Entity<WebVisit>()
+            .HasIndex(v => v.VisitedAt);
+
+        // query หลักของ /api/web-visits/top-domains (GroupBy Domain) + ตัวกรองโดเมนในหน้าประวัติเว็บ
+        modelBuilder.Entity<WebVisit>()
+            .HasIndex(v => v.Domain);
+
+        // เผื่อ query ประวัติของเครื่องเดียวเจาะจง (ยังไม่มี UI ใช้ตรงนี้ในรอบแรก แต่ pattern เดียวกับ
+        // LogEntry.(ClientGuid, Timestamp) ข้างบน - เครื่อง 40 ตัวจะมี WebVisit มากกว่าตารางอื่นๆ ทั้งหมด
+        // รวมกันในระยะยาว)
+        modelBuilder.Entity<WebVisit>()
+            .HasIndex(v => new { v.ClientGuid, v.VisitedAt });
 
         // Seed ค่าเริ่มต้นของ GlobalState ให้มี row เดียวเสมอ (Id = 1, เปิดใช้งานเป็นค่าเริ่มต้น)
         // สำคัญ: ต้องใช้ค่า DateTime แบบ fixed/static เท่านั้น ห้ามใช้ DateTime.UtcNow หรือ

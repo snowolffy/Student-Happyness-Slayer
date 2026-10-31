@@ -29,6 +29,12 @@ public class MainDbRetentionService : BackgroundService
     private static readonly TimeSpan ScanInterval = TimeSpan.FromHours(6);
     private const int DefaultLogRetentionDays = 90;
 
+    // ประวัติเว็บ (WP2-4, 2026-10-31) - "retention ใช้ค่าเดียวกับ ActivityLog" ตาม docs/roadmap.md
+    // ดังนั้น hardcode 7 วันตรงๆ เหมือน ActivityLogCleanupService.RetentionDays ไม่ผูกกับ
+    // Retention:LogEntryDays ที่ตั้งค่าแยกได้ (นั่นคือของ LogEntry/AuthToken เท่านั้น คนละตารางคนละ
+    // เหตุผลการเก็บ - WebVisit โตเร็วกว่า LogEntry มาก เพราะมาจากทุก URL ที่เข้า ไม่ใช่แค่ตอน rule match)
+    private const int WebVisitRetentionDays = 7;
+
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly ILogger<MainDbRetentionService> _logger;
     private readonly int _logRetentionDays;
@@ -79,11 +85,17 @@ public class MainDbRetentionService : BackgroundService
                 .Where(t => t.ExpiresAt < tokenCutoff)
                 .ExecuteDeleteAsync(ct);
 
-            if (deletedLogs > 0 || deletedTokens > 0)
+            // ประวัติเว็บ (WP2-4, 2026-10-31) - ดู comment บน WebVisitRetentionDays ข้างบน
+            var webVisitCutoff = DateTime.UtcNow.AddDays(-WebVisitRetentionDays);
+            var deletedWebVisits = await db.WebVisits
+                .Where(v => v.VisitedAt < webVisitCutoff)
+                .ExecuteDeleteAsync(ct);
+
+            if (deletedLogs > 0 || deletedTokens > 0 || deletedWebVisits > 0)
             {
                 _logger.LogInformation(
-                    "MainDbRetentionService: ลบ log ที่เก่ากว่า {Days} วัน {Logs} แถว และ token ที่หมดอายุ {Tokens} แถว",
-                    _logRetentionDays, deletedLogs, deletedTokens);
+                    "MainDbRetentionService: ลบ log ที่เก่ากว่า {Days} วัน {Logs} แถว, token ที่หมดอายุ {Tokens} แถว และประวัติเว็บที่เก่ากว่า {WebVisitDays} วัน {WebVisits} แถว",
+                    _logRetentionDays, deletedLogs, deletedTokens, WebVisitRetentionDays, deletedWebVisits);
             }
         }
         catch (Exception ex)

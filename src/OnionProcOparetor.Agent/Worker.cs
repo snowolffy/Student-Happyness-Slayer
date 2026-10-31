@@ -74,6 +74,12 @@ public class Worker : BackgroundService
     private readonly BrowserHardeningService _browserHardening;
     private readonly ExamModeState _examMode;
     private readonly AgentTrayNotifier _agentTrayNotifier;
+    private readonly WebHistoryCollectionService _webHistoryCollection;
+
+    // ทุกกี่วินาทีที่จะเก็บ/ส่งประวัติเว็บขึ้น Server (WP2-4, 2026-10-31) - ตามที่ docs/roadmap.md ระบุไว้
+    // ตรงๆ ("ส่งขึ้น Server เป็นชุดทุก 1 นาที") แยก interval เป็นของตัวเอง ไม่ผูกกับ poll loop หลัก เพราะ
+    // ประวัติเว็บเป็นฟีเจอร์ monitoring ไม่ใช่ enforcement - เก็บแม้ poll ล้มเหลว/bypass เปิดอยู่ก็ตาม
+    private const int WebHistoryCollectionIntervalSeconds = 60;
 
     // แจ้ง AgentTray เฉพาะตอน "สถานะเปลี่ยนจริง" เท่านั้น (ดู ScanRunningProcessesAsync) - ไม่ใช่ทุก
     // enforcement tick (10 วิ) เพราะป้ายฝั่ง AgentTray นับถอยหลังเองได้จากค่า ExpiresAtUtc ที่ได้รับ
@@ -94,7 +100,8 @@ public class Worker : BackgroundService
         WebsiteControlService websiteControl,
         BrowserHardeningService browserHardening,
         ExamModeState examMode,
-        AgentTrayNotifier agentTrayNotifier)
+        AgentTrayNotifier agentTrayNotifier,
+        WebHistoryCollectionService webHistoryCollection)
     {
         _logger = logger;
         _serverClient = serverClient;
@@ -108,6 +115,7 @@ public class Worker : BackgroundService
         _browserHardening = browserHardening;
         _examMode = examMode;
         _agentTrayNotifier = agentTrayNotifier;
+        _webHistoryCollection = webHistoryCollection;
         _clientGuid = ClientIdentity.GetOrCreateClientGuid();
         _machineName = ClientIdentity.GetMachineName();
         _state.ClientGuid = _clientGuid;
@@ -132,6 +140,10 @@ public class Worker : BackgroundService
 
         // เริ่ม periodic full-scan แยก thread ต่างหากด้วย - จับ process ที่รันอยู่ก่อนแล้ว
         _ = RunPeriodicProcessScanAsync(stoppingToken);
+
+        // เริ่ม periodic web history collection แยก thread ต่างหากด้วย (WP2-4, 2026-10-31) - interval
+        // ของตัวเอง (1 นาที) ไม่ผูกกับ process scan (10 วิ) หรือ poll loop หลัก
+        _ = RunPeriodicWebHistoryCollectionAsync(stoppingToken);
 
         // เริ่มต่อ SignalR แบบ fire-and-forget - เป็นชั้นเสริมคู่ขนานกับ poll loop เดิม ไม่แทนที่
         // มี retry loop ของตัวเองอยู่แล้วข้างใน ไม่ throw ออกมาแม้ server จะยังไม่พร้อม/offline
@@ -647,6 +659,63 @@ public class Worker : BackgroundService
 
         // เคลียร์ (PID, StartTime) ที่ตายไปแล้วออกจาก cache (ไม่งั้น HashSet จะโตขึ้นเรื่อยๆ ไม่มีที่สิ้นสุด)
         _alreadyActionedProcesses.RemoveWhere(key => !currentProcessKeys.Contains(key));
+    }
+
+    /// <summary>
+    /// Loop แยกต่างหาก เก็บ/ส่งประวัติเว็บทุก WebHistoryCollectionIntervalSeconds วินาที (WP2-4, 2026-10-31)
+    /// - รูปแบบเดียวกับ RunPeriodicProcessScanAsync (loop ของตัวเอง, catch exception กันไม่ให้ loop ตาย)
+    /// </summary>
+    private async Task RunPeriodicWebHistoryCollectionAsync(CancellationToken stoppingToken)
+    {
+        while (!stoppingToken.IsCancellationRequested)
+        {
+            try
+            {
+                await CollectAndSendWebHistoryAsync(stoppingToken);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "เกิดข้อผิดพลาดระหว่างเก็บ/ส่งประวัติเว็บ");
+            }
+
+            await Task.Delay(TimeSpan.FromSeconds(WebHistoryCollectionIntervalSeconds), stoppingToken);
+        }
+    }
+
+    /// <summary>
+    /// คำนวณ block/allow patterns ปัจจุบันแบบเดียวกับที่ ScanRunningProcessesAsync ใช้เขียน policy จริง
+    /// (คัดลอก logic การคำนวณมาเฉพาะส่วนนี้ ไม่ใช่การเขียน registry) เพื่อให้ WasBlocked ที่รายงานไปตรงกับ
+    /// พฤติกรรมบล็อกจริง ณ เวลาที่ส่งขึ้น Server (ไม่ใช่ย้อนหลังตอน visit เกิดขึ้นจริง - ดู doc comment
+    /// ของ WasBlocked ใน Models/WebVisit.cs ฝั่ง Server) ตั้งใจไม่รวมเป็น method เดียวกับ
+    /// ScanRunningProcessesAsync เพราะ loop คนละ interval กัน (10 วิ vs 1 นาที) และไม่อยากให้การแก้ loop
+    /// หนึ่งกระทบ enforcement ของอีก loop โดยไม่ตั้งใจ
+    /// </summary>
+    private async Task CollectAndSendWebHistoryAsync(CancellationToken ct)
+    {
+        var examActive = !_bypassState.IsBypassed && _lastKnownState.Enabled && _examMode.IsActive;
+
+        string[] blockPatterns;
+        string[]? allowPatterns;
+        if (examActive)
+        {
+            blockPatterns = new[] { "*" };
+            allowPatterns = _examMode.AllowedDomains.ToArray();
+        }
+        else
+        {
+            blockPatterns = (_bypassState.IsBypassed || !_lastKnownState.Enabled)
+                ? Array.Empty<string>()
+                : _lastKnownState.WebsiteRules.Select(r => r.UrlPattern).ToArray();
+            allowPatterns = null;
+        }
+
+        var visits = _webHistoryCollection.CollectNewVisits(blockPatterns, allowPatterns);
+        if (visits.Count == 0)
+        {
+            return;
+        }
+
+        await _serverClient.SendWebVisitsAsync(visits, ct);
     }
 
     private void StartProcessWatcher()

@@ -1042,6 +1042,56 @@ namespace OnionProcOparetor.Server.Migrations
                     b.ToTable("StudentSessions");
                 });
 
+            modelBuilder.Entity("OnionProcOparetor.Server.Models.WebVisit", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("ClientGuid")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Domain")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("MachineName")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("PageTitle")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("StudentClassName")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("StudentFullName")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int?>("StudentId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("VisitedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("WasBlocked")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Domain");
+
+                    b.HasIndex("VisitedAt");
+
+                    b.HasIndex("ClientGuid", "VisitedAt");
+
+                    b.ToTable("WebVisits");
+                });
+
             modelBuilder.Entity("OnionProcOparetor.Server.Models.WebsiteCatalogSource", b =>
                 {
                     b.Property<int>("Id")
