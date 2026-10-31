@@ -47,6 +47,9 @@ public class AppDbContext : DbContext
     /// <summary>ตั้งค่าสำรองข้อมูล DB แถวเดียว (WP3-1, 2026-10-31) - ดู Models/BackupSettings.cs</summary>
     public DbSet<BackupSettings> BackupSettings => Set<BackupSettings>();
 
+    /// <summary>ตั้งค่า "ป้องกันการเลี่ยง" ของ Website Control (WP2-1, 2026-10-31) - ดู Models/BrowserHardeningSettings.cs</summary>
+    public DbSet<BrowserHardeningSettings> BrowserHardeningSettings => Set<BrowserHardeningSettings>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
@@ -188,6 +191,22 @@ public class AppDbContext : DbContext
         );
         modelBuilder.Entity<BackupSettings>().HasData(
             new BackupSettings { Id = 1, UpdatedAt = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc) }
+        );
+
+        // Seed ค่าเริ่มต้นของ BrowserHardeningSettings (WP2-1, 2026-10-31) - เหตุผล DateTime คงที่
+        // เดียวกับ GlobalState ข้างบน (ห้าม DateTime.UtcNow/Guid.NewGuid() ใน HasData)
+        // ค่า default ตรงกับ wireframe con-website.dc.html: 4 ข้อแรกเปิดไว้ก่อน, "บล็อกเบราว์เซอร์อื่น" ปิดไว้
+        modelBuilder.Entity<BrowserHardeningSettings>().HasData(
+            new BrowserHardeningSettings
+            {
+                Id = 1,
+                BlockExtensions = true,
+                BlockGuestAndIncognito = true,
+                BlockDevTools = true,
+                LockDnsAndProxy = true,
+                BlockOtherBrowsers = false,
+                UpdatedAt = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc)
+            }
         );
     }
 }

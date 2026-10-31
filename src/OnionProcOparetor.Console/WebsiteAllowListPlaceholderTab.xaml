@@ -1,0 +1,14 @@
+<UserControl x:Class="OnionProcOparetor.Console.WebsiteAllowListPlaceholderTab"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:controls="clr-namespace:OnionProcOparetor.Console.Controls">
+    <!-- แท็บ "ชุด Allow-list" ของหน้า Website Control (WP2-1, 2026-10-31) - เป็นหน้าว่างไปก่อน
+         เนื้อหาจริง (ชุดสำเร็จรูป Google Forms/Classroom/Quizizz/Kahoot/Scratch/Canva + CRUD ชุด)
+         มาจาก WP2-2 "โหมดสอบ + ชุด Allow-list" ตาม docs/roadmap.md ขั้น 2
+
+         ตั้งใจให้ WP2-2 แก้แค่ไฟล์นี้ (เติม UI จริงทับ EmptyState นี้) โดยไม่ต้องแตะ WebsiteControlPage
+         เลย - WebsiteControlPage รู้จักแค่ชื่อคลาสนี้ ไม่รู้เนื้อหาข้างใน -->
+    <ContentControl Style="{StaticResource EmptyState}" controls:Nav.Icon="list"
+                    Content="ชุด Allow-list กำลังจะมา"
+                    Tag="ฟีเจอร์นี้อยู่ใน WP2-2 (โหมดสอบ + ชุด Allow-list) - จะมีชุดสำเร็จรูปสำหรับ Google Forms, Google Classroom, Quizizz, Kahoot, Scratch และ Canva"/>
+</UserControl>

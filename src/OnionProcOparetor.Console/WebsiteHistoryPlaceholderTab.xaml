@@ -1,0 +1,15 @@
+<UserControl x:Class="OnionProcOparetor.Console.WebsiteHistoryPlaceholderTab"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:controls="clr-namespace:OnionProcOparetor.Console.Controls">
+    <!-- แท็บ "ประวัติเว็บ" ของหน้า Website Control (WP2-1, 2026-10-31) - เป็นหน้าว่างไปก่อน
+         เนื้อหาจริง (Agent ส่ง History ของ Chrome/Edge ขึ้น Server ทุก 1 นาที + ตาราง WebVisit +
+         กรอง/สรุปเว็บที่เข้าบ่อย/ปุ่ม "บล็อกโดเมนที่เลือก") มาจาก WP2-4 "ประวัติเว็บ" ตาม
+         docs/roadmap.md ขั้น 2
+
+         ตั้งใจให้ WP2-4 แก้แค่ไฟล์นี้ (เติม UI จริงทับ EmptyState นี้) โดยไม่ต้องแตะ WebsiteControlPage
+         เลย - WebsiteControlPage รู้จักแค่ชื่อคลาสนี้ ไม่รู้เนื้อหาข้างใน -->
+    <ContentControl Style="{StaticResource EmptyState}" controls:Nav.Icon="clock"
+                    Content="ประวัติเว็บกำลังจะมา"
+                    Tag="ฟีเจอร์นี้อยู่ใน WP2-4 (ประวัติเว็บ) - Agent จะส่งประวัติการเข้าเว็บของ Chrome/Edge ขึ้น Server ให้ดูและกรองที่นี่"/>
+</UserControl>

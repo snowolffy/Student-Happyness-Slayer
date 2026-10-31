@@ -195,13 +195,23 @@ public partial class DashboardWindow : Window
 
         if (!string.IsNullOrEmpty(PreviewTab))
         {
+            var matchedOuterTab = false;
             foreach (TabItem item in MainTabControl.Items)
             {
                 if (string.Equals(item.Header as string, PreviewTab, StringComparison.OrdinalIgnoreCase))
                 {
                     MainTabControl.SelectedItem = item;
+                    matchedOuterTab = true;
                     break;
                 }
+            }
+
+            // WP2-1 (2026-10-31): Website Control มีแท็บย่อยซ้อนอยู่อีกชั้น (ดู WebsiteControlPage.xaml) -
+            // ถ้าหาไม่เจอในแท็บหลัก ลองหาในแท็บย่อยของ Website Control แทน ให้ --tab=ป้องกันการเลี่ยง
+            // จับภาพแท็บย่อยนั้นได้ตรงๆ โดยไม่ต้องเพิ่ม CLI flag ใหม่
+            if (!matchedOuterTab && WebsiteControlPage.TrySelectTab(PreviewTab))
+            {
+                MainTabControl.SelectedItem = WebsiteControlTabItem;
             }
         }
 

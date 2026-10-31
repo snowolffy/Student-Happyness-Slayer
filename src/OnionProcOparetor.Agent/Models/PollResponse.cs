@@ -13,6 +13,10 @@ public class PollResponse
     /// <summary>กฎบล็อกเว็บที่เปิดใช้งานอยู่ (Website Control, 2026-09-11) - ดู WebsiteControlService</summary>
     public List<WebsiteRuleDto> WebsiteRules { get; set; } = new();
 
+    /// <summary>ตั้งค่า "ป้องกันการเลี่ยง" (WP2-1, 2026-10-31) - null ถ้าแถวใน DB หายไปจริงๆ (ไม่ควรเกิด -
+    /// มี seed ใน migration) ดู BrowserHardeningService</summary>
+    public BrowserHardeningSettingsDto? BrowserHardening { get; set; }
+
     /// <summary>[OPTIONAL] ถ้า Server ตั้ง override ไว้ ให้ใช้ค่านี้แทน PollIntervalSeconds ใน appsettings.json</summary>
     public int? PollIntervalOverrideSeconds { get; set; }
 
