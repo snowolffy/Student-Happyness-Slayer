@@ -507,6 +507,50 @@ public class ApiClient
         }
     }
 
+    // ---- ประวัติเว็บ (WP2-4, 2026-10-31) ----
+
+    /// <summary>คืน empty page ถ้าอ่านไม่ได้ (เหตุผลเดียวกับ GetBrowserHardeningSettingsAsync - โหมดตรวจ
+    /// UI ที่ยังไม่ login จริงโยน InvalidOperationException ไม่ใช่ HttpRequestException)</summary>
+    public async Task<WebVisitsPageDto> GetWebVisitsAsync(
+        DateTime? from = null, DateTime? to = null, string? className = null, string? search = null,
+        string? domain = null, bool blockedOnly = false, int page = 1, int pageSize = 200)
+    {
+        var query = $"page={page}&pageSize={pageSize}&blockedOnly={blockedOnly}";
+        if (from is not null) query += $"&from={Uri.EscapeDataString(from.Value.ToString("o"))}";
+        if (to is not null) query += $"&to={Uri.EscapeDataString(to.Value.ToString("o"))}";
+        if (!string.IsNullOrWhiteSpace(className)) query += $"&className={Uri.EscapeDataString(className)}";
+        if (!string.IsNullOrWhiteSpace(search)) query += $"&search={Uri.EscapeDataString(search)}";
+        if (!string.IsNullOrWhiteSpace(domain)) query += $"&domain={Uri.EscapeDataString(domain)}";
+
+        try
+        {
+            var result = await _httpClient.GetFromJsonAsync<WebVisitsPageDto>($"/api/web-visits?{query}");
+            return result ?? new WebVisitsPageDto();
+        }
+        catch (Exception)
+        {
+            return new WebVisitsPageDto();
+        }
+    }
+
+    /// <summary>"เว็บที่เข้าบ่อยช่วงนี้" (aside ของ con-website-history.dc.html) - คืน empty list ถ้าอ่านไม่ได้</summary>
+    public async Task<List<TopWebDomainDto>> GetTopWebDomainsAsync(DateTime? from = null, DateTime? to = null, int take = 6)
+    {
+        var query = $"take={take}";
+        if (from is not null) query += $"&from={Uri.EscapeDataString(from.Value.ToString("o"))}";
+        if (to is not null) query += $"&to={Uri.EscapeDataString(to.Value.ToString("o"))}";
+
+        try
+        {
+            var result = await _httpClient.GetFromJsonAsync<List<TopWebDomainDto>>($"/api/web-visits/top-domains?{query}");
+            return result ?? new List<TopWebDomainDto>();
+        }
+        catch (Exception)
+        {
+            return new List<TopWebDomainDto>();
+        }
+    }
+
     /// <summary>Override เฉพาะเครื่องเดียว - ดึง override ทั้งหมดของเครื่องนี้ (Config Rule dialog เอาไปเทียบกับ GetRulesAsync() เพื่อโชว์สถานะ effective ต่อกฎ)</summary>
     public async Task<List<RuleOverrideDto>> GetRuleOverridesAsync(string clientGuid)
     {

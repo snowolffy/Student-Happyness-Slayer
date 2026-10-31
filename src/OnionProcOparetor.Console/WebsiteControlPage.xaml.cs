@@ -30,6 +30,9 @@ public partial class WebsiteControlPage : UserControl
         // ApiClient เหมือน BlockTab/AntiEvasionTab - จุดเดียวที่ WP2-2 ต้องแตะไฟล์นี้ (x:Name +
         // บรรทัดนี้) นอกเหนือจาก WebsiteAllowListPlaceholderTab.xaml(.cs) เอง ดู comment เดิมในไฟล์นั้น
         AllowListTab.Initialize(apiClient);
+        // WP2-4 (2026-10-31): แท็บ "ประวัติเว็บ" ไม่ว่างแล้วเหมือนกัน - จุดเดียวที่ WP2-4 ต้องแตะไฟล์นี้
+        // (x:Name="HistoryTab" + บรรทัดนี้) เหตุผลและ pattern เดียวกับ AllowListTab ข้างบน
+        HistoryTab.Initialize(apiClient);
     }
 
     /// <summary>

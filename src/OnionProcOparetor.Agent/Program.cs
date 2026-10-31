@@ -148,6 +148,10 @@ builder.Services.AddSingleton<BrowserHardeningService>();
 // ---- โหมดสอบ (WP2-2, 2026-10-31) - เก็บ ExpiresAt/allow-list ใน memory เท่านั้น (เหมือน AgentBypassState) ----
 builder.Services.AddSingleton<ExamModeState>();
 
+// ---- ประวัติเว็บ (WP2-4, 2026-10-31) - singleton เพราะถือ cursor (ตำแหน่งอ่าน History ล่าสุด) ของแต่ละ
+// browser ไว้ใน memory ข้ามทุกรอบเก็บ (ดู comment เต็มใน WebHistoryCollectionService.cs) ----
+builder.Services.AddSingleton<WebHistoryCollectionService>();
+
 // ---- ผูก Worker เป็น background service หลัก ----
 builder.Services.AddHostedService<Worker>();
 

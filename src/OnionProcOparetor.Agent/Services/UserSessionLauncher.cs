@@ -189,6 +189,55 @@ public class UserSessionLauncher
         return FindFirstActiveSession();
     }
 
+    /// <summary>
+    /// คืน profile directory (เช่น C:\Users\student12) ของ user ที่ login อยู่หน้าเครื่องตอนนี้ (WP2-4,
+    /// 2026-10-31) - ใช้หา %LOCALAPPDATA% ของ user นั้นเพื่ออ่านไฟล์ History ของ Chrome/Edge (ดู
+    /// Services/WebHistoryCollectionService.cs) คนละเหตุผลกับ TryLaunchInActiveUserSession แต่ใช้
+    /// ResolveActiveSessionId/WTSQueryUserToken ตัวเดียวกัน (ต้องรันเป็น LocalSystem เหมือนกัน ดู comment
+    /// หัวไฟล์) คืน null ถ้าไม่มีใคร login อยู่/หาไม่ได้ - ไม่ throw
+    /// </summary>
+    public string? TryGetActiveUserProfileDirectory()
+    {
+        var sessionId = ResolveActiveSessionId();
+        if (sessionId is null)
+        {
+            return null;
+        }
+
+        if (!WTSQueryUserToken(sessionId.Value, out var userToken))
+        {
+            return null;
+        }
+
+        try
+        {
+            // ตาม MSDN: เรียกครั้งแรกด้วย buffer ที่พอประมาณ ถ้าไม่พอ lpcchSize จะถูกเขียนเป็นขนาดที่
+            // ต้องการจริง แล้วลองอีกครั้งด้วยขนาดนั้น (path จริงไม่ค่อยยาวเกิน 260 แต่เผื่อไว้)
+            var capacity = 260;
+            var buffer = new System.Text.StringBuilder(capacity);
+            if (!GetUserProfileDirectory(userToken, buffer, ref capacity))
+            {
+                buffer = new System.Text.StringBuilder(capacity);
+                if (!GetUserProfileDirectory(userToken, buffer, ref capacity))
+                {
+                    _logger.LogWarning("GetUserProfileDirectory ล้มเหลว (error {Error})", Marshal.GetLastWin32Error());
+                    return null;
+                }
+            }
+
+            return buffer.ToString();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "เกิดข้อผิดพลาดที่ไม่คาดคิดตอนอ่าน user profile directory");
+            return null;
+        }
+        finally
+        {
+            CloseHandleSafe(userToken);
+        }
+    }
+
     /// <summary>เช็คว่า session นี้มี user login อยู่จริงไหม โดยลองขอ token ดู แล้วปิดทิ้งทันที</summary>
     private static bool HasLoggedOnUser(uint sessionId)
     {
@@ -372,6 +421,10 @@ public class UserSessionLauncher
     [DllImport("userenv.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool DestroyEnvironmentBlock(IntPtr lpEnvironment);
+
+    [DllImport("userenv.dll", SetLastError = true, CharSet = CharSet.Unicode)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool GetUserProfileDirectory(IntPtr hToken, System.Text.StringBuilder lpProfileDir, ref int lpcchSize);
 
     [DllImport("advapi32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
     [return: MarshalAs(UnmanagedType.Bool)]
