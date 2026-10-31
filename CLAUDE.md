@@ -29,6 +29,7 @@
 - **ห้ามเรียก `msiexec /i` ตัวที่สองจากใน CustomAction ของ MSI** จะเกิด mutex deadlock ให้ใช้ Scheduled Task แบบหน่วงเวลาแทน
 - **จับภาพหน้าจอ WPF ให้ใช้ `RenderTargetBitmap` ในแอป** การจับจาก desktop จะได้ผิดหน้าต่างหรือได้ภาพว่าง
 - **build:** `dotnet build OnionProcOparetor.sln -c Release` ถ้ามี AgentTray.exe รันอยู่ในเครื่องจะเจอ MSB3027 (ไฟล์ถูกล็อก) ซึ่งไม่ใช่บั๊ก
+- **รัน Server ทดสอบ:** ตั้ง port ผ่าน `Server__Port` (ไม่ใช่ `ASPNETCORE_URLS`) และ DB ผ่าน `ConnectionStrings__*` · Server ที่เจอ DB ใหม่จะ backup ทันทีลง `C:\ProgramData\OnionProcOparetor\backups` ของจริงก่อนโค้ดอื่นจะได้ทำงาน ให้ seed `BackupSettings.StoragePath` ใน DB ทดสอบไปที่ temp ก่อนสตาร์ตครั้งแรก
 - **ทำ MSI:** `installer/publish-all.ps1` จะ bump FileVersion ให้เอง ถ้าไม่ bump ตอน upgrade จะไม่เขียนทับไฟล์
 
 ## กติกาการทำงานแบบ orchestrator/worker
