@@ -5,13 +5,15 @@
         Height="420" Width="460"
         WindowStartupLocation="CenterScreen"
         ResizeMode="NoResize"
+        Topmost="True"
         Style="{StaticResource AppWindowStyle}">
     <!-- WP3-4 (2026-10-31) - ตรงตาม docs/wireframes/st-emergency.dc.html ย่อจากเวอร์ชันเต็มจอ
-         (1280x720, ไม่มีแถบหัว/ปุ่มปิดเครื่อง-รีสตาร์ท) เป็นหน้าต่าง normal ที่เปิดจากเมนู tray
-         ("รหัสฉุกเฉิน...") เพราะหน้า "ล็อกอินนักเรียน" จริง (ที่ wireframe ตั้งใจให้ขึ้นแทน) เป็นงานของ
-         WP3-3 ซึ่งกำลังเขียน LoginWindow.xaml/LockScreenWindow.xaml ใหม่พร้อมกันอยู่คนละ branch - จึง
-         ไม่แก้ 2 ไฟล์นั้นเพื่อกันชนกัน (ดูรายงาน WP3-4 ว่าเป็นจุดที่ยังต้องต่อสายจริงกับ "บังคับล็อกอิน"
-         ทีหลัง) ปุ่ม "ปลดล็อกชั่วคราว" ยิง POST ไปที่ Agent local API /emergency/verify ตรงๆ -->
+         (1280x720, ไม่มีแถบหัว/ปุ่มปิดเครื่อง-รีสตาร์ท) เดิมเปิดได้แค่จากเมนู tray เท่านั้น (ตอนที่
+         WP3-3 ยังไม่ merge) ตอนนี้ (WP3-4b, 2026-10-31) เปิดจากลิงก์ "รหัสฉุกเฉิน"/แบนเนอร์ใน
+         StudentLoginWindow ด้วยแล้ว (ดูที่นั่น) - Topmost="True" เพิ่มเข้ามาตอนนี้เพราะ
+         StudentLoginWindow เองก็ Topmost+Maximized อยู่แล้ว ถ้าหน้าต่างนี้ไม่ Topmost ด้วยจะเปิดมาแล้ว
+         โดนจอล็อกอินบังอยู่ข้างหลัง กดอะไรไม่ได้เลย ปุ่ม "ปลดล็อกชั่วคราว" ยิง POST ไปที่ Agent local
+         API /emergency/verify ตรงๆ -->
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>

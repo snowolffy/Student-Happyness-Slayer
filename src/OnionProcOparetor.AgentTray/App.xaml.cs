@@ -67,7 +67,13 @@ public partial class App : System.Windows.Application
             var previewApiClient = new ClientApiClient();
             Window? preview = windowName switch
             {
-                "student-login" => new StudentLoginWindow(previewApiClient, "ยินดีต้อนรับสู่ห้องปฏิบัติการคอมพิวเตอร์ 1 - กรุณาใช้งานอย่างเหมาะสม"),
+                // --server-down (WP3-4b, 2026-10-31) - จำลองสถานะ "ติดต่อ Server ไม่ได้ + ตั้งค่ารหัส
+                // ฉุกเฉินไว้แล้ว" (ดู StudentLoginWindow.PreviewForceServerDown) ใช้ถ่ายภาพแบนเนอร์
+                // "ติดต่อ Server ไม่ได้" + ลิงก์ "รหัสฉุกเฉิน" ที่คลิกได้โดยไม่ต้องมี Agent จริงรันอยู่
+                "student-login" => new StudentLoginWindow(previewApiClient, "ยินดีต้อนรับสู่ห้องปฏิบัติการคอมพิวเตอร์ 1 - กรุณาใช้งานอย่างเหมาะสม")
+                {
+                    PreviewForceServerDown = e.Args.Contains("--server-down")
+                },
                 "staff-session-start" => new StaffSessionStartWindow(previewApiClient),
                 "staff-session-badge" => new StaffSessionBadgeWindow(previewApiClient),
                 "session-toast" => new SessionToastWindow("เข้าสู่ระบบเป็น สมชาย ใจดี"),
@@ -173,11 +179,13 @@ public partial class App : System.Windows.Application
             // Visibility เอาเข้า/ออกจาก contextMenu.Items เอง ไม่ Create ใหม่ทุกครั้งที่สถานะเปลี่ยน
             _notMeMenuItem.Click += (_, _) => _ = PerformStudentLogoutAsync(StudentSessionEndReason.NotMe);
             _logoutMenuItem.Click += (_, _) => _ = PerformStudentLogoutAsync(StudentSessionEndReason.ManualLogout);
-            // รหัสฉุกเฉิน (WP3-4, 2026-10-31) - เมนูนี้เป็นจุดเข้าถึงชั่วคราวเท่านั้น (ของจริงควรขึ้นอัตโนมัติ
-            // แทนจอล็อกอินตอนติดต่อ Server ไม่ได้ - เป็นงานต่อสายที่ WP3-3 ต้องทำทีหลัง ดูรายงาน WP3-4)
-            var emergencyMenuItem = new System.Windows.Controls.MenuItem { Header = "รหัสฉุกเฉิน..." };
-            emergencyMenuItem.Click += (_, _) => new EmergencyWindow(_apiClient).Show();
-            contextMenu.Items.Add(emergencyMenuItem);
+
+            // รหัสฉุกเฉิน (WP3-4, 2026-10-31) - เดิมมีเมนู tray "รหัสฉุกเฉิน..." เป็นจุดเข้าถึงชั่วคราว
+            // ตรงนี้ (เพราะตอนนั้น WP3-3 ยังไม่ merge เข้า main เลย ไม่มี StudentLoginWindow ให้ต่อสาย
+            // ด้วย) ตอนนี้ (WP3-4b, 2026-10-31) ต่อสายเข้า StudentLoginWindow แล้วจริงๆ (ลิงก์ "รหัสฉุกเฉิน"
+            // + แบนเนอร์เด่นตอน Server ล่ม - ดู StudentLoginWindow.xaml.cs OpenEmergencyWindow) ซึ่งเป็น
+            // ทางที่ถูกต้องตาม wireframe (เครื่องที่ต้องใช้รหัสฉุกเฉินจะโดนบังคับอยู่ที่จอล็อกอินอยู่แล้ว)
+            // เมนู tray นี้จึงซ้ำซ้อนและถูกลบออกตามที่ orchestrator สั่ง
 
             contextMenu.Items.Add(new System.Windows.Controls.Separator());
 
@@ -670,6 +678,7 @@ public partial class App : System.Windows.Application
         var window = new StudentLoginWindow(_apiClient, _loginScreenMessage);
         window.LoginSucceeded += OnStudentLoginSucceeded;
         window.StaffSessionRequested += OnStaffSessionRequested;
+        window.EmergencyUnlockSucceeded += OnEmergencyUnlockSucceeded;
         window.Closed += (_, _) => _studentLoginWindow = null;
         _studentLoginWindow = window;
         window.Show();
@@ -679,6 +688,22 @@ public partial class App : System.Windows.Application
     {
         _studentLoginWindow?.ForceClose();
         _studentLoginWindow = null;
+    }
+
+    /// <summary>
+    /// ปลดด้วยรหัสฉุกเฉินสำเร็จจากจอล็อกอินนักเรียน (WP3-4b, 2026-10-31) - ปิดจอทันทีแทนที่จะรอ
+    /// Worker.cs ส่ง SignInStatus รอบถัดไป (ปกติ ≤10 วิ อยู่แล้วจาก ScanRunningProcessesAsync แต่
+    /// action ที่ครูเพิ่งกดเองควรเห็นผลทันทีกว่านั้น) Agent เป็นเจ้าของ "ยังบังคับ login อยู่จริงไหม"
+    /// (ดู EmergencyCodeService.IsUnlockActive ฝั่ง Agent) - ที่นี่แค่ปิดหน้าต่างที่ค้างอยู่ตรงๆ
+    /// เหมือนตอน requireLogin เปลี่ยนเป็น false ตามปกติทุกประการ
+    /// </summary>
+    private void OnEmergencyUnlockSucceeded()
+    {
+        Dispatcher.BeginInvoke(() =>
+        {
+            TrayDiagnostics.Log("[sign-in] ปลดเครื่องด้วยรหัสฉุกเฉินสำเร็จ - ปิดจอล็อกอินนักเรียน");
+            HideStudentLoginWindowIfPresent();
+        });
     }
 
     /// <summary>login (หรือเปลี่ยนรหัสผ่านครั้งแรกแล้ว login) สำเร็จ - นักเรียนคนนี้ "เข้าสู่ระบบ" แล้วอย่างเป็นทางการ</summary>

@@ -76,6 +76,9 @@ public class Worker : BackgroundService
     private readonly AgentTrayNotifier _agentTrayNotifier;
     private readonly WebHistoryCollectionService _webHistoryCollection;
 
+    /// <summary>รหัสฉุกเฉิน (WP3-4b, 2026-10-31) - ระงับ effectiveRequireLogin ชั่วคราวหลังปลดสำเร็จ (ดู IsUnlockActive) และถูกเคลียร์เองทันทีที่ poll สำเร็จอีกครั้ง (ดู ClearUnlockOnServerReachable ในลูปด้านล่าง)</summary>
+    private readonly EmergencyCodeService _emergencyCode;
+
     // ทุกกี่วินาทีที่จะเก็บ/ส่งประวัติเว็บขึ้น Server (WP2-4, 2026-10-31) - ตามที่ docs/roadmap.md ระบุไว้
     // ตรงๆ ("ส่งขึ้น Server เป็นชุดทุก 1 นาที") แยก interval เป็นของตัวเอง ไม่ผูกกับ poll loop หลัก เพราะ
     // ประวัติเว็บเป็นฟีเจอร์ monitoring ไม่ใช่ enforcement - เก็บแม้ poll ล้มเหลว/bypass เปิดอยู่ก็ตาม
@@ -106,7 +109,8 @@ public class Worker : BackgroundService
         BrowserHardeningService browserHardening,
         ExamModeState examMode,
         AgentTrayNotifier agentTrayNotifier,
-        WebHistoryCollectionService webHistoryCollection)
+        WebHistoryCollectionService webHistoryCollection,
+        EmergencyCodeService emergencyCode)
     {
         _logger = logger;
         _serverClient = serverClient;
@@ -121,6 +125,7 @@ public class Worker : BackgroundService
         _examMode = examMode;
         _agentTrayNotifier = agentTrayNotifier;
         _webHistoryCollection = webHistoryCollection;
+        _emergencyCode = emergencyCode;
         _clientGuid = ClientIdentity.GetOrCreateClientGuid();
         _machineName = ClientIdentity.GetMachineName();
         _state.ClientGuid = _clientGuid;
@@ -220,6 +225,12 @@ public class Worker : BackgroundService
 
                 _state.UpdatePollResult(polled.Enabled, polled.Rules.Count, succeeded: true);
                 _state.SetPollIntervalOverride(polled.PollIntervalOverrideSeconds);
+
+                // รหัสฉุกเฉิน (WP3-4b, 2026-10-31) - poll สำเร็จ = ติดต่อ Server ได้แล้ว ยกเลิกการระงับ
+                // บังคับ login ที่ค้างมาจากการปลดฉุกเฉิน (no-op เงียบๆ ถ้าไม่เคยปลดไว้) ต้องอยู่ตรงนี้
+                // (ใน "poll สำเร็จ" เท่านั้น) ไม่ใช่ทุกรอบ loop เพราะ _lastKnownState ยังเป็นค่าเก่าต่อไป
+                // ตอน poll ไม่สำเร็จ (fail-secure) - "Server กลับมา" ต้องแปลว่า poll จริงสำเร็จเท่านั้น
+                _emergencyCode.ClearUnlockOnServerReachable();
                 _logger.LogInformation("Poll สำเร็จ - Enabled: {Enabled}, Rules: {Count} ข้อ",
                     polled.Enabled, polled.Rules.Count);
 
@@ -583,7 +594,12 @@ public class Worker : BackgroundService
         // "ต้องล็อกอินไหม" (WP3-3, 2026-10-31) - เหตุผลเดียวกับ examActive ข้างบน (ครูเปิด bypass เพื่อ
         // "แก้ไขเครื่องชั่วคราว" ต้องใช้เครื่องได้ทันทีโดยไม่ต้องให้นักเรียน login ก่อน) ส่งแจ้ง AgentTray
         // เฉพาะตอนสถานะเปลี่ยนจริง (เริ่ม/เลิกบังคับ/ข้อความเปลี่ยน) เหมือน ExamModeStatus
-        var effectiveRequireLogin = !_bypassState.IsBypassed && _lastKnownState.Enabled && _state.RequireLogin;
+        //
+        // WP3-4b (2026-10-31) - เพิ่ม !_emergencyCode.IsUnlockActive: ปลดด้วยรหัสฉุกเฉินสำเร็จ (ตอน
+        // Server ล่ม) ต้องระงับ gate นี้จริงๆ ไม่ใช่แค่ให้ EmergencyWindow บอกว่า "ปลดแล้ว" เฉยๆ โดยที่
+        // จอล็อกอินยังค้างบังคับอยู่เหมือนเดิม (ช่องโหว่ integration gap ที่ WP3-4 รายงานไว้) หมดเขต
+        // อัตโนมัติทันทีที่ poll สำเร็จอีกครั้ง (ดู ClearUnlockOnServerReachable ด้านบน) ไม่ใช่ตรงนี้
+        var effectiveRequireLogin = !_bypassState.IsBypassed && _lastKnownState.Enabled && _state.RequireLogin && !_emergencyCode.IsUnlockActive;
         var currentLoginScreenMessage = _state.LoginScreenMessage;
         if (effectiveRequireLogin != _lastNotifiedRequireLogin || currentLoginScreenMessage != _lastNotifiedLoginScreenMessage)
         {

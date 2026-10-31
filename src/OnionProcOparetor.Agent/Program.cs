@@ -182,7 +182,7 @@ StartupDiagnostics.WriteLine("Host build เสร็จแล้ว กำล�
 
 // ---- Local API endpoints (สำหรับ AgentTray เท่านั้น) ----
 
-app.MapGet("/status", (ClientState state, AgentBypassState bypassState, ServerClient serverClient, ExamModeState examMode) =>
+app.MapGet("/status", (ClientState state, AgentBypassState bypassState, ServerClient serverClient, ExamModeState examMode, EmergencyCodeService emergencyCode) =>
 {
     return Results.Ok(new
     {
@@ -208,13 +208,19 @@ app.MapGet("/status", (ClientState state, AgentBypassState bypassState, ServerCl
             : null,
         // Sign-in (WP3-3, 2026-10-31) - ให้ AgentTray ดึงค่านี้ได้ตอนเพิ่งเริ่มทำงาน (เหตุผลเดียวกับ
         // examModeExpiresAtUtc ด้านบน - push ผ่าน pipe ส่งแค่ตอน "สถานะเปลี่ยน" เท่านั้น) เกณฑ์เดียวกับ
-        // Worker's effectiveRequireLogin เป๊ะๆ (bypass/enforcement ปิดอยู่ = ไม่บังคับ login)
-        requireLogin = !bypassState.IsBypassed && state.IsEnabled && state.RequireLogin,
+        // Worker's effectiveRequireLogin เป๊ะๆ (bypass/enforcement ปิดอยู่ = ไม่บังคับ login) - รวม
+        // !emergencyCode.IsUnlockActive ด้วย (WP3-4b, 2026-10-31) ให้ StudentLoginWindow เห็นผลปลดฉุกเฉิน
+        // ได้ทันทีที่ poll /status รอบถัดไปของตัวเอง ไม่ต้องรอ push จาก Worker (เร็วกว่า เพราะ
+        // StudentLoginWindow poll ทุก 5 วิ ส่วน Worker ส่ง push ทุก 10 วิ)
+        requireLogin = !bypassState.IsBypassed && state.IsEnabled && state.RequireLogin && !emergencyCode.IsUnlockActive,
         loginScreenMessage = state.LoginScreenMessage,
         lockScreenDefaultMessage = state.LockScreenDefaultMessage,
         autoLogoutIdleMinutes = state.AutoLogoutIdleMinutes,
         currentStudentCode = state.CurrentStudentCode,
-        currentStudentName = state.CurrentStudentName
+        currentStudentName = state.CurrentStudentName,
+        // รหัสฉุกเฉิน (WP3-4b, 2026-10-31) - ให้ StudentLoginWindow รู้ว่าเครื่องนี้ตั้งค่า secret ไว้
+        // หรือยัง (เปิด/ปิดลิงก์ "รหัสฉุกเฉิน") โดยไม่ต้องยิง GET /emergency/status แยกอีกครั้ง
+        emergencyCodeConfigured = emergencyCode.IsConfigured
     });
 });
 
