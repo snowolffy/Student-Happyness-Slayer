@@ -1770,6 +1770,9 @@ public partial class DashboardWindow : Window
     private List<StudentSessionHistoryRowDto> _attendanceRows = new();
     private readonly DispatcherTimer _attendanceFilterDebounceTimer;
     private bool _attendanceRoomComboPopulated;
+    // กันวนซ้ำ: การเติม combo ใน LoadAttendanceAsync ยิง SelectionChanged → AttendanceFilter_Changed →
+    // LoadAttendanceAsync อีกรอบไม่จบ (เจอเป็น stack overflow ในโหมดตรวจ UI 2026-10-31)
+    private bool _attendanceSuppressFilterEvents;
 
     /// <summary>เติม AttendanceRoomFilterCombo ครั้งเดียวจาก _allRooms ที่โหลดไว้แล้ว (ตัวกรองห้องแท็บ
     /// Clients) - ไม่มี "ยังไม่จัดห้อง" เหมือนตัวกรองของ Clients เพราะ GET /api/students/sessions/history
@@ -1813,7 +1816,9 @@ public partial class DashboardWindow : Window
 
         if (!_attendanceRoomComboPopulated)
         {
-            PopulateAttendanceRoomFilterCombo();
+            _attendanceSuppressFilterEvents = true;
+            try { PopulateAttendanceRoomFilterCombo(); }
+            finally { _attendanceSuppressFilterEvents = false; }
         }
 
         var roomId = (AttendanceRoomFilterCombo.SelectedItem as RoomFilterOption)?.RoomIdOrSentinel;
@@ -1825,7 +1830,9 @@ public partial class DashboardWindow : Window
         var search = string.IsNullOrWhiteSpace(AttendanceSearchBox.Text) ? null : AttendanceSearchBox.Text.Trim();
 
         _attendanceRows = await _apiClient.GetStudentSessionHistoryAsync(roomId: roomId, className: className, search: search);
-        PopulateAttendanceClassFilterCombo();
+        _attendanceSuppressFilterEvents = true;
+        try { PopulateAttendanceClassFilterCombo(); }
+        finally { _attendanceSuppressFilterEvents = false; }
 
         AttendanceGrid.ItemsSource = _attendanceRows;
         AttendanceEmptyText.Visibility = _attendanceRows.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
@@ -1836,6 +1843,11 @@ public partial class DashboardWindow : Window
         if (_apiClient is null)
         {
             return; // ยิงระหว่าง InitializeComponent
+        }
+
+        if (_attendanceSuppressFilterEvents)
+        {
+            return; // ยิงจากการเติม combo เอง ไม่ใช่ผู้ใช้เลือก
         }
 
         await LoadAttendanceAsync();
