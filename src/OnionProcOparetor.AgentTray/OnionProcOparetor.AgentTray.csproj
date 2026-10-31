@@ -44,6 +44,22 @@
   <ItemGroup>
     <Resource Include="Theme\logo.png" />
     <Resource Include="Theme\icon.ico" />
+
+    <!-- จอล็อกอินนักเรียน (WP3-3, 2026-10-31) - ภาพฝั่งซ้ายของการ์ด ก๊อปมาจาก
+         Console\Assets\LoginHero.png (placeholder เดียวกัน) สองรายการนี้ชี้ไฟล์เดียวกันโดยเจตนา
+         คนละ item type แบบเดียวกับที่ Console/OnionProcOparetor.Console.csproj ทำกับไฟล์เดียวกันนี้:
+           - Resource: ฝังเข้าตัว exe เป็น pack resource - fallback เมื่อไม่มีไฟล์ "ข้างแอป"
+             (ดู StudentLoginWindow.xaml.cs LoadHeroImage)
+           - None + CopyToOutputDirectory/CopyToPublishDirectory: สำเนาไฟล์จริงไว้ข้าง .exe ให้ครู
+             เปลี่ยนภาพเองได้โดยไม่ต้อง build ใหม่ - CopyToPublishDirectory ทำให้ไฟล์นี้ไปอยู่ใน
+             publish output ด้วย ซึ่ง installer/OnionProcOparetor.Agent.wxs harvest ทุกไฟล์ใต้
+             publish\OnionProcOparetor.AgentTray\** อัตโนมัติอยู่แล้ว (ดู ClientTrayFiles
+             ComponentGroup) ไม่ต้องแก้ .wxs เพิ่มเลย -->
+    <Resource Include="Assets\LoginHero.png" />
+    <None Include="Assets\LoginHero.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+    </None>
   </ItemGroup>
 
   <!-- UltraVNC server (winvnc.exe + DLLs/plugins it may load at runtime) bundled as-is from an

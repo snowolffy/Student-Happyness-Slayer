@@ -19,6 +19,14 @@ public class ClientApiClient
     // login ใหม่ทุกครั้งที่ AgentTray เริ่มทำงานใหม่
     private string? _staffSessionToken;
 
+    /// <summary>WP3-3 (2026-10-31): เวลาหมดอายุของ staff session token ล่าสุดที่ขอมา (ถ้ามี) - ใช้โชว์
+    /// นับถอยหลังบนป้าย StaffSessionBadgeWindow เท่านั้น ไม่ใช่แหล่งความจริงของการตัดสินใจ bypass จริง
+    /// (Agent/BypassCoordinator เป็นคนตรวจ/บังคับหมดอายุเองอยู่แล้ว ดู ScheduleAutoRevert)</summary>
+    public DateTime? StaffSessionExpiresAtUtc { get; private set; }
+
+    /// <summary>ชื่อผู้ใช้ครูที่เริ่ม staff session ล่าสุด (ถ้ามี) - เก็บไว้โชว์บนป้ายเท่านั้น</summary>
+    public string? StaffSessionUsername { get; private set; }
+
     public ClientApiClient()
     {
         _httpClient = new HttpClient
@@ -146,7 +154,15 @@ public class ClientApiClient
     /// ไม่ retry ถ้า primary "ตอบกลับมา" แต่ username/password ผิด (reachable=true, success=false) -
     /// credentials เดียวกันจะผิดที่ fallback ด้วยเสมอ ลองซ้ำไปก็เสียเวลาเปล่าและทำให้ error message ช้าลง
     /// </summary>
-    public async Task<(bool Success, string Message)> LoginToServerAsync(string primaryBaseUrl, string? fallbackBaseUrl, string username, string password)
+    public Task<(bool Success, string Message)> LoginToServerAsync(string primaryBaseUrl, string? fallbackBaseUrl, string username, string password) =>
+        LoginToServerAsync(primaryBaseUrl, fallbackBaseUrl, username, password, minutes: null);
+
+    /// <summary>
+    /// overload ที่รับ minutes (WP3-3, 2026-10-31) - ใช้จาก StaffSessionStartWindow ที่ครูเลือกเวลา
+    /// 15/30/60 นาทีก่อนกด "เริ่ม Staff session" (ดู wireframe st-staff-start) null = ให้ Server ใช้
+    /// default ของตัวเอง (เหมือนพฤติกรรมเดิมของ overload ข้างบนที่ LoginWindow ยังใช้อยู่)
+    /// </summary>
+    public async Task<(bool Success, string Message)> LoginToServerAsync(string primaryBaseUrl, string? fallbackBaseUrl, string username, string password, int? minutes)
     {
         var (success, reachable, message, adminToken) = await TryLoginAsync(primaryBaseUrl, username, password);
         var usedBaseUrl = primaryBaseUrl;
@@ -163,7 +179,8 @@ public class ClientApiClient
         // ตอนกดจริงถ้าไม่มี token (fail-secure, ดู BypassCoordinator)
         if (success && adminToken is not null)
         {
-            await RequestStaffSessionTokenAsync(usedBaseUrl, adminToken);
+            await RequestStaffSessionTokenAsync(usedBaseUrl, adminToken, minutes);
+            StaffSessionUsername = username;
         }
 
         return (success, message);
@@ -175,7 +192,7 @@ public class ClientApiClient
     /// ให้ SetBypassAsync ใช้ต่อ ล้มเหลวแบบเงียบๆ ได้ทุกจุด (ไม่มีอะไรทำต่อได้ถ้าขอไม่สำเร็จ - ปุ่ม
     /// BYPASS จะโดน Agent ปฏิเสธเองพร้อมเหตุผลตอนกดจริง)
     /// </summary>
-    private async Task RequestStaffSessionTokenAsync(string serverBaseUrl, string adminToken)
+    private async Task RequestStaffSessionTokenAsync(string serverBaseUrl, string adminToken, int? minutes = null)
     {
         try
         {
@@ -192,23 +209,54 @@ public class ClientApiClient
             var url = serverBaseUrl.TrimEnd('/') + "/api/staff-session/start";
             using var request = new HttpRequestMessage(HttpMethod.Post, url)
             {
-                Content = JsonContent.Create(new { clientGuid = status.ClientGuid })
+                Content = JsonContent.Create(new { clientGuid = status.ClientGuid, minutes })
             };
             request.Headers.Add("X-Auth-Token", adminToken);
 
             var response = await serverClient.SendAsync(request);
             if (!response.IsSuccessStatusCode)
             {
+                _staffSessionToken = null;
+                StaffSessionExpiresAtUtc = null;
                 return;
             }
 
             var result = await response.Content.ReadFromJsonAsync<StaffSessionStartResponseDto>();
             _staffSessionToken = result?.Token;
+            StaffSessionExpiresAtUtc = result?.ExpiresAt;
         }
         catch
         {
             _staffSessionToken = null;
+            StaffSessionExpiresAtUtc = null;
         }
+    }
+
+    /// <summary>
+    /// แจ้ง Agent (local loopback) ว่านักเรียนคนไหน login/logout อยู่ที่เครื่องนี้ตอนนี้ (WP3-3,
+    /// 2026-10-31) - เรียกหลัง StudentApiClient.LoginAsync/LogoutAsync สำเร็จกับ Server ตรงๆ เท่านั้น
+    /// (Agent ไม่รู้เรื่อง login/logout โดยตรงเลย - ดู doc comment บน endpoint ฝั่ง Agent) ยิงแบบ
+    /// fire-and-forget (ไม่ throw ถ้า Agent local API ไม่ตอบ - แค่ poll/log ของ Agent จะไม่มี studentCode
+    /// ติดไปด้วย ไม่กระทบ session จริงที่อยู่ฝั่ง Server)
+    /// </summary>
+    public async Task NotifyStudentSessionAsync(bool loggedIn, string? studentCode = null, string? studentName = null)
+    {
+        try
+        {
+            await _httpClient.PostAsJsonAsync("/student-session", new { loggedIn, studentCode, studentName });
+        }
+        catch
+        {
+            // Agent local API ไม่ตอบก็ปล่อยผ่าน - ไม่มีอะไรทำต่อได้อยู่ดี (ดู doc comment ด้านบน)
+        }
+    }
+
+    /// <summary>ปิด staff session info ที่เก็บไว้ (เรียกตอนกด "จบ" หรือ session หมดอายุไปแล้ว) - ไม่กระทบ bypass จริงฝั่ง Agent (SetBypassAsync(false) เป็นคนจัดการนั้น)</summary>
+    public void ClearStaffSessionInfo()
+    {
+        _staffSessionToken = null;
+        StaffSessionExpiresAtUtc = null;
+        StaffSessionUsername = null;
     }
 
     private static async Task<(bool Success, bool Reachable, string Message, string? AdminToken)> TryLoginAsync(string serverBaseUrl, string username, string password)

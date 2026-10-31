@@ -71,8 +71,9 @@ public class BroadcastPipeListener
     /// <summary>เรียกทุกครั้งที่ได้ broadcast message ใหม่ - เรียกจาก background thread ไม่ใช่ UI thread</summary>
     public event Action<BroadcastMessageDto>? MessageReceived;
 
-    /// <summary>เรียกทุกครั้งที่ Agent สั่งแสดงหน้าจอล็อก - เรียกจาก background thread ไม่ใช่ UI thread</summary>
-    public event Action? ShowLockScreenRequested;
+    /// <summary>เรียกทุกครั้งที่ Agent สั่งแสดงหน้าจอล็อก (WP3-3: payload = ข้อความที่ Agent ตัดสินแล้ว
+    /// null/ว่าง = ให้ผู้ฟังใช้ข้อความ const เริ่มต้นของตัวเอง) - เรียกจาก background thread ไม่ใช่ UI thread</summary>
+    public event Action<string?>? ShowLockScreenRequested;
 
     /// <summary>เรียกทุกครั้งที่ Agent สั่งปิดหน้าจอล็อก - เรียกจาก background thread ไม่ใช่ UI thread</summary>
     public event Action? HideLockScreenRequested;
@@ -101,6 +102,10 @@ public class BroadcastPipeListener
     /// <summary>เรียกทุกครั้งที่ Agent แจ้งสถานะโหมดสอบเปลี่ยน (WP2-2, 2026-10-31) - payload = ExpiresAtUtc
     /// (null = ไม่มีโหมดสอบแล้ว ซ่อนป้าย) เรียกจาก background thread ไม่ใช่ UI thread</summary>
     public event Action<DateTime?>? ExamModeStatusChanged;
+
+    /// <summary>เรียกทุกครั้งที่ Agent แจ้งสถานะ "ต้องล็อกอินไหม" เปลี่ยน (WP3-3, 2026-10-31) - payload =
+    /// (RequireLogin, LoginScreenMessage) เรียกจาก background thread ไม่ใช่ UI thread</summary>
+    public event Action<bool, string?>? SignInStatusChanged;
 
     /// <summary>เริ่มฟัง pipe แบบ fire-and-forget - มี retry loop ในตัว ไม่ throw ออกมาแม้เปิด pipe ไม่สำเร็จ</summary>
     public void Start(CancellationToken ct)
@@ -297,7 +302,7 @@ public class BroadcastPipeListener
                     break;
 
                 case "ShowLockScreen":
-                    ShowLockScreenRequested?.Invoke();
+                    ShowLockScreenRequested?.Invoke(envelope.Message);
                     break;
 
                 case "HideLockScreen":
@@ -342,6 +347,10 @@ public class BroadcastPipeListener
 
                 case "ExamModeStatus":
                     ExamModeStatusChanged?.Invoke(envelope.ExamModeExpiresAtUtc);
+                    break;
+
+                case "SignInStatus":
+                    SignInStatusChanged?.Invoke(envelope.RequireLogin ?? false, envelope.Message);
                     break;
 
                 default:

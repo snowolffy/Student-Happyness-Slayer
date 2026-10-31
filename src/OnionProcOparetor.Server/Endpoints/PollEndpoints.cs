@@ -237,6 +237,13 @@ public static class PollEndpoints
                 blocklistVersion = currentBlocklistVersion,
                 blockedHashes,
                 requireLogin,
+                // ข้อความของจอนักเรียน (WP3-3, 2026-10-31) - ส่งไปเฉยๆ ให้ Agent cache ไว้ (ดู ClientState/
+                // Worker.cs) แล้วส่งต่อให้ AgentTray ใช้แสดงจอล็อกอิน/จอครูล็อกเมื่อ Console ไม่ได้ระบุ
+                // ข้อความเฉพาะครั้งมาด้วย (ดู CommandProcessor.HandleShowLockScreenAsync) ไม่ต้อง admin auth
+                // เหมือน GET /api/settings/signin เพราะ Agent/AgentTray ไม่มี admin token ให้แนบ
+                loginScreenMessage = signInSettings.LoginScreenMessage,
+                lockScreenDefaultMessage = signInSettings.LockScreenDefaultMessage,
+                autoLogoutIdleMinutes = signInSettings.AutoLogoutIdleMinutes,
                 examMode
             });
         });

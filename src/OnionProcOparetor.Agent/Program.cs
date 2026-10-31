@@ -193,7 +193,16 @@ app.MapGet("/status", (ClientState state, AgentBypassState bypassState, ServerCl
         // ไม่ได้ enforce อะไรอยู่เลย
         examModeExpiresAtUtc = (!bypassState.IsBypassed && state.IsEnabled && examMode.IsActive)
             ? examMode.ExpiresAtUtc
-            : null
+            : null,
+        // Sign-in (WP3-3, 2026-10-31) - ให้ AgentTray ดึงค่านี้ได้ตอนเพิ่งเริ่มทำงาน (เหตุผลเดียวกับ
+        // examModeExpiresAtUtc ด้านบน - push ผ่าน pipe ส่งแค่ตอน "สถานะเปลี่ยน" เท่านั้น) เกณฑ์เดียวกับ
+        // Worker's effectiveRequireLogin เป๊ะๆ (bypass/enforcement ปิดอยู่ = ไม่บังคับ login)
+        requireLogin = !bypassState.IsBypassed && state.IsEnabled && state.RequireLogin,
+        loginScreenMessage = state.LoginScreenMessage,
+        lockScreenDefaultMessage = state.LockScreenDefaultMessage,
+        autoLogoutIdleMinutes = state.AutoLogoutIdleMinutes,
+        currentStudentCode = state.CurrentStudentCode,
+        currentStudentName = state.CurrentStudentName
     });
 });
 
@@ -259,8 +268,29 @@ app.MapPost("/bypass/set", async (BypassSetRequest request, BypassCoordinator co
     return Results.Ok(new { bypassed = result.Bypassed });
 });
 
+// ---- AgentTray แจ้ง Agent ว่านักเรียนคนไหน login/logout อยู่ที่เครื่องนี้ตอนนี้ (WP3-3, 2026-10-31) ----
+// AgentTray เป็นคนคุยกับ Server โดยตรงสำหรับ login/logout นักเรียนเอง (/api/students/login ฯลฯ - ไม่ผ่าน
+// Agent loopback เลย ดู StudentAuthEndpoints.cs ฝั่ง Server) endpoint นี้แค่ "แจ้งให้ Agent รู้" เพื่อ
+// แนบ studentCode ไปกับ poll (ดู ServerClient.PollAsync) และโชว์ใน /status เท่านั้น - ไม่ validate/ไม่
+// เชื่อ AgentTray 100% เหมือน endpoint อื่นๆ ที่ loopback (ไม่มี secret แนบเพราะไม่กระทบความปลอดภัยอะไร
+// เลยถ้าใครยิงค่าผิดเข้ามา - ผลที่สุดคือ log/poll มี studentCode ผิด ไม่ได้เปิดช่องให้ bypass อะไร)
+app.MapPost("/student-session", (StudentSessionSetRequest request, ClientState state) =>
+{
+    if (request.LoggedIn)
+    {
+        state.SetCurrentStudent(request.StudentCode, request.StudentName);
+    }
+    else
+    {
+        state.ClearCurrentStudent();
+    }
+
+    return Results.Ok();
+});
+
 app.Run();
 
 internal sealed record VncSessionResultRequest(string RequestingConsoleSessionId, bool Success, int Pid, string? Password, string? FailureReason, string? Secret);
 internal sealed record RunningProcessesResultRequest(string RequestingConsoleSessionId, bool Success, System.Text.Json.JsonElement? Processes, string? FailureReason, string? Secret);
 internal sealed record BypassSetRequest(bool Bypassed, string? StaffSessionToken = null);
+internal sealed record StudentSessionSetRequest(bool LoggedIn, string? StudentCode = null, string? StudentName = null);

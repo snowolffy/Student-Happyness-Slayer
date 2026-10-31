@@ -131,7 +131,7 @@ public class CommandProcessor
                 return HandleBroadcastMessageAsync(payloadJson, ct);
 
             case "LockWorkstation":
-                return HandleShowLockScreenAsync(ct);
+                return HandleShowLockScreenAsync(payloadJson, ct);
 
             case "UnlockWorkstation":
                 return HandleHideLockScreenAsync(ct);
@@ -231,12 +231,35 @@ public class CommandProcessor
     /// ให้แสดง window ได้เลย - ปัญหาเดียวกับตอน BroadcastMessage ที่ MessageBox.Show ตรงจาก Service
     /// ไม่โชว์ให้ใครเห็น) หน้าจอล็อกนี้ปลดได้ทางเดียวคือ UnlockWorkstation command จาก Console เท่านั้น
     /// (ไม่ใช่แค่ LockWorkStation() ธรรมดาเหมือนกด Win+L ที่ user ปลดเองด้วย password ตัวเองได้)
+    ///
+    /// payload (WP3-3, 2026-10-31) - คาดว่าเป็น { "message": string? } ที่ Console ส่งมาจาก
+    /// LockScreenMessageWindow (WP3-5) ครูเว้นว่าง = ใช้ข้อความเริ่มต้นจากหน้าตั้งค่า Sign-in แทน
+    /// (ClientState.LockScreenDefaultMessage ที่ cache มาจาก poll - ดู SignInSettings.LockScreenDefaultMessage
+    /// ฝั่ง Server) ตัดสินใจ "ข้อความสุดท้าย" ที่นี่จุดเดียว ก่อนส่งต่อให้ AgentTray แสดงผลตรงๆ
     /// </summary>
-    private async Task<CommandExecutionResult> HandleShowLockScreenAsync(CancellationToken ct)
+    private async Task<CommandExecutionResult> HandleShowLockScreenAsync(string? payloadJson, CancellationToken ct)
     {
-        _logger.LogInformation("ได้รับ LockWorkstation command - ส่งต่อให้ AgentTray แสดงหน้าจอล็อกเต็มจอ");
+        string? overrideMessage = null;
+        if (!string.IsNullOrWhiteSpace(payloadJson))
+        {
+            try
+            {
+                var payload = JsonSerializer.Deserialize<LockWorkstationPayload>(
+                    payloadJson, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+                overrideMessage = payload?.Message;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "แปลง payload ของ LockWorkstation ไม่สำเร็จ: {Payload} - ใช้ข้อความเริ่มต้นแทน", payloadJson);
+            }
+        }
 
-        var sent = await _agentTrayNotifier.SendShowLockScreenAsync(ct);
+        var resolvedMessage = string.IsNullOrWhiteSpace(overrideMessage) ? _clientState.LockScreenDefaultMessage : overrideMessage;
+
+        _logger.LogInformation("ได้รับ LockWorkstation command - ส่งต่อให้ AgentTray แสดงหน้าจอล็อกเต็มจอ (ข้อความ{Source})",
+            string.IsNullOrWhiteSpace(overrideMessage) ? "เริ่มต้นจากหน้าตั้งค่า" : "ที่ครูพิมพ์ทับเฉพาะครั้งนี้");
+
+        var sent = await _agentTrayNotifier.SendShowLockScreenAsync(resolvedMessage, ct);
 
         return sent
             ? CommandExecutionResult.Ok()

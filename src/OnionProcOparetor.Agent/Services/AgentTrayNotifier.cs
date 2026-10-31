@@ -56,11 +56,15 @@ public class AgentTrayNotifier
     /// <summary>
     /// สั่งให้ AgentTray แสดงหน้าจอล็อกเต็มจอ (LockScreenWindow) - ต้องส่งผ่าน AgentTray เสมอ เพราะ
     /// Session 0 (Agent) ไม่มี desktop ให้แสดง window ได้เลย
+    ///
+    /// resolvedMessage (WP3-3, 2026-10-31) - CommandProcessor.HandleShowLockScreenAsync เป็นคนตัดสิน
+    /// ข้อความสุดท้ายแล้วก่อนเรียกมาที่นี่ (payload.message จาก Console ถ้าครูพิมพ์มา ไม่งั้น fallback
+    /// ไป ClientState.LockScreenDefaultMessage จาก Server) ที่นี่แค่ส่งต่อ - ไม่ตัดสินใจอะไรเอง
     /// </summary>
-    public Task<bool> SendShowLockScreenAsync(CancellationToken ct)
+    public Task<bool> SendShowLockScreenAsync(string? resolvedMessage, CancellationToken ct)
     {
-        var envelope = new AgentTrayPipeMessage { Type = "ShowLockScreen" };
-        return SendAsync(envelope, "ShowLockScreen", ct);
+        var envelope = new AgentTrayPipeMessage { Type = "ShowLockScreen", Message = resolvedMessage };
+        return SendAsync(envelope, $"ShowLockScreen (message: {resolvedMessage})", ct);
     }
 
     /// <summary>สั่งให้ AgentTray ปิดหน้าจอล็อก - ทางเดียวที่ปลดล็อกเครื่องได้ตามดีไซน์ (ครูกดจาก Console เท่านั้น)</summary>
@@ -152,6 +156,19 @@ public class AgentTrayNotifier
     {
         var envelope = new AgentTrayPipeMessage { Type = "ExamModeStatus", ExamModeExpiresAtUtc = expiresAtUtc };
         return SendAsync(envelope, $"ExamModeStatus (expiresAtUtc: {expiresAtUtc})", ct);
+    }
+
+    /// <summary>
+    /// สั่งให้ AgentTray ขึ้น/ลบจอล็อกอินนักเรียน (StudentLoginWindow) ตามสถานะ "ต้องล็อกอินไหม" (WP3-3,
+    /// 2026-10-31) - ผู้เรียก (Worker.ScanRunningProcessesAsync) ส่งเฉพาะตอน "สถานะเปลี่ยนจริง" เท่านั้น
+    /// (เหตุผลเดียวกับ SendExamModeStatusAsync) requireLogin=false ไม่ได้แปลว่า "ปิดจอล็อกอินทันที" เสมอ
+    /// ไป - ถ้ามีนักเรียน login ใช้เครื่องอยู่แล้วตอนนั้น AgentTray เป็นคนตัดสินเองว่าไม่ต้องทำอะไร (ดู
+    /// App.xaml.cs OnSignInStatusChanged)
+    /// </summary>
+    public Task<bool> SendSignInStatusAsync(bool requireLogin, string? loginScreenMessage, CancellationToken ct)
+    {
+        var envelope = new AgentTrayPipeMessage { Type = "SignInStatus", RequireLogin = requireLogin, Message = loginScreenMessage };
+        return SendAsync(envelope, $"SignInStatus (requireLogin: {requireLogin})", ct);
     }
 
     /// <summary>
