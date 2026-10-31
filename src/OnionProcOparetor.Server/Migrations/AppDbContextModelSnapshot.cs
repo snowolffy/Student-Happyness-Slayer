@@ -134,6 +134,47 @@ namespace OnionProcOparetor.Server.Migrations
                         });
                 });
 
+            modelBuilder.Entity("OnionProcOparetor.Server.Models.BrowserHardeningSettings", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("BlockDevTools")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("BlockExtensions")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("BlockGuestAndIncognito")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("BlockOtherBrowsers")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("LockDnsAndProxy")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("BrowserHardeningSettings");
+
+                    b.HasData(
+                        new
+                        {
+                            Id = 1,
+                            BlockDevTools = true,
+                            BlockExtensions = true,
+                            BlockGuestAndIncognito = true,
+                            BlockOtherBrowsers = false,
+                            LockDnsAndProxy = true,
+                            UpdatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc)
+                        });
+                });
+
             modelBuilder.Entity("OnionProcOparetor.Server.Models.ClientCommand", b =>
                 {
                     b.Property<int>("Id")

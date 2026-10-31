@@ -97,6 +97,11 @@ public static class PollEndpoints
                 .Where(r => r.IsEnabled && (r.RoomId == null || r.RoomId == client.RoomId))
                 .ToListAsync();
 
+            // ป้องกันการเลี่ยง (WP2-1, 2026-10-31) - ส่งค่าดิบไปเสมอ ไม่กรองด้วย globalEnabled/client.IsEnabled
+            // ที่นี่ เพราะ Agent เป็นคนตัดสินเองว่าจะ apply หรือเคลียร์ policy (ดู Worker.ScanRunningProcessesAsync
+            // ที่ใช้ pattern เดียวกับ websiteRules - ส่ง empty/clear เองตอน bypass หรือ enforcement ปิด)
+            var browserHardening = await db.BrowserHardeningSettings.FirstOrDefaultAsync(s => s.Id == 1);
+
             // fallback path สำหรับ command ที่ยังไม่ถึง Agent ผ่าน SignalR (เช่น เครื่อง disconnect อยู่ตอนที่ถูกสั่ง)
             // Agent จะเห็น command เหล่านี้ผ่าน poll รอบถัดไปเสมอ ไม่ว่า SignalR จะต่อติดอยู่หรือไม่ก็ตาม
             //
@@ -190,6 +195,7 @@ public static class PollEndpoints
                 enabled = globalEnabled && client.IsEnabled,
                 rules,
                 websiteRules,
+                browserHardening,
                 pollIntervalOverrideSeconds = client.PollIntervalOverrideSeconds,
                 pendingCommands,
                 blocklistVersion = currentBlocklistVersion,

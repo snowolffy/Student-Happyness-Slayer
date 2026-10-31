@@ -357,6 +357,40 @@ public class ApiClient
         return response.IsSuccessStatusCode;
     }
 
+    // ---- ป้องกันการเลี่ยง (WP2-1, 2026-10-31) ----
+
+    /// <summary>
+    /// คืน null ถ้าอ่านไม่ได้ - pattern เดียวกับ GetGlobalStateAsync (แยก "ไม่รู้" ออกจาก "รู้ว่าปิดอยู่")
+    /// จับ Exception แบบกว้าง (ไม่ใช่แค่ HttpRequestException เหมือน GetGlobalStateAsync) เพราะเจอจริง
+    /// ตอนทดสอบ: ApiClient ที่ยังไม่ได้ตั้ง BaseAddress (เช่นโหมดตรวจ UI ที่ไม่ได้ login จริง) โยน
+    /// InvalidOperationException ไม่ใช่ HttpRequestException - ถ้าจับแค่ตัวเดียวจะหลุดไปโดน global
+    /// exception handler จนเด้ง MessageBox ค้างทุกครั้งที่สลับมาแท็บนี้โดยไม่มี Server ต่ออยู่จริง
+    /// </summary>
+    public async Task<BrowserHardeningSettingsDto?> GetBrowserHardeningSettingsAsync()
+    {
+        try
+        {
+            return await _httpClient.GetFromJsonAsync<BrowserHardeningSettingsDto>("/api/browser-hardening");
+        }
+        catch (Exception)
+        {
+            return null;
+        }
+    }
+
+    public async Task<bool> SetBrowserHardeningSettingsAsync(BrowserHardeningSettingsDto settings)
+    {
+        var response = await _httpClient.PostAsJsonAsync("/api/browser-hardening/set", new
+        {
+            settings.BlockExtensions,
+            settings.BlockGuestAndIncognito,
+            settings.BlockDevTools,
+            settings.LockDnsAndProxy,
+            settings.BlockOtherBrowsers
+        });
+        return response.IsSuccessStatusCode;
+    }
+
     // ---- Website Catalog Sources (2026-09-12) ----
 
     public async Task<List<WebsiteCatalogSourceDto>> GetWebsiteCatalogSourcesAsync()

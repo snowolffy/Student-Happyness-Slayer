@@ -1021,43 +1021,38 @@
                             Admin เท่านั้นเหมือนกัน - ดู ApplyRolePermissions ที่ซ่อน UsersTabItem ทั้งแท็บ)
                             คงพาเนลนี้ไว้เผื่ออนาคตเปิดให้ Teacher ดู read-only
                         -->
+                        <!-- บั๊ก (C1, 2026-10-31 -> แก้ WP2-1): ปุ่ม "เพิ่มผู้ใช้" ถูกตัดขอบที่ความกว้าง
+                             ~1000px - เดิมใช้ Grid คอลัมน์ Auto ตายตัว 5 ช่อง (150+160+170+110 + ปุ่ม)
+                             รวมกันกว้างกว่าพื้นที่ที่เหลือตอนหน้าต่าง/sidebar แคบลง คอลัมน์ "*" ที่ตั้งใจ
+                             ดันปุ่มไปชิดขวาหดเป็น 0 ไม่ได้ช่วยเพราะ Grid ไม่ยอมบีบคอลัมน์ Auto ที่เหลือ
+                             ผลคือ AddUserButton (คอลัมน์สุดท้าย) ล้นขอบ Border ออกไปแบบมองไม่เห็น เปลี่ยน
+                             เป็น WrapPanel แทน (ตรงกับ wireframe con-users.dc.html ที่ใช้ flex-wrap: wrap
+                             อยู่แล้ว) ช่องจะขึ้นบรรทัดใหม่เองเมื่อแคบเกินไป ไม่มีอะไรล้น/ถูกตัดอีก -->
                         <Border x:Name="AddUserPanel" Grid.Row="1" CornerRadius="10" Padding="12" Margin="0,10,0,0"
                                 Background="{DynamicResource Brush.Background.Primary}"
                                 BorderBrush="{DynamicResource Brush.Border.Default}"
                                 BorderThickness="1">
-                            <Grid>
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="Auto"/>
-                                    <ColumnDefinition Width="8"/>
-                                    <ColumnDefinition Width="Auto"/>
-                                    <ColumnDefinition Width="8"/>
-                                    <ColumnDefinition Width="Auto"/>
-                                    <ColumnDefinition Width="8"/>
-                                    <ColumnDefinition Width="Auto"/>
-                                    <ColumnDefinition Width="*"/>
-                                    <ColumnDefinition Width="Auto"/>
-                                </Grid.ColumnDefinitions>
-                                <TextBox Grid.Column="0" x:Name="NewUserUsernameBox" Width="150" Height="35" VerticalAlignment="Center"
+                            <WrapPanel Orientation="Horizontal">
+                                <TextBox x:Name="NewUserUsernameBox" Width="150" Height="35" VerticalAlignment="Center" Margin="0,0,8,8"
                                          Style="{StaticResource PlaceholderTextBox}" Tag="Username"
                                          ToolTip="Username" TextChanged="NewUserUsernameBox_TextChanged"/>
                                 <!-- ชื่อที่แสดง: ว่างไว้ได้ - Server fallback เป็น Username เอง (WP4b, 2026-10-30)
                                      ลำดับช่อง (C1, 2026-10-31): สลับมาอยู่ก่อน Password ตาม wireframe con-users.dc.html
-                                     (Username -> ชื่อที่แสดง -> Password -> Role) - แค่สลับ Grid.Column ไม่แตะ
-                                     x:Name/logic เดิมเลย -->
-                                <TextBox Grid.Column="2" x:Name="NewUserDisplayNameBox" Width="160" Height="35" VerticalAlignment="Center"
+                                     (Username -> ชื่อที่แสดง -> Password -> Role) -->
+                                <TextBox x:Name="NewUserDisplayNameBox" Width="160" Height="35" VerticalAlignment="Center" Margin="0,0,8,8"
                                          Style="{StaticResource PlaceholderTextBox}" Tag="ชื่อที่แสดง (ว่างไว้ = ใช้ Username)"
                                          ToolTip="ชื่อที่แสดง (ว่างไว้ = ใช้ Username)"/>
-                                <PasswordBox Grid.Column="4" x:Name="NewUserPasswordBox" Width="170" Height="35" VerticalAlignment="Center"
+                                <PasswordBox x:Name="NewUserPasswordBox" Width="170" Height="35" VerticalAlignment="Center" Margin="0,0,8,8"
                                              Style="{StaticResource PlaceholderPasswordBox}" Tag="Password (อย่างน้อย 8 ตัว)"
                                              ToolTip="Password (อย่างน้อย 8 ตัวอักษร)"/>
-                                <ComboBox Grid.Column="6" x:Name="NewUserRoleCombo" Width="110" Height="35" VerticalAlignment="Center"
+                                <ComboBox x:Name="NewUserRoleCombo" Width="110" Height="35" VerticalAlignment="Center" Margin="0,0,8,8"
                                           ToolTip="Role ของบัญชีใหม่" SelectedIndex="0">
                                     <ComboBoxItem Content="Admin" Tag="0"/>
                                     <ComboBoxItem Content="Teacher" Tag="1"/>
                                 </ComboBox>
-                                <Button Grid.Column="8" x:Name="AddUserButton" Content="เพิ่มผู้ใช้" Style="{StaticResource ButtonPrimary}"
-                                        VerticalAlignment="Center" Click="AddUserButton_Click"/>
-                            </Grid>
+                                <Button x:Name="AddUserButton" Content="เพิ่มผู้ใช้" Style="{StaticResource ButtonPrimary}"
+                                        VerticalAlignment="Center" Margin="0,0,0,8" Click="AddUserButton_Click"/>
+                            </WrapPanel>
                         </Border>
 
                         <Grid Grid.Row="2" Margin="0,10,0,0">

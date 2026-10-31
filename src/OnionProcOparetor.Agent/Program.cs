@@ -141,6 +141,10 @@ builder.Services.AddSingleton<ProgramFingerprinter>();
 builder.Services.AddSingleton<ProgramControlService>();
 builder.Services.AddSingleton<WebsiteControlService>();
 
+// ---- ป้องกันการเลี่ยง (WP2-1, 2026-10-31) - ไม่ register RegistryKey แยก: constructor ใช้ Registry.LocalMachine
+// เป็น default parameter เองเวลาไม่มีใคร inject (ดู BrowserHardeningService) ----
+builder.Services.AddSingleton<BrowserHardeningService>();
+
 // ---- ผูก Worker เป็น background service หลัก ----
 builder.Services.AddHostedService<Worker>();
 

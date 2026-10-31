@@ -1,0 +1,38 @@
+<UserControl x:Class="OnionProcOparetor.Console.WebsiteAntiEvasionTab"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <!-- แท็บ "ป้องกันการเลี่ยง" ของหน้า Website Control (WP2-1, 2026-10-31) - ตั้งค่า Chrome/Edge
+         Enterprise Policy เปิด/ปิดได้ทีละข้อ (ดู docs/roadmap.md ขั้น 2 WP2-1 และ wireframe
+         con-website.dc.html - การ์ด id="hard" ฝั่งขวา) Agent เป็นคนเขียน registry จริงตาม
+         Services/BrowserHardeningService.cs (ฝั่ง Agent) ยกเว้นข้อสุดท้ายที่ไปสร้างกฎ Program Control
+         แทน (ดู BrowserHardeningEndpoints.cs ฝั่ง Server)
+
+         wireframe วางเป็นการ์ดเล็กในแถบข้าง (aside) ของแท็บ "บล็อกเว็บ" แต่ C1 ตัดสินให้ทำเป็นแท็บ
+         แยกจริง (ดู docs/roadmap.md "งานแทรกหลังขั้น 1: C1") จึงขยายเป็นหน้าเต็มความกว้าง 1 คอลัมน์
+         (MaxWidth 640 เหมือนหน้าตั้งค่า) แทนการ์ดแคบ 300px ของ wireframe -->
+    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+        <StackPanel MaxWidth="640" HorizontalAlignment="Left" Margin="0,0,8,0">
+            <Border Style="{StaticResource Card}" Margin="0,0,0,12">
+                <StackPanel>
+                    <TextBlock Text="ป้องกันการเลี่ยง" Style="{StaticResource Label}" Margin="0,0,0,2"/>
+                    <TextBlock Text="เขียน Chrome/Edge Enterprise Policy ให้นักเรียนปิด/เลี่ยงเองไม่ได้ (ไม่มี UI ให้ปิดในเบราว์เซอร์)"
+                               Style="{StaticResource Caption}" TextWrapping="Wrap" Margin="0,0,0,12"/>
+
+                    <CheckBox x:Name="BlockExtensionsCheckBox" Content="ห้ามติดตั้ง extension" Margin="0,0,0,10"/>
+                    <CheckBox x:Name="BlockGuestAndIncognitoCheckBox" Content="ปิด Guest / InPrivate / Incognito" Margin="0,0,0,10"/>
+                    <CheckBox x:Name="BlockDevToolsCheckBox" Content="ปิด DevTools" Margin="0,0,0,10"/>
+                    <CheckBox x:Name="LockDnsAndProxyCheckBox" Content="ล็อก DNS-over-HTTPS / proxy" Margin="0,0,0,10"/>
+                    <CheckBox x:Name="BlockOtherBrowsersCheckBox" Content="บล็อกเบราว์เซอร์อื่น (Firefox, Opera, Brave...)" Margin="0,0,0,2"/>
+                    <TextBlock Text="สร้าง/เปิดกฎในหน้า &quot;กฎโปรแกรม&quot; ให้อัตโนมัติ - ครูแก้รายชื่อโปรแกรมที่บล็อกเพิ่มเองได้จากหน้านั้นตามปกติ"
+                               Style="{StaticResource Caption}" TextWrapping="Wrap" Margin="24,0,0,0"/>
+                </StackPanel>
+            </Border>
+
+            <StackPanel Orientation="Horizontal" Margin="0,4,0,20">
+                <Button x:Name="SaveButton" Content="บันทึก" Style="{StaticResource ButtonPrimary}" Click="SaveButton_Click"/>
+                <Button Content="คืนค่าที่บันทึกไว้" Style="{StaticResource ButtonSecondary}" Margin="8,0,0,0"
+                        ToolTip="ล้างค่าที่แก้ไว้แต่ยังไม่ได้บันทึก" Click="ResetButton_Click"/>
+            </StackPanel>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

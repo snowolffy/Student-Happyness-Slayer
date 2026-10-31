@@ -71,6 +71,7 @@ public class Worker : BackgroundService
     private readonly AgentBypassState _bypassState;
     private readonly ProgramControlService _programControl;
     private readonly WebsiteControlService _websiteControl;
+    private readonly BrowserHardeningService _browserHardening;
 
     public Worker(
         ILogger<Worker> logger,
@@ -81,7 +82,8 @@ public class Worker : BackgroundService
         LabHubConnection labHubConnection,
         AgentBypassState bypassState,
         ProgramControlService programControl,
-        WebsiteControlService websiteControl)
+        WebsiteControlService websiteControl,
+        BrowserHardeningService browserHardening)
     {
         _logger = logger;
         _serverClient = serverClient;
@@ -92,6 +94,7 @@ public class Worker : BackgroundService
         _bypassState = bypassState;
         _programControl = programControl;
         _websiteControl = websiteControl;
+        _browserHardening = browserHardening;
         _clientGuid = ClientIdentity.GetOrCreateClientGuid();
         _machineName = ClientIdentity.GetMachineName();
         _state.ClientGuid = _clientGuid;
@@ -505,6 +508,13 @@ public class Worker : BackgroundService
             ? Array.Empty<string>()
             : _lastKnownState.WebsiteRules.Select(r => r.UrlPattern).ToArray();
         _websiteControl.Apply(websitePatterns);
+
+        // ป้องกันการเลี่ยง (WP2-1, 2026-10-31) - เหตุผล apply ทุกรอบ/เคลียร์ตอน bypass หรือ enforcement
+        // ปิดเหมือนกับ WebsiteControlService ข้างบนทุกอย่าง (ดูคอมเมนต์ยาวด้านบน) ส่ง null = เคลียร์ policy
+        var browserHardening = (_bypassState.IsBypassed || !_lastKnownState.Enabled)
+            ? null
+            : _lastKnownState.BrowserHardening;
+        _browserHardening.Apply(browserHardening);
 
         // Bypass เปิดอยู่ = ครูตั้งใจให้เครื่องนี้หยุด enforce ชั่วคราว (ดู AgentBypassState) ต้องไม่ scan/kill
         // ต่อด้วย _lastKnownState เก่าที่ค้างมาจากก่อน bypass - ไม่งั้น toggle "BYPASS" ที่ AgentTray

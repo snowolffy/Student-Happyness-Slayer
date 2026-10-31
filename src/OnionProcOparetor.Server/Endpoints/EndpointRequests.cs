@@ -19,6 +19,14 @@ record RuleOverrideRequest(bool IsEnabled);
 /// <summary>ตั้งค่า enforcement ทั้งห้องแบบระบุค่าตรงๆ (POST /api/global/set)</summary>
 record GlobalStateRequest(bool Enabled);
 
+/// <summary>ตั้งค่า "ป้องกันการเลี่ยง" ของ Website Control ทีละข้อ (POST /api/browser-hardening/set, WP2-1)</summary>
+record BrowserHardeningRequest(
+    bool BlockExtensions,
+    bool BlockGuestAndIncognito,
+    bool BlockDevTools,
+    bool LockDnsAndProxy,
+    bool BlockOtherBrowsers);
+
 /// <summary>BatchId เป็น optional - Console เวอร์ชันเก่าที่ไม่ส่งมาก็ยังใช้งานได้ตามปกติ (เป็น null)</summary>
 record CommandRequest(string CommandType, string? Payload, string? BatchId = null);
 
