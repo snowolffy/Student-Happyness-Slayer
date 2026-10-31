@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<title>Tray สถานะเครื่อง</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+.btn{height:32px;padding:0 12px;border:1.5px solid #6b7079;border-radius:6px;font:inherit;font-size:13px;background:#fff;color:#1f2328;white-space:nowrap}
+.btn-pri{background:#2b2f36;color:#fff;border-color:#2b2f36}
+.in{height:34px;box-sizing:border-box;border:1.5px solid #8a8f98;border-radius:6px;padding:0 10px;font:inherit;font-size:13px;background:#fff;color:#1f2328;width:100%}
+.win{background:#fff;border:1.5px solid #6b7079;border-radius:10px;display:flex;flex-direction:column;overflow:hidden}
+.wh{padding:8px 12px;background:#2b2f36;color:#fff;font-size:13px}
+.lbl{font-size:11px;font-weight:700;color:#4b515b}
+.stat{display:flex;flex-direction:column;gap:2px;padding:10px;border:1.5px solid #d5d8dd;border-radius:8px}
+.chg{outline:2px dashed #b45309;outline-offset:2px}
+.tag{font-size:10px;font-weight:600;padding:1px 6px;border-radius:999px;white-space:nowrap}
+.tag-chg{background:#fdecd8;color:#8a3c04}
+table{border-collapse:collapse;width:100%;font-size:12px}
+th{text-align:left;font-weight:600;color:#4b515b;padding:5px 8px;border-bottom:1.5px solid #8a8f98;background:#f1f3f5}
+td{padding:5px 8px;border-bottom:1px solid #d5d8dd}
+</style>
+</helmet>
+<div style="width: 1280px; height: 720px; box-sizing: border-box; padding: 32px; display: flex; gap: 28px; align-items: flex-start; background: #eceef1; font-family: 'IBM Plex Sans Thai', system-ui, sans-serif; color: #1f2328">
+  <div style="display: flex; flex-direction: column; gap: 8px; width: 300px">
+    <strong style="font-size: 14px">1 · ล็อกอินเพื่อดูสถานะ (คลิกไอคอน tray)</strong>
+    <div class="win">
+      <div class="wh">Agent Status Login</div>
+      <form style="padding: 16px; display: flex; flex-direction: column; gap: 10px">
+        <span style="font-size: 13px; color: #4b515b">เข้าสู่ระบบเพื่อดูสถานะ (บัญชีครู/Admin)</span>
+        <label style="display: flex; flex-direction: column; gap: 4px"><span class="lbl">USERNAME</span><input class="in"></label>
+        <label style="display: flex; flex-direction: column; gap: 4px"><span class="lbl">PASSWORD</span><input class="in" type="password"></label>
+        <button class="btn btn-pri">LOGIN</button>
+      </form>
+    </div>
+    <span style="font-size: 12px; color: #4b515b; line-height: 1.5">เสนอ: เมื่อมี Staff session แล้ว หน้านี้อาจรวมเข้ากับมันได้ เพราะใช้บัญชีครูเหมือนกัน</span>
+  </div>
+
+  <div style="display: flex; flex-direction: column; gap: 8px; width: 520px">
+    <strong style="font-size: 14px">2 · สถานะเครื่อง</strong>
+    <div class="win">
+      <div class="wh">Onion ProcOparetor · Status</div>
+      <div style="padding: 14px; display: flex; flex-direction: column; gap: 12px">
+        <div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px">
+          <div class="stat"><span class="lbl">ENFORCEMENT</span><strong>Enabled</strong></div>
+          <div class="stat"><span class="lbl">RULES</span><strong>14</strong></div>
+          <div class="stat"><span class="lbl">LAST POLL</span><strong>4 วิ</strong></div>
+          <div class="stat"><span class="lbl">CONNECTION</span><strong>Connected</strong></div>
+        </div>
+        <div class="chg" style="display: flex; justify-content: space-between; align-items: center; padding: 8px; border-radius: 6px; background: #fdf3e7">
+          <span style="font-size: 12px; line-height: 1.45">BYPASS ตอนนี้ใครก็สั่งผ่าน HTTP ได้โดยไม่ต้องล็อกอิน → ขั้น 1 ให้ต้องมี token จาก Server</span>
+          <button class="btn">BYPASS</button>
+        </div>
+        <div style="display: flex; justify-content: space-between; align-items: center"><span class="lbl">RECENT ACTIVITY</span><span style="display: flex; gap: 6px"><button class="btn" style="height: 28px">REFRESH</button><button class="btn" style="height: 28px">OPEN LOG TERMINAL</button></span></div>
+        <table>
+          <thead><tr><th>Time</th><th>Process</th><th>Rule</th><th>Action</th></tr></thead>
+          <tbody>
+            <tr><td>10:41</td><td>steam.exe</td><td>Steam</td><td>Killed</td></tr>
+            <tr><td>10:12</td><td>yuzu.exe</td><td>Program Control</td><td>Killed</td></tr>
+            <tr><td>09:58</td><td>RobloxPlayer.exe</td><td>Roblox</td><td>Killed</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div style="display: flex; flex-direction: column; gap: 8px; flex-grow: 1">
+    <strong style="font-size: 14px">3 · Log Terminal</strong>
+    <div class="win" style="background: #15181c; color: #c9f0c9; border-color: #15181c">
+      <div style="padding: 8px 12px; display: flex; justify-content: space-between; color: #fff; font-size: 12px"><span>LOG TERMINAL · auto-refresh: on</span><button class="btn" style="height: 26px">PAUSE</button></div>
+      <pre style="margin: 0; padding: 12px; font-size: 11px; line-height: 1.6; white-space: pre-wrap; font-family: ui-monospace, Consolas, monospace">[10:41:02] poll ok 14 rules
+[10:41:02] kill steam.exe (Valve)
+[10:41:12] poll ok
+[10:41:22] website policy: 412 urls
+[10:41:32] poll ok</pre>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":720}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

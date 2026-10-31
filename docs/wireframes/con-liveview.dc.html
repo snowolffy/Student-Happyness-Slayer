@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<title>Console Live View</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+.btn{height:32px;padding:0 12px;border:1.5px solid #6b7079;border-radius:6px;font:inherit;font-size:13px;background:#fff;color:#1f2328;white-space:nowrap}
+.btn-pri{background:#2b2f36;color:#fff;border-color:#2b2f36}
+.in{height:32px;box-sizing:border-box;border:1.5px solid #8a8f98;border-radius:6px;padding:0 10px;font:inherit;font-size:13px;background:#fff;color:#1f2328}
+.nav{display:flex;align-items:center;justify-content:space-between;gap:8px;height:32px;padding:0 10px;border-radius:6px;font-size:13px;color:#2b2f36;text-decoration:none}
+.nav-on{background:#2b2f36;color:#fff}
+.grp{font-size:11px;font-weight:600;color:#5b616b;padding:10px 10px 2px}
+.chg{outline:2px dashed #b45309;outline-offset:3px}
+.tag{font-size:10px;font-weight:600;padding:1px 6px;border-radius:999px;white-space:nowrap}
+.tag-chg{background:#fdecd8;color:#8a3c04}
+.tag-new{background:#dbe6fd;color:#1a3fa8}
+.seg{display:flex;border:1.5px solid #6b7079;border-radius:6px;overflow:hidden}
+.seg a{padding:6px 12px;font-size:13px;color:#1f2328;text-decoration:none}
+.seg .on{background:#2b2f36;color:#fff}
+.thumb{display:flex;flex-direction:column;border:1.5px solid #8a8f98;border-radius:8px;background:#fff;overflow:hidden;font:inherit;text-align:left;color:#1f2328;padding:0}
+.screen{aspect-ratio:16/9;background:repeating-linear-gradient(135deg,#e2e5e9 0 10px,#d9dce1 10px 20px);display:flex;align-items:center;justify-content:center;font-size:12px;color:#4b515b;width:100%}
+</style>
+</helmet>
+<div style="width: 1280px; height: 800px; box-sizing: border-box; display: flex; flex-direction: column; background: #f6f7f9; font-family: 'IBM Plex Sans Thai', system-ui, sans-serif; color: #1f2328; overflow: hidden">
+  <div style="height: 36px; background: #2b2f36; color: #fff; display: flex; align-items: center; padding: 0 14px; font-size: 13px; flex-shrink: 0">Onion ProcOparetor Console</div>
+  <div style="display: flex; flex-grow: 1; min-height: 0">
+    <nav style="width: 210px; flex-shrink: 0; background: #eceef1; padding: 12px 10px; display: flex; flex-direction: column; gap: 2px; box-sizing: border-box">
+      <div style="display: flex; flex-direction: column; padding: 0 6px 8px"><span style="font-weight: 700; font-size: 14px">Onion ProcOparetor</span><span style="font-size: 11px; color: #4b515b">Server Console</span></div>
+      <sc-for list="{{groups}}" as="g" hint-placeholder-count="4">
+        <span class="grp">{{g.name}}</span>
+        <sc-for list="{{g.items}}" as="it" hint-placeholder-count="3">
+          <a href="{{it.href}}" class="nav {{it.cls}}"><span>{{it.label}}</span><sc-if value="{{it.isNew}}" hint-placeholder-val="{{false}}"><span class="tag tag-new">ใหม่</span></sc-if></a>
+        </sc-for>
+      </sc-for>
+    </nav>
+
+    <main style="flex-grow: 1; min-width: 0; display: flex; flex-direction: column">
+      <header style="height: 52px; display: flex; align-items: center; justify-content: space-between; padding: 0 20px; border-bottom: 1.5px solid #d5d8dd; background: #fff; gap: 12px">
+        <div style="display: flex; align-items: center; gap: 14px">
+          <h1 style="margin: 0; font-size: 18px; font-weight: 700">Live View</h1>
+          <span style="font-size: 13px; color: #4b515b">กำลังดู 12 จอ · สูงสุดตามที่ตั้งไว้ใน Settings</span>
+        </div>
+        <div style="display: flex; gap: 8px; align-items: center">
+          <div class="seg"><a href="con-seatmap.dc.html">ผัง</a><a href="con-clients.dc.html">ตาราง</a><a href="con-liveview.dc.html" class="on">จอรวม</a></div>
+        </div>
+      </header>
+      <div style="display: flex; flex-grow: 1; min-height: 0">
+        <aside class="chg" style="width: 220px; flex-shrink: 0; background: #fff; border-right: 1.5px solid #d5d8dd; padding: 14px; display: flex; flex-direction: column; gap: 8px; box-sizing: border-box">
+          <span style="display: flex; justify-content: space-between; align-items: center"><strong style="font-size: 13px">เลือกเครื่อง</strong><span class="tag tag-chg">เสนอแก้</span></span>
+          <input class="in" placeholder="ค้นหา" style="width: 100%">
+          <div style="flex-grow: 1; display: flex; flex-direction: column; gap: 4px; font-size: 13px; overflow: hidden">
+            <label style="display: flex; gap: 6px; align-items: center"><input type="checkbox" checked>COM-01</label>
+            <label style="display: flex; gap: 6px; align-items: center"><input type="checkbox" checked>COM-02</label>
+            <label style="display: flex; gap: 6px; align-items: center"><input type="checkbox" checked>COM-03</label>
+            <label style="display: flex; gap: 6px; align-items: center"><input type="checkbox">COM-04 (ออฟไลน์)</label>
+            <label style="display: flex; gap: 6px; align-items: center"><input type="checkbox" checked>COM-05</label>
+          </div>
+          <button class="btn btn-pri" style="width: 100%">เพิ่มเครื่องที่เลือกเข้าจอรวม</button>
+          <span style="font-size: 12px; color: #4b515b; line-height: 1.4">เสนอ: ปุ่ม "ทั้งห้อง" และ "แถว 1–5" ตามผังที่นั่ง ไม่ต้องติ๊กทีละเครื่อง</span>
+        </aside>
+        <section style="flex-grow: 1; padding: 14px; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; align-content: start; min-width: 0">
+          <sc-for list="{{tiles}}" as="t" hint-placeholder-count="12">
+            <button class="thumb">
+              <span class="screen">ภาพหน้าจอ</span>
+              <span style="display: flex; justify-content: space-between; padding: 5px 8px; font-size: 12px"><strong>{{t.pc}}</strong><span style="color: #4b515b">{{t.who}}</span></span>
+            </button>
+          </sc-for>
+        </section>
+      </div>
+      <footer style="padding: 8px 20px; border-top: 1.5px solid #d5d8dd; background: #fff; font-size: 12px; color: #4b515b">ดับเบิลคลิกจอ = เต็มจอ: [กลับไปจอรวม] [BLOCK STUDENT INPUT] [คำสั่ง…] · ควบคุมเมาส์/คีย์บอร์ดได้ (VNC)</footer>
+    </main>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":800}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const active = 'con-liveview.dc.html';
+    const n = (label, href, isNew) => ({ label, href, isNew: !!isNew, cls: href === active ? 'nav-on' : '' });
+    const groups = [
+      { name: 'ห้องเรียน', items: [n('Clients', 'con-clients.dc.html'), n('ผังที่นั่ง', 'con-seatmap.dc.html', true), n('Live View', 'con-liveview.dc.html'), n('โหมดสอบ', 'nf-exam.dc.html', true)] },
+      { name: 'กฎ', items: [n('กฎโปรแกรม', 'con-rules.dc.html'), n('Program Review', 'con-programreview.dc.html'), n('Website Control', 'con-website.dc.html')] },
+      { name: 'บันทึก', items: [n('Logs / Audit', 'con-logs.dc.html'), n('ประวัติการใช้เครื่อง', 'nf-attendance.dc.html', true)] },
+      { name: 'ระบบ', items: [n('ผู้ใช้', 'con-users.dc.html'), n('ห้อง', 'nf-rooms.dc.html', true), n('ตั้งค่า', 'con-settings.dc.html')] }
+    ];
+    const tiles = [];
+    for (let i = 1; i <= 12; i++) tiles.push({ pc: 'COM-' + String(i).padStart(2, '0'), who: '[ชื่อนักเรียน]' });
+    return { groups, tiles };
+  }
+}
+</script>
+</body>
+</html>

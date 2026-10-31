@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<title>Roster Manager รายชื่อนักเรียน</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+.btn{height:32px;padding:0 12px;border:1.5px solid #6b7079;border-radius:6px;font:inherit;font-size:13px;background:#fff;color:#1f2328;white-space:nowrap}
+.btn-pri{background:#2b2f36;color:#fff;border-color:#2b2f36}
+.btn-danger{border-color:#b42318;color:#b42318}
+.in{height:32px;box-sizing:border-box;border:1.5px solid #8a8f98;border-radius:6px;padding:0 10px;font:inherit;font-size:13px;background:#fff;color:#1f2328}
+.cls{display:flex;justify-content:space-between;align-items:center;padding:7px 10px;border-radius:6px;font-size:13px;color:#1f2328;text-decoration:none}
+.cls-on{background:#2b2f36;color:#fff}
+table{border-collapse:collapse;width:100%;font-size:13px}
+th{text-align:left;font-weight:600;color:#4b515b;font-size:12px;padding:7px 10px;border-bottom:1.5px solid #8a8f98;background:#f1f3f5;white-space:nowrap}
+td{padding:7px 10px;border-bottom:1px solid #d5d8dd;white-space:nowrap}
+.badge{font-size:11px;font-weight:600;padding:1px 8px;border-radius:999px;border:1.5px solid #6b7079}
+.sel td{background:#e8eefc}
+</style>
+</helmet>
+<div style="width: 1280px; height: 800px; box-sizing: border-box; display: flex; flex-direction: column; background: #f6f7f9; font-family: 'IBM Plex Sans Thai', system-ui, sans-serif; color: #1f2328; overflow: hidden; outline: 2px dashed #1d4ed8; outline-offset: -2px">
+  <div style="height: 36px; background: #2b2f36; color: #fff; display: flex; align-items: center; justify-content: space-between; padding: 0 14px; font-size: 13px; flex-shrink: 0"><span>Roster Manager · Onion ProcOparetor</span><span>admin · Server 192.168.17.249</span></div>
+  <div style="display: flex; flex-grow: 1; min-height: 0">
+    <nav style="width: 220px; flex-shrink: 0; background: #eceef1; padding: 14px 10px; display: flex; flex-direction: column; gap: 2px; box-sizing: border-box">
+      <span style="font-size: 11px; font-weight: 700; color: #5b616b; padding: 0 10px 6px">ชั้น / ห้อง</span>
+      <a href="#" class="cls">ทั้งหมด <span>1,240</span></a>
+      <sc-for list="{{classes}}" as="c" hint-placeholder-count="10">
+        <a href="#" class="cls {{c.cls}}">{{c.name}} <span>{{c.n}}</span></a>
+      </sc-for>
+      <div style="flex-grow: 1"></div>
+      <a href="nf-rooms.dc.html" class="cls">จัดการห้อง / คลาส →</a>
+    </nav>
+    <main style="flex-grow: 1; min-width: 0; display: flex; flex-direction: column">
+      <header style="padding: 14px 20px; display: flex; flex-direction: column; gap: 10px; background: #fff; border-bottom: 1.5px solid #d5d8dd">
+        <div style="display: flex; justify-content: space-between; align-items: center">
+          <h1 style="margin: 0; font-size: 18px; font-weight: 700">ม.2/3 · 38 คน</h1>
+          <div style="display: flex; gap: 8px">
+            <a href="nf-import.dc.html" class="btn" style="display: flex; align-items: center; text-decoration: none">นำเข้า CSV…</a>
+            <button class="btn">พิมพ์ใบรหัสผ่าน…</button>
+            <button class="btn">เลื่อนชั้นปีการศึกษาใหม่…</button>
+            <button class="btn btn-pri">เพิ่มนักเรียน…</button>
+          </div>
+        </div>
+        <div style="display: flex; gap: 8px; align-items: center">
+          <input class="in" placeholder="ค้นหา ชื่อ / รหัส / เมล" style="width: 260px">
+          <select class="in" aria-label="สถานะ"><option>ทุกสถานะ</option><option>ปกติ</option><option>ถูกล็อก</option><option>ต้องเปลี่ยนรหัส</option><option>ปิดใช้งาน</option></select>
+          <span style="font-size: 12px; color: #4b515b">เลือก 2 คน →</span><button class="btn">รีเซ็ตรหัสที่เลือก</button><button class="btn">ย้ายห้อง</button>
+        </div>
+      </header>
+      <div style="display: flex; flex-grow: 1; min-height: 0">
+        <div style="flex-grow: 1; min-width: 0; overflow: auto; margin: 14px 0 14px 20px; background: #fff; border: 1.5px solid #8a8f98; border-radius: 8px">
+          <table>
+            <thead><tr><th></th><th>รหัส</th><th>ชื่อ-สกุล</th><th>เมลโรงเรียน</th><th>สถานะบัญชี</th><th>ล็อกอินล่าสุด</th></tr></thead>
+            <tbody>
+              <sc-for list="{{rows}}" as="r" hint-placeholder-count="10">
+                <tr class="{{r.cls}}"><td><input type="checkbox" aria-label="เลือก"></td><td>{{r.id}}</td><td>{{r.name}}</td><td>{{r.mail}}</td><td><span class="badge">{{r.st}}</span></td><td>{{r.last}}</td></tr>
+              </sc-for>
+            </tbody>
+          </table>
+        </div>
+        <aside style="width: 280px; flex-shrink: 0; margin: 14px 20px; background: #fff; border: 1.5px solid #8a8f98; border-radius: 8px; padding: 16px; display: flex; flex-direction: column; gap: 10px; box-sizing: border-box">
+          <strong style="font-size: 16px">[ชื่อ-สกุล]</strong>
+          <span style="font-size: 13px; color: #4b515b">65103 · ม.2/3 · [name]@school.ac.th</span>
+          <span class="badge" style="align-self: flex-start">ถูกล็อก · กรอกผิด 5 ครั้ง</span>
+          <button class="btn btn-pri">ปลดล็อกบัญชี</button>
+          <button class="btn">รีเซ็ตรหัสผ่าน…</button>
+          <button class="btn">แก้ข้อมูล…</button>
+          <div style="border-top: 1px solid #d5d8dd; padding-top: 10px; display: flex; flex-direction: column; gap: 4px; font-size: 12px">
+            <strong style="font-size: 12px">ใช้งานล่าสุด</strong>
+            <span>29 ต.ค. 09:02 · COM-25 · 50 นาที</span>
+            <span>28 ต.ค. 13:10 · COM-25 · 50 นาที</span>
+            <span>27 ต.ค. 09:05 · COM-07 · 48 นาที</span>
+          </div>
+          <div style="flex-grow: 1"></div>
+          <button class="btn btn-danger">ปิดใช้งานบัญชี</button>
+        </aside>
+      </div>
+    </main>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":800}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const classes = ['ม.1/1', 'ม.1/2', 'ม.1/3', 'ม.2/1', 'ม.2/2', 'ม.2/3', 'ม.3/1', 'ม.3/2', 'ม.3/3'].map((name, i) => ({ name, n: 36 + (i % 4), cls: name === 'ม.2/3' ? 'cls-on' : '' }));
+    const st = ['ปกติ', 'ปกติ', 'ต้องเปลี่ยนรหัส', 'ปกติ', 'ถูกล็อก', 'ปกติ', 'ปกติ', 'ปกติ', 'ปิดใช้งาน', 'ปกติ'];
+    const rows = st.map((s, i) => ({ id: '651' + String(i + 1).padStart(2, '0'), name: '[ชื่อ-สกุล]', mail: '[name]@school.ac.th', st: s, last: s === 'ต้องเปลี่ยนรหัส' ? '—' : 'วันนี้ 09:0' + (i % 9), cls: i === 4 ? 'sel' : '' }));
+    return { classes, rows };
+  }
+}
+</script>
+</body>
+</html>

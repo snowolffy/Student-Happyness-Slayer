@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<title>Online Logs</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+.in{height:44px;box-sizing:border-box;border:1.5px solid #8a8f98;border-radius:8px;padding:0 12px;font:inherit;font-size:14px;background:#fff;color:#1f2328;width:100%}
+.seg{display:flex;border:1.5px solid #6b7079;border-radius:8px;overflow:hidden}
+.seg a{flex:1;text-align:center;padding:10px 0;font-size:14px;color:#1f2328;text-decoration:none}
+.seg .on{background:#2b2f36;color:#fff}
+.row{display:flex;gap:10px;padding:10px 0;border-bottom:1px solid #d5d8dd}
+.badge{font-size:11px;font-weight:600;padding:1px 8px;border-radius:999px;border:1.5px solid #6b7079;align-self:flex-start;white-space:nowrap}
+.tab{display:flex;flex-direction:column;align-items:center;gap:2px;font-size:11px;color:#4b515b;text-decoration:none;flex:1;padding:6px 0;min-height:44px;justify-content:center}
+.tab-on{color:#1f2328;font-weight:700}
+.ico{width:22px;height:22px;border-radius:6px;background:#c9cdd3}
+.tab-on .ico{background:#2b2f36}
+</style>
+</helmet>
+<div style="width: 390px; height: 844px; box-sizing: border-box; display: flex; flex-direction: column; background: #f6f7f9; font-family: 'IBM Plex Sans Thai', system-ui, sans-serif; color: #1f2328">
+  <header style="padding: 16px; display: flex; flex-direction: column; gap: 10px; background: #fff; border-bottom: 1.5px solid #d5d8dd">
+    <h1 style="margin: 0; font-size: 22px; font-weight: 700">Logs</h1>
+    <div class="seg"><a href="#" class="on">โปรแกรมที่ถูกจับ</a><a href="#">Audit</a></div>
+    <input class="in" placeholder="ค้นหาเครื่อง / นักเรียน / โปรแกรม">
+  </header>
+  <div style="flex-grow: 1; overflow: hidden; padding: 4px 16px; background: #fff">
+    <sc-for list="{{rows}}" as="r" hint-placeholder-count="8">
+      <div class="row">
+        <span style="font-size: 12px; color: #4b515b; width: 40px; flex-shrink: 0; padding-top: 2px">{{r.t}}</span>
+        <div style="flex-grow: 1; display: flex; flex-direction: column; gap: 2px"><strong style="font-size: 14px">{{r.what}}</strong><span style="font-size: 12px; color: #4b515b">{{r.pc}} · {{r.who}} · กฎ {{r.rule}}</span></div>
+        <span class="badge">{{r.act}}</span>
+      </div>
+    </sc-for>
+  </div>
+  <nav style="display: flex; border-top: 1.5px solid #d5d8dd; background: #fff; padding-bottom: 14px">
+    <a href="oc-clients.dc.html" class="tab"><span class="ico"></span>Clients</a>
+    <a href="oc-rules.dc.html" class="tab"><span class="ico"></span>Rules</a>
+    <a href="oc-programs.dc.html" class="tab"><span class="ico"></span>Programs</a>
+    <a href="oc-logs.dc.html" class="tab tab-on"><span class="ico"></span>Logs</a>
+    <a href="oc-more.dc.html" class="tab"><span class="ico"></span>เมนู</a>
+  </nav>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const rows = [
+      { t: '10:41', what: 'steam.exe', pc: 'COM-05', who: '[ชื่อนักเรียน]', rule: 'Steam', act: 'ปิด' },
+      { t: '10:40', what: 'poki.com', pc: 'COM-02', who: '[ชื่อนักเรียน]', rule: 'Poki', act: 'บล็อกเว็บ' },
+      { t: '10:12', what: 'yuzu.exe', pc: 'COM-14', who: '[ชื่อนักเรียน]', rule: 'Program Control', act: 'ปิด' },
+      { t: '09:58', what: 'RobloxPlayer.exe', pc: 'COM-21', who: '[ชื่อนักเรียน]', rule: 'Roblox', act: 'ปิด' },
+      { t: '09:40', what: 'crazygames.com', pc: 'COM-09', who: '[ชื่อนักเรียน]', rule: 'CrazyGames', act: 'บล็อกเว็บ' },
+      { t: '09:31', what: 'Discord.exe', pc: 'COM-30', who: '[ชื่อนักเรียน]', rule: 'Discord', act: 'ปิด' },
+      { t: '09:12', what: 'TLauncher.exe', pc: 'COM-21', who: '[ชื่อนักเรียน]', rule: 'Program Control', act: 'ปิด' },
+      { t: '09:05', what: 'steam.exe', pc: 'COM-11', who: '[ชื่อนักเรียน]', rule: 'Steam', act: 'ปิด' }
+    ];
+    return { rows };
+  }
+}
+</script>
+</body>
+</html>

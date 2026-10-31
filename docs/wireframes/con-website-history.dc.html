@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<title>Website ประวัติเว็บ</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+.btn{height:32px;padding:0 12px;border:1.5px solid #6b7079;border-radius:6px;font:inherit;font-size:13px;background:#fff;color:#1f2328;white-space:nowrap}
+.btn-pri{background:#2b2f36;color:#fff;border-color:#2b2f36}
+.in{height:32px;box-sizing:border-box;border:1.5px solid #8a8f98;border-radius:6px;padding:0 10px;font:inherit;font-size:13px;background:#fff;color:#1f2328}
+.tabs{display:flex;gap:4px;border-bottom:1.5px solid #8a8f98}
+.tab{padding:8px 14px;font-size:13px;border:1.5px solid transparent;border-bottom:none;border-radius:6px 6px 0 0;color:#1f2328;text-decoration:none}
+.tab-on{border-color:#8a8f98;background:#fff;font-weight:600;margin-bottom:-1.5px}
+table{border-collapse:collapse;width:100%;font-size:13px}
+th{text-align:left;font-weight:600;color:#4b515b;font-size:12px;padding:7px 10px;border-bottom:1.5px solid #8a8f98;background:#f1f3f5;white-space:nowrap}
+td{padding:7px 10px;border-bottom:1px solid #d5d8dd;white-space:nowrap}
+.blk td{background:#fdecea}
+.badge{font-size:11px;font-weight:600;padding:1px 8px;border-radius:999px;border:1.5px solid #6b7079}
+.bar{height:10px;border-radius:4px;background:#6b7079}
+</style>
+</helmet>
+<div style="width: 1280px; height: 800px; box-sizing: border-box; display: flex; flex-direction: column; background: #f6f7f9; font-family: 'IBM Plex Sans Thai', system-ui, sans-serif; color: #1f2328; overflow: hidden; outline: 2px dashed #1d4ed8; outline-offset: -2px">
+  <div style="height: 36px; background: #2b2f36; color: #fff; display: flex; align-items: center; padding: 0 14px; font-size: 13px; flex-shrink: 0">Onion ProcOparetor Console · Website Control</div>
+  <section style="padding: 14px 22px; flex-grow: 1; min-height: 0; display: flex; flex-direction: column; gap: 12px">
+    <div class="tabs"><a href="con-website.dc.html" class="tab">บล็อกเว็บ</a><a href="con-website-allow.dc.html" class="tab">ชุด Allow-list</a><a href="con-website.dc.html" class="tab">ป้องกันการเลี่ยง</a><a href="#" class="tab tab-on">ประวัติเว็บ</a></div>
+    <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap">
+      <input class="in" value="29/10/2569 10:00 – 11:30" style="width: 210px" aria-label="ช่วงเวลา">
+      <select class="in" aria-label="ห้องเรียน"><option>ทุกห้องเรียน</option></select>
+      <input class="in" placeholder="นักเรียน / เครื่อง" style="width: 170px">
+      <input class="in" placeholder="โดเมน" style="width: 150px">
+      <label style="display: flex; gap: 6px; align-items: center; font-size: 13px"><input type="checkbox">เฉพาะที่ถูกบล็อก</label>
+      <div style="flex-grow: 1"></div>
+      <button class="btn">+ บล็อกโดเมนที่เลือก</button><button class="btn btn-pri">Export</button>
+    </div>
+    <div style="display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 14px; flex-grow: 1; min-height: 0">
+      <div style="overflow: auto; background: #fff; border: 1.5px solid #8a8f98; border-radius: 8px">
+        <table>
+          <thead><tr><th></th><th>เวลา</th><th>นักเรียน</th><th>เครื่อง</th><th>โดเมน</th><th>ชื่อหน้า</th><th>ผล</th></tr></thead>
+          <tbody>
+            <sc-for list="{{rows}}" as="r" hint-placeholder-count="12">
+              <tr class="{{r.cls}}"><td><input type="checkbox" aria-label="เลือก"></td><td>{{r.t}}</td><td>[ชื่อ] · {{r.cls2}}</td><td>{{r.pc}}</td><td>{{r.d}}</td><td>{{r.title}}</td><td><span class="badge">{{r.res}}</span></td></tr>
+            </sc-for>
+          </tbody>
+        </table>
+      </div>
+      <aside style="background: #fff; border: 1.5px solid #8a8f98; border-radius: 8px; padding: 14px; display: flex; flex-direction: column; gap: 8px">
+        <strong style="font-size: 14px">เว็บที่เข้าบ่อยช่วงนี้</strong>
+        <sc-for list="{{top}}" as="x" hint-placeholder-count="6">
+          <div style="display: flex; flex-direction: column; gap: 3px; font-size: 12px"><span style="display: flex; justify-content: space-between"><span>{{x.d}}</span><span>{{x.n}}</span></span><div class="bar" style="width: {{x.w}}"></div></div>
+        </sc-for>
+        <p style="margin: 6px 0 0; font-size: 12px; color: #4b515b; line-height: 1.5">ใช้หาเว็บเกมใหม่ที่ยังไม่อยู่ใน blocklist · ข้อมูลมาจาก History ของ Chrome/Edge ที่ Agent ส่งขึ้น Server ทุกนาที (ทันก่อนรีบูตล้าง)</p>
+      </aside>
+    </div>
+  </section>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":800}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const d = [
+      ['10:41', 'ม.2/3', 'COM-12', 'scratch.mit.edu', 'Scratch - Imagine, Program', 'เปิดได้'],
+      ['10:40', 'ม.2/3', 'COM-07', 'poki.com', '—', 'ถูกบล็อก'],
+      ['10:39', 'ม.2/1', 'COM-03', 'docs.google.com', 'งานชิ้นที่ 3', 'เปิดได้'],
+      ['10:37', 'ม.2/3', 'COM-21', 'sites.google.com/view/unblocked-gms', '—', 'ถูกบล็อก'],
+      ['10:36', 'ม.2/3', 'COM-09', 'youtube.com', 'สอน Scratch EP.4', 'เปิดได้'],
+      ['10:34', 'ม.2/3', 'COM-14', 'now.gg', 'Roblox on now.gg', 'เปิดได้'],
+      ['10:33', 'ม.2/3', 'COM-02', 'classroom.google.com', 'ม.2/3 วิทยาการคำนวณ', 'เปิดได้'],
+      ['10:31', 'ม.2/1', 'COM-05', 'crazygames.com', '—', 'ถูกบล็อก']
+    ];
+    const rows = d.map(x => ({ t: x[0], cls2: x[1], pc: x[2], d: x[3], title: x[4], res: x[5], cls: x[5] === 'ถูกบล็อก' ? 'blk' : '' }));
+    const top = [['docs.google.com', 84, '100%'], ['classroom.google.com', 61, '73%'], ['scratch.mit.edu', 40, '48%'], ['youtube.com', 22, '26%'], ['now.gg (ยังไม่บล็อก)', 9, '11%'], ['poki.com (บล็อกแล้ว)', 6, '7%']].map(([d, n, w]) => ({ d, n, w }));
+    return { rows, top };
+  }
+}
+</script>
+</body>
+</html>

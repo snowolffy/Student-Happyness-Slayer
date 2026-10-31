@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<title>RemoteBridge</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+.btn{height:32px;padding:0 12px;border:1.5px solid #6b7079;border-radius:6px;font:inherit;font-size:13px;background:#fff;color:#1f2328;white-space:nowrap}
+.btn-pri{background:#2b2f36;color:#fff;border-color:#2b2f36}
+.in{height:32px;box-sizing:border-box;border:1.5px solid #8a8f98;border-radius:6px;padding:0 10px;font:inherit;font-size:13px;background:#fff;color:#1f2328;width:100%}
+.win{background:#fff;border:1.5px solid #6b7079;border-radius:10px;display:flex;flex-direction:column;overflow:hidden}
+.wh{padding:8px 12px;background:#2b2f36;color:#fff;font-size:13px}
+.lbl{font-size:12px;font-weight:600;color:#4b515b}
+.chg{outline:2px dashed #b45309;outline-offset:2px}
+.tag{font-size:10px;font-weight:600;padding:1px 6px;border-radius:999px;white-space:nowrap}
+.tag-chg{background:#fdecd8;color:#8a3c04}
+code{font-family:ui-monospace,Consolas,monospace;font-size:12px;background:#f1f3f5;padding:6px 8px;border-radius:6px;display:block}
+</style>
+</helmet>
+<div style="width: 1000px; height: 640px; box-sizing: border-box; padding: 28px; display: flex; gap: 24px; align-items: flex-start; background: #eceef1; font-family: 'IBM Plex Sans Thai', system-ui, sans-serif; color: #1f2328">
+  <div class="win" style="width: 300px">
+    <div class="wh">Remote Bridge · Login</div>
+    <form style="padding: 14px; display: flex; flex-direction: column; gap: 10px">
+      <label style="display: flex; flex-direction: column; gap: 4px"><span class="lbl">Server (IP:Port)</span><input class="in" value="192.168.17.249:8787"></label>
+      <label style="display: flex; flex-direction: column; gap: 4px"><span class="lbl">Username</span><input class="in"></label>
+      <label style="display: flex; flex-direction: column; gap: 4px"><span class="lbl">Password</span><input class="in" type="password"></label>
+      <label class="chg" style="display: flex; flex-direction: column; gap: 4px; border-radius: 6px"><span class="lbl">Remote ID (รหัสประจำ remote นี้ - ยังไม่เชื่อมฮาร์ดแวร์จริง)</span><input class="in"></label>
+      <span class="tag tag-chg" style="align-self: flex-start">ข้อความล้าสมัย: ฮาร์ดแวร์ต่อได้จริงแล้ว</span>
+      <button class="btn btn-pri">Connect</button>
+    </form>
+  </div>
+  <div class="win" style="flex-grow: 1">
+    <div class="wh">Remote Bridge · Status</div>
+    <div style="padding: 14px; display: flex; flex-direction: column; gap: 10px; font-size: 13px">
+      <div style="display: grid; grid-template-columns: 90px 1fr; gap: 4px 10px"><span class="lbl">Remote ID</span><span>knob-01</span><span class="lbl">Server</span><span>192.168.17.249:8787</span><span class="lbl">Username</span><span>admin</span></div>
+      <strong>ตั้งค่าฮาร์ดแวร์ (ESP32)</strong>
+      <div class="chg" style="display: flex; flex-direction: column; gap: 4px; border-radius: 6px"><span>1. เปิด Tailscale Funnel บนเครื่องนี้ (รันครั้งเดียว)</span><code>tailscale funnel 8790</code><span class="tag tag-chg" style="align-self: flex-start">ล้าสมัย: ตอนนี้ใช้ Cloudflare Tunnel แทน Funnel</span></div>
+      <div style="display: flex; flex-direction: column; gap: 4px"><span>2. Remote Secret (ใส่ใน secrets.h - ห้ามแชร์ต่อ)</span><code>••••••••••••  [แสดง] [คัดลอก]</code></div>
+      <div style="display: flex; flex-direction: column; gap: 4px"><span>3. URL ที่ ESP32 ต้องยิง</span><code>https://&lt;tunnel-url&gt;/trigger?secret=…&amp;locked=true</code></div>
+      <span style="color: #4b515b">ปุ่มทดสอบแทนฮาร์ดแวร์:</span>
+      <div style="display: flex; gap: 8px"><button class="btn">Lock All (ทดสอบ)</button><button class="btn">Unlock All (ทดสอบ)</button></div>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1000,"height":640}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

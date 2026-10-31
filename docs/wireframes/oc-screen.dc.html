@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<title>Online ดูหน้าจอ</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+.btn{height:44px;padding:0 14px;border:1.5px solid #6b7079;border-radius:8px;font:inherit;font-size:14px;background:#fff;color:#1f2328;white-space:nowrap}
+.btn-pri{background:#2b2f36;color:#fff;border-color:#2b2f36}
+.screen{aspect-ratio:16/9;background:repeating-linear-gradient(135deg,#e2e5e9 0 10px,#d9dce1 10px 20px);display:flex;align-items:center;justify-content:center;font-size:13px;color:#4b515b;border:1.5px solid #8a8f98;border-radius:8px}
+.tab{display:flex;flex-direction:column;align-items:center;gap:2px;font-size:11px;color:#4b515b;text-decoration:none;flex:1;padding:6px 0;min-height:44px;justify-content:center}
+.tab-on{color:#1f2328;font-weight:700}
+.ico{width:22px;height:22px;border-radius:6px;background:#c9cdd3}
+</style>
+</helmet>
+<div style="width: 390px; height: 844px; box-sizing: border-box; display: flex; flex-direction: column; background: #f6f7f9; font-family: 'IBM Plex Sans Thai', system-ui, sans-serif; color: #1f2328">
+  <header style="padding: 14px 16px; display: flex; align-items: center; gap: 12px; background: #fff; border-bottom: 1.5px solid #d5d8dd">
+    <a href="oc-actions.dc.html" style="font-size: 14px; color: #1f2328">← กลับ</a>
+    <div style="display: flex; flex-direction: column"><strong style="font-size: 17px">COM-25</strong><span style="font-size: 12px; color: #4b515b">ดูหน้าจอ · VNC ผ่าน Server</span></div>
+  </header>
+  <section style="padding: 16px; display: flex; flex-direction: column; gap: 12px; flex-grow: 1">
+    <div class="screen">ภาพหน้าจอสด (หมุนมือถือแนวนอนเพื่อขยาย)</div>
+    <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px">
+      <button class="btn">ควบคุมเมาส์/คีย์บอร์ด</button>
+      <button class="btn">ล็อกเครื่องนี้</button>
+      <button class="btn">ส่งข้อความ</button>
+      <button class="btn">หยุดดู</button>
+    </div>
+    <p style="margin: 0; font-size: 13px; color: #4b515b; line-height: 1.5">มีแล้วบนมือถือ: Screen View ทีละเครื่อง · ยังไม่มีบนมือถือ: จอรวมหลายเครื่อง (Live View) ต้องดูจาก Console บนคอม</p>
+  </section>
+  <nav style="display: flex; border-top: 1.5px solid #d5d8dd; background: #fff; padding-bottom: 14px">
+    <a href="oc-clients.dc.html" class="tab tab-on"><span class="ico"></span>Clients</a>
+    <a href="oc-rules.dc.html" class="tab"><span class="ico"></span>Rules</a>
+    <a href="#" class="tab"><span class="ico"></span>Programs</a>
+    <a href="#" class="tab"><span class="ico"></span>Logs</a>
+    <a href="oc-more.dc.html" class="tab"><span class="ico"></span>เมนู</a>
+  </nav>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

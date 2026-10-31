@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<title>ตั้งค่าเพิ่มเติม</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+.btn{height:32px;padding:0 12px;border:1.5px solid #6b7079;border-radius:6px;font:inherit;font-size:13px;background:#fff;color:#1f2328;white-space:nowrap}
+.btn-danger{border-color:#b42318;color:#b42318}
+.in{height:32px;box-sizing:border-box;border:1.5px solid #8a8f98;border-radius:6px;padding:0 10px;font:inherit;font-size:13px;background:#fff;color:#1f2328}
+.sec{background:#fff;border:1.5px solid #8a8f98;border-radius:8px;padding:6px 16px 10px;display:flex;flex-direction:column}
+.sec h2{margin:10px 0 4px;font-size:15px}
+.row{display:flex;justify-content:space-between;align-items:center;gap:16px;padding:9px 0;border-bottom:1px solid #e2e5e9}
+.row:last-child{border-bottom:none}
+.row div{display:flex;flex-direction:column;gap:2px}
+.row strong{font-size:13px;font-weight:600}
+.row span{font-size:12px;color:#4b515b}
+.badge{font-size:11px;font-weight:600;padding:1px 8px;border-radius:999px;border:1.5px solid #6b7079}
+</style>
+</helmet>
+<div style="width: 1280px; height: 800px; box-sizing: border-box; display: flex; flex-direction: column; background: #f6f7f9; font-family: 'IBM Plex Sans Thai', system-ui, sans-serif; color: #1f2328; overflow: hidden; outline: 2px dashed #1d4ed8; outline-offset: -2px">
+  <div style="height: 36px; background: #2b2f36; color: #fff; display: flex; align-items: center; padding: 0 14px; font-size: 13px; flex-shrink: 0">Onion ProcOparetor Console · ตั้งค่า › ทั้งระบบ (4 หน้าย่อยรวมไว้ในภาพเดียว)</div>
+  <div style="flex-grow: 1; min-height: 0; padding: 16px 22px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; align-content: start">
+    <section class="sec">
+      <h2>Staff session</h2>
+      <div class="row"><div><strong>ใครเปิดได้</strong><span>บัญชีที่ใช้เข้า Console</span></div><select class="in" aria-label="ใครเปิดได้"><option>Admin + Teacher</option><option>Admin เท่านั้น</option></select></div>
+      <div class="row"><div><strong>เวลาเริ่มต้น / สูงสุด</strong><span>ครูเลือกได้ไม่เกินค่าสูงสุด</span></div><span style="display: flex; gap: 6px; align-items: center"><input class="in" value="30" style="width: 56px" aria-label="เริ่มต้น">/<input class="in" value="120" style="width: 56px" aria-label="สูงสุด">นาที</span></div>
+      <div class="row"><div><strong>อนุญาตให้ต่อเวลา</strong><span>เด้งถามก่อนหมด 5 นาที</span></div><input type="checkbox" checked aria-label="ต่อเวลา"></div>
+      <div class="row"><div><strong>แจ้ง Console เมื่อมีคนเปิด</strong><span>เด้งมุมจอครูทุกเครื่องที่เปิด Console อยู่</span></div><input type="checkbox" checked aria-label="แจ้งเตือน"></div>
+    </section>
+    <section class="sec">
+      <h2>รหัสฉุกเฉิน</h2>
+      <div class="row"><div><strong>สถานะ</strong><span>ใช้ได้ตอนติดต่อ Server ไม่ได้เท่านั้น</span></div><span class="badge">เปิดอยู่ · 3 ครูตั้ง Authenticator แล้ว</span></div>
+      <div class="row"><div><strong>เพิ่มมือถือครู</strong><span>แสดง QR ให้สแกน (เหมือนหน้าในมือถือ)</span></div><button class="btn">แสดง QR…</button></div>
+      <div class="row"><div><strong>หน้าเว็บ Google Apps Script</strong><span>ทางเลือกแทนแอป · secret อยู่ใน Script Properties · แก้สคริปต์ได้เฉพาะ Admin</span></div><span style="display: flex; gap: 6px"><button class="btn">ตั้งค่าบัญชีที่เปิดได้…</button><button class="btn">คัดลอกลิงก์</button></span></div>
+      <div class="row"><div><strong>ประวัติการใช้</strong><span>ล่าสุด: COM-12 · 3 ต.ค. 09:05</span></div><button class="btn">ดูทั้งหมด</button></div>
+      <div class="row"><div><strong>เปลี่ยน secret ใหม่</strong><span>ใช้เมื่อสงสัยว่ารั่ว · ต้องลง Agent MSI ใหม่ทุกเครื่อง</span></div><button class="btn btn-danger">เปลี่ยน…</button></div>
+    </section>
+    <section class="sec">
+      <h2>ความปลอดภัย (HTTPS)</h2>
+      <div class="row"><div><strong>ใบรับรองของ Server</strong><span>สร้างเอง (self-signed) · ใช้ถึง 29 ต.ค. 2571</span></div><span class="badge">ใช้งานอยู่</span></div>
+      <div class="row"><div><strong>ส่งออกใบรับรอง</strong><span>ใส่ใน MSI ให้เครื่องนักเรียนเชื่อถือ</span></div><button class="btn">ส่งออก .cer</button></div>
+      <div class="row"><div><strong>สร้างใบรับรองใหม่</strong><span>ทุกเครื่องต้องได้ใบใหม่ก่อนถึงจะต่อได้</span></div><button class="btn btn-danger">สร้างใหม่…</button></div>
+      <div class="row"><div><strong>ยอมรับการเชื่อมต่อแบบ HTTP เดิม</strong><span>เปิดไว้ช่วงย้ายระบบเท่านั้น</span></div><input type="checkbox" aria-label="HTTP เดิม"></div>
+    </section>
+    <section class="sec">
+      <h2>สำรองข้อมูล</h2>
+      <div class="row"><div><strong>สำรองอัตโนมัติ</strong><span>ฐานข้อมูล: กฎ, เครื่อง, นักเรียน, log</span></div><select class="in" aria-label="ความถี่"><option>ทุกวัน 18:00</option><option>ทุกสัปดาห์</option></select></div>
+      <div class="row"><div><strong>เก็บย้อนหลัง</strong><span>เกินนี้ลบไฟล์เก่าอัตโนมัติ</span></div><span style="display: flex; gap: 6px; align-items: center"><input class="in" value="14" style="width: 56px" aria-label="จำนวน">ชุด</span></div>
+      <div class="row"><div><strong>ที่เก็บ</strong><span>บนเครื่อง Server</span></div><input class="in" value="D:\OnionBackup" style="width: 180px" aria-label="ที่เก็บ"></div>
+      <div class="row"><div><strong>ล่าสุด: วันนี้ 18:00 · 42 MB</strong><span>กู้คืนแล้ว Server จะรีสตาร์ท</span></div><span style="display: flex; gap: 6px"><button class="btn">สำรองตอนนี้</button><button class="btn btn-danger">กู้คืน…</button></span></div>
+    </section>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":800}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

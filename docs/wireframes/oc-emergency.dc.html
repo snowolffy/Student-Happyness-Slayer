@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<title>Online รหัสฉุกเฉิน</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+.btn{height:44px;padding:0 14px;border:1.5px solid #6b7079;border-radius:8px;font:inherit;font-size:14px;background:#fff;color:#1f2328;white-space:nowrap}
+.btn-pri{background:#2b2f36;color:#fff;border-color:#2b2f36}
+.in{height:44px;box-sizing:border-box;border:1.5px solid #8a8f98;border-radius:8px;padding:0 12px;font:inherit;font-size:18px;letter-spacing:.3em;background:#fff;color:#1f2328;width:100%;text-align:center}
+.step{display:flex;gap:12px;align-items:flex-start}
+.num{width:26px;height:26px;border-radius:50%;background:#2b2f36;color:#fff;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;flex-shrink:0}
+.tag{font-size:10px;font-weight:600;padding:1px 6px;border-radius:999px;white-space:nowrap}
+.tag-new{background:#dbe6fd;color:#1a3fa8}
+</style>
+</helmet>
+<div style="width: 390px; height: 844px; box-sizing: border-box; display: flex; flex-direction: column; background: #f6f7f9; font-family: 'IBM Plex Sans Thai', system-ui, sans-serif; color: #1f2328; outline: 2px dashed #1d4ed8; outline-offset: -2px">
+  <header style="padding: 14px 16px; display: flex; align-items: center; gap: 12px; background: #fff; border-bottom: 1.5px solid #d5d8dd">
+    <a href="oc-more.dc.html" style="font-size: 14px; color: #1f2328">← เมนู</a>
+    <strong style="font-size: 17px">ตั้งค่ารหัสฉุกเฉิน</strong>
+    <span class="tag tag-new">ใหม่</span>
+  </header>
+  <section style="padding: 18px 16px; display: flex; flex-direction: column; gap: 18px; flex-grow: 1">
+    <p style="margin: 0; font-size: 14px; line-height: 1.55; color: #2b2f36">ใช้ตอน Server ล่มแล้วนักเรียนล็อกอินไม่ได้ทั้งห้อง พิมพ์รหัส 6 หลักที่จอล็อกของเครื่องนั้นเพื่อปลดชั่วคราว ไม่ต้องต่อ Server</p>
+    <div class="step"><span class="num">1</span><div style="display: flex; flex-direction: column; gap: 4px"><strong style="font-size: 14px">ติดตั้งแอป Authenticator</strong><span style="font-size: 13px; color: #4b515b">Google Authenticator หรือ Microsoft Authenticator ก็ได้ (ทำครั้งเดียวต่อครูหนึ่งคน)</span></div></div>
+    <div class="step"><span class="num">2</span><div style="display: flex; flex-direction: column; gap: 8px; flex-grow: 1"><strong style="font-size: 14px">สแกน QR นี้ด้วยแอป</strong>
+      <div style="width: 160px; height: 160px; border: 1.5px solid #8a8f98; border-radius: 8px; background: repeating-linear-gradient(90deg,#2b2f36 0 8px,#fff 8px 16px); opacity: .5" role="img" aria-label="QR code"></div>
+      <span style="font-size: 12px; color: #4b515b">หรือพิมพ์ key: XXXX XXXX XXXX XXXX</span></div></div>
+    <div class="step"><span class="num">3</span><div style="display: flex; flex-direction: column; gap: 8px; flex-grow: 1"><strong style="font-size: 14px">ทดสอบรหัสจากแอป</strong><input class="in" value="482 913" aria-label="รหัส 6 หลัก"><button class="btn btn-pri">ทดสอบ</button></div></div>
+    <div style="padding: 12px; border: 2px dashed #1d4ed8; border-radius: 10px; background: #f1f5fe; display: flex; flex-direction: column; gap: 6px">
+      <strong style="font-size: 14px">ไม่สะดวกลงแอป? ใช้หน้าเว็บแทน <span class="tag tag-new">ใหม่</span></strong>
+      <span style="font-size: 13px; color: #2b2f36; line-height: 1.5">หน้า Google Apps Script ของโรงเรียน เปิดจากลิงก์ได้ทุกเครื่อง ไม่ล่มตาม Server · เปิดได้เฉพาะบัญชีครูที่ Admin กำหนด · บันทึกว่าใครเปิดดูรหัสเมื่อไร</span>
+      <button class="btn" style="height: 38px">คัดลอกลิงก์หน้ารหัสฉุกเฉิน</button>
+    </div>
+    <p style="margin: 0; font-size: 12px; color: #4b515b; line-height: 1.5">ข้อควรรู้: secret นี้ถูกฝังในเครื่องนักเรียนตอนติดตั้ง Agent (อยู่รอดผ่าน disk freeze) ถ้ารั่วต้องเปลี่ยนใหม่ = ลง MSI ใหม่ทั้งห้อง</p>
+  </section>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

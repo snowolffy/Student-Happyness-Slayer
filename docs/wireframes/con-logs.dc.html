@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<title>Console Logs</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+.btn{height:32px;padding:0 12px;border:1.5px solid #6b7079;border-radius:6px;font:inherit;font-size:13px;background:#fff;color:#1f2328;white-space:nowrap}
+.in{height:32px;box-sizing:border-box;border:1.5px solid #8a8f98;border-radius:6px;padding:0 10px;font:inherit;font-size:13px;background:#fff;color:#1f2328}
+.nav{display:flex;align-items:center;justify-content:space-between;gap:8px;height:32px;padding:0 10px;border-radius:6px;font-size:13px;color:#2b2f36;text-decoration:none}
+.nav-on{background:#2b2f36;color:#fff}
+.grp{font-size:11px;font-weight:600;color:#5b616b;padding:10px 10px 2px}
+.chg{outline:2px dashed #b45309;outline-offset:2px}
+.new{outline:2px dashed #1d4ed8;outline-offset:2px}
+.tag{font-size:10px;font-weight:600;padding:1px 6px;border-radius:999px;white-space:nowrap}
+.tag-chg{background:#fdecd8;color:#8a3c04}
+.tag-new{background:#dbe6fd;color:#1a3fa8}
+.tabs{display:flex;gap:4px;border-bottom:1.5px solid #8a8f98}
+.tab{padding:8px 14px;font-size:13px;border:1.5px solid transparent;border-bottom:none;border-radius:6px 6px 0 0;color:#1f2328;text-decoration:none}
+.tab-on{border-color:#8a8f98;background:#fff;font-weight:600;margin-bottom:-1.5px}
+table{border-collapse:collapse;width:100%;font-size:13px}
+th{text-align:left;font-weight:600;color:#4b515b;font-size:12px;padding:7px 10px;border-bottom:1.5px solid #8a8f98;background:#f1f3f5;white-space:nowrap}
+td{padding:7px 10px;border-bottom:1px solid #d5d8dd;white-space:nowrap}
+.badge{font-size:11px;font-weight:600;padding:1px 8px;border-radius:999px;border:1.5px solid #6b7079}
+</style>
+</helmet>
+<div style="width: 1280px; height: 800px; box-sizing: border-box; display: flex; flex-direction: column; background: #f6f7f9; font-family: 'IBM Plex Sans Thai', system-ui, sans-serif; color: #1f2328; overflow: hidden">
+  <div style="height: 36px; background: #2b2f36; color: #fff; display: flex; align-items: center; padding: 0 14px; font-size: 13px; flex-shrink: 0">Onion ProcOparetor Console</div>
+  <div style="display: flex; flex-grow: 1; min-height: 0">
+    <nav style="width: 210px; flex-shrink: 0; background: #eceef1; padding: 12px 10px; display: flex; flex-direction: column; gap: 2px; box-sizing: border-box">
+      <div style="display: flex; flex-direction: column; padding: 0 6px 8px"><span style="font-weight: 700; font-size: 14px">Onion ProcOparetor</span><span style="font-size: 11px; color: #4b515b">Server Console</span></div>
+      <sc-for list="{{groups}}" as="g" hint-placeholder-count="4">
+        <span class="grp">{{g.name}}</span>
+        <sc-for list="{{g.items}}" as="it" hint-placeholder-count="3">
+          <a href="{{it.href}}" class="nav {{it.cls}}"><span>{{it.label}}</span><sc-if value="{{it.isNew}}" hint-placeholder-val="{{false}}"><span class="tag tag-new">ใหม่</span></sc-if></a>
+        </sc-for>
+      </sc-for>
+    </nav>
+    <main style="flex-grow: 1; min-width: 0; display: flex; flex-direction: column">
+      <header style="height: 52px; display: flex; align-items: center; justify-content: space-between; padding: 0 20px; border-bottom: 1.5px solid #d5d8dd; background: #fff; gap: 12px">
+        <h1 style="margin: 0; font-size: 18px; font-weight: 700">Logs</h1>
+        <span class="tag tag-chg">เสนอแก้: รวม Activity Logs + Audit Log เป็นหน้าเดียว 2 แท็บ</span>
+      </header>
+      <section style="padding: 14px 20px; flex-grow: 1; min-height: 0; display: flex; flex-direction: column; gap: 12px">
+        <div class="tabs"><a href="#" class="tab">Activity (โปรแกรมที่ถูกจับ)</a><a href="#" class="tab tab-on">Audit (ใครทำอะไร)</a></div>
+        <div style="display: flex; gap: 8px; flex-wrap: wrap; align-items: center">
+          <select class="in" aria-label="หมวด"><option>ทุกหมวด</option><option>AdminAction</option><option>AgentConnectivity</option><option>SystemEvent</option></select>
+          <select class="in" aria-label="ระดับ"><option>ทุกระดับ</option><option>Warning ขึ้นไป</option></select>
+          <input class="in" placeholder="Client GUID / ชื่อเครื่อง" style="width: 200px">
+          <input class="in new" placeholder="นักเรียน (ใหม่)" style="width: 160px">
+          <input class="in new" placeholder="ช่วงวันที่ (ใหม่)" style="width: 160px">
+          <div style="flex-grow: 1"></div>
+          <button class="btn new">Export CSV</button>
+        </div>
+        <div style="flex-grow: 1; min-height: 0; overflow: auto; background: #fff; border: 1.5px solid #8a8f98; border-radius: 8px">
+          <table>
+            <thead><tr><th>เวลา</th><th>หมวด</th><th>ระดับ</th><th>เหตุการณ์</th><th>รายละเอียด</th><th>เครื่อง</th><th>ผู้ใช้ที่ทำ</th></tr></thead>
+            <tbody>
+              <sc-for list="{{rows}}" as="r" hint-placeholder-count="9">
+                <tr><td>{{r.t}}</td><td>{{r.cat}}</td><td><span class="badge">{{r.lv}}</span></td><td>{{r.ev}}</td><td>{{r.d}}</td><td>{{r.pc}}</td><td>{{r.u}}</td></tr>
+              </sc-for>
+            </tbody>
+          </table>
+        </div>
+        <div style="display: flex; justify-content: space-between; align-items: center; font-size: 12px; color: #4b515b"><span>หน้า 1 จาก 38</span><span style="display: flex; gap: 6px"><button class="btn" style="height: 26px">ก่อนหน้า</button><button class="btn" style="height: 26px">ถัดไป</button></span></div>
+        <p style="margin: 0; font-size: 12px; color: #4b515b">เสนอ: แสดงเวลาท้องถิ่น (เวลาไทย) แทน UTC ทุกตาราง</p>
+      </section>
+    </main>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":800}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const active = 'con-logs.dc.html';
+    const n = (label, href, isNew) => ({ label, href, isNew: !!isNew, cls: href === active ? 'nav-on' : '' });
+    const groups = [
+      { name: 'ห้องเรียน', items: [n('Clients', 'con-clients.dc.html'), n('ผังที่นั่ง', 'con-seatmap.dc.html', true), n('Live View', 'con-liveview.dc.html'), n('โหมดสอบ', 'nf-exam.dc.html', true)] },
+      { name: 'กฎ', items: [n('กฎโปรแกรม', 'con-rules.dc.html'), n('Program Review', 'con-programreview.dc.html'), n('Website Control', 'con-website.dc.html')] },
+      { name: 'บันทึก', items: [n('Logs / Audit', 'con-logs.dc.html'), n('ประวัติการใช้เครื่อง', 'nf-attendance.dc.html', true)] },
+      { name: 'ระบบ', items: [n('ผู้ใช้', 'con-users.dc.html'), n('ห้อง', 'nf-rooms.dc.html', true), n('ตั้งค่า', 'con-settings.dc.html')] }
+    ];
+    const rows = [
+      { t: '10:42', cat: 'AdminAction', lv: 'Info', ev: 'LockWorkstation', d: 'ล็อก 3 เครื่อง', pc: 'COM-11', u: 'admin' },
+      { t: '10:40', cat: 'AdminAction', lv: 'Info', ev: 'WebsiteRuleCreated', d: 'poki.com', pc: '—', u: 'admin' },
+      { t: '10:31', cat: 'AgentConnectivity', lv: 'Warning', ev: 'FallbackActivated', d: 'สลับไป Tailscale', pc: 'COM-03', u: '—' },
+      { t: '10:15', cat: 'SystemEvent', lv: 'Info', ev: 'CatalogSynced', d: 'Fortnite: 5 โดเมน', pc: '—', u: '—' },
+      { t: '09:58', cat: 'AdminAction', lv: 'Warning', ev: 'GlobalEnforcementOff', d: 'ปิดทั้งระบบ', pc: '—', u: 'admin' },
+      { t: '09:20', cat: 'AdminAction', lv: 'Warning', ev: 'StaffSessionStarted (ใหม่)', d: 'กฎปิด 30 นาที', pc: 'COM-05', u: 'kru.xxx' },
+      { t: '09:02', cat: 'AdminAction', lv: 'Info', ev: 'StudentLogin (ใหม่)', d: '[ชื่อ] · 65xxx', pc: 'COM-25', u: '[ชื่อนักเรียน]' },
+      { t: '08:55', cat: 'AgentConnectivity', lv: 'Info', ev: 'AgentOnline', d: '—', pc: 'COM-01', u: '—' },
+      { t: '08:54', cat: 'AgentConnectivity', lv: 'Info', ev: 'AgentOnline', d: '—', pc: 'COM-02', u: '—' },
+      { t: '08:50', cat: 'SystemEvent', lv: 'Info', ev: 'ServerStarted', d: '—', pc: '—', u: '—' }
+    ];
+    return { groups, rows };
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<title>รายงานรายคน</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+.btn{height:32px;padding:0 12px;border:1.5px solid #6b7079;border-radius:6px;font:inherit;font-size:13px;background:#fff;color:#1f2328;white-space:nowrap}
+.btn-pri{background:#2b2f36;color:#fff;border-color:#2b2f36}
+.in{height:32px;box-sizing:border-box;border:1.5px solid #8a8f98;border-radius:6px;padding:0 10px;font:inherit;font-size:13px;background:#fff;color:#1f2328}
+.card{background:#fff;border:1.5px solid #8a8f98;border-radius:8px;padding:14px;display:flex;flex-direction:column;gap:8px}
+.stat{display:flex;flex-direction:column;gap:2px;padding:12px 14px;background:#fff;border:1.5px solid #8a8f98;border-radius:8px}
+.bar{height:12px;border-radius:3px;background:#6b7079}
+.row{display:flex;justify-content:space-between;font-size:13px;padding:5px 0;border-bottom:1px solid #e2e5e9}
+</style>
+</helmet>
+<div style="width: 1280px; height: 800px; box-sizing: border-box; display: flex; flex-direction: column; background: #f6f7f9; font-family: 'IBM Plex Sans Thai', system-ui, sans-serif; color: #1f2328; overflow: hidden; outline: 2px dashed #1d4ed8; outline-offset: -2px">
+  <div style="height: 36px; background: #2b2f36; color: #fff; display: flex; align-items: center; padding: 0 14px; font-size: 13px; flex-shrink: 0">Onion ProcOparetor Console · รายงาน</div>
+  <header style="padding: 14px 22px; display: flex; justify-content: space-between; align-items: center; background: #fff; border-bottom: 1.5px solid #d5d8dd; gap: 12px">
+    <div style="display: flex; gap: 10px; align-items: center">
+      <input class="in" value="[ชื่อ-สกุล] · 65103 · ม.2/3" style="width: 260px" aria-label="นักเรียน">
+      <select class="in" aria-label="ช่วงเวลา"><option>ภาคเรียนนี้</option><option>30 วันล่าสุด</option><option>สัปดาห์นี้</option></select>
+      <span style="font-size: 13px; color: #4b515b">หรือดูทั้งห้อง: <a href="#" style="color: #1d4ed8">ม.2/3</a></span>
+    </div>
+    <span style="display: flex; gap: 8px"><button class="btn">พิมพ์</button><button class="btn btn-pri">Export Excel</button></span>
+  </header>
+  <section style="padding: 16px 22px; display: flex; flex-direction: column; gap: 14px; flex-grow: 1; min-height: 0">
+    <div style="display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px">
+      <div class="stat"><span style="font-size: 12px; color: #4b515b">เข้าใช้</span><strong style="font-size: 22px">24 ครั้ง</strong></div>
+      <div class="stat"><span style="font-size: 12px; color: #4b515b">เวลารวม</span><strong style="font-size: 22px">19 ชม.</strong></div>
+      <div class="stat"><span style="font-size: 12px; color: #4b515b">ถูกบล็อกโปรแกรม</span><strong style="font-size: 22px">7</strong></div>
+      <div class="stat"><span style="font-size: 12px; color: #4b515b">ถูกบล็อกเว็บ</span><strong style="font-size: 22px">15</strong></div>
+      <div class="stat"><span style="font-size: 12px; color: #4b515b">ยกมือ</span><strong style="font-size: 22px">4</strong></div>
+    </div>
+    <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; flex-grow: 1; min-height: 0">
+      <div class="card">
+        <strong style="font-size: 14px">ใช้โปรแกรมอะไรนานสุด</strong>
+        <sc-for list="{{apps}}" as="a" hint-placeholder-count="5">
+          <div style="display: flex; flex-direction: column; gap: 3px; font-size: 13px"><span style="display: flex; justify-content: space-between"><span>{{a.n}}</span><span>{{a.t}}</span></span><div class="bar" style="width: {{a.w}}"></div></div>
+        </sc-for>
+        <span style="font-size: 12px; color: #4b515b">นับจากหน้าต่างที่อยู่ด้านหน้าจอ (foreground)</span>
+      </div>
+      <div class="card">
+        <strong style="font-size: 14px">เว็บที่เข้าบ่อย</strong>
+        <sc-for list="{{webs}}" as="a" hint-placeholder-count="5">
+          <div style="display: flex; flex-direction: column; gap: 3px; font-size: 13px"><span style="display: flex; justify-content: space-between"><span>{{a.n}}</span><span>{{a.t}}</span></span><div class="bar" style="width: {{a.w}}"></div></div>
+        </sc-for>
+      </div>
+      <div class="card">
+        <strong style="font-size: 14px">ถูกบล็อกล่าสุด</strong>
+        <div class="row"><span>27 ต.ค. · poki.com</span><span>เว็บ</span></div>
+        <div class="row"><span>27 ต.ค. · poki.com</span><span>เว็บ</span></div>
+        <div class="row"><span>20 ต.ค. · steam.exe</span><span>โปรแกรม</span></div>
+        <div class="row"><span>13 ต.ค. · now.gg</span><span>เว็บ</span></div>
+        <div class="row" style="border-bottom: none"><span>6 ต.ค. · yuzu.exe</span><span>โปรแกรม</span></div>
+        <a href="#" style="font-size: 13px; color: #1d4ed8">ดูประวัติทั้งหมด →</a>
+      </div>
+    </div>
+    <p style="margin: 0; font-size: 12px; color: #4b515b">ข้อมูลทั้งหมดมาจากการล็อกอิน (ขั้น 3) · ช่วง Staff session ไม่นับ · ไว้ครูดูประกอบ ไม่ใช่คะแนน</p>
+  </section>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":800}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const apps = [['Chrome', '9 ชม.', '100%'], ['Scratch', '5 ชม.', '56%'], ['Word', '2 ชม.', '22%'], ['VS Code', '1.5 ชม.', '17%'], ['อื่นๆ', '1.5 ชม.', '17%']].map(([n, t, w]) => ({ n, t, w }));
+    const webs = [['classroom.google.com', '61', '100%'], ['docs.google.com', '44', '72%'], ['scratch.mit.edu', '30', '49%'], ['youtube.com', '12', '20%'], ['poki.com (บล็อก)', '9', '15%']].map(([n, t, w]) => ({ n, t, w }));
+    return { apps, webs };
+  }
+}
+</script>
+</body>
+</html>

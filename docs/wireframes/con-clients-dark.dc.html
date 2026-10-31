@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<title>Console ธีมมืด</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+.btn{height:32px;padding:0 12px;border:1.5px solid #453C34;border-radius:6px;font:inherit;font-size:13px;background:#221E1A;color:#F3EFEA;white-space:nowrap}
+.btn-pri{background:#F5A623;color:#1F2430;border-color:#F5A623;font-weight:600}
+.in{height:32px;box-sizing:border-box;border:1.5px solid #453C34;border-radius:6px;padding:0 10px;font:inherit;font-size:13px;background:#0F0D0C;color:#F3EFEA}
+.nav{display:flex;align-items:center;height:32px;padding:0 10px;border-radius:6px;font-size:13px;color:#A39C93;text-decoration:none}
+.nav-on{background:#29F5A623;color:#F7B84D;font-weight:600}
+.grp{font-size:11px;font-weight:600;color:#A39C93;padding:10px 10px 2px}
+.stat{display:flex;flex-direction:column;gap:2px;padding:10px 14px;background:#1B1815;border:1.5px solid #332C26;border-radius:8px;min-width:120px}
+table{border-collapse:collapse;width:100%;font-size:13px}
+th{text-align:left;font-weight:600;color:#A39C93;font-size:12px;padding:7px 10px;border-bottom:1.5px solid #453C34;background:#221E1A}
+td{padding:7px 10px;border-bottom:1px solid #332C26;color:#F3EFEA}
+.b-on{font-size:11px;font-weight:600;padding:1px 8px;border-radius:999px;background:#244ADE80;color:#4ADE80}
+.b-off{font-size:11px;font-weight:600;padding:1px 8px;border-radius:999px;background:#298A8681;color:#A39C93}
+.b-warn{font-size:11px;font-weight:600;padding:1px 8px;border-radius:999px;background:#33FACC15;color:#FACC15}
+</style>
+</helmet>
+<div style="width: 1280px; height: 800px; box-sizing: border-box; display: flex; flex-direction: column; background: #141210; font-family: 'IBM Plex Sans Thai', system-ui, sans-serif; color: #F3EFEA; overflow: hidden">
+  <div style="height: 36px; background: #0F0D0C; color: #F3EFEA; display: flex; align-items: center; justify-content: space-between; padding: 0 14px; font-size: 13px; border-bottom: 1px solid #332C26; flex-shrink: 0"><span>Onion ProcOparetor Console</span><span>สีจริงจาก Theme/Colors.Dark.xaml</span></div>
+  <div style="display: flex; flex-grow: 1; min-height: 0">
+    <nav style="width: 210px; flex-shrink: 0; background: #0F0D0C; padding: 12px 10px; display: flex; flex-direction: column; gap: 2px; box-sizing: border-box; border-right: 1px solid #332C26">
+      <div style="display: flex; flex-direction: column; padding: 0 6px 8px"><span style="font-weight: 700; font-size: 14px">Onion ProcOparetor</span><span style="font-size: 11px; color: #A39C93">Server Console</span></div>
+      <span class="grp">ห้องเรียน</span><a href="#" class="nav nav-on">Clients</a><a href="#" class="nav">ผังที่นั่ง</a><a href="#" class="nav">Live View</a><a href="#" class="nav">โหมดสอบ</a>
+      <span class="grp">กฎ</span><a href="#" class="nav">กฎโปรแกรม</a><a href="#" class="nav">Program Review</a><a href="#" class="nav">Website Control</a>
+      <span class="grp">บันทึก</span><a href="#" class="nav">Logs / Audit</a><a href="#" class="nav">ประวัติการใช้เครื่อง</a>
+      <span class="grp">ระบบ</span><a href="#" class="nav">ผู้ใช้</a><a href="#" class="nav">ห้อง</a><a href="#" class="nav">ตั้งค่า</a>
+    </nav>
+    <main style="flex-grow: 1; min-width: 0; padding: 16px 20px; display: flex; flex-direction: column; gap: 12px">
+      <div style="display: flex; justify-content: space-between; align-items: center"><h1 style="margin: 0; font-size: 18px">Clients</h1><span style="display: flex; gap: 8px"><select class="in" aria-label="ห้อง"><option>Com 1</option></select><button class="btn">รีเฟรช</button></span></div>
+      <div style="display: flex; gap: 10px">
+        <div class="stat"><span style="font-size: 12px; color: #A39C93">ทั้งหมด</span><strong style="font-size: 20px">40</strong></div>
+        <div class="stat"><span style="font-size: 12px; color: #A39C93">ออนไลน์</span><strong style="font-size: 20px; color: #4ADE80">36</strong></div>
+        <div class="stat"><span style="font-size: 12px; color: #A39C93">ออฟไลน์</span><strong style="font-size: 20px">4</strong></div>
+        <div class="stat"><span style="font-size: 12px; color: #A39C93">ล็อกอินแล้ว</span><strong style="font-size: 20px">31</strong></div>
+      </div>
+      <div style="display: flex; gap: 8px"><input class="in" placeholder="ค้นหาเครื่อง / นักเรียน" style="width: 240px"><div style="flex-grow: 1"></div><button class="btn">ส่งข้อความขึ้นจอ</button><button class="btn btn-pri">คำสั่ง (ทุกเครื่อง)</button></div>
+      <div style="flex-grow: 1; background: #1B1815; border: 1.5px solid #332C26; border-radius: 8px; overflow: hidden">
+        <table>
+          <thead><tr><th>สถานะ</th><th>บังคับใช้กฎ</th><th>ชื่อเครื่อง</th><th>นักเรียน</th><th>เห็นล่าสุด</th></tr></thead>
+          <tbody>
+            <tr><td><span class="b-on">ONLINE</span></td><td><span class="b-on">ENABLED</span></td><td>COM-01</td><td>[ชื่อนักเรียน]</td><td>3 วิ</td></tr>
+            <tr><td><span class="b-on">ONLINE</span></td><td><span class="b-on">ENABLED</span></td><td>COM-02</td><td>[ชื่อนักเรียน]</td><td>8 วิ</td></tr>
+            <tr><td><span class="b-off">OFFLINE</span></td><td>—</td><td>COM-04</td><td>—</td><td>2 วัน</td></tr>
+            <tr><td><span class="b-on">ONLINE</span></td><td><span class="b-warn">BYPASS</span></td><td>COM-05</td><td>Staff session (kru.xxx)</td><td>4 วิ</td></tr>
+            <tr><td><span class="b-on">ONLINE</span></td><td><span class="b-on">ENABLED</span></td><td>COM-06</td><td>[ชื่อนักเรียน]</td><td>6 วิ</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p style="margin: 0; font-size: 12px; color: #A39C93">wireframe หน้าอื่นใช้สีเทาเป็นตัวแทน · ของจริงทุกหน้าใช้ชุดสีนี้ (มืด) หรือ Colors.Light.xaml (สว่าง) ผ่าน theme token เดิม ไม่ต้องออกแบบแยกทีละหน้า</p>
+    </main>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":800}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

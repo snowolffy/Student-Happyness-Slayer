@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<title>Console ตั้งค่า</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+.btn{height:32px;padding:0 12px;border:1.5px solid #6b7079;border-radius:6px;font:inherit;font-size:13px;background:#fff;color:#1f2328;white-space:nowrap}
+.btn-pri{background:#2b2f36;color:#fff;border-color:#2b2f36}
+.in{height:32px;box-sizing:border-box;border:1.5px solid #8a8f98;border-radius:6px;padding:0 10px;font:inherit;font-size:13px;background:#fff;color:#1f2328}
+.nav{display:flex;align-items:center;justify-content:space-between;gap:8px;height:32px;padding:0 10px;border-radius:6px;font-size:13px;color:#2b2f36;text-decoration:none}
+.nav-on{background:#2b2f36;color:#fff}
+.grp{font-size:11px;font-weight:600;color:#5b616b;padding:10px 10px 2px}
+.new{outline:2px dashed #1d4ed8;outline-offset:2px}
+.tag{font-size:10px;font-weight:600;padding:1px 6px;border-radius:999px;white-space:nowrap}
+.tag-chg{background:#fdecd8;color:#8a3c04}
+.tag-new{background:#dbe6fd;color:#1a3fa8}
+.snav{display:flex;align-items:center;justify-content:space-between;padding:8px 10px;border-radius:6px;font-size:13px;color:#1f2328;text-decoration:none}
+.snav-on{background:#e2e5e9;font-weight:600}
+.row{display:flex;justify-content:space-between;align-items:center;gap:20px;padding:12px 0;border-bottom:1px solid #d5d8dd}
+.row div{display:flex;flex-direction:column;gap:2px}
+.row strong{font-size:13px}
+.row span{font-size:12px;color:#4b515b}
+</style>
+</helmet>
+<div style="width: 1280px; height: 800px; box-sizing: border-box; display: flex; flex-direction: column; background: #f6f7f9; font-family: 'IBM Plex Sans Thai', system-ui, sans-serif; color: #1f2328; overflow: hidden">
+  <div style="height: 36px; background: #2b2f36; color: #fff; display: flex; align-items: center; padding: 0 14px; font-size: 13px; flex-shrink: 0">Onion ProcOparetor Console</div>
+  <div style="display: flex; flex-grow: 1; min-height: 0">
+    <nav style="width: 210px; flex-shrink: 0; background: #eceef1; padding: 12px 10px; display: flex; flex-direction: column; gap: 2px; box-sizing: border-box">
+      <div style="display: flex; flex-direction: column; padding: 0 6px 8px"><span style="font-weight: 700; font-size: 14px">Onion ProcOparetor</span><span style="font-size: 11px; color: #4b515b">Server Console</span></div>
+      <sc-for list="{{groups}}" as="g" hint-placeholder-count="4">
+        <span class="grp">{{g.name}}</span>
+        <sc-for list="{{g.items}}" as="it" hint-placeholder-count="3">
+          <a href="{{it.href}}" class="nav {{it.cls}}"><span>{{it.label}}</span><sc-if value="{{it.isNew}}" hint-placeholder-val="{{false}}"><span class="tag tag-new">ใหม่</span></sc-if></a>
+        </sc-for>
+      </sc-for>
+    </nav>
+    <main style="flex-grow: 1; min-width: 0; display: flex; flex-direction: column">
+      <header style="height: 52px; display: flex; align-items: center; justify-content: space-between; padding: 0 20px; border-bottom: 1.5px solid #d5d8dd; background: #fff; gap: 12px">
+        <h1 style="margin: 0; font-size: 18px; font-weight: 700">ตั้งค่า</h1>
+        <span class="tag tag-chg">เสนอแก้: แยก "Console เครื่องนี้" กับ "ทั้งระบบ (Server)" ให้ชัด</span>
+      </header>
+      <div style="display: flex; flex-grow: 1; min-height: 0">
+        <aside style="width: 230px; flex-shrink: 0; padding: 14px; display: flex; flex-direction: column; gap: 2px; border-right: 1.5px solid #d5d8dd; background: #fff; box-sizing: border-box">
+          <span class="grp" style="padding-left: 10px">Console เครื่องนี้</span>
+          <a href="#" class="snav snav-on">การแสดงผล</a>
+          <a href="#" class="snav">การเชื่อมต่อ</a>
+          <a href="#" class="snav">บัญชีของฉัน</a>
+          <span class="grp" style="padding-left: 10px">ทั้งระบบ (Admin)</span>
+          <a href="nf-signin-settings.dc.html" class="snav new">Sign-in นักเรียน <span class="tag tag-new">ใหม่</span></a>
+          <a href="#" class="snav new">Staff session <span class="tag tag-new">ใหม่</span></a>
+          <a href="#" class="snav new">รหัสฉุกเฉิน <span class="tag tag-new">ใหม่</span></a>
+          <a href="#" class="snav new">ความปลอดภัย (HTTPS) <span class="tag tag-new">ใหม่</span></a>
+          <a href="#" class="snav new">สำรองข้อมูล <span class="tag tag-new">ใหม่</span></a>
+          <a href="#" class="snav">เกี่ยวกับ</a>
+        </aside>
+        <section style="flex-grow: 1; padding: 18px 28px; display: flex; flex-direction: column; min-width: 0">
+          <h2 style="margin: 0 0 4px; font-size: 16px">การแสดงผล</h2>
+          <div class="row"><div><strong>จำนวนหน้าจอที่เปิดดูพร้อมกันได้สูงสุด</strong><span>จำนวนเครื่องสูงสุดใน Live View / Screen View</span></div><input class="in" value="12" style="width: 80px" aria-label="จำนวนจอ"></div>
+          <div class="row"><div><strong>รีเฟรชข้อมูลอัตโนมัติทุกกี่วินาที</strong><span>Clients / Rules / Logs / Users</span></div><input class="in" value="5" style="width: 80px" aria-label="วินาที"></div>
+          <div class="row"><div><strong>คงการเชื่อมต่อไว้เมื่อออกจาก Live View</strong><span>ค่าเริ่มต้นคือปิดทั้งหมดเมื่อออกจากหน้า</span></div><input type="checkbox" aria-label="คงการเชื่อมต่อ"></div>
+          <div class="row"><div><strong>แสดงปุ่ม Tailscale ในแผงคำสั่ง</strong><span>งานดูแลเครือข่าย ไม่ใช่งานคุมห้อง จึงซ่อนไว้เป็นค่าเริ่มต้น</span></div><input type="checkbox" aria-label="Tailscale"></div>
+          <div class="row"><div><strong>ธีม</strong><span>สว่าง / มืด / ตามระบบ</span></div><select class="in" aria-label="ธีม"><option>ตามระบบ</option><option>สว่าง</option><option>มืด</option></select></div>
+          <div class="row new" style="border-radius: 6px; padding: 12px 8px"><div><strong>แสดงเวลาเป็น <span class="tag tag-new">ใหม่</span></strong><span>ทุกตารางตอนนี้แสดง UTC</span></div><select class="in" aria-label="เวลา"><option>เวลาไทย (UTC+7)</option><option>UTC</option></select></div>
+          <div style="flex-grow: 1"></div>
+          <div style="display: flex; justify-content: flex-end; gap: 8px"><button class="btn">ยกเลิก</button><button class="btn btn-pri">บันทึก</button></div>
+        </section>
+      </div>
+    </main>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":800}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const active = 'con-settings.dc.html';
+    const n = (label, href, isNew) => ({ label, href, isNew: !!isNew, cls: href === active ? 'nav-on' : '' });
+    const groups = [
+      { name: 'ห้องเรียน', items: [n('Clients', 'con-clients.dc.html'), n('ผังที่นั่ง', 'con-seatmap.dc.html', true), n('Live View', 'con-liveview.dc.html'), n('โหมดสอบ', 'nf-exam.dc.html', true)] },
+      { name: 'กฎ', items: [n('กฎโปรแกรม', 'con-rules.dc.html'), n('Program Review', 'con-programreview.dc.html'), n('Website Control', 'con-website.dc.html')] },
+      { name: 'บันทึก', items: [n('Logs / Audit', 'con-logs.dc.html'), n('ประวัติการใช้เครื่อง', 'nf-attendance.dc.html', true)] },
+      { name: 'ระบบ', items: [n('ผู้ใช้', 'con-users.dc.html'), n('ห้อง', 'nf-rooms.dc.html', true), n('ตั้งค่า', 'con-settings.dc.html')] }
+    ];
+    return { groups };
+  }
+}
+</script>
+</body>
+</html>

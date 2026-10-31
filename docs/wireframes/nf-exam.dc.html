@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<title>โหมดสอบ</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+.btn{height:36px;padding:0 14px;border:1.5px solid #6b7079;border-radius:6px;font:inherit;font-size:14px;background:#fff;color:#1f2328;white-space:nowrap}
+.btn-pri{background:#2b2f36;color:#fff;border-color:#2b2f36}
+.in{height:34px;box-sizing:border-box;border:1.5px solid #8a8f98;border-radius:6px;padding:0 10px;font:inherit;font-size:13px;background:#fff;color:#1f2328}
+.lbl{font-size:13px;font-weight:700}
+.preset{display:flex;gap:10px;align-items:flex-start;padding:10px 12px;border:1.5px solid #8a8f98;border-radius:8px;background:#fff;font-size:13px}
+.preset-on{border:2px solid #2b2f36;background:#f1f3f5}
+.pill{padding:6px 12px;border:1.5px solid #6b7079;border-radius:999px;font:inherit;font-size:13px;background:#fff;color:#1f2328}
+.pill-on{background:#2b2f36;color:#fff;border-color:#2b2f36}
+</style>
+</helmet>
+<div style="width: 1280px; height: 800px; box-sizing: border-box; display: flex; align-items: center; justify-content: center; background: #9aa0a8; font-family: 'IBM Plex Sans Thai', system-ui, sans-serif; color: #1f2328; outline: 2px dashed #1d4ed8; outline-offset: -2px">
+  <div style="width: 940px; background: #fff; border: 1.5px solid #6b7079; border-radius: 12px; display: flex; flex-direction: column">
+    <div style="padding: 16px 22px; border-bottom: 1.5px solid #d5d8dd; display: flex; justify-content: space-between; align-items: center">
+      <div style="display: flex; flex-direction: column"><strong style="font-size: 18px">เปิดโหมดสอบ</strong><span style="font-size: 13px; color: #4b515b">ทุกเว็บถูกบล็อก ยกเว้นที่เลือกไว้ข้างล่าง · โปรแกรมยังโดนกฎเดิมตามปกติ</span></div>
+      <a href="con-clients.dc.html" class="btn" style="display: flex; align-items: center; text-decoration: none">ปิด</a>
+    </div>
+    <div style="padding: 18px 22px; display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 22px">
+      <div style="display: flex; flex-direction: column; gap: 10px">
+        <span class="lbl">1 · เว็บที่อนุญาต (เลือกชุดสำเร็จรูปได้หลายชุด)</span>
+        <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px">
+          <sc-for list="{{presets}}" as="p" hint-placeholder-count="6">
+            <label class="preset {{p.cls}}"><input type="checkbox" checked="{{p.on}}"><span style="display: flex; flex-direction: column; gap: 2px"><strong>{{p.name}}</strong><span style="color: #4b515b; font-size: 12px">{{p.doms}}</span></span></label>
+          </sc-for>
+        </div>
+        <label style="display: flex; flex-direction: column; gap: 4px"><span style="font-size: 13px">เว็บเพิ่มเติม (บรรทัดละหนึ่ง)</span><textarea class="in" style="height: 70px; padding: 8px 10px; resize: none" placeholder="exam.school.ac.th"></textarea></label>
+        <span style="font-size: 12px; color: #4b515b; line-height: 1.5">ชุดสำเร็จรูปมีโดเมนประกอบครบแล้ว (เช่น Google Forms ต้องเปิด accounts.google.com, gstatic.com ด้วย ไม่งั้นหน้าเว็บพัง) · Admin แก้/เพิ่มชุดได้ที่ Website Control › ชุด Allow-list</span>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 16px">
+        <div style="display: flex; flex-direction: column; gap: 8px">
+          <span class="lbl">2 · ใช้กับ</span>
+          <label style="display: flex; gap: 8px; font-size: 13px"><input type="radio" name="t" checked>ทั้งห้อง Com 1 (40 เครื่อง)</label>
+          <label style="display: flex; gap: 8px; font-size: 13px"><input type="radio" name="t">เครื่องที่เลือกไว้ (3)</label>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 8px">
+          <span class="lbl">3 · นานแค่ไหน (ต้องเลือก ปิดเองอัตโนมัติ)</span>
+          <div style="display: flex; gap: 6px; flex-wrap: wrap"><button class="pill">30 นาที</button><button class="pill pill-on">50 นาที</button><button class="pill">60 นาที</button><button class="pill">ถึงเวลา…</button></div>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 6px">
+          <span class="lbl">4 · ตัวเลือกเสริม</span>
+          <label style="display: flex; gap: 8px; font-size: 13px"><input type="checkbox" checked>บังคับเปิดเว็บแรกให้ทุกเครื่องตอนเริ่ม (ขั้น 4)</label>
+          <label style="display: flex; gap: 8px; font-size: 13px"><input type="checkbox">ห้ามเปิดแท็บใหม่ / หน้าต่างใหม่</label>
+          <label style="display: flex; gap: 8px; font-size: 13px"><input type="checkbox" checked>ส่งข้อความแจ้งนักเรียนตอนเริ่ม</label>
+        </div>
+        <div style="padding: 10px 12px; background: #f1f3f5; border-radius: 8px; font-size: 13px; line-height: 1.5">สรุป: 40 เครื่อง · เปิดได้ 14 โดเมน · ถึง 11:20 แล้วกลับเป็นกฎปกติเอง แม้ครูลืมปิดหรือเครื่องครูดับ</div>
+      </div>
+    </div>
+    <div style="padding: 14px 22px; border-top: 1.5px solid #d5d8dd; display: flex; justify-content: flex-end; gap: 8px"><button class="btn">ยกเลิก</button><button class="btn btn-pri">เริ่มโหมดสอบ</button></div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":800}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const presets = [
+      { name: 'Google Forms', doms: 'docs.google.com + บัญชี Google', on: true },
+      { name: 'Google Classroom', doms: 'classroom.google.com + Drive', on: true },
+      { name: 'Quizizz / Wayground', doms: 'quizizz.com', on: false },
+      { name: 'Kahoot', doms: 'kahoot.it', on: false },
+      { name: 'Scratch', doms: 'scratch.mit.edu', on: false },
+      { name: 'Canva', doms: 'canva.com', on: false }
+    ].map(p => ({ ...p, cls: p.on ? 'preset-on' : '' }));
+    return { presets };
+  }
+}
+</script>
+</body>
+</html>

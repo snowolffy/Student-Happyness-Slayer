@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<title>UninstallHelper</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+.btn{height:34px;padding:0 14px;border:1.5px solid #6b7079;border-radius:6px;font:inherit;font-size:13px;background:#fff;color:#1f2328;white-space:nowrap}
+.btn-danger{background:#b42318;color:#fff;border-color:#b42318}
+.in{height:34px;box-sizing:border-box;border:1.5px solid #8a8f98;border-radius:6px;padding:0 10px;font:inherit;font-size:13px;background:#fff;color:#1f2328;width:100%}
+.lbl{font-size:12px;font-weight:600;color:#4b515b}
+.tag{font-size:10px;font-weight:600;padding:1px 6px;border-radius:999px;white-space:nowrap}
+.tag-chg{background:#fdecd8;color:#8a3c04}
+</style>
+</helmet>
+<div style="width: 1000px; height: 640px; box-sizing: border-box; display: flex; align-items: center; justify-content: center; gap: 28px; background: #eceef1; font-family: 'IBM Plex Sans Thai', system-ui, sans-serif; color: #1f2328">
+  <div style="width: 460px; background: #fff; border: 1.5px solid #6b7079; border-radius: 10px; overflow: hidden">
+    <div style="padding: 8px 12px; background: #2b2f36; color: #fff; font-size: 13px">Uninstall Onion ProcOparetor</div>
+    <form style="padding: 20px; display: flex; flex-direction: column; gap: 12px">
+      <div style="display: flex; align-items: center; gap: 12px">
+        <div style="width: 44px; height: 44px; border-radius: 10px; background: #d5d8dd; display: flex; align-items: center; justify-content: center; font-weight: 700">O</div>
+        <div style="display: flex; flex-direction: column"><strong style="font-size: 17px">Onion ProcOparetor</strong><span style="font-size: 13px; color: #4b515b">Uninstall</span></div>
+      </div>
+      <p style="margin: 0; font-size: 14px">ต้องการถอนการติดตั้ง Onion ProcOparetor ออกจากเครื่องนี้ใช่ไหม</p>
+      <label style="display: flex; flex-direction: column; gap: 4px"><span class="lbl">ชื่อผู้ใช้ Admin ของ Server (เว้นว่างถ้าใช้รหัสถอนการติดตั้งของเครื่อง)</span><input class="in"></label>
+      <label style="display: flex; flex-direction: column; gap: 4px"><span class="lbl">รหัสผ่าน Server / รหัสถอนการติดตั้ง</span><input class="in" type="password"></label>
+      <label style="display: flex; gap: 8px; font-size: 13px; align-items: flex-start"><input type="checkbox">ลบฐานข้อมูล, log และกฎด้วย (ProgramData) · ย้อนกลับไม่ได้</label>
+      <div style="display: flex; justify-content: flex-end; gap: 8px"><button class="btn">ยกเลิก</button><button class="btn btn-danger">ถอนการติดตั้ง</button></div>
+    </form>
+  </div>
+  <div style="width: 300px; display: flex; flex-direction: column; gap: 10px; font-size: 13px; line-height: 1.5">
+    <span class="tag tag-chg" style="align-self: flex-start">เสนอแก้</span>
+    <span>• ตอนนี้ข้อความเป็นอังกฤษล้วน (CANCEL / UNINSTALL) แต่หน้าอื่นเป็นไทย → ทำเป็นไทยให้เหมือนกัน</span>
+    <span>• ช่องผู้ใช้กับรหัสผ่านสองแบบรวมกันอยู่ ทำให้งง → แยกเป็นตัวเลือก "ใช้บัญชี Server" / "ใช้รหัสถอนการติดตั้ง"</span>
+    <span>• ปุ่มลบสีแดงเฉพาะตอนติ๊ก "ลบข้อมูลด้วย"</span>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1000,"height":640}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<title>Console Website Control</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+.btn{height:32px;padding:0 12px;border:1.5px solid #6b7079;border-radius:6px;font:inherit;font-size:13px;background:#fff;color:#1f2328;white-space:nowrap}
+.btn-pri{background:#2b2f36;color:#fff;border-color:#2b2f36}
+.btn-danger{border-color:#b42318;color:#b42318}
+.in{height:32px;box-sizing:border-box;border:1.5px solid #8a8f98;border-radius:6px;padding:0 10px;font:inherit;font-size:13px;background:#fff;color:#1f2328}
+.nav{display:flex;align-items:center;justify-content:space-between;gap:8px;height:32px;padding:0 10px;border-radius:6px;font-size:13px;color:#2b2f36;text-decoration:none}
+.nav-on{background:#2b2f36;color:#fff}
+.grp{font-size:11px;font-weight:600;color:#5b616b;padding:10px 10px 2px}
+.chg{outline:2px dashed #b45309;outline-offset:2px}
+.new{outline:2px dashed #1d4ed8;outline-offset:-2px}
+.tag{font-size:10px;font-weight:600;padding:1px 6px;border-radius:999px;white-space:nowrap}
+.tag-chg{background:#fdecd8;color:#8a3c04}
+.tag-new{background:#dbe6fd;color:#1a3fa8}
+.tabs{display:flex;gap:4px;border-bottom:1.5px solid #8a8f98}
+.tab{padding:8px 14px;font-size:13px;border:1.5px solid transparent;border-bottom:none;border-radius:6px 6px 0 0;color:#1f2328;text-decoration:none;display:flex;gap:6px;align-items:center}
+.tab-on{border-color:#8a8f98;background:#fff;font-weight:600;margin-bottom:-1.5px}
+table{border-collapse:collapse;width:100%;font-size:13px}
+th{text-align:left;font-weight:600;color:#4b515b;font-size:12px;padding:7px 10px;border-bottom:1.5px solid #8a8f98;background:#f1f3f5;white-space:nowrap}
+td{padding:7px 10px;border-bottom:1px solid #d5d8dd;white-space:nowrap}
+.badge{font-size:11px;font-weight:600;padding:1px 8px;border-radius:999px;border:1.5px solid #6b7079}
+.card{background:#fff;border:1.5px solid #8a8f98;border-radius:8px;padding:12px;display:flex;flex-direction:column;gap:6px}
+</style>
+</helmet>
+<div style="width: 1280px; height: 800px; box-sizing: border-box; display: flex; flex-direction: column; background: #f6f7f9; font-family: 'IBM Plex Sans Thai', system-ui, sans-serif; color: #1f2328; overflow: hidden">
+  <div style="height: 36px; background: #2b2f36; color: #fff; display: flex; align-items: center; padding: 0 14px; font-size: 13px; flex-shrink: 0">Onion ProcOparetor Console</div>
+  <div style="display: flex; flex-grow: 1; min-height: 0">
+    <nav style="width: 210px; flex-shrink: 0; background: #eceef1; padding: 12px 10px; display: flex; flex-direction: column; gap: 2px; box-sizing: border-box">
+      <div style="display: flex; flex-direction: column; padding: 0 6px 8px"><span style="font-weight: 700; font-size: 14px">Onion ProcOparetor</span><span style="font-size: 11px; color: #4b515b">Server Console</span></div>
+      <sc-for list="{{groups}}" as="g" hint-placeholder-count="4">
+        <span class="grp">{{g.name}}</span>
+        <sc-for list="{{g.items}}" as="it" hint-placeholder-count="3">
+          <a href="{{it.href}}" class="nav {{it.cls}}"><span>{{it.label}}</span><sc-if value="{{it.isNew}}" hint-placeholder-val="{{false}}"><span class="tag tag-new">ใหม่</span></sc-if></a>
+        </sc-for>
+      </sc-for>
+    </nav>
+    <main style="flex-grow: 1; min-width: 0; display: flex; flex-direction: column">
+      <header style="height: 52px; display: flex; align-items: center; justify-content: space-between; padding: 0 20px; border-bottom: 1.5px solid #d5d8dd; background: #fff; gap: 12px">
+        <div style="display: flex; align-items: center; gap: 10px"><h1 style="margin: 0; font-size: 18px; font-weight: 700">Website Control</h1><span style="font-size: 13px; color: #4b515b">Chrome + Edge</span></div>
+        <span class="tag tag-chg">เสนอแก้: จากหน้าต่างลอย → หน้าเต็มที่มีแท็บ</span>
+      </header>
+      <section style="padding: 14px 20px; flex-grow: 1; min-height: 0; display: flex; flex-direction: column; gap: 12px">
+        <div class="tabs">
+          <a href="#" class="tab tab-on">บล็อกเว็บ</a>
+          <a href="nf-exam.dc.html" class="tab new">ชุด Allow-list <span class="tag tag-new">ใหม่</span></a>
+          <a href="#hard" class="tab new">ป้องกันการเลี่ยง <span class="tag tag-new">ใหม่</span></a>
+          <a href="#hist" class="tab new">ประวัติเว็บ <span class="tag tag-new">ใหม่</span></a>
+        </div>
+        <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap">
+          <input class="in" placeholder="ค้นหาโดเมน" style="width: 220px">
+          <select class="in" aria-label="ที่มา"><option>ทุกที่มา</option><option>เพิ่มเอง</option><option>Catalog: Fortnite</option></select>
+          <div style="flex-grow: 1"></div>
+          <button class="btn">จัดการ Catalog…</button><button class="btn">Bulk Add…</button><button class="btn btn-pri">เพิ่มกฎ…</button>
+        </div>
+        <div style="display: flex; gap: 14px; flex-grow: 1; min-height: 0">
+          <div style="flex-grow: 1; min-width: 0; display: flex; flex-direction: column; gap: 8px">
+            <div style="flex-grow: 1; overflow: auto; background: #fff; border: 1.5px solid #8a8f98; border-radius: 8px">
+              <table>
+                <thead><tr><th>สถานะ</th><th>ชื่อกฎ</th><th>รูปแบบ URL</th><th>ที่มา</th><th class="new">ใช้กับ <span class="tag tag-new">ขั้น 2</span></th><th>จัดการ</th></tr></thead>
+                <tbody>
+                  <sc-for list="{{rows}}" as="r" hint-placeholder-count="7">
+                    <tr><td><span class="badge">{{r.st}}</span></td><td>{{r.name}}</td><td>{{r.url}}</td><td>{{r.src}}</td><td>{{r.scope}}</td><td style="display: flex; gap: 6px"><button class="btn" style="height: 26px">แก้ไข</button><button class="btn btn-danger" style="height: 26px">ลบกฎ</button></td></tr>
+                  </sc-for>
+                </tbody>
+              </table>
+            </div>
+            <div style="display: flex; justify-content: space-between; align-items: center; font-size: 12px; color: #4b515b"><span>1–7 จาก 412 กฎ</span><span style="display: flex; gap: 6px"><button class="btn" style="height: 26px">ก่อนหน้า</button><button class="btn" style="height: 26px">ถัดไป</button></span></div>
+          </div>
+          <aside style="width: 300px; flex-shrink: 0; display: flex; flex-direction: column; gap: 10px">
+            <div class="card new" id="hard">
+              <strong style="font-size: 13px; display: flex; justify-content: space-between">ป้องกันการเลี่ยง <span class="tag tag-new">ใหม่</span></strong>
+              <label style="display: flex; gap: 8px; font-size: 13px"><input type="checkbox" checked>ห้ามติดตั้ง extension</label>
+              <label style="display: flex; gap: 8px; font-size: 13px"><input type="checkbox" checked>ปิด Guest / InPrivate</label>
+              <label style="display: flex; gap: 8px; font-size: 13px"><input type="checkbox" checked>ปิด DevTools</label>
+              <label style="display: flex; gap: 8px; font-size: 13px"><input type="checkbox" checked>ล็อก DNS-over-HTTPS / proxy</label>
+              <label style="display: flex; gap: 8px; font-size: 13px"><input type="checkbox">บล็อกเบราว์เซอร์อื่น (Firefox, Opera…)</label>
+            </div>
+            <div class="card new" id="hist">
+              <strong style="font-size: 13px; display: flex; justify-content: space-between">ประวัติเว็บล่าสุด <span class="tag tag-new">ใหม่</span></strong>
+              <span style="font-size: 12px">10:41 · COM-12 · [ชื่อ] · scratch.mit.edu</span>
+              <span style="font-size: 12px">10:40 · COM-07 · [ชื่อ] · ถูกบล็อก: poki.com</span>
+              <span style="font-size: 12px">10:38 · COM-03 · [ชื่อ] · docs.google.com</span>
+              <a href="#" style="font-size: 12px; color: #1d4ed8">ดูทั้งหมด / ค้นหารายคน →</a>
+            </div>
+          </aside>
+        </div>
+      </section>
+    </main>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":800}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const active = 'con-website.dc.html';
+    const n = (label, href, isNew) => ({ label, href, isNew: !!isNew, cls: href === active ? 'nav-on' : '' });
+    const groups = [
+      { name: 'ห้องเรียน', items: [n('Clients', 'con-clients.dc.html'), n('ผังที่นั่ง', 'con-seatmap.dc.html', true), n('Live View', 'con-liveview.dc.html'), n('โหมดสอบ', 'nf-exam.dc.html', true)] },
+      { name: 'กฎ', items: [n('กฎโปรแกรม', 'con-rules.dc.html'), n('Program Review', 'con-programreview.dc.html'), n('Website Control', 'con-website.dc.html')] },
+      { name: 'บันทึก', items: [n('Logs / Audit', 'con-logs.dc.html'), n('ประวัติการใช้เครื่อง', 'nf-attendance.dc.html', true)] },
+      { name: 'ระบบ', items: [n('ผู้ใช้', 'con-users.dc.html'), n('ห้อง', 'nf-rooms.dc.html', true), n('ตั้งค่า', 'con-settings.dc.html')] }
+    ];
+    const rows = [
+      { st: 'ON', name: 'Roblox', url: '*.roblox.com', src: 'เพิ่มเอง', scope: 'ทุกห้อง' },
+      { st: 'ON', name: 'Poki', url: 'poki.com', src: 'เพิ่มเอง', scope: 'ทุกห้อง' },
+      { st: 'ON', name: 'fortnite.com', url: 'fortnite.com', src: 'Catalog: Fortnite', scope: 'ทุกห้อง' },
+      { st: 'ON', name: 'YouTube', url: 'youtube.com', src: 'เพิ่มเอง', scope: 'Com 1' },
+      { st: 'OFF', name: 'Facebook', url: 'facebook.com', src: 'เพิ่มเอง', scope: 'ทุกห้อง' },
+      { st: 'ON', name: 'Unblocked games', url: 'sites.google.com/view/*games*', src: 'เพิ่มเอง', scope: 'ทุกห้อง' },
+      { st: 'ON', name: 'CrazyGames', url: 'crazygames.com', src: 'Bulk', scope: 'ทุกห้อง' }
+    ];
+    return { groups, rows };
+  }
+}
+</script>
+</body>
+</html>

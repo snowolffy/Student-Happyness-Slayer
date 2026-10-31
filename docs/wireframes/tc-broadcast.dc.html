@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<title>ส่งจอ ฝั่งครู</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+.btn{height:36px;padding:0 14px;border:1.5px solid #6b7079;border-radius:6px;font:inherit;font-size:14px;background:#fff;color:#1f2328;white-space:nowrap}
+.btn-pri{background:#2b2f36;color:#fff;border-color:#2b2f36}
+.btn-danger{background:#b42318;color:#fff;border-color:#b42318}
+.lbl{font-size:13px;font-weight:700}
+.opt{display:flex;gap:10px;align-items:flex-start;padding:10px 12px;border:1.5px solid #8a8f98;border-radius:8px;font-size:13px}
+.opt-on{border:2px solid #2b2f36;background:#f1f3f5}
+.screen{background:repeating-linear-gradient(135deg,#e2e5e9 0 10px,#d9dce1 10px 20px);display:flex;align-items:center;justify-content:center;font-size:12px;color:#4b515b;border:1.5px solid #8a8f98;border-radius:6px}
+</style>
+</helmet>
+<div style="width: 1280px; height: 800px; box-sizing: border-box; padding: 24px 28px; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 26px; background: #f6f7f9; font-family: 'IBM Plex Sans Thai', system-ui, sans-serif; color: #1f2328; outline: 2px dashed #1d4ed8; outline-offset: -2px">
+  <div style="display: flex; flex-direction: column; gap: 12px">
+    <strong style="font-size: 18px">1 · ตั้งค่าก่อนเริ่ม</strong>
+    <div style="background: #fff; border: 1.5px solid #6b7079; border-radius: 12px; padding: 18px; display: flex; flex-direction: column; gap: 12px">
+      <span class="lbl">ส่งจอของใคร</span>
+      <label class="opt opt-on"><input type="radio" name="s" checked><span style="display: flex; flex-direction: column; gap: 2px"><strong>จอครู (เครื่องที่เปิด Console)</strong><span style="color: #4b515b">เลือกจอได้ถ้ามีหลายจอ</span></span></label>
+      <label class="opt"><input type="radio" name="s"><span style="display: flex; flex-direction: column; gap: 2px"><strong>จอนักเรียน 1 เครื่อง</strong><span style="color: #4b515b">เช่น ให้ทั้งห้องดูงานของ COM-12 · เลือกจากผังที่นั่ง</span></span></label>
+      <span class="lbl">นักเรียนเห็นแบบไหน</span>
+      <label class="opt opt-on"><input type="radio" name="v" checked><span style="display: flex; flex-direction: column; gap: 2px"><strong>เต็มจอ + ล็อกเมาส์/คีย์บอร์ด</strong><span style="color: #4b515b">ตั้งใจดูอย่างเดียว ทำอย่างอื่นไม่ได้</span></span></label>
+      <label class="opt"><input type="radio" name="v"><span style="display: flex; flex-direction: column; gap: 2px"><strong>หน้าต่างลอย</strong><span style="color: #4b515b">ดูไปทำตามไปได้ ย่อ/ขยายเองได้ ปิดไม่ได้</span></span></label>
+      <div style="display: flex; gap: 10px; align-items: center"><span class="lbl">ส่งไปที่</span><span style="font-size: 13px">ทั้งห้อง Com 1 (36 เครื่อง)</span></div>
+      <button class="btn btn-pri" style="height: 40px">เริ่มส่งจอ</button>
+    </div>
+  </div>
+  <div style="display: flex; flex-direction: column; gap: 12px">
+    <strong style="font-size: 18px">2 · ระหว่างส่ง (จอครู)</strong>
+    <div style="position: relative; height: 420px; border: 1.5px solid #6b7079; border-radius: 8px; background: #fff; overflow: hidden">
+      <div class="screen" style="position: absolute; inset: 0; border: none; border-radius: 0">จอครูตามปกติ (PowerPoint / โปรแกรมที่สอน)</div>
+      <div style="position: absolute; top: 10px; left: 50%; transform: translateX(-50%); display: flex; gap: 10px; align-items: center; padding: 8px 12px; background: #b42318; color: #fff; border-radius: 10px; font-size: 13px; box-shadow: 0 4px 12px rgba(0,0,0,.2)">
+        <strong>กำลังส่งจอ · 34/36 เครื่องรับได้</strong>
+        <button class="btn" style="height: 28px; font-size: 12px">หยุดชั่วคราว</button>
+        <button class="btn" style="height: 28px; font-size: 12px; background: #fff; color: #b42318; border-color: #fff">หยุดส่ง</button>
+      </div>
+    </div>
+    <span style="font-size: 13px; color: #2b2f36; line-height: 1.5">แถบแดงลอยบนจอครูตลอดเวลาที่ส่ง กันลืมว่ากำลังโชว์จอให้ทั้งห้อง (เช่น ก่อนเปิดอีเมลหรือข้อมูลส่วนตัว) · "หยุดชั่วคราว" = นักเรียนเห็นภาพค้างไว้ ครูทำอย่างอื่นได้</span>
+    <span style="font-size: 12px; color: #4b515b; line-height: 1.5">2 เครื่องที่รับไม่ได้ (ออฟไลน์/เน็ตช้า) แสดงในผลการทำงาน · ส่งได้จากคอมเท่านั้น ไม่มีบนมือถือ</span>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":800}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<title>Online กฎ</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+.btn{height:44px;padding:0 14px;border:1.5px solid #6b7079;border-radius:8px;font:inherit;font-size:14px;background:#fff;color:#1f2328;white-space:nowrap}
+.btn-pri{background:#2b2f36;color:#fff;border-color:#2b2f36}
+.in{height:44px;box-sizing:border-box;border:1.5px solid #8a8f98;border-radius:8px;padding:0 12px;font:inherit;font-size:14px;background:#fff;color:#1f2328;width:100%}
+.seg{display:flex;border:1.5px solid #6b7079;border-radius:8px;overflow:hidden}
+.seg a{flex:1;text-align:center;padding:10px 0;font-size:14px;color:#1f2328;text-decoration:none}
+.seg .on{background:#2b2f36;color:#fff}
+.card{display:flex;align-items:center;gap:12px;padding:12px;border:1.5px solid #8a8f98;border-radius:10px;background:#fff;min-height:44px}
+.tab{display:flex;flex-direction:column;align-items:center;gap:2px;font-size:11px;color:#4b515b;text-decoration:none;flex:1;padding:6px 0;min-height:44px;justify-content:center}
+.tab-on{color:#1f2328;font-weight:700}
+.ico{width:22px;height:22px;border-radius:6px;background:#c9cdd3}
+.tab-on .ico{background:#2b2f36}
+.tag{font-size:10px;font-weight:600;padding:1px 6px;border-radius:999px;white-space:nowrap}
+.tag-chg{background:#fdecd8;color:#8a3c04}
+</style>
+</helmet>
+<div style="width: 390px; height: 844px; box-sizing: border-box; display: flex; flex-direction: column; background: #f6f7f9; font-family: 'IBM Plex Sans Thai', system-ui, sans-serif; color: #1f2328">
+  <header style="padding: 16px; display: flex; flex-direction: column; gap: 10px; background: #fff; border-bottom: 1.5px solid #d5d8dd">
+    <div style="display: flex; justify-content: space-between; align-items: center"><h1 style="margin: 0; font-size: 22px; font-weight: 700">กฎ</h1><button class="btn btn-pri" style="height: 38px">+ เพิ่ม</button></div>
+    <div class="seg"><a href="#" class="on">โปรแกรม</a><a href="#">เว็บไซต์</a></div>
+    <span class="tag tag-chg" style="align-self: flex-start">เสนอแก้: รวม Rules + Website Control ไว้แท็บเดียว สลับด้วยปุ่มบน</span>
+    <input class="in" placeholder="ค้นหากฎ">
+  </header>
+  <div style="flex-grow: 1; overflow: hidden; padding: 12px 16px; display: flex; flex-direction: column; gap: 8px">
+    <sc-for list="{{rows}}" as="r" hint-placeholder-count="6">
+      <div class="card">
+        <div style="flex-grow: 1; display: flex; flex-direction: column; gap: 2px"><strong style="font-size: 15px">{{r.name}}</strong><span style="font-size: 13px; color: #4b515b">{{r.pub}}</span></div>
+        <label style="display: flex; align-items: center; gap: 6px; font-size: 13px"><input type="checkbox" checked="{{r.on}}">เปิด</label>
+      </div>
+    </sc-for>
+  </div>
+  <nav style="display: flex; border-top: 1.5px solid #d5d8dd; background: #fff; padding-bottom: 14px">
+    <a href="oc-clients.dc.html" class="tab"><span class="ico"></span>Clients</a>
+    <a href="oc-rules.dc.html" class="tab tab-on"><span class="ico"></span>Rules</a>
+    <a href="#" class="tab"><span class="ico"></span>Programs</a>
+    <a href="#" class="tab"><span class="ico"></span>Logs</a>
+    <a href="oc-more.dc.html" class="tab"><span class="ico"></span>เมนู</a>
+  </nav>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const rows = [
+      { name: 'Steam', pub: 'Valve Corporation', on: true },
+      { name: 'Roblox', pub: 'Roblox Corporation', on: true },
+      { name: 'Epic Games', pub: 'Epic Games Inc.', on: true },
+      { name: 'VS Code (คาบเขียนโปรแกรม)', pub: 'Microsoft Corporation', on: false },
+      { name: 'Discord', pub: 'Discord Inc.', on: true },
+      { name: 'Emulator (ไฟล์)', pub: 'ลายนิ้วมือไฟล์', on: true }
+    ];
+    return { rows };
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<title>นักเรียน ข้อความและแจ้งปิดเครื่อง</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+.btn{height:38px;padding:0 16px;border:1.5px solid #6b7079;border-radius:8px;font:inherit;font-size:14px;background:#fff;color:#1f2328}
+.btn-pri{background:#2b2f36;color:#fff;border-color:#2b2f36}
+.win{background:#fff;border:1.5px solid #6b7079;border-radius:12px;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 8px 24px rgba(0,0,0,.18)}
+.lbl{font-size:12px;font-weight:700;color:#1f2328;margin:0}
+.tag{font-size:11px;font-weight:600;padding:2px 7px;border-radius:999px;white-space:nowrap}
+.tag-chg{background:#fdecd8;color:#8a3c04}
+</style>
+</helmet>
+<div style="width: 1280px; height: 720px; box-sizing: border-box; padding: 40px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 32px; align-items: start; background: repeating-linear-gradient(135deg,#dfe3e8 0 14px,#d6dae0 14px 28px); font-family: 'IBM Plex Sans Thai', system-ui, sans-serif; color: #1f2328">
+  <div style="display: flex; flex-direction: column; gap: 8px">
+    <p class="lbl">ข้อความจากครู (Broadcast)</p>
+    <div class="win">
+      <div style="padding: 12px 16px; background: #2b2f36; color: #fff; font-weight: 600">ข้อความจากครู</div>
+      <div style="padding: 18px 16px; display: flex; flex-direction: column; gap: 8px">
+        <strong style="font-size: 16px">[หัวข้อ ถ้ามี]</strong>
+        <p style="margin: 0; font-size: 15px; line-height: 1.55">อีก 5 นาทีหมดคาบ ให้ส่งงานใน Classroom ก่อนนะ</p>
+        <span style="font-size: 12px; color: #4b515b">ครู [ชื่อ] · 11:15</span>
+      </div>
+      <div style="padding: 12px 16px; border-top: 1.5px solid #d5d8dd; display: flex; justify-content: flex-end"><button class="btn btn-pri">ปิด</button></div>
+    </div>
+    <span class="tag tag-chg" style="align-self: flex-start">เสนอแก้: ใส่ชื่อครูผู้ส่ง + เวลา</span>
+  </div>
+
+  <div style="display: flex; flex-direction: column; gap: 8px">
+    <p class="lbl">แจ้งก่อนปิด / รีสตาร์ทเครื่อง</p>
+    <div class="win">
+      <div style="padding: 12px 16px; background: #b42318; color: #fff; font-weight: 600">แจ้งเตือนจากผู้ดูแลระบบ</div>
+      <div style="padding: 18px 16px; display: flex; flex-direction: column; gap: 12px">
+        <strong style="font-size: 18px">เครื่องจะปิดใน 8 วินาที</strong>
+        <p style="margin: 0; font-size: 15px">กรุณาบันทึกงานของท่านทันที</p>
+        <div style="height: 10px; border-radius: 6px; background: #e2e5e9; overflow: hidden"><div style="width: 80%; height: 100%; background: #b42318"></div></div>
+      </div>
+    </div>
+    <span style="font-size: 12px; color: #2b2f36; line-height: 1.5">ครูตั้งเวลาเตือนได้ 1–120 วินาทีในแผงคำสั่ง</span>
+  </div>
+
+  <div style="display: flex; flex-direction: column; gap: 8px">
+    <p class="lbl">มุกจอฟ้าปลอม (ปิดไว้เป็นค่าเริ่มต้น)</p>
+    <div class="win" style="background: #1f6fd1; color: #fff; border-color: #1f6fd1; padding: 28px 22px; gap: 10px">
+      <span style="font-size: 48px; line-height: 1">:(</span>
+      <span style="font-size: 14px">ภาพจอฟ้า Windows เต็มจอ เล่นเสียงนับถอยหลังก่อนเครื่องดับจริง</span>
+    </div>
+    <span style="font-size: 12px; color: #2b2f36; line-height: 1.5">ทำงานเฉพาะเมื่อนับถอยหลัง ≥ 10 วิ ไม่แตะขั้นตอนปิดเครื่องจริง · ถ้าจะเปิดใช้ ควรมีสวิตช์ใน Console แทนไฟล์ appsettings</span>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":720}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

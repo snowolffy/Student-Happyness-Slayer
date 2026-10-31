@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<title>นักเรียน ครูล็อกจอ</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+.tag{font-size:11px;font-weight:600;padding:2px 7px;border-radius:999px;white-space:nowrap}
+.tag-chg{background:#fdecd8;color:#8a3c04}
+</style>
+</helmet>
+<div style="width: 1280px; height: 720px; box-sizing: border-box; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px; font-family: 'IBM Plex Sans Thai', system-ui, sans-serif; color: #fff; position: relative; outline: 2px dashed #e9a25c; outline-offset: -6px; background-color: #000000">
+  <span class="tag tag-chg" style="position: absolute; top: 20px; left: 24px">เสนอแก้: ตอนนี้เป็นจอดำ + ข้อความตัวขาวบรรทัดเดียว → แนวทางการ</span>
+  <div style="width: 84px; height: 84px; border-radius: 50%; border: 2px dashed #9fb3cc; display: flex; align-items: center; justify-content: center; font-size: 12px; color: #c9d5e3; text-align: center">[ตรา<br>โรงเรียน]</div>
+  <h1 style="margin: 0; font-size: 36px; font-weight: 700">หน้าจอถูกล็อกโดยครูผู้สอน</h1>
+  <div style="max-width: 760px; padding: 16px 24px; border: 2px dashed #e9a25c; border-radius: 8px; display: flex; flex-direction: column; gap: 6px; align-items: center">
+    <p style="margin: 0; font-size: 22px; text-align: center; line-height: 1.5">กรุณาละสายตาจากหน้าจอและฟังครูผู้สอน</p>
+    <span style="font-size: 12px; color: #f3c79a">ข้อความนี้แก้ได้: ค่าเริ่มต้นในหน้าตั้งค่า หรือครูพิมพ์ทับเฉพาะครั้งตอนกดล็อก</span>
+  </div>
+  <p style="margin: 8px 0 0; font-size: 14px; color: #c9d5e3">ล็อกเมื่อ 10:42 โดย ครู [ชื่อ]</p>
+  <span style="position: absolute; bottom: 20px; left: 24px; font-size: 13px; color: #c9d5e3">[ชื่อโรงเรียน] · ห้องปฏิบัติการคอมพิวเตอร์ 1</span>
+  <span style="position: absolute; bottom: 20px; right: 24px; font-size: 13px; color: #c9d5e3">COM-25 · [ชื่อนักเรียน]</span>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":720}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

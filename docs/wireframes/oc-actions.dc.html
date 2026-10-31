@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<title>Online คำสั่งเครื่อง</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+.btn{height:48px;padding:0 14px;border:1.5px solid #6b7079;border-radius:10px;font:inherit;font-size:14px;background:#fff;color:#1f2328;text-align:left}
+.btn-danger{border-color:#b42318;color:#b42318}
+.badge{font-size:11px;font-weight:600;padding:1px 8px;border-radius:999px;border:1.5px solid #6b7079}
+.h{font-size:12px;font-weight:700;color:#4b515b;margin:6px 0 0}
+.new{outline:2px dashed #1d4ed8;outline-offset:2px}
+</style>
+</helmet>
+<div style="width: 390px; height: 844px; box-sizing: border-box; display: flex; flex-direction: column; justify-content: flex-end; background: #9aa0a8; font-family: 'IBM Plex Sans Thai', system-ui, sans-serif; color: #1f2328">
+  <div style="background: #fff; border-radius: 18px 18px 0 0; padding: 10px 16px 24px; display: flex; flex-direction: column; gap: 8px; max-height: 780px">
+    <div style="width: 40px; height: 4px; border-radius: 4px; background: #c9cdd3; align-self: center"></div>
+    <div style="display: flex; justify-content: space-between; align-items: center; padding: 6px 0">
+      <div style="display: flex; flex-direction: column"><strong style="font-size: 18px">COM-25</strong><span style="font-size: 13px; color: #4b515b">[ชื่อนักเรียน] · LAN · 5 วิที่แล้ว</span></div>
+      <a href="oc-clients.dc.html" style="font-size: 14px; color: #1f2328">ปิด</a>
+    </div>
+    <div style="display: flex; gap: 6px"><span class="badge">ONLINE</span><span class="badge">ENABLED</span></div>
+    <p class="h">ห้องเรียน</p>
+    <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px">
+      <a href="oc-screen.dc.html" class="btn" style="display: flex; align-items: center; text-decoration: none">ดูหน้าจอ</a>
+      <button class="btn">ล็อกหน้าจอ</button>
+      <button class="btn">ปลดล็อก</button>
+      <button class="btn">ส่งข้อความ</button>
+      <button class="btn new">logout นักเรียน</button>
+    </div>
+    <p class="h">พลังงาน</p>
+    <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px">
+      <button class="btn">รีสตาร์ท</button><button class="btn">ปิดเครื่อง</button>
+    </div>
+    <p class="h">กฎและการดูแล</p>
+    <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px">
+      <button class="btn">เปิด/ปิดบังคับใช้</button><button class="btn">ยกเว้นกฎ</button>
+      <button class="btn">โปรแกรมที่เปิด</button><button class="btn">คำสั่งค้าง</button>
+      <button class="btn">ตั้งค่าเครื่อง</button>
+    </div>
+    <button class="btn btn-danger" style="margin-top: 6px">ลบเครื่องนี้ออกจากระบบ</button>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

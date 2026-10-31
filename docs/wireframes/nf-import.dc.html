@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<title>Roster Manager นำเข้า CSV</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+.btn{height:34px;padding:0 14px;border:1.5px solid #6b7079;border-radius:6px;font:inherit;font-size:13px;background:#fff;color:#1f2328;white-space:nowrap}
+.btn-pri{background:#2b2f36;color:#fff;border-color:#2b2f36}
+.in{height:32px;box-sizing:border-box;border:1.5px solid #8a8f98;border-radius:6px;padding:0 10px;font:inherit;font-size:13px;background:#fff;color:#1f2328}
+.step{display:flex;align-items:center;gap:8px;font-size:13px;color:#4b515b}
+.num{width:24px;height:24px;border-radius:50%;border:1.5px solid #6b7079;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700}
+.on .num{background:#2b2f36;color:#fff;border-color:#2b2f36}
+.on{color:#1f2328;font-weight:600}
+.card{background:#fff;border:1.5px solid #8a8f98;border-radius:8px;padding:14px;display:flex;flex-direction:column;gap:10px}
+table{border-collapse:collapse;width:100%;font-size:13px}
+th{text-align:left;font-weight:600;color:#4b515b;font-size:12px;padding:7px 10px;border-bottom:1.5px solid #8a8f98;background:#f1f3f5;white-space:nowrap}
+td{padding:7px 10px;border-bottom:1px solid #d5d8dd;white-space:nowrap}
+.badge{font-size:11px;font-weight:600;padding:1px 8px;border-radius:999px;border:1.5px solid #6b7079}
+.err td{background:#fdecea}
+.dup td{background:#f1f3f5;color:#4b515b}
+</style>
+</helmet>
+<div style="width: 1280px; height: 800px; box-sizing: border-box; display: flex; flex-direction: column; background: #f6f7f9; font-family: 'IBM Plex Sans Thai', system-ui, sans-serif; color: #1f2328; overflow: hidden; outline: 2px dashed #1d4ed8; outline-offset: -2px">
+  <div style="height: 36px; background: #2b2f36; color: #fff; display: flex; align-items: center; padding: 0 14px; font-size: 13px; flex-shrink: 0">Roster Manager · นำเข้ารายชื่อจาก CSV / Excel</div>
+  <div style="padding: 16px 28px; display: flex; gap: 28px; background: #fff; border-bottom: 1.5px solid #d5d8dd">
+    <span class="step"><span class="num">1</span>เลือกไฟล์</span>
+    <span class="step on"><span class="num">2</span>จับคู่คอลัมน์ + ตรวจ</span>
+    <span class="step"><span class="num">3</span>ตั้งรหัสผ่านเริ่มต้น</span>
+    <span class="step"><span class="num">4</span>เสร็จ + พิมพ์ใบรหัส</span>
+  </div>
+  <div style="flex-grow: 1; min-height: 0; padding: 18px 28px; display: grid; grid-template-columns: 340px minmax(0, 1fr); gap: 18px">
+    <div style="display: flex; flex-direction: column; gap: 14px">
+      <div class="card">
+        <strong style="font-size: 14px">ไฟล์: students_2569.csv · 412 แถว</strong>
+        <span style="font-size: 12px; color: #4b515b">จับคู่คอลัมน์ในไฟล์ กับข้อมูลในระบบ (เดาให้อัตโนมัติจากหัวคอลัมน์)</span>
+        <label style="display: grid; grid-template-columns: 110px 1fr; align-items: center; gap: 8px; font-size: 13px">รหัสนักเรียน<select class="in"><option>student_id</option></select></label>
+        <label style="display: grid; grid-template-columns: 110px 1fr; align-items: center; gap: 8px; font-size: 13px">ชื่อ-สกุล<select class="in"><option>name</option></select></label>
+        <label style="display: grid; grid-template-columns: 110px 1fr; align-items: center; gap: 8px; font-size: 13px">เมลโรงเรียน<select class="in"><option>email</option></select></label>
+        <label style="display: grid; grid-template-columns: 110px 1fr; align-items: center; gap: 8px; font-size: 13px">ชั้น/ห้อง<select class="in"><option>class</option></select></label>
+      </div>
+      <div class="card">
+        <strong style="font-size: 14px">ถ้ามีรหัสนักเรียนซ้ำกับในระบบ</strong>
+        <label style="display: flex; gap: 8px; font-size: 13px"><input type="radio" name="d" checked>อัปเดตชื่อ/ห้อง ไม่แตะรหัสผ่าน</label>
+        <label style="display: flex; gap: 8px; font-size: 13px"><input type="radio" name="d">ข้ามแถวนั้น</label>
+      </div>
+      <div class="card" style="flex-direction: row; justify-content: space-around; text-align: center">
+        <div style="display: flex; flex-direction: column"><strong style="font-size: 22px">398</strong><span style="font-size: 12px; color: #4b515b">เพิ่มใหม่</span></div>
+        <div style="display: flex; flex-direction: column"><strong style="font-size: 22px">11</strong><span style="font-size: 12px; color: #4b515b">ซ้ำ (อัปเดต)</span></div>
+        <div style="display: flex; flex-direction: column"><strong style="font-size: 22px">3</strong><span style="font-size: 12px; color: #4b515b">มีปัญหา</span></div>
+      </div>
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 10px; min-height: 0">
+      <div style="flex-grow: 1; min-height: 0; overflow: auto; background: #fff; border: 1.5px solid #8a8f98; border-radius: 8px">
+        <table>
+          <thead><tr><th>แถว</th><th>รหัส</th><th>ชื่อ-สกุล</th><th>เมล</th><th>ห้อง</th><th>ผลตรวจ</th></tr></thead>
+          <tbody>
+            <sc-for list="{{rows}}" as="r" hint-placeholder-count="10">
+              <tr class="{{r.cls}}"><td>{{r.n}}</td><td>{{r.id}}</td><td>[ชื่อ-สกุล]</td><td>{{r.mail}}</td><td>{{r.room}}</td><td><span class="badge">{{r.res}}</span></td></tr>
+            </sc-for>
+          </tbody>
+        </table>
+      </div>
+      <div style="display: flex; justify-content: space-between; align-items: center">
+        <span style="font-size: 12px; color: #4b515b">แถวที่มีปัญหาจะไม่ถูกนำเข้า แก้ในไฟล์แล้วนำเข้าซ้ำได้</span>
+        <span style="display: flex; gap: 8px"><button class="btn">ย้อนกลับ</button><button class="btn btn-pri">ถัดไป: ตั้งรหัสผ่าน</button></span>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":800}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const res = ['ใหม่', 'ใหม่', 'ซ้ำ → อัปเดต', 'ใหม่', 'ไม่มีเมล', 'ใหม่', 'ใหม่', 'ห้องไม่รู้จัก: ม.7/1', 'ใหม่', 'ใหม่'];
+    const rows = res.map((r, i) => ({
+      n: i + 2, id: '691' + String(i + 1).padStart(2, '0'),
+      mail: r === 'ไม่มีเมล' ? '—' : '[name]@school.ac.th',
+      room: r.startsWith('ห้อง') ? 'ม.7/1' : 'ม.1/' + (1 + (i % 3)),
+      res: r, cls: r.startsWith('ซ้ำ') ? 'dup' : (r === 'ใหม่' ? '' : 'err')
+    }));
+    return { rows };
+  }
+}
+</script>
+</body>
+</html>

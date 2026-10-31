@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<title>เลื่อนชั้นปี</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+.btn{height:36px;padding:0 14px;border:1.5px solid #6b7079;border-radius:6px;font:inherit;font-size:13px;background:#fff;color:#1f2328;white-space:nowrap}
+.btn-pri{background:#2b2f36;color:#fff;border-color:#2b2f36}
+.in{height:32px;box-sizing:border-box;border:1.5px solid #8a8f98;border-radius:6px;padding:0 10px;font:inherit;font-size:13px;background:#fff;color:#1f2328}
+table{border-collapse:collapse;width:100%;font-size:13px}
+th{text-align:left;font-weight:600;color:#4b515b;font-size:12px;padding:8px 10px;border-bottom:1.5px solid #8a8f98;background:#f1f3f5}
+td{padding:7px 10px;border-bottom:1px solid #d5d8dd}
+.grad td{background:#fdf3e7}
+</style>
+</helmet>
+<div style="width: 1280px; height: 800px; box-sizing: border-box; display: flex; flex-direction: column; background: #f6f7f9; font-family: 'IBM Plex Sans Thai', system-ui, sans-serif; color: #1f2328; overflow: hidden; outline: 2px dashed #1d4ed8; outline-offset: -2px">
+  <div style="height: 36px; background: #2b2f36; color: #fff; display: flex; align-items: center; padding: 0 14px; font-size: 13px; flex-shrink: 0">Roster Manager · เลื่อนชั้นปีการศึกษาใหม่</div>
+  <div style="flex-grow: 1; min-height: 0; padding: 20px 28px; display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 22px">
+    <div style="display: flex; flex-direction: column; gap: 12px; min-height: 0">
+      <div style="display: flex; flex-direction: column; gap: 2px"><strong style="font-size: 17px">ปีการศึกษา 2569 → 2570</strong><span style="font-size: 13px; color: #4b515b">ทำปีละครั้ง ก่อนเปิดเทอม · บัญชีและรหัสผ่านเดิมของนักเรียนใช้ต่อได้</span></div>
+      <div style="flex-grow: 1; min-height: 0; overflow: auto; background: #fff; border: 1.5px solid #8a8f98; border-radius: 8px">
+        <table>
+          <thead><tr><th>ห้องเดิม</th><th>คน</th><th>ย้ายไป</th></tr></thead>
+          <tbody>
+            <sc-for list="{{rows}}" as="r" hint-placeholder-count="10">
+              <tr class="{{r.cls}}"><td>{{r.from}}</td><td>{{r.n}}</td><td><select class="in" aria-label="ย้ายไป"><option>{{r.to}}</option></select></td></tr>
+            </sc-for>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <aside style="display: flex; flex-direction: column; gap: 12px">
+      <div style="background: #fff; border: 1.5px solid #8a8f98; border-radius: 8px; padding: 16px; display: flex; flex-direction: column; gap: 8px">
+        <strong style="font-size: 14px">สรุป</strong>
+        <span style="font-size: 13px">เลื่อนชั้น 826 คน · จบการศึกษา 414 คน</span>
+        <label style="display: flex; flex-direction: column; gap: 4px; font-size: 13px">นักเรียนที่จบ (ม.3 / ม.6)<select class="in"><option>ปิดใช้งานบัญชี (เก็บประวัติไว้)</option><option>ลบบัญชีและประวัติ</option></select></label>
+        <span style="font-size: 12px; color: #4b515b; line-height: 1.5">ม.1 ใหม่ของปี 2570 ให้นำเข้า CSV ตามปกติหลังเลื่อนชั้นเสร็จ</span>
+      </div>
+      <div style="background: #fdf3e7; border: 1.5px solid #b45309; border-radius: 8px; padding: 12px; font-size: 13px; line-height: 1.5">ระบบสำรองฐานข้อมูลให้อัตโนมัติก่อนเลื่อนชั้น ย้อนกลับได้ใน ตั้งค่า › สำรองข้อมูล</div>
+      <div style="flex-grow: 1"></div>
+      <div style="display: flex; gap: 8px; justify-content: flex-end"><button class="btn">ยกเลิก</button><button class="btn btn-pri">เลื่อนชั้นทั้งหมด…</button></div>
+    </aside>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":800}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const rows = [];
+    for (let g = 1; g <= 3; g++) for (let r = 1; r <= 3; r++) {
+      const grad = g === 3;
+      rows.push({ from: 'ม.' + g + '/' + r, n: 36 + ((g + r) % 4), to: grad ? 'จบการศึกษา' : 'ม.' + (g + 1) + '/' + r, cls: grad ? 'grad' : '' });
+    }
+    return { rows };
+  }
+}
+</script>
+</body>
+</html>

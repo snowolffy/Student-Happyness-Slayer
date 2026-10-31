@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<title>ประวัติการใช้เครื่อง</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+.btn{height:32px;padding:0 12px;border:1.5px solid #6b7079;border-radius:6px;font:inherit;font-size:13px;background:#fff;color:#1f2328;white-space:nowrap}
+.btn-pri{background:#2b2f36;color:#fff;border-color:#2b2f36}
+.in{height:32px;box-sizing:border-box;border:1.5px solid #8a8f98;border-radius:6px;padding:0 10px;font:inherit;font-size:13px;background:#fff;color:#1f2328}
+.pill{padding:6px 12px;border:1.5px solid #6b7079;border-radius:999px;font:inherit;font-size:13px;background:#fff;color:#1f2328}
+.pill-on{background:#2b2f36;color:#fff;border-color:#2b2f36}
+table{border-collapse:collapse;width:100%;font-size:13px}
+th{text-align:left;font-weight:600;color:#4b515b;font-size:12px;padding:7px 10px;border-bottom:1.5px solid #8a8f98;background:#f1f3f5;white-space:nowrap}
+td{padding:7px 10px;border-bottom:1px solid #d5d8dd;white-space:nowrap}
+</style>
+</helmet>
+<div style="width: 1280px; height: 800px; box-sizing: border-box; display: flex; flex-direction: column; background: #f6f7f9; font-family: 'IBM Plex Sans Thai', system-ui, sans-serif; color: #1f2328; overflow: hidden; outline: 2px dashed #1d4ed8; outline-offset: -2px">
+  <div style="height: 36px; background: #2b2f36; color: #fff; display: flex; align-items: center; padding: 0 14px; font-size: 13px; flex-shrink: 0">Onion ProcOparetor Console · ประวัติการใช้เครื่อง</div>
+  <header style="padding: 14px 22px; display: flex; flex-direction: column; gap: 10px; background: #fff; border-bottom: 1.5px solid #d5d8dd">
+    <div style="display: flex; justify-content: space-between; align-items: center">
+      <div style="display: flex; flex-direction: column"><h1 style="margin: 0; font-size: 18px">ประวัติการใช้เครื่อง</h1><span style="font-size: 12px; color: #4b515b">ใครใช้เครื่องไหน เมื่อไร นานเท่าไร · ไว้ดูประกอบ ไม่ใช่ใบเช็คชื่อ</span></div>
+      <button class="btn btn-pri">Export Excel</button>
+    </div>
+    <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap">
+      <button class="pill pill-on">ตอนนี้</button><button class="pill">วันนี้</button><button class="pill">สัปดาห์นี้</button>
+      <input class="in" value="29/10/2569 10:00" style="width: 150px" aria-label="ตั้งแต่"><span style="font-size: 13px">ถึง</span><input class="in" value="29/10/2569 11:30" style="width: 150px" aria-label="ถึง">
+      <select class="in" aria-label="ห้องคอม"><option>Com 1</option></select>
+      <select class="in" aria-label="ห้องเรียน"><option>ทุกห้องเรียน</option><option>ม.2/3</option></select>
+      <input class="in" placeholder="ค้นหานักเรียน" style="width: 180px">
+    </div>
+  </header>
+  <section style="padding: 14px 22px; display: flex; flex-direction: column; gap: 12px; flex-grow: 1; min-height: 0">
+    <div style="display: flex; gap: 10px; flex-wrap: wrap; font-size: 13px; align-items: center">
+      <strong>ช่วงนี้มีนักเรียนใช้ 34 คน</strong>
+      <span style="color: #4b515b">ม.2/3: 29 คน · ม.2/1: 4 คน · ม.3/2: 1 คน</span>
+      <div style="flex-grow: 1"></div>
+      <label style="display: flex; gap: 6px; align-items: center"><input type="checkbox">เทียบกับรายชื่อห้องเรียน (แสดงคนที่ไม่ได้มาใช้)</label>
+    </div>
+    <div style="flex-grow: 1; min-height: 0; overflow: auto; background: #fff; border: 1.5px solid #8a8f98; border-radius: 8px">
+      <table>
+        <thead><tr><th>นักเรียน</th><th>ห้องเรียน</th><th>เครื่อง</th><th>เข้า</th><th>ออก</th><th>นาน</th><th>ออกโดย</th><th>ถูกบล็อก</th></tr></thead>
+        <tbody>
+          <sc-for list="{{rows}}" as="r" hint-placeholder-count="10">
+            <tr><td>[ชื่อ-สกุล] · {{r.id}}</td><td>{{r.cls}}</td><td>{{r.pc}}</td><td>{{r.in}}</td><td>{{r.out}}</td><td>{{r.dur}}</td><td>{{r.how}}</td><td>{{r.blk}}</td></tr>
+          </sc-for>
+        </tbody>
+      </table>
+    </div>
+  </section>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":800}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const d = [
+      ['ม.2/3', 'COM-01', '10:31', '11:19', '48 น.', 'กดออกเอง', '—'],
+      ['ม.2/3', 'COM-02', '10:32', '11:20', '48 น.', 'ไม่ได้ใช้งาน 10 น.', 'poki.com (2)'],
+      ['ม.2/1', 'COM-03', '10:47', '11:20', '33 น.', 'ปิดเครื่อง', '—'],
+      ['ม.2/3', 'COM-05', '10:30', '—', 'ยังใช้อยู่', '—', 'steam.exe (1)'],
+      ['ม.2/3', 'COM-06', '10:33', '11:20', '47 น.', 'ครูสั่ง logout', '—'],
+      ['ม.3/2', 'COM-07', '10:52', '11:20', '28 น.', 'กดออกเอง', '—'],
+      ['ม.2/3', 'COM-09', '10:31', '11:20', '49 น.', 'ไม่ใช่ฉัน (คนถัดไป)', '—'],
+      ['ม.2/1', 'COM-10', '10:34', '11:20', '46 น.', 'กดออกเอง', '—']
+    ];
+    const rows = d.map((x, i) => ({ id: '651' + String(i + 1).padStart(2, '0'), cls: x[0], pc: x[1], in: x[2], out: x[3], dur: x[4], how: x[5], blk: x[6] }));
+    return { rows };
+  }
+}
+</script>
+</body>
+</html>

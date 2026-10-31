@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<title>เริ่ม Staff session</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+.btn{height:40px;padding:0 14px;border:1.5px solid #1e3a5f;border-radius:6px;font:inherit;font-size:14px;background:#fff;color:#1e3a5f}
+.btn-pri{background:#1e3a5f;color:#fff}
+.in{height:40px;box-sizing:border-box;border:1.5px solid #8a8f98;border-radius:6px;padding:0 10px;font:inherit;font-size:14px;background:#fff;color:#1f2328;width:100%}
+.lbl{font-size:12px;font-weight:600;color:#2b2f36}
+.pill{padding:7px 12px;border:1.5px solid #6b7079;border-radius:999px;font:inherit;font-size:13px;background:#fff;color:#1f2328}
+.pill-on{background:#1e3a5f;color:#fff;border-color:#1e3a5f}
+.num{width:24px;height:24px;border-radius:50%;background:#1e3a5f;color:#fff;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;flex-shrink:0}
+</style>
+</helmet>
+<div style="width: 1280px; height: 720px; box-sizing: border-box; padding: 26px 32px; display: flex; flex-direction: column; gap: 16px; background: radial-gradient(circle, #aeb8c6 1.3px, transparent 1.7px) 0 0 / 22px 22px, #e6eaf0; font-family: 'IBM Plex Sans Thai', system-ui, sans-serif; color: #1f2328; outline: 2px dashed #1d4ed8; outline-offset: -2px">
+  <strong style="font-size: 18px">ครูเข้าใช้เครื่องนักเรียน (Staff session)</strong>
+  <div style="display: grid; grid-template-columns: 1.2fr 1fr 1fr; gap: 20px; flex-grow: 1">
+    <div style="display: flex; flex-direction: column; gap: 8px">
+      <span style="display: flex; gap: 8px; align-items: center; font-size: 14px; font-weight: 700"><span class="num">1</span>กด "สำหรับครู" ที่จอล็อกอิน → การ์ดเปลี่ยนเป็นแบบครู</span>
+      <form style="background: #fff; border-radius: 12px; border-top: 4px solid #b45309; padding: 20px; display: flex; flex-direction: column; gap: 12px; box-shadow: 0 10px 28px rgba(16,32,56,.18)">
+        <strong style="font-size: 18px">เข้าใช้ด้วยบัญชีครู</strong>
+        <span style="font-size: 13px; color: #4b515b; line-height: 1.5">บัญชีเดียวกับที่ใช้เข้า Console · กฎทั้งหมดของเครื่องนี้จะปิดชั่วคราว</span>
+        <label style="display: flex; flex-direction: column; gap: 4px"><span class="lbl">ชื่อผู้ใช้</span><input class="in" value="kru.xxx"></label>
+        <label style="display: flex; flex-direction: column; gap: 4px"><span class="lbl">รหัสผ่าน</span><input class="in" type="password" value="password"></label>
+        <div style="display: flex; flex-direction: column; gap: 6px"><span class="lbl">ใช้นานเท่าไร</span><div style="display: flex; gap: 6px"><button class="pill">15 นาที</button><button class="pill pill-on">30 นาที</button><button class="pill">60 นาที</button></div></div>
+        <div style="display: flex; gap: 8px"><button class="btn" style="flex: 1">ยกเลิก</button><button class="btn btn-pri" style="flex: 2">เริ่ม Staff session</button></div>
+      </form>
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 8px">
+      <span style="display: flex; gap: 8px; align-items: center; font-size: 14px; font-weight: 700"><span class="num">2</span>ใช้เครื่องได้ทันที มีป้ายมุมขวาล่าง</span>
+      <div style="flex-grow: 1; border: 1.5px solid #6b7079; border-radius: 8px; background: repeating-linear-gradient(135deg,#dfe3e8 0 14px,#d6dae0 14px 28px); position: relative; overflow: hidden; min-height: 260px">
+        <div style="position: absolute; right: 10px; bottom: 40px; display: flex; align-items: center; gap: 8px; padding: 6px 10px; border-radius: 8px; background: #fdf3e7; border: 2px solid #b45309; font-size: 12px"><strong>Staff session</strong><span>kru.xxx · 29:58</span><button class="btn" style="height: 26px; padding: 0 8px; font-size: 12px">จบ</button></div>
+        <div style="position: absolute; left: 0; right: 0; bottom: 0; height: 30px; background: #2b2f36"></div>
+      </div>
+      <span style="font-size: 12px; color: #2b2f36; line-height: 1.5">เหลือ 5 นาทีเด้งถาม "ต่อเวลาไหม" · Audit Log บันทึก StaffSessionStarted + บัญชี + เครื่อง</span>
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 8px">
+      <span style="display: flex; gap: 8px; align-items: center; font-size: 14px; font-weight: 700"><span class="num">3</span>จบ (กดเอง / หมดเวลา / รีบูต)</span>
+      <div style="background: #fff; border-radius: 12px; padding: 18px; display: flex; flex-direction: column; gap: 10px; box-shadow: 0 10px 28px rgba(16,32,56,.18)">
+        <strong style="font-size: 15px">จบ Staff session แล้ว</strong>
+        <span style="font-size: 13px; color: #4b515b; line-height: 1.5">กฎกลับมาทำงาน · กลับไปจอล็อกอินนักเรียนใน 5 วินาที</span>
+      </div>
+      <div style="padding: 12px; border-radius: 8px; background: #fff; border: 1.5px dashed #8a8f98; font-size: 12px; line-height: 1.6; color: #2b2f36">
+        <strong>เงื่อนไข</strong><br>
+        • ต้องติดต่อ Server ได้ (Server ออก token ให้ Agent ตรวจ) · ถ้า Server ล่มใช้รหัสฉุกเฉินแทน<br>
+        • เวลาสูงสุด/ใครเปิดได้ ตั้งใน ตั้งค่า › Staff session<br>
+        • ไม่นับเป็นการใช้เครื่องของนักเรียน
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":720}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

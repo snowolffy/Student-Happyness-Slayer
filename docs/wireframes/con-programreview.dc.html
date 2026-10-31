@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<title>Console Program Review</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+.btn{height:32px;padding:0 12px;border:1.5px solid #6b7079;border-radius:6px;font:inherit;font-size:13px;background:#fff;color:#1f2328;white-space:nowrap}
+.btn-pri{background:#2b2f36;color:#fff;border-color:#2b2f36}
+.btn-danger{border-color:#b42318;color:#b42318}
+.nav{display:flex;align-items:center;justify-content:space-between;gap:8px;height:32px;padding:0 10px;border-radius:6px;font-size:13px;color:#2b2f36;text-decoration:none}
+.nav-on{background:#2b2f36;color:#fff}
+.grp{font-size:11px;font-weight:600;color:#5b616b;padding:10px 10px 2px}
+.tag{font-size:10px;font-weight:600;padding:1px 6px;border-radius:999px;white-space:nowrap}
+.tag-new{background:#dbe6fd;color:#1a3fa8}
+.pill{padding:6px 12px;border:1.5px solid #6b7079;border-radius:999px;font:inherit;font-size:13px;background:#fff;color:#1f2328}
+.pill-on{background:#2b2f36;color:#fff;border-color:#2b2f36}
+table{border-collapse:collapse;width:100%;font-size:13px}
+th{text-align:left;font-weight:600;color:#4b515b;font-size:12px;padding:7px 10px;border-bottom:1.5px solid #8a8f98;background:#f1f3f5;white-space:nowrap}
+td{padding:7px 10px;border-bottom:1px solid #d5d8dd;white-space:nowrap}
+.badge{font-size:11px;font-weight:600;padding:1px 8px;border-radius:999px;border:1.5px solid #6b7079}
+.sel td{background:#e8eefc}
+</style>
+</helmet>
+<div style="width: 1280px; height: 800px; box-sizing: border-box; display: flex; flex-direction: column; background: #f6f7f9; font-family: 'IBM Plex Sans Thai', system-ui, sans-serif; color: #1f2328; overflow: hidden">
+  <div style="height: 36px; background: #2b2f36; color: #fff; display: flex; align-items: center; padding: 0 14px; font-size: 13px; flex-shrink: 0">Onion ProcOparetor Console</div>
+  <div style="display: flex; flex-grow: 1; min-height: 0">
+    <nav style="width: 210px; flex-shrink: 0; background: #eceef1; padding: 12px 10px; display: flex; flex-direction: column; gap: 2px; box-sizing: border-box">
+      <div style="display: flex; flex-direction: column; padding: 0 6px 8px"><span style="font-weight: 700; font-size: 14px">Onion ProcOparetor</span><span style="font-size: 11px; color: #4b515b">Server Console</span></div>
+      <sc-for list="{{groups}}" as="g" hint-placeholder-count="4">
+        <span class="grp">{{g.name}}</span>
+        <sc-for list="{{g.items}}" as="it" hint-placeholder-count="3">
+          <a href="{{it.href}}" class="nav {{it.cls}}"><span>{{it.label}}</span><sc-if value="{{it.isNew}}" hint-placeholder-val="{{false}}"><span class="tag tag-new">ใหม่</span></sc-if></a>
+        </sc-for>
+      </sc-for>
+    </nav>
+    <main style="flex-grow: 1; min-width: 0; display: flex; flex-direction: column">
+      <header style="height: 52px; display: flex; align-items: center; justify-content: space-between; padding: 0 20px; border-bottom: 1.5px solid #d5d8dd; background: #fff; gap: 12px">
+        <div style="display: flex; flex-direction: column"><h1 style="margin: 0; font-size: 18px; font-weight: 700">Program Review</h1><span style="font-size: 12px; color: #4b515b">คิวตรวจสอบโปรแกรมที่ Agent พบเองอัตโนมัติ (เกม, emulator ฯลฯ)</span></div>
+        <button class="btn">รีเฟรช</button>
+      </header>
+      <section style="padding: 14px 20px; flex-grow: 1; min-height: 0; display: flex; flex-direction: column; gap: 12px">
+        <div style="display: flex; gap: 8px; flex-wrap: wrap">
+          <button class="pill pill-on">รอตรวจสอบ (6)</button><button class="pill">ที่บล็อกอยู่</button><button class="pill">ที่อนุญาตไว้</button><button class="pill">ที่ครูตัดสินเอง</button><button class="pill">ทั้งหมด</button>
+        </div>
+        <div style="flex-grow: 1; min-height: 0; overflow: auto; background: #fff; border: 1.5px solid #8a8f98; border-radius: 8px">
+          <table>
+            <thead><tr><th>โปรแกรม</th><th>หมวด</th><th>คะแนน</th><th>สถานะ</th><th>ที่มา</th><th>พบ (ครั้ง)</th><th>เครื่องล่าสุด</th></tr></thead>
+            <tbody>
+              <sc-for list="{{rows}}" as="r" hint-placeholder-count="6">
+                <tr class="{{r.cls}}"><td>{{r.name}}</td><td>{{r.cat}}</td><td>{{r.score}}</td><td><span class="badge">{{r.st}}</span></td><td>{{r.src}}</td><td>{{r.hits}}</td><td>{{r.pc}}</td></tr>
+              </sc-for>
+            </tbody>
+          </table>
+        </div>
+        <div style="background: #fff; border: 1.5px solid #8a8f98; border-radius: 8px; padding: 14px; display: flex; gap: 16px; align-items: flex-start">
+          <div style="flex-grow: 1; display: flex; flex-direction: column; gap: 4px">
+            <strong style="font-size: 13px">เหตุผลที่ได้คะแนนนี้ · yuzu.exe</strong>
+            <span style="font-size: 13px; color: #4b515b">ชื่อไฟล์ตรงกับรายชื่อ emulator · ไม่มีลายเซ็น · รันจากโฟลเดอร์ Downloads</span>
+          </div>
+          <div style="display: flex; gap: 8px"><button class="btn">อนุญาตถาวร (ทุกเครื่อง)</button><button class="btn btn-danger">บล็อกถาวร (ทุกเครื่อง)</button></div>
+        </div>
+      </section>
+    </main>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":800}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const active = 'con-programreview.dc.html';
+    const n = (label, href, isNew) => ({ label, href, isNew: !!isNew, cls: href === active ? 'nav-on' : '' });
+    const groups = [
+      { name: 'ห้องเรียน', items: [n('Clients', 'con-clients.dc.html'), n('ผังที่นั่ง', 'con-seatmap.dc.html', true), n('Live View', 'con-liveview.dc.html'), n('โหมดสอบ', 'nf-exam.dc.html', true)] },
+      { name: 'กฎ', items: [n('กฎโปรแกรม', 'con-rules.dc.html'), n('Program Review', 'con-programreview.dc.html'), n('Website Control', 'con-website.dc.html')] },
+      { name: 'บันทึก', items: [n('Logs / Audit', 'con-logs.dc.html'), n('ประวัติการใช้เครื่อง', 'nf-attendance.dc.html', true)] },
+      { name: 'ระบบ', items: [n('ผู้ใช้', 'con-users.dc.html'), n('ห้อง', 'nf-rooms.dc.html', true), n('ตั้งค่า', 'con-settings.dc.html')] }
+    ];
+    const rows = [
+      { name: 'yuzu.exe', cat: 'Emulator', score: '92', st: 'รอตรวจ', src: 'ตรวจพบเอง', hits: '7', pc: 'COM-14', cls: 'sel' },
+      { name: 'MinecraftLauncher.exe', cat: 'เกม', score: '85', st: 'รอตรวจ', src: 'ตรวจพบเอง', hits: '12', pc: 'COM-02', cls: '' },
+      { name: 'TLauncher.exe', cat: 'เกม', score: '80', st: 'รอตรวจ', src: 'ตรวจพบเอง', hits: '4', pc: 'COM-21', cls: '' },
+      { name: 'ppsspp.exe', cat: 'Emulator', score: '78', st: 'รอตรวจ', src: 'ตรวจพบเอง', hits: '2', pc: 'COM-33', cls: '' },
+      { name: 'unknown_setup.exe', cat: 'ไม่ทราบ', score: '40', st: 'รอตรวจ', src: 'ตรวจพบเอง', hits: '1', pc: 'COM-09', cls: '' },
+      { name: 'scratch.exe', cat: 'การศึกษา', score: '10', st: 'รอตรวจ', src: 'ตรวจพบเอง', hits: '30', pc: 'COM-05', cls: '' }
+    ];
+    return { groups, rows };
+  }
+}
+</script>
+</body>
+</html>

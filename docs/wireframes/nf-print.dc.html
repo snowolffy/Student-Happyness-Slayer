@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<title>ใบรหัสผ่าน</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+.btn{height:36px;padding:0 14px;border:1.5px solid #6b7079;border-radius:6px;font:inherit;font-size:13px;background:#fff;color:#1f2328;white-space:nowrap}
+.btn-pri{background:#2b2f36;color:#fff;border-color:#2b2f36}
+.in{height:32px;box-sizing:border-box;border:1.5px solid #8a8f98;border-radius:6px;padding:0 10px;font:inherit;font-size:13px;background:#fff;color:#1f2328}
+.slip{border:1.5px dashed #8a8f98;padding:10px 12px;display:flex;flex-direction:column;gap:4px;font-size:11px;background:#fff}
+.slip strong{font-size:12px}
+.pw{font-family:ui-monospace,Consolas,monospace;font-size:15px;font-weight:700;letter-spacing:.15em;border:1px solid #2b2f36;padding:2px 6px;align-self:flex-start}
+</style>
+</helmet>
+<div style="width: 1280px; height: 800px; box-sizing: border-box; display: flex; flex-direction: column; background: #f6f7f9; font-family: 'IBM Plex Sans Thai', system-ui, sans-serif; color: #1f2328; overflow: hidden; outline: 2px dashed #1d4ed8; outline-offset: -2px">
+  <div style="height: 36px; background: #2b2f36; color: #fff; display: flex; align-items: center; padding: 0 14px; font-size: 13px; flex-shrink: 0">Roster Manager · พิมพ์ใบรหัสผ่าน</div>
+  <div style="flex-grow: 1; min-height: 0; display: grid; grid-template-columns: 300px minmax(0, 1fr); gap: 0">
+    <aside style="padding: 18px; background: #fff; border-right: 1.5px solid #d5d8dd; display: flex; flex-direction: column; gap: 12px">
+      <strong style="font-size: 15px">นำเข้าเสร็จ 398 คน</strong>
+      <span style="font-size: 13px; color: #4b515b; line-height: 1.5">พิมพ์ใบรหัสตอนนี้ เพราะหลังปิดหน้านี้จะดูรหัสเริ่มต้นไม่ได้อีก</span>
+      <label style="display: flex; flex-direction: column; gap: 4px; font-size: 13px">เรียงตาม<select class="in"><option>ห้อง แล้วเลขที่</option></select></label>
+      <label style="display: flex; flex-direction: column; gap: 4px; font-size: 13px">ต่อหน้า A4<select class="in"><option>10 ใบ (2×5)</option><option>16 ใบ</option></select></label>
+      <label style="display: flex; gap: 8px; font-size: 13px"><input type="checkbox" checked>ขึ้นหน้าใหม่เมื่อเปลี่ยนห้อง</label>
+      <label style="display: flex; flex-direction: column; gap: 4px; font-size: 13px">ข้อความท้ายใบ<input class="in" value="เปลี่ยนรหัสตอนเข้าใช้ครั้งแรก ห้ามให้คนอื่นดู"></label>
+      <div style="flex-grow: 1"></div>
+      <button class="btn">บันทึกเป็น PDF</button>
+      <button class="btn btn-pri">พิมพ์</button>
+    </aside>
+    <div style="padding: 18px; display: flex; justify-content: center; overflow: hidden; background: #d5d8dd">
+      <div style="width: 520px; background: #fff; padding: 22px; display: flex; flex-direction: column; gap: 10px; box-shadow: 0 4px 16px rgba(0,0,0,.15)">
+        <div style="display: flex; justify-content: space-between; font-size: 11px; color: #4b515b"><span>[ชื่อโรงเรียน] · ห้องคอมพิวเตอร์</span><span>ม.1/1 · หน้า 1/40</span></div>
+        <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0">
+          <sc-for list="{{slips}}" as="s" hint-placeholder-count="10">
+            <div class="slip">
+              <strong>[ชื่อ-สกุล]</strong>
+              <span>รหัสนักเรียน {{s.id}} · ม.1/1 เลขที่ {{s.no}}</span>
+              <span>ล็อกอินด้วย: {{s.id}} หรือ [name]@school.ac.th</span>
+              <span style="display: flex; gap: 6px; align-items: center">รหัสผ่านเริ่มต้น <span class="pw">{{s.pw}}</span></span>
+              <span style="color: #4b515b">เปลี่ยนรหัสตอนเข้าใช้ครั้งแรก ห้ามให้คนอื่นดู</span>
+            </div>
+          </sc-for>
+        </div>
+        <span style="font-size: 10px; color: #4b515b; text-align: center">ตัดตามเส้นประ</span>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":800}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const pws = ['482913', '105774', '930261', '774102', '318865', '640257', '219904', '857331', '063718', '592640'];
+    const slips = pws.map((pw, i) => ({ id: '691' + String(i + 1).padStart(2, '0'), no: i + 1, pw }));
+    return { slips };
+  }
+}
+</script>
+</body>
+</html>

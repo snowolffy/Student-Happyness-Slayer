@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<title>Console หน้าต่างย่อย</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+.btn{height:30px;padding:0 12px;border:1.5px solid #6b7079;border-radius:6px;font:inherit;font-size:12px;background:#fff;color:#1f2328;white-space:nowrap}
+.btn-pri{background:#2b2f36;color:#fff;border-color:#2b2f36}
+.in{height:30px;box-sizing:border-box;border:1.5px solid #8a8f98;border-radius:6px;padding:0 10px;font:inherit;font-size:12px;background:#fff;color:#1f2328;width:100%}
+.area{height:72px;box-sizing:border-box;border:1.5px solid #8a8f98;border-radius:6px;padding:6px 10px;font:inherit;font-size:12px;background:#fff;color:#1f2328;width:100%;resize:none}
+.lbl{font-size:11px;font-weight:600;color:#4b515b}
+.dlg{background:#fff;border:1.5px solid #6b7079;border-radius:10px;display:flex;flex-direction:column;overflow:hidden}
+.dlg-h{padding:10px 14px;border-bottom:1.5px solid #d5d8dd;display:flex;justify-content:space-between;align-items:center;gap:8px}
+.dlg-b{padding:12px 14px;display:flex;flex-direction:column;gap:10px;flex-grow:1}
+.dlg-f{padding:10px 14px;border-top:1.5px solid #d5d8dd;display:flex;justify-content:flex-end;gap:6px;flex-wrap:wrap}
+.tbl{border:1.5px solid #8a8f98;border-radius:6px;height:90px;background:repeating-linear-gradient(#fff 0 22px,#eef0f3 22px 23px)}
+.tag{font-size:10px;font-weight:600;padding:1px 6px;border-radius:999px;white-space:nowrap}
+.tag-chg{background:#fdecd8;color:#8a3c04}
+</style>
+</helmet>
+<div style="width: 1600px; height: 1500px; box-sizing: border-box; padding: 40px; display: flex; flex-direction: column; gap: 24px; background: #eceef1; font-family: 'IBM Plex Sans Thai', system-ui, sans-serif; color: #1f2328">
+  <div style="display: flex; flex-direction: column; gap: 4px">
+    <h1 style="margin: 0; font-size: 26px; font-weight: 700">หน้าต่างย่อยของ Console (ตามโค้ดจริง)</h1>
+    <p style="margin: 0; font-size: 14px; color: #4b515b">เสนอแก้ภาพรวม: ทุกหน้าต่างใช้หัว/ท้ายแบบเดียวกัน · ปุ่มหลักอยู่ขวาสุดเสมอ · ปุ่มลบ/อันตรายแยกไปซ้ายสุด</p>
+  </div>
+  <div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 20px; align-items: start">
+    <sc-for list="{{dialogs}}" as="d" hint-placeholder-count="16">
+      <div class="dlg">
+        <div class="dlg-h"><strong style="font-size: 14px">{{d.title}}</strong><sc-if value="{{d.note}}" hint-placeholder-val="{{false}}"><span class="tag tag-chg">{{d.note}}</span></sc-if></div>
+        <div class="dlg-b">
+          <sc-if value="{{d.desc}}" hint-placeholder-val="{{false}}"><span style="font-size: 12px; color: #4b515b; line-height: 1.45">{{d.desc}}</span></sc-if>
+          <sc-for list="{{d.fields}}" as="f" hint-placeholder-count="2">
+            <sc-if value="{{f.isText}}" hint-placeholder-val="{{true}}"><label style="display: flex; flex-direction: column; gap: 4px"><span class="lbl">{{f.label}}</span><input class="in" placeholder="{{f.ph}}"></label></sc-if>
+            <sc-if value="{{f.isArea}}" hint-placeholder-val="{{false}}"><label style="display: flex; flex-direction: column; gap: 4px"><span class="lbl">{{f.label}}</span><textarea class="area" placeholder="{{f.ph}}"></textarea></label></sc-if>
+            <sc-if value="{{f.isCheck}}" hint-placeholder-val="{{false}}"><label style="display: flex; gap: 8px; align-items: center; font-size: 12px"><input type="checkbox">{{f.label}}</label></sc-if>
+            <sc-if value="{{f.isTable}}" hint-placeholder-val="{{false}}"><div style="display: flex; flex-direction: column; gap: 4px"><span class="lbl">{{f.label}}</span><div class="tbl"></div></div></sc-if>
+          </sc-for>
+        </div>
+        <div class="dlg-f">
+          <sc-for list="{{d.btns}}" as="b" hint-placeholder-count="2"><button class="btn {{b.cls}}">{{b.t}}</button></sc-for>
+        </div>
+      </div>
+    </sc-for>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1600,"height":1500}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const T = (label, ph) => ({ label, ph: ph || '', isText: true });
+    const A = (label, ph) => ({ label, ph: ph || '', isArea: true });
+    const C = (label) => ({ label, isCheck: true });
+    const G = (label) => ({ label, isTable: true });
+    const B = (...xs) => xs.map((t, i) => ({ t, cls: i === xs.length - 1 ? 'btn-pri' : '' }));
+    const dialogs = [
+      { title: 'เพิ่ม/แก้กฎโปรแกรม', fields: [T('ชื่อกฎ', 'ไว้แสดงใน GUI'), T('Publisher', 'เช่น Valve Corporation'), T('ชื่อไฟล์มีคำว่า (ไม่บังคับ)', 'เช่น notepad'), C('ต้องมีลายเซ็นตรงกัน (Authenticode)'), C('ปิดโปรแกรมทันทีที่ตรงกฎ'), C('เปิดใช้งานกฎนี้'), T('Action command (ไม่บังคับ)', 'path .exe/.bat/.ps1'), T('Action arguments (ไม่บังคับ)')], btns: B('ยกเลิก', 'บันทึกกฎ') },
+      { title: 'เพิ่ม/แก้กฎเว็บ', fields: [T('ชื่อกฎ', 'เช่น Roblox'), T('รูปแบบ URL', 'roblox.com หรือ *.roblox.com'), C('เปิดใช้งานกฎนี้')], btns: B('ยกเลิก', 'บันทึกกฎ') },
+      { title: 'Bulk Add เว็บ', fields: [A('โดเมน (บรรทัดละหนึ่ง)', 'roblox.com\npoki.com')], desc: 'สูงสุด 200 รายการ/ครั้ง ตัดซ้ำให้อัตโนมัติ', btns: B('ยกเลิก', 'เพิ่มทั้งหมด') },
+      { title: 'Website Catalog Sources', fields: [G('สถานะ · ชื่อ · URL · เพดาน · ผล sync ล่าสุด')], desc: 'sync อัตโนมัติทุก 24 ชม.', btns: B('ปิด', 'เพิ่ม Source…') },
+      { title: 'เพิ่ม/แก้ Catalog Source', fields: [T('ชื่อ', 'Fortnite Block List'), T('Source URL', 'hosts-file / domain list'), T('เพดานจำนวนโดเมน', '5000'), C('เปิดใช้งาน (sync ทุก 24 ชม.)')], btns: B('ยกเลิก', 'บันทึก') },
+      { title: 'ส่งข้อความขึ้นจอ', fields: [T('หัวข้อ (ไม่บังคับ)'), A('ข้อความ'), C('ส่งไปเครื่องที่เลือกไว้'), C('ส่งไปทุกเครื่อง')], note: 'เสนอ: เพิ่ม "ทั้งห้อง"', btns: B('ยกเลิก', 'ส่งข้อความ') },
+      { title: 'ล็อกหน้าจอ', fields: [A('ข้อความบนจอล็อก (เฉพาะครั้งนี้)', 'เว้นว่าง = ใช้ข้อความเริ่มต้นจากหน้าตั้งค่า')], note: 'ใหม่: แก้ข้อความได้', btns: B('ยกเลิก', 'ล็อก') },
+      { title: 'ยืนยัน', desc: 'ปิดเครื่อง 40 เครื่อง? การลบที่ย้อนไม่ได้ต้องพิมพ์ชื่อยืนยัน', fields: [T('พิมพ์ชื่อเครื่องเพื่อยืนยัน (เฉพาะงานลบ)')], btns: B('ยกเลิก', 'ยืนยัน') },
+      { title: 'ผลการทำงาน', fields: [G('สถานะ · ชื่อเครื่อง · GUID · รายละเอียด')], desc: 'เลือกแถวเพื่อดูรายละเอียดของเครื่องนั้น', btns: B('ยกเลิกคำสั่งนี้', 'ปิด') },
+      { title: 'คำสั่งที่ค้างอยู่', fields: [G('Command ID · Type · Delivery · Actions')], btns: B('รีเฟรช', 'ปิด') },
+      { title: 'โปรแกรมที่เปิดอยู่', fields: [G('PID · Process · Window title · Publisher · Signed')], desc: 'สร้างกฎจาก publisher หรือบล็อกไฟล์ด้วยลายนิ้วมือ', btns: B('สร้างกฎจากโปรแกรมนี้', 'บล็อกโปรแกรมนี้') },
+      { title: 'ยกเว้นกฎเฉพาะเครื่อง', fields: [G('กฎ · global · override เครื่องนี้')], desc: 'override ชนะ global เสมอ ไม่กระทบเครื่องอื่น', btns: B('ปิด') },
+      { title: 'ตั้งค่าเครื่องนี้', fields: [T('Poll interval override (วินาที)', 'ว่าง = ใช้ค่าของ Agent (30)')], btns: B('ล้างค่าเฉพาะเครื่อง', 'ยกเลิก', 'บันทึก') },
+      { title: 'เปลี่ยนรหัสผ่านของฉัน', fields: [T('รหัสผ่านใหม่'), T('ยืนยันรหัสผ่านใหม่')], desc: 'อย่างน้อย 8 ตัวอักษร (มีแบบบังคับเปลี่ยนตอนใช้รหัสว่างครั้งแรกด้วย)', btns: B('ยกเลิก', 'เปลี่ยนรหัสผ่าน') },
+      { title: 'รีเซ็ตรหัสผ่านผู้ใช้', fields: [T('รหัสผ่านใหม่')], btns: B('ยกเลิก', 'ตั้งรหัสผ่านใหม่') },
+      { title: 'Tailscale Login', fields: [T('Auth key (จาก Tailscale admin)')], btns: B('ยกเลิก', 'ล็อกอิน') },
+      { title: 'About', desc: 'Onion ProcOparetor · We peel, We See, We Oparete · © 2026', fields: [], btns: B('ปิด') }
+    ];
+    return { dialogs: dialogs.map(d => ({ note: '', desc: '', ...d })) };
+  }
+}
+</script>
+</body>
+</html>

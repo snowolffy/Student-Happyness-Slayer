@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<title>Roster Manager เข้าสู่ระบบ</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+.btn{height:40px;padding:0 14px;border:1.5px solid #6b7079;border-radius:6px;font:inherit;font-size:14px;background:#fff;color:#1f2328}
+.btn-pri{background:#2b2f36;color:#fff;border-color:#2b2f36}
+.in{height:38px;box-sizing:border-box;border:1.5px solid #8a8f98;border-radius:6px;padding:0 10px;font:inherit;font-size:14px;background:#fff;color:#1f2328;width:100%}
+.lbl{font-size:12px;font-weight:600;color:#4b515b}
+</style>
+</helmet>
+<div style="width: 1280px; height: 800px; box-sizing: border-box; display: flex; flex-direction: column; font-family: 'IBM Plex Sans Thai', system-ui, sans-serif; color: #1f2328; outline: 2px dashed #1d4ed8; outline-offset: -2px">
+  <div style="height: 36px; background: #2b2f36; color: #fff; display: flex; align-items: center; justify-content: space-between; padding: 0 14px; font-size: 13px; flex-shrink: 0"><span>Roster Manager · Onion ProcOparetor</span><span>— ☐ ✕</span></div>
+  <div style="flex-grow: 1; display: flex; align-items: center; justify-content: center; background: radial-gradient(circle, #b9bec6 1.2px, transparent 1.6px) 0 0 / 20px 20px, #eceef1">
+    <div style="width: 880px; height: 480px; display: flex; background: #fff; border: 1px solid #c9cdd3; border-radius: 12px; overflow: hidden">
+      <div style="width: 400px; flex-shrink: 0; background: repeating-linear-gradient(135deg,#d5d8dd 0 12px,#cdd1d6 12px 24px); display: flex; flex-direction: column; justify-content: space-between; padding: 24px; box-sizing: border-box">
+        <span style="font-size: 12px; background: rgba(255,255,255,.8); padding: 4px 8px; border-radius: 4px; align-self: flex-start">ภาพ: Assets\LoginHero.png ของ Roster Manager</span>
+        <div style="display: flex; flex-direction: column; gap: 4px; background: rgba(255,255,255,.8); padding: 10px 12px; border-radius: 6px"><strong style="font-size: 20px">Roster Manager</strong><span style="font-size: 13px">จัดการรายชื่อและบัญชีนักเรียน</span></div>
+      </div>
+      <form style="flex-grow: 1; padding: 36px 40px; display: flex; flex-direction: column; justify-content: center; gap: 14px">
+        <div style="display: flex; flex-direction: column; gap: 2px"><strong style="font-size: 22px">เข้าสู่ระบบ</strong><span style="font-size: 13px; color: #4b515b">ใช้บัญชี Admin ของ Console (Teacher เข้าได้แบบดูอย่างเดียว + รีเซ็ตรหัส ถ้าเปิดสิทธิ์)</span></div>
+        <div style="display: grid; grid-template-columns: 1fr 100px; gap: 10px">
+          <label style="display: flex; flex-direction: column; gap: 4px"><span class="lbl">SERVER IP</span><input class="in" value="192.168.17.249"></label>
+          <label style="display: flex; flex-direction: column; gap: 4px"><span class="lbl">PORT</span><input class="in" value="8787"></label>
+        </div>
+        <label style="display: flex; flex-direction: column; gap: 4px"><span class="lbl">USERNAME</span><input class="in" value="admin"></label>
+        <label style="display: flex; flex-direction: column; gap: 4px"><span class="lbl">PASSWORD</span><input class="in" type="password" value="password"></label>
+        <a href="nf-roster.dc.html" class="btn btn-pri" style="display: flex; align-items: center; justify-content: center; text-decoration: none">เชื่อมต่อ</a>
+      </form>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":800}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

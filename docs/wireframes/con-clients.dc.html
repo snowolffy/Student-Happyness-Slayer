@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<title>Console Clients</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+.btn{height:32px;padding:0 12px;border:1.5px solid #6b7079;border-radius:6px;font:inherit;font-size:13px;background:#fff;color:#1f2328;white-space:nowrap}
+.btn-pri{background:#2b2f36;color:#fff;border-color:#2b2f36}
+.in{height:32px;box-sizing:border-box;border:1.5px solid #8a8f98;border-radius:6px;padding:0 10px;font:inherit;font-size:13px;background:#fff;color:#1f2328}
+.nav{display:flex;align-items:center;justify-content:space-between;gap:8px;height:32px;padding:0 10px;border-radius:6px;font-size:13px;color:#2b2f36;text-decoration:none}
+.nav-on{background:#2b2f36;color:#fff}
+.grp{font-size:11px;font-weight:600;color:#5b616b;padding:10px 10px 2px}
+.tag{font-size:10px;font-weight:600;padding:1px 6px;border-radius:999px;white-space:nowrap}
+.tag-chg{background:#fdecd8;color:#8a3c04}
+.tag-new{background:#dbe6fd;color:#1a3fa8}
+table{border-collapse:collapse;width:100%;font-size:13px}
+th{text-align:left;font-weight:600;color:#4b515b;font-size:12px;padding:7px 10px;border-bottom:1.5px solid #8a8f98;background:#f1f3f5;white-space:nowrap}
+td{padding:7px 10px;border-bottom:1px solid #d5d8dd;white-space:nowrap}
+tr.sel td{background:#e8eefc}
+.badge{font-size:11px;font-weight:600;padding:1px 8px;border-radius:999px;border:1.5px solid #6b7079}
+.stat{display:flex;flex-direction:column;gap:2px;padding:10px 14px;background:#fff;border:1.5px solid #8a8f98;border-radius:8px;min-width:120px;font:inherit;text-align:left;color:#1f2328}
+.toast{display:flex;gap:10px;align-items:flex-start;width:330px;box-sizing:border-box;padding:10px 12px;border-radius:8px;background:#fff;border:1.5px solid #8a8f98;border-left-width:5px;box-shadow:0 6px 18px rgba(0,0,0,.16);font-size:13px}
+.t-ok{border-left-color:#2f7a45}
+.t-info{border-left-color:#1d4ed8}
+.t-err{border-left-color:#b42318}
+.note{position:absolute;font-size:11px;font-weight:600;background:#dbe6fd;color:#1a3fa8;padding:3px 8px;border-radius:6px;border:1.5px dashed #1d4ed8}
+</style>
+</helmet>
+<div style="width: 1280px; height: 800px; box-sizing: border-box; display: flex; flex-direction: column; background: #f6f7f9; font-family: 'IBM Plex Sans Thai', system-ui, sans-serif; color: #1f2328; overflow: hidden; position: relative">
+  <div style="height: 36px; background: #2b2f36; color: #fff; display: flex; align-items: center; justify-content: space-between; padding: 0 14px; font-size: 13px; flex-shrink: 0"><span>Onion ProcOparetor Console</span><span>— ☐ ✕</span></div>
+  <div style="display: flex; flex-grow: 1; min-height: 0">
+    <nav style="width: 210px; flex-shrink: 0; background: #eceef1; padding: 12px 10px; display: flex; flex-direction: column; gap: 2px; box-sizing: border-box">
+      <div style="display: flex; flex-direction: column; padding: 0 6px 8px"><span style="font-weight: 700; font-size: 14px">Onion ProcOparetor</span><span style="font-size: 11px; color: #4b515b">Server Console</span></div>
+      <sc-for list="{{groups}}" as="g" hint-placeholder-count="4">
+        <span class="grp">{{g.name}}</span>
+        <sc-for list="{{g.items}}" as="it" hint-placeholder-count="3">
+          <a href="{{it.href}}" class="nav {{it.cls}}"><span>{{it.label}}</span><sc-if value="{{it.isNew}}" hint-placeholder-val="{{false}}"><span class="tag tag-new">ใหม่</span></sc-if></a>
+        </sc-for>
+      </sc-for>
+      <div style="flex-grow: 1"></div>
+      <span style="font-size: 12px; color: #4b515b; padding: 0 6px 6px">ครูสมชาย (kru.somchai)</span>
+      <button class="btn" style="width: 100%">ธีมมืด</button>
+    </nav>
+
+    <main style="flex-grow: 1; min-width: 0; display: flex; flex-direction: column; position: relative">
+      <header style="height: 52px; flex-shrink: 0; display: flex; align-items: center; justify-content: space-between; padding: 0 20px; background: #fdecea; border-bottom: 2px solid #b42318; gap: 12px">
+        <div style="display: flex; align-items: center; gap: 14px">
+          <h1 style="margin: 0; font-size: 18px; font-weight: 700">Clients</h1>
+          <select class="in" aria-label="ห้อง"><option>Com 1 (40 เครื่อง)</option><option>ทุกห้อง</option></select>
+        </div>
+        <div style="display: flex; align-items: center; gap: 10px; font-size: 13px">
+          <strong style="color: #8a1c13">ปิดการบังคับใช้ทั้งระบบอยู่ · กฎหยุดทุกเครื่อง</strong>
+          <button class="btn" style="border-color: #b42318; color: #b42318">เปิดกลับ</button>
+          <button class="btn" style="height: 26px; padding: 0 8px">+1</button>
+        </div>
+      </header>
+
+      <section style="flex-grow: 1; min-height: 0; padding: 14px 20px; display: flex; flex-direction: column; gap: 12px">
+        <div style="display: flex; gap: 10px; flex-wrap: wrap; align-items: center">
+          <button class="stat"><span style="font-size: 12px; color: #4b515b">ทั้งหมด</span><strong style="font-size: 20px">40</strong></button>
+          <button class="stat"><span style="font-size: 12px; color: #4b515b">ออนไลน์</span><strong style="font-size: 20px">36</strong></button>
+          <button class="stat"><span style="font-size: 12px; color: #4b515b">ออฟไลน์</span><strong style="font-size: 20px">4</strong></button>
+          <button class="stat"><span style="font-size: 12px; color: #4b515b">กฎไม่ทำงาน</span><strong style="font-size: 20px">1</strong></button>
+          <button class="stat"><span style="font-size: 12px; color: #4b515b">ล็อกอินแล้ว</span><strong style="font-size: 20px">31</strong></button>
+        </div>
+        <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap">
+          <input class="in" placeholder="ค้นหาเครื่อง / นักเรียน" style="width: 240px">
+          <div style="flex-grow: 1"></div>
+          <button class="btn">คำสั่ง (ทุกเครื่อง)</button>
+          <button class="btn">ส่งข้อความขึ้นจอ</button>
+          <button class="btn">โหมดสอบ…</button>
+        </div>
+        <div style="flex-grow: 1; min-height: 0; overflow: auto; background: #fff; border: 1.5px solid #8a8f98; border-radius: 8px">
+          <table>
+            <thead><tr><th></th><th>สถานะ</th><th>บังคับใช้กฎ</th><th>เชื่อมต่อผ่าน</th><th>ชื่อเครื่อง</th><th>นักเรียน</th><th>เห็นล่าสุด</th><th>จัดการ</th></tr></thead>
+            <tbody>
+              <sc-for list="{{rows}}" as="r" hint-placeholder-count="10">
+                <tr class="{{r.cls}}"><td><input type="checkbox" aria-label="เลือก"></td><td><span class="badge">{{r.st}}</span></td><td><span class="badge">{{r.en}}</span></td><td>{{r.via}}</td><td>{{r.name}}</td><td>{{r.stu}}</td><td>{{r.seen}}</td><td><button class="btn" style="height: 26px">คำสั่ง</button></td></tr>
+              </sc-for>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <aside style="position: absolute; top: 52px; right: 0; bottom: 0; width: 320px; background: #fff; border-left: 1.5px solid #8a8f98; box-shadow: -10px 0 24px rgba(0,0,0,.14); padding: 16px; display: flex; flex-direction: column; gap: 10px; box-sizing: border-box">
+        <div style="display: flex; justify-content: space-between; align-items: center">
+          <strong style="font-size: 17px">COM-25</strong>
+          <span style="display: flex; gap: 6px"><button class="btn" style="height: 28px; padding: 0 8px" aria-label="หุบแผง">›</button><button class="btn" style="height: 28px; padding: 0 8px" aria-label="ปิด">✕</button></span>
+        </div>
+        <div style="display: flex; gap: 6px; flex-wrap: wrap"><span class="badge">ONLINE</span><span class="badge">ENABLED</span><span class="badge">LAN</span></div>
+        <div style="padding: 8px; border-radius: 6px; background: #f1f5fe; display: flex; flex-direction: column; gap: 2px; font-size: 13px">
+          <span>นักเรียนที่ใช้อยู่</span><strong>ด.ช. [ชื่อ] · 65xxx</strong><span style="color: #4b515b">ล็อกอิน 09:02 · ม.2/3</span>
+        </div>
+        <button class="btn" style="width: 100%">ดูหน้าจอเครื่องนี้</button>
+        <button class="btn" style="width: 100%">ดูโปรแกรมที่เปิดอยู่</button>
+        <button class="btn" style="width: 100%">บังคับ logout นักเรียน</button>
+        <button class="btn" style="width: 100%">ตั้งค่า / ยกเว้นกฎเฉพาะเครื่อง</button>
+        <a href="con-actionpanel.dc.html" class="btn btn-pri" style="display: flex; align-items: center; justify-content: center; text-decoration: none">คำสั่งอื่นๆ…</a>
+        <dl style="margin: 4px 0 0; display: grid; grid-template-columns: auto 1fr; gap: 4px 10px; font-size: 12px">
+          <dt style="color: #4b515b">IP</dt><dd style="margin: 0">192.168.17.125</dd>
+          <dt style="color: #4b515b">เห็นล่าสุด</dt><dd style="margin: 0">5 วินาทีที่แล้ว</dd>
+          <dt style="color: #4b515b">GUID</dt><dd style="margin: 0">3f2a…c91e</dd>
+        </dl>
+        <div style="flex-grow: 1"></div>
+        <span style="font-size: 11px; color: #4b515b; line-height: 1.5">แผงสไลด์ทับ grid ไม่ดันคอลัมน์ · Esc หรือ ✕ ปิด · › หุบเหลือแถบแคบที่ขอบขวา · เลือกหลายเครื่อง = แผงเปลี่ยนเป็นคำสั่งแบบกลุ่ม</span>
+      </aside>
+
+      <div style="position: absolute; right: 336px; bottom: 16px; display: flex; flex-direction: column; gap: 8px">
+        <div class="toast t-err"><div style="display: flex; flex-direction: column; gap: 2px; flex-grow: 1"><strong>COM-04 ติดต่อไม่ได้</strong><span style="color: #4b515b">คำสั่งล็อกจอหมดอายุก่อนถึงเครื่อง</span><a href="#" style="color: #1d4ed8; font-size: 12px">ดูรายละเอียด</a></div><button class="btn" style="height: 24px; padding: 0 6px" aria-label="ปิด">✕</button></div>
+        <div class="toast t-info"><div style="display: flex; flex-direction: column; gap: 2px; flex-grow: 1"><strong>ส่งคำสั่งล็อกจอไป 3 เครื่อง</strong><a href="#" style="color: #1d4ed8; font-size: 12px">ดูผล</a></div></div>
+        <div class="toast t-ok"><div style="display: flex; flex-direction: column; gap: 2px; flex-grow: 1"><strong>เข้าสู่ระบบแล้ว</strong><span style="color: #4b515b">สวัสดี ครูสมชาย · Server 192.168.17.249</span></div></div>
+      </div>
+    </main>
+  </div>
+  <span class="note" style="top: 44px; left: 520px">ประกาศอยู่ในแถบหัว · ความสูงเท่าเดิม grid ไม่ขยับ · ขึ้นทุกหน้า · +1 = มีอีกเรื่อง</span>
+  <span class="note" style="bottom: 140px; left: 230px">toast มุมขวาล่าง (เลี่ยงแผงข้างถ้าเปิดอยู่) · สำเร็จ/ข้อมูลหายใน 4 วิ · error ค้างจนกดปิด · ซ้อนสูงสุด 3</span>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":800}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const active = 'con-clients.dc.html';
+    const n = (label, href, isNew) => ({ label, href, isNew: !!isNew, cls: href === active ? 'nav-on' : '' });
+    const groups = [
+      { name: 'ห้องเรียน', items: [n('Clients', 'con-clients.dc.html'), n('ผังที่นั่ง', 'con-seatmap.dc.html', true), n('Live View', 'con-liveview.dc.html'), n('โหมดสอบ', 'nf-exam.dc.html', true)] },
+      { name: 'กฎ', items: [n('กฎโปรแกรม', 'con-rules.dc.html'), n('Program Review', 'con-programreview.dc.html'), n('Website Control', 'con-website.dc.html')] },
+      { name: 'บันทึก', items: [n('Logs / Audit', 'con-logs.dc.html'), n('ประวัติการใช้เครื่อง', 'nf-attendance.dc.html', true)] },
+      { name: 'ระบบ', items: [n('ผู้ใช้', 'con-users.dc.html'), n('ห้อง', 'nf-rooms.dc.html', true), n('ตั้งค่า', 'con-settings.dc.html')] }
+    ];
+    const r = (st, en, via, name, stu, seen, cls) => ({ st, en, via, name, stu, seen, cls: cls || '' });
+    const rows = [
+      r('ONLINE', 'ENABLED', 'LAN', 'COM-01', 'ด.ญ. [ชื่อ]', '3 วิ'),
+      r('ONLINE', 'ENABLED', 'LAN', 'COM-02', 'ด.ช. [ชื่อ]', '8 วิ'),
+      r('ONLINE', 'ENABLED', 'Tailscale', 'COM-03', '— ยังไม่ล็อกอิน', '12 วิ'),
+      r('OFFLINE', '—', '—', 'COM-04', '—', '2 วัน'),
+      r('ONLINE', 'BYPASS', 'LAN', 'COM-05', 'Staff session (ครูสมชาย)', '4 วิ'),
+      r('ONLINE', 'ENABLED', 'LAN', 'COM-06', 'ด.ช. [ชื่อ]', '6 วิ'),
+      r('ONLINE', 'ENABLED', 'LAN', 'COM-07', 'ด.ญ. [ชื่อ]', '2 วิ'),
+      r('ONLINE', 'ENABLED', 'LAN', 'COM-25', 'ด.ช. [ชื่อ]', '5 วิ', 'sel'),
+      r('ONLINE', 'ENABLED', 'LAN', 'COM-26', 'ด.ญ. [ชื่อ]', '7 วิ'),
+      r('ONLINE', 'ENABLED', 'LAN', 'COM-27', 'ด.ช. [ชื่อ]', '4 วิ')
+    ];
+    return { groups, rows };
+  }
+}
+</script>
+</body>
+</html>

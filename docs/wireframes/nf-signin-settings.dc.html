@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<title>ตั้งค่า Sign-in</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+.btn{height:32px;padding:0 12px;border:1.5px solid #6b7079;border-radius:6px;font:inherit;font-size:13px;background:#fff;color:#1f2328;white-space:nowrap}
+.btn-pri{background:#2b2f36;color:#fff;border-color:#2b2f36}
+.in{height:32px;box-sizing:border-box;border:1.5px solid #8a8f98;border-radius:6px;padding:0 10px;font:inherit;font-size:13px;background:#fff;color:#1f2328}
+.sec{background:#fff;border:1.5px solid #8a8f98;border-radius:8px;padding:6px 16px}
+.sec h2{margin:10px 0 2px;font-size:14px}
+.row{display:flex;justify-content:space-between;align-items:center;gap:20px;padding:10px 0;border-bottom:1px solid #e2e5e9}
+.row:last-child{border-bottom:none}
+.row div{display:flex;flex-direction:column;gap:2px}
+.row strong{font-size:13px;font-weight:600}
+.row span{font-size:12px;color:#4b515b}
+.snav{display:flex;align-items:center;justify-content:space-between;padding:8px 10px;border-radius:6px;font-size:13px;color:#1f2328;text-decoration:none}
+.snav-on{background:#e2e5e9;font-weight:600}
+.grp{font-size:11px;font-weight:600;color:#5b616b;padding:10px 10px 2px}
+</style>
+</helmet>
+<div style="width: 1280px; height: 800px; box-sizing: border-box; display: flex; flex-direction: column; background: #f6f7f9; font-family: 'IBM Plex Sans Thai', system-ui, sans-serif; color: #1f2328; overflow: hidden; outline: 2px dashed #1d4ed8; outline-offset: -2px">
+  <div style="height: 36px; background: #2b2f36; color: #fff; display: flex; align-items: center; padding: 0 14px; font-size: 13px; flex-shrink: 0">Onion ProcOparetor Console · ตั้งค่า</div>
+  <div style="display: flex; flex-grow: 1; min-height: 0">
+    <aside style="width: 230px; flex-shrink: 0; padding: 14px; display: flex; flex-direction: column; gap: 2px; border-right: 1.5px solid #d5d8dd; background: #fff; box-sizing: border-box">
+      <span class="grp">Console เครื่องนี้</span>
+      <a href="con-settings.dc.html" class="snav">การแสดงผล</a>
+      <a href="#" class="snav">การเชื่อมต่อ</a>
+      <a href="#" class="snav">บัญชีของฉัน</a>
+      <span class="grp">ทั้งระบบ (Admin)</span>
+      <a href="#" class="snav snav-on">Sign-in นักเรียน</a>
+      <a href="#" class="snav">Staff session</a>
+      <a href="#" class="snav">รหัสฉุกเฉิน</a>
+      <a href="#" class="snav">ความปลอดภัย (HTTPS)</a>
+      <a href="#" class="snav">สำรองข้อมูล</a>
+    </aside>
+    <section style="flex-grow: 1; min-width: 0; padding: 16px 24px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; align-content: start">
+      <div style="grid-column: 1 / -1; display: flex; justify-content: space-between; align-items: center">
+        <h1 style="margin: 0; font-size: 18px">Sign-in นักเรียน</h1>
+        <span style="display: flex; gap: 8px"><button class="btn">ยกเลิก</button><button class="btn btn-pri">บันทึก</button></span>
+      </div>
+      <div class="sec">
+        <h2>เปิด / ปิด</h2>
+        <div class="row"><div><strong>บังคับล็อกอินก่อนใช้เครื่อง</strong><span>ปิด = ใช้เครื่องได้เลยแบบเดิม</span></div><select class="in" aria-label="บังคับล็อกอิน"><option>เปิด · ทุกห้อง</option><option>เปิด · เลือกห้อง</option><option>ปิด</option></select></div>
+        <div class="row"><div><strong>เปิดโหมด guest</strong><span>ให้เข้าใช้แบบไม่ระบุชื่อได้ (บันทึกเป็น guest)</span></div><input type="checkbox" aria-label="guest"></div>
+        <div class="row"><div><strong>ใช้รหัสฉุกเฉินได้เมื่อ Server ล่ม</strong><span>ตั้งค่า Authenticator ในหน้า "รหัสฉุกเฉิน"</span></div><input type="checkbox" checked aria-label="รหัสฉุกเฉิน"></div>
+      </div>
+      <div class="sec">
+        <h2>รหัสผ่าน</h2>
+        <div class="row"><div><strong>ความยาวขั้นต่ำ</strong><span>นักเรียนเด็กควรสั้นพอจำได้</span></div><input class="in" value="6" style="width: 70px" aria-label="ความยาว"></div>
+        <div class="row"><div><strong>บังคับเปลี่ยนรหัสตอนล็อกอินครั้งแรก</strong><span>หลังนำเข้าหรือรีเซ็ต</span></div><input type="checkbox" checked aria-label="บังคับเปลี่ยน"></div>
+        <div class="row"><div><strong>ล็อกบัญชีเมื่อกรอกผิด</strong><span>ครู/Admin ปลดได้</span></div><span style="display: flex; gap: 6px; align-items: center"><input class="in" value="5" style="width: 60px" aria-label="ครั้ง">ครั้ง</span></div>
+      </div>
+      <div class="sec">
+        <h2>การใช้บัญชี</h2>
+        <div class="row"><div><strong>บัญชีเดียวล็อกอินหลายเครื่องพร้อมกัน</strong><span>ห้าม = กันยืมบัญชีกัน · เครื่องเก่าจะถูก logout</span></div><select class="in" aria-label="หลายเครื่อง"><option>ห้าม · เตะเครื่องเก่าออก</option><option>ห้าม · ไม่ให้เข้าเครื่องใหม่</option><option>อนุญาต</option></select></div>
+        <div class="row"><div><strong>ออกจากระบบเองเมื่อไม่ได้ใช้</strong><span>ไม่ขยับเมาส์/คีย์บอร์ด</span></div><span style="display: flex; gap: 6px; align-items: center"><input class="in" value="15" style="width: 60px" aria-label="นาที">นาที</span></div>
+        <div class="row"><div><strong>ออกจากระบบเมื่อปิด/รีสตาร์ทเครื่อง</strong><span>ไม่มีตารางคาบ จึงใช้ข้อนี้ + เวลาไม่ได้ใช้งานแทน</span></div><input type="checkbox" checked aria-label="ออกเมื่อปิดเครื่อง"></div>
+      </div>
+      <div class="sec">
+        <h2>สิทธิ์และการแสดงผล</h2>
+        <div class="row"><div><strong>Teacher รีเซ็ตรหัสนักเรียนได้</strong><span>ปิด = Admin เท่านั้น</span></div><input type="checkbox" checked aria-label="Teacher รีเซ็ต"></div>
+        <div class="row"><div><strong>แสดงชื่อนักเรียนใน Console</strong><span>ตาราง Clients, ผังที่นั่ง, Live View</span></div><input type="checkbox" checked aria-label="แสดงชื่อ"></div>
+        <div class="row"><div><strong>ข้อความบนจอล็อกอิน</strong><span>เช่น ชื่อโรงเรียน กฎการใช้ห้อง</span></div><input class="in" placeholder="[ข้อความ]" style="width: 200px" aria-label="ข้อความจอล็อกอิน"></div>
+        <div class="row"><div><strong>ข้อความเริ่มต้นตอนครูล็อกจอ</strong><span>ครูพิมพ์ทับเฉพาะครั้งได้ตอนกดล็อก</span></div><input class="in" value="กรุณาละสายตาจากหน้าจอและฟังครูผู้สอน" style="width: 200px" aria-label="ข้อความจอล็อก"></div>
+      </div>
+    </section>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":800}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

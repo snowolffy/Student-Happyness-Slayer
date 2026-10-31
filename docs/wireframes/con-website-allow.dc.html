@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<title>Website ชุด Allow-list</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+.btn{height:32px;padding:0 12px;border:1.5px solid #6b7079;border-radius:6px;font:inherit;font-size:13px;background:#fff;color:#1f2328;white-space:nowrap}
+.btn-pri{background:#2b2f36;color:#fff;border-color:#2b2f36}
+.btn-danger{border-color:#b42318;color:#b42318}
+.in{height:32px;box-sizing:border-box;border:1.5px solid #8a8f98;border-radius:6px;padding:0 10px;font:inherit;font-size:13px;background:#fff;color:#1f2328}
+.tabs{display:flex;gap:4px;border-bottom:1.5px solid #8a8f98}
+.tab{padding:8px 14px;font-size:13px;border:1.5px solid transparent;border-bottom:none;border-radius:6px 6px 0 0;color:#1f2328;text-decoration:none}
+.tab-on{border-color:#8a8f98;background:#fff;font-weight:600;margin-bottom:-1.5px}
+.preset{display:flex;justify-content:space-between;align-items:center;padding:10px 12px;border:1.5px solid #8a8f98;border-radius:8px;background:#fff;font-size:13px}
+.preset-on{border:2px solid #2b2f36;background:#f1f3f5}
+.dom{display:flex;justify-content:space-between;align-items:center;padding:7px 10px;border-bottom:1px solid #e2e5e9;font-size:13px}
+.badge{font-size:11px;font-weight:600;padding:1px 8px;border-radius:999px;border:1.5px solid #6b7079}
+</style>
+</helmet>
+<div style="width: 1280px; height: 800px; box-sizing: border-box; display: flex; flex-direction: column; background: #f6f7f9; font-family: 'IBM Plex Sans Thai', system-ui, sans-serif; color: #1f2328; overflow: hidden; outline: 2px dashed #1d4ed8; outline-offset: -2px">
+  <div style="height: 36px; background: #2b2f36; color: #fff; display: flex; align-items: center; padding: 0 14px; font-size: 13px; flex-shrink: 0">Onion ProcOparetor Console · Website Control</div>
+  <section style="padding: 14px 22px; flex-grow: 1; min-height: 0; display: flex; flex-direction: column; gap: 12px">
+    <div class="tabs"><a href="con-website.dc.html" class="tab">บล็อกเว็บ</a><a href="#" class="tab tab-on">ชุด Allow-list</a><a href="con-website.dc.html" class="tab">ป้องกันการเลี่ยง</a><a href="con-website-history.dc.html" class="tab">ประวัติเว็บ</a></div>
+    <p style="margin: 0; font-size: 13px; color: #4b515b">ชุดเว็บที่ครูเลือกได้ตอนเปิดโหมดสอบ · Admin แก้ที่นี่ ครูแค่กดเลือกชุด</p>
+    <div style="display: grid; grid-template-columns: 300px minmax(0, 1fr); gap: 16px; flex-grow: 1; min-height: 0">
+      <div style="display: flex; flex-direction: column; gap: 8px">
+        <div style="display: flex; justify-content: space-between; align-items: center"><strong style="font-size: 14px">ชุดทั้งหมด</strong><button class="btn">+ ชุดใหม่</button></div>
+        <sc-for list="{{presets}}" as="p" hint-placeholder-count="6">
+          <div class="preset {{p.cls}}"><span>{{p.name}}</span><span style="color: #4b515b">{{p.n}} โดเมน</span></div>
+        </sc-for>
+      </div>
+      <div style="background: #fff; border: 1.5px solid #8a8f98; border-radius: 8px; display: flex; flex-direction: column; min-height: 0">
+        <div style="padding: 12px 14px; border-bottom: 1.5px solid #d5d8dd; display: flex; justify-content: space-between; align-items: center; gap: 10px">
+          <div style="display: flex; flex-direction: column"><strong style="font-size: 15px">Google Forms</strong><span style="font-size: 12px; color: #4b515b">ชุดสำเร็จรูป · แก้ได้ · ใช้ล่าสุด 27 ต.ค. โดย kru.xxx</span></div>
+          <span style="display: flex; gap: 6px"><button class="btn">ทำสำเนา</button><button class="btn btn-danger">ลบชุด</button></span>
+        </div>
+        <div style="padding: 10px 14px; display: flex; gap: 8px"><input class="in" placeholder="เพิ่มโดเมน เช่น forms.gle" style="flex-grow: 1"><button class="btn btn-pri">เพิ่ม</button></div>
+        <div style="flex-grow: 1; overflow: hidden; padding: 0 4px">
+          <sc-for list="{{doms}}" as="d" hint-placeholder-count="8">
+            <div class="dom"><span>{{d.d}}</span><span style="display: flex; gap: 8px; align-items: center"><span class="badge">{{d.why}}</span><button class="btn" style="height: 26px">ลบ</button></span></div>
+          </sc-for>
+        </div>
+        <div style="padding: 12px 14px; border-top: 1.5px solid #d5d8dd; display: flex; gap: 8px; align-items: center">
+          <span style="font-size: 13px">ทดสอบ:</span><input class="in" value="https://docs.google.com/forms/d/…" style="flex-grow: 1"><button class="btn">เปิดได้ไหม?</button>
+          <span class="badge">เปิดได้ ✓</span>
+        </div>
+      </div>
+    </div>
+  </section>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":800}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const presets = [['Google Forms', 7], ['Google Classroom', 9], ['Quizizz / Wayground', 4], ['Kahoot', 3], ['Scratch', 3], ['Canva', 5], ['สอบปลายภาค (ของโรงเรียน)', 2]]
+      .map(([name, n], i) => ({ name, n, cls: i === 0 ? 'preset-on' : '' }));
+    const doms = [
+      { d: 'docs.google.com', why: 'หน้าฟอร์ม' }, { d: 'forms.gle', why: 'ลิงก์ย่อ' }, { d: 'accounts.google.com', why: 'ล็อกอิน Google' },
+      { d: 'ssl.gstatic.com', why: 'ไฟล์ประกอบหน้า' }, { d: 'www.gstatic.com', why: 'ไฟล์ประกอบหน้า' }, { d: 'fonts.googleapis.com', why: 'ฟอนต์' }, { d: 'lh3.googleusercontent.com', why: 'รูปในฟอร์ม' }
+    ];
+    return { presets, doms };
+  }
+}
+</script>
+</body>
+</html>

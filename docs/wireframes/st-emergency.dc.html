@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<title>นักเรียน Server ล่ม</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+.btn{height:46px;padding:0 16px;border:1.5px solid #6b7079;border-radius:8px;font:inherit;font-size:15px;background:#fff;color:#1f2328}
+.btn-pri{background:#2b2f36;color:#fff;border-color:#2b2f36}
+.in{height:56px;box-sizing:border-box;border:1.5px solid #8a8f98;border-radius:8px;padding:0 12px;font:inherit;font-size:28px;letter-spacing:.35em;text-align:center;background:#fff;color:#1f2328;width:100%}
+.tag{font-size:11px;font-weight:600;padding:2px 7px;border-radius:999px;white-space:nowrap}
+.tag-new{background:#dbe6fd;color:#1a3fa8}
+</style>
+</helmet>
+<div style="width: 1280px; height: 720px; box-sizing: border-box; display: flex; flex-direction: column; background: #3a3f47; font-family: 'IBM Plex Sans Thai', system-ui, sans-serif; color: #fff; outline: 2px dashed #8fb0f5; outline-offset: -6px">
+  <div style="display: flex; justify-content: space-between; align-items: center; padding: 20px 32px">
+    <span style="font-size: 15px">ห้อง Com 1</span><span class="tag tag-new">ใหม่</span><span style="font-size: 15px">COM-25 · 10:31</span>
+  </div>
+  <div style="flex-grow: 1; display: flex; align-items: center; justify-content: center">
+    <form style="width: 460px; background: #fff; color: #1f2328; border-radius: 12px; padding: 28px; display: flex; flex-direction: column; gap: 14px">
+      <div style="padding: 10px 12px; border-radius: 8px; background: #fdecea; border: 1.5px solid #b42318; font-size: 14px; line-height: 1.5">
+        <strong>ติดต่อ Server ไม่ได้</strong> · ล็อกอินนักเรียนใช้ไม่ได้ชั่วคราว ระบบกำลังลองเชื่อมต่อใหม่ทุก 10 วินาที
+      </div>
+      <strong style="font-size: 18px">ปลดเครื่องด้วยรหัสฉุกเฉิน</strong>
+      <span style="font-size: 14px; color: #4b515b; line-height: 1.5">ครูเปิดแอป Authenticator บนมือถือ แล้วพิมพ์รหัส 6 หลักที่เห็นตอนนี้</span>
+      <input class="in" placeholder="000000" aria-label="รหัส 6 หลัก">
+      <button class="btn btn-pri">ปลดล็อกชั่วคราว</button>
+      <span style="font-size: 13px; color: #4b515b; line-height: 1.5">ปลดแล้วเครื่องใช้งานแบบไม่ระบุชื่อ กฎยังทำงานตามที่จำไว้ล่าสุด · พอ Server กลับมา ระบบจะบันทึกย้อนหลังว่าเครื่องนี้ถูกปลดด้วยรหัสฉุกเฉินเมื่อไร และจะให้ล็อกอินตามปกติอีกครั้ง</span>
+      <a href="st-login.dc.html" style="font-size: 13px; color: #1d4ed8">← กลับไปหน้าล็อกอิน</a>
+    </form>
+  </div>
+  <div style="padding: 14px 32px; display: flex; justify-content: flex-end; gap: 8px">
+    <button class="btn" style="height: 40px">ปิดเครื่อง</button>
+    <button class="btn" style="height: 40px">รีสตาร์ท</button>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":720}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

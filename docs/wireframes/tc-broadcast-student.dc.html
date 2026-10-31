@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<title>ส่งจอ ฝั่งนักเรียน</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+.btn{height:26px;padding:0 8px;border:1.5px solid #6b7079;border-radius:6px;font:inherit;font-size:12px;background:#fff;color:#1f2328;white-space:nowrap}
+.cap{font-size:14px;font-weight:700;margin:0}
+.screen{background:repeating-linear-gradient(135deg,#c9cdd3 0 10px,#bfc4ca 10px 20px);display:flex;align-items:center;justify-content:center;font-size:13px;color:#2b2f36}
+</style>
+</helmet>
+<div style="width: 1280px; height: 800px; box-sizing: border-box; padding: 24px 28px; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 26px; background: #f6f7f9; font-family: 'IBM Plex Sans Thai', system-ui, sans-serif; color: #1f2328; outline: 2px dashed #1d4ed8; outline-offset: -2px">
+  <div style="display: flex; flex-direction: column; gap: 10px">
+    <p class="cap">แบบเต็มจอ + ล็อกเมาส์/คีย์บอร์ด</p>
+    <div style="position: relative; height: 380px; border: 1.5px solid #6b7079; border-radius: 8px; overflow: hidden; background: #1f2328">
+      <div class="screen" style="position: absolute; inset: 0 0 30px 0">ภาพจอครู (ย่อ/ขยายให้พอดีจอนักเรียน)</div>
+      <div style="position: absolute; left: 0; right: 0; bottom: 0; height: 30px; background: #1e3a5f; color: #fff; display: flex; align-items: center; justify-content: space-between; padding: 0 12px; font-size: 12px"><span>กำลังดูจอครู · ครู [ชื่อ]</span><span>เมาส์และคีย์บอร์ดถูกปิดชั่วคราว</span></div>
+    </div>
+    <span style="font-size: 12px; color: #2b2f36; line-height: 1.5">ใช้หน้าต่างแบบเดียวกับจอล็อก (ครอบทั้งจอ อยู่บนสุด) · ครูกดหยุดแล้วกลับหน้าที่นักเรียนทำค้างไว้ทันที ไม่มีอะไรหาย</span>
+  </div>
+  <div style="display: flex; flex-direction: column; gap: 10px">
+    <p class="cap">แบบหน้าต่างลอย</p>
+    <div style="position: relative; height: 380px; border: 1.5px solid #6b7079; border-radius: 8px; overflow: hidden; background: repeating-linear-gradient(135deg,#dfe3e8 0 14px,#d6dae0 14px 28px)">
+      <div style="position: absolute; left: 12px; top: 12px; right: 180px; bottom: 42px; background: #fff; border: 1px solid #8a8f98; border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 12px; color: #4b515b">โปรแกรมที่นักเรียนทำตาม (เช่น Scratch)</div>
+      <div style="position: absolute; right: 12px; top: 12px; width: 300px; background: #fff; border: 2px solid #1e3a5f; border-radius: 8px; overflow: hidden; box-shadow: 0 6px 18px rgba(0,0,0,.2)">
+        <div style="height: 26px; background: #1e3a5f; color: #fff; display: flex; align-items: center; justify-content: space-between; padding: 0 8px; font-size: 11px"><span>จอครู</span><span style="display: flex; gap: 4px"><button class="btn" style="height: 20px; font-size: 11px">ย่อ</button><button class="btn" style="height: 20px; font-size: 11px">ขยาย</button></span></div>
+        <div class="screen" style="height: 170px">ภาพจอครู</div>
+      </div>
+      <div style="position: absolute; left: 0; right: 0; bottom: 0; height: 30px; background: #2b2f36"></div>
+    </div>
+    <span style="font-size: 12px; color: #2b2f36; line-height: 1.5">ลากย้าย/ปรับขนาดได้ ปิดไม่ได้จนกว่าครูหยุดส่ง · เหมาะกับคาบสอนทำตาม</span>
+  </div>
+  <div style="grid-column: 1 / -1; background: #fff; border: 1.5px dashed #8a8f98; border-radius: 8px; padding: 12px 14px; font-size: 13px; line-height: 1.6">
+    <strong>กรณีพิเศษ</strong> · นักเรียนอยู่ในโหมดสอบ: ยังเห็นจอครูได้ (ครูอาจโชว์โจทย์) · เครื่องที่ครูล็อกจออยู่: ภาพจอครูขึ้นแทนจอล็อก แล้วกลับเป็นจอล็อกเมื่อหยุดส่ง · Staff session: ไม่รับภาพ (ครูกำลังใช้เครื่องนั้นอยู่)
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":800}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

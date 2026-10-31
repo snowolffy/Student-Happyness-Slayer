@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<title>ยกมือขอความช่วยเหลือ</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+.btn{height:30px;padding:0 10px;border:1.5px solid #6b7079;border-radius:6px;font:inherit;font-size:12px;background:#fff;color:#1f2328;white-space:nowrap}
+.btn-pri{background:#2b2f36;color:#fff;border-color:#2b2f36}
+.in{height:34px;box-sizing:border-box;border:1.5px solid #8a8f98;border-radius:6px;padding:0 10px;font:inherit;font-size:13px;background:#fff;color:#1f2328;width:100%}
+.cap{font-size:14px;font-weight:700;margin:0;display:flex;gap:8px;align-items:center}
+.num{width:22px;height:22px;border-radius:50%;background:#2b2f36;color:#fff;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700}
+.desk{position:relative;border:1.5px solid #6b7079;border-radius:8px;overflow:hidden;background:repeating-linear-gradient(135deg,#dfe3e8 0 14px,#d6dae0 14px 28px);height:250px}
+.taskbar{position:absolute;left:0;right:0;bottom:0;height:28px;background:#2b2f36}
+.q{display:flex;gap:10px;align-items:flex-start;padding:10px 12px;border-bottom:1px solid #e2e5e9}
+.chip{font-size:11px;font-weight:600;padding:1px 8px;border-radius:999px;border:1.5px solid #b45309;color:#6b3a0b;background:#fdf3e7;white-space:nowrap}
+</style>
+</helmet>
+<div style="width: 1280px; height: 800px; box-sizing: border-box; padding: 24px 28px; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr); gap: 26px; background: #f6f7f9; font-family: 'IBM Plex Sans Thai', system-ui, sans-serif; color: #1f2328; outline: 2px dashed #1d4ed8; outline-offset: -2px">
+  <div style="display: flex; flex-direction: column; gap: 12px">
+    <strong style="font-size: 18px">ฝั่งนักเรียน</strong>
+    <p class="cap"><span class="num">1</span>กด "ยกมือ" ในเมนูไอคอน tray (หรือ Ctrl+Alt+H)</p>
+    <div class="desk">
+      <div style="position: absolute; right: 12px; bottom: 36px; width: 280px; background: #fff; border: 1.5px solid #6b7079; border-radius: 10px; padding: 12px; display: flex; flex-direction: column; gap: 8px; box-shadow: 0 6px 18px rgba(0,0,0,.18)">
+        <strong style="font-size: 14px">ขอความช่วยเหลือจากครู</strong>
+        <div style="display: flex; flex-wrap: wrap; gap: 6px"><button class="btn">โปรแกรมค้าง</button><button class="btn">ทำไม่เป็น</button><button class="btn">เว็บเข้าไม่ได้</button></div>
+        <input class="in" placeholder="พิมพ์เพิ่ม (ไม่บังคับ)">
+        <button class="btn btn-pri" style="height: 34px">ยกมือ</button>
+      </div>
+      <div class="taskbar"></div>
+    </div>
+    <p class="cap"><span class="num">2</span>รอครู: ป้ายเล็กมุมขวาล่าง</p>
+    <div class="desk" style="height: 150px">
+      <div style="position: absolute; right: 12px; bottom: 36px; display: flex; gap: 8px; align-items: center; padding: 6px 10px; background: #fdf3e7; border: 2px solid #b45309; border-radius: 8px; font-size: 12px"><strong>ยกมืออยู่</strong><span>คิวที่ 2</span><button class="btn" style="height: 24px">ยกเลิก</button></div>
+      <div class="taskbar"></div>
+    </div>
+    <span style="font-size: 12px; color: #4b515b; line-height: 1.5">ครูกด "ไปช่วยแล้ว" หรือตอบข้อความ → ป้ายหายเอง · ยกมือซ้ำได้หลังจากนั้น 1 นาที (กันกดเล่น)</span>
+  </div>
+  <div style="display: flex; flex-direction: column; gap: 12px">
+    <strong style="font-size: 18px">ฝั่งครู (Console / มือถือ)</strong>
+    <div style="align-self: flex-end; width: 330px; background: #2b2f36; color: #fff; border-radius: 10px; padding: 12px 14px; display: flex; flex-direction: column; gap: 6px">
+      <strong style="font-size: 14px">COM-26 ยกมือ · [ชื่อนักเรียน]</strong>
+      <span style="font-size: 13px">"โปรแกรมค้าง" · เด้งมุมจอ + เสียงเบาๆ (ปิดเสียงได้)</span>
+    </div>
+    <div style="background: #fff; border: 1.5px solid #8a8f98; border-radius: 10px; display: flex; flex-direction: column">
+      <div style="padding: 10px 12px; border-bottom: 1.5px solid #d5d8dd; display: flex; justify-content: space-between; align-items: center"><strong style="font-size: 14px">คิวยกมือ (3)</strong><span style="font-size: 12px; color: #4b515b">อยู่ในแถบข้างของ Clients / ผังที่นั่ง</span></div>
+      <sc-for list="{{q}}" as="r" hint-placeholder-count="3">
+        <div class="q">
+          <strong style="font-size: 13px; width: 26px">{{r.n}}</strong>
+          <div style="flex-grow: 1; display: flex; flex-direction: column; gap: 3px"><span style="font-size: 13px"><strong>{{r.pc}}</strong> · [ชื่อนักเรียน]</span><span style="display: flex; gap: 6px; align-items: center"><span class="chip">{{r.why}}</span><span style="font-size: 12px; color: #4b515b">รอ {{r.wait}}</span></span></div>
+          <span style="display: flex; gap: 6px"><button class="btn">ดูจอ</button><button class="btn">ตอบ</button><button class="btn btn-pri">ไปช่วยแล้ว</button></span>
+        </div>
+      </sc-for>
+    </div>
+    <span style="font-size: 12px; color: #4b515b; line-height: 1.5">ในผังที่นั่ง เครื่องที่ยกมือเป็นกรอบสีส้ม (มีอยู่แล้วใน wireframe ผังที่นั่ง) · บันทึกลง log รายบุคคลว่าใครขอความช่วยเหลือกี่ครั้ง</span>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":800}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const q = [
+      { n: '1', pc: 'COM-26', why: 'โปรแกรมค้าง', wait: '2 นาที' },
+      { n: '2', pc: 'COM-08', why: 'ทำไม่เป็น', wait: '1 นาที' },
+      { n: '3', pc: 'COM-33', why: 'เว็บเข้าไม่ได้', wait: '10 วิ' }
+    ];
+    return { q };
+  }
+}
+</script>
+</body>
+</html>

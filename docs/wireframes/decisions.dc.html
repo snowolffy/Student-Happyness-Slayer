@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<title>สรุปการตัดสินใจ</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+.col{display:flex;flex-direction:column;gap:7px;border-radius:10px;padding:16px}
+.col h2{margin:0 0 4px;font-size:18px}
+.item{display:flex;flex-direction:column;gap:2px;background:#fff;border-radius:6px;padding:8px 10px;border:1px solid #d5d8dd}
+.item strong{font-size:13.5px}
+.item span{font-size:12px;color:#4b515b;line-height:1.45}
+</style>
+</helmet>
+<div style="width: 1600px; height: 1400px; box-sizing: border-box; padding: 36px 40px; display: flex; flex-direction: column; gap: 18px; background: #f6f7f9; font-family: 'IBM Plex Sans Thai', system-ui, sans-serif; color: #1f2328">
+  <div style="display: flex; flex-direction: column; gap: 4px">
+    <h1 style="margin: 0; font-size: 30px">สรุปการตัดสินใจทั้งหมด · อัปเดต 30 ต.ค. 2569</h1>
+    <p style="margin: 0; font-size: 15px; color: #4b515b">ทุกข้อยืนยันแล้ว · wireframe ปิดงาน · พร้อมเริ่มเขียนโค้ดขั้น 1</p>
+  </div>
+  <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; flex-grow: 1; align-items: start">
+    <div class="col" style="background: #e3f1e6; border: 2px solid #2f7a45">
+      <h2>ตกลงแล้ว · ระบบ / Sign-in</h2>
+      <sc-for list="{{a}}" as="d" hint-placeholder-count="14"><div class="item"><strong>{{d.t}}</strong><span>{{d.s}}</span></div></sc-for>
+    </div>
+    <div class="col" style="background: #e3f1e6; border: 2px solid #2f7a45">
+      <h2>ตกลงแล้ว · หน้าตา / ฟีเจอร์</h2>
+      <sc-for list="{{b}}" as="d" hint-placeholder-count="14"><div class="item"><strong>{{d.t}}</strong><span>{{d.s}}</span></div></sc-for>
+    </div>
+    <div class="col" style="background: #e4ebfa; border: 2px solid #1d4ed8">
+      <h2>เรื่องที่เคยค้าง (ปิดครบแล้ว)</h2>
+      <sc-for list="{{ask}}" as="d" hint-placeholder-count="4"><div class="item"><strong>{{d.t}}</strong><span>{{d.s}}</span></div></sc-for>
+      <h2 style="margin-top: 12px">ลำดับงาน (ยืนยันแล้ว)</h2>
+      <sc-for list="{{phases}}" as="p" hint-placeholder-count="6"><div class="item"><strong>ขั้น {{p.n}} · {{p.t}}</strong><span>{{p.s}}</span></div></sc-for>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1600,"height":1400}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const m = (t, s) => ({ t, s });
+    const a = [
+      m('Sign-in นักเรียน', 'เมล/รหัสนักเรียน + รหัสผ่าน · Admin จัดการ · เป้าหมาย = log รายบุคคล'),
+      m('เปิด/ปิด Sign-in ได้ที่ตั้งค่า Server · ใหม่ 30 ต.ค.', 'ปิด = เครื่องที่ค้างหน้าล็อกอินปลดใน 1 รอบ poll · เปิด = ไม่เตะใครกลางคัน'),
+      m('Roster Manager แยกโปรแกรม', 'ใช้ Server/DB ตัวเดียวกัน · รหัสเริ่มต้นสุ่ม 6 หลัก + บังคับเปลี่ยน · ใบรหัส A4'),
+      m('ความปลอดภัยบัญชีนักเรียน', 'ล็อกเมื่อผิด 5 ครั้ง · ขั้นต่ำ 6 ตัว · Teacher รีเซ็ตได้ · บัญชีเดียวหลายเครื่อง = เตะเครื่องเก่า'),
+      m('Role Admin / Teacher', 'ครูมีไม่กี่คน'),
+      m('ชื่อที่แสดง (บัญชีครู/Admin) · ใหม่ 30 ต.ค.', 'โชว์ทุกที่ที่คนเห็น · Audit Log เก็บ username + ชื่อที่แสดง'),
+      m('Staff session', 'บัญชี Console · บันทึกเหมือน admin ล็อกอิน · 30 นาที (สูงสุด 120) · ไม่นับเป็นการใช้ของนักเรียน'),
+      m('รหัสฉุกเฉิน TOTP · ใหม่ 30 ต.ค.', 'ใช้ได้ทั้งแอป Authenticator และหน้าเว็บ Google Apps Script (จำกัดบัญชีครู + log ว่าใครเปิด)'),
+      m('HTTPS self-signed', 'MSI ติดตั้งใบรับรอง · ต้องทำก่อนเก็บรหัสนักเรียน'),
+      m('Agent ตอนบูต: ลอง LAN + Tailscale · ใหม่ 30 ต.ค.', 'LAN ได้เปรียบ 2 วิ · ทางไหนตอบก่อนใช้ทางนั้น · ได้ Tailscale แล้วลอง LAN เบื้องหลังเพื่อสลับกลับ · หลังบูตใช้กติกา 5/7 เดิม'),
+      m('ไม่มีตาราง/คาบ', 'ห้องอยู่โหมดทั่วไป · รายงาน = ประวัติการใช้เครื่อง'),
+      m('Pilot ก่อน', 'ลง MSI ชุดปัจจุบัน 2–3 เครื่อง')
+    ];
+    const b = [
+      m('Console: toast มุมขวาล่าง · ใหม่ 30 ต.ค.', 'แทนข้อความที่แทรกในหน้า · สำเร็จ/ข้อมูลหาย 4 วิ · error ค้างจนกดปิด · ซ้อนสูงสุด 3'),
+      m('Console: แผงเครื่องแบบสไลด์ทับ · ใหม่ 30 ต.ค.', 'สไลด์จากขวาทับ grid ไม่ดันคอลัมน์ · หุบเหลือแถบแคบได้ · Esc ปิด'),
+      m('Console: ประกาศในแถบหัว · ใหม่ 30 ต.ค.', 'สูงเท่าเดิม grid ไม่ขยับ · ขึ้นทุกหน้า · หลายเรื่อง = แสดงเรื่องร้ายแรงสุด + "+N"'),
+      m('เมนู Console แบบกลุ่ม', 'ห้องเรียน / กฎ / บันทึก / ระบบ · ทุกอย่างเป็นหน้า'),
+      m('เวลาไทยแทน UTC', 'ตั้งกลับได้'),
+      m('จอนักเรียนแนวทางการ', 'ข้อความจอล็อกแก้ได้ · ไม่มีแถบบนจอ (แจ้ง 5 วิ + เมนู tray · ป้ายมุมขวาล่างตอนสอบ/Staff)'),
+      m('หน้าล็อกอินการ์ดแบ่งสองฝั่ง', 'ภาพซ้ายจากไฟล์ + ฟอร์มขวา · พื้นลายจุด · เครื่องนักเรียนการ์ดลอย + ปุ่มปิดเครื่อง'),
+      m('โหมดสอบชั่วคราวเสมอ', 'ต้องมีเวลาหมด · ชุด Allow-list สำเร็จรูป · เปิดจากมือถือได้'),
+      m('เครื่องมือสอน', 'เปิด URL (โปรแกรมเฉพาะรายการ Admin) · ยกมือ (cooldown 1 นาที) · แจก/เก็บไฟล์ · ส่งจอแบบลดเฟรมผ่าน Server'),
+      m('ธีมมืด', 'ใช้ theme token เดิม ไม่ออกแบบแยก')
+    ];
+    const ask = [
+      m('ลายจุดพื้นหลัง: จุดเรียงตาราง ✓', 'ตัดสินแล้ว 30 ต.ค.'),
+      m('ภาพ / ตรา / ชื่อโรงเรียน: ใช้ placeholder ไปก่อน ✓', 'โค้ดอ่านจากไฟล์ Assets\\LoginHero.png · มีภาพเริ่มต้นมาให้ เปลี่ยนไฟล์ทีหลังได้'),
+      m('ข้อความเริ่มต้นจอล็อก + จอล็อกอิน: placeholder ไปก่อน ✓', 'แก้ได้จากหน้าตั้งค่าอยู่แล้ว'),
+      m('ตอนลงแล็บ (ผู้ใช้รับไปทำ)', 'เปิด WoL ใน BIOS · เดินสาย LAN · เลือกเครื่อง pilot · เช็ก Google Workspace สำหรับหน้า Apps Script')
+    ];
+    const phases = [
+      { n: 0, t: 'Pilot', s: 'ลง MSI ที่ build ไว้ 2–3 เครื่อง' },
+      { n: 1, t: 'ฐานราก', s: 'HTTPS · token แทน bypass · ห้อง · Role + ชื่อที่แสดง · Agent ลอง LAN/Tailscale ตอนบูต · Console โครงใหม่ (เมนูกลุ่ม, toast, แผงสไลด์, ประกาศในแถบหัว)' },
+      { n: 2, t: 'Website', s: 'ป้องกันการเลี่ยง · โหมดสอบ + Allow-list · กฎรายห้อง · ประวัติเว็บ' },
+      { n: 3, t: 'Sign-in', s: 'Roster Manager · จอล็อกอิน · Staff session · รหัสฉุกเฉิน (แอป + Apps Script) · ประวัติการใช้เครื่อง' },
+      { n: 4, t: 'เครื่องมือสอน', s: 'เปิด URL · ยกมือ · แจก/เก็บไฟล์ · ส่งจอ' },
+      { n: 5, t: 'รายงาน/ดูแลเครื่อง', s: 'รายงานรายคน · ตั้งเวลาเปิด-ปิด + WoL · รายการเครื่อง' }
+    ];
+    return { a, b, ask, phases };
+  }
+}
+</script>
+</body>
+</html>

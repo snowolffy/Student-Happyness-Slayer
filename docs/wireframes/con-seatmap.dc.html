@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<title>Console ผังที่นั่ง</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+.btn{height:32px;padding:0 12px;border:1.5px solid #6b7079;border-radius:6px;font:inherit;font-size:13px;background:#fff;color:#1f2328;white-space:nowrap}
+.btn-pri{background:#2b2f36;color:#fff;border-color:#2b2f36}
+.in{height:32px;box-sizing:border-box;border:1.5px solid #8a8f98;border-radius:6px;padding:0 10px;font:inherit;font-size:13px;background:#fff;color:#1f2328}
+.nav{display:flex;align-items:center;justify-content:space-between;gap:8px;height:32px;padding:0 10px;border-radius:6px;font-size:13px;color:#2b2f36;text-decoration:none}
+.nav-on{background:#2b2f36;color:#fff}
+.grp{font-size:11px;font-weight:600;color:#5b616b;padding:10px 10px 2px}
+.tag{font-size:10px;font-weight:600;padding:1px 6px;border-radius:999px;white-space:nowrap}
+.tag-new{background:#dbe6fd;color:#1a3fa8}
+.seat{display:flex;flex-direction:column;gap:2px;padding:8px;border-radius:8px;border:1.5px solid #8a8f98;background:#fff;font:inherit;text-align:left;color:#1f2328;min-height:64px;box-sizing:border-box}
+.s-on{background:#fff}
+.s-idle{background:#eef0f3;border-style:dashed}
+.s-off{background:#d5d8dd;color:#4b515b}
+.s-help{border:2.5px solid #b45309;background:#fdf3e7}
+.s-sel{outline:3px solid #1d4ed8;outline-offset:1px}
+.seg{display:flex;border:1.5px solid #6b7079;border-radius:6px;overflow:hidden}
+.seg a{padding:6px 12px;font-size:13px;color:#1f2328;text-decoration:none}
+.seg .on{background:#2b2f36;color:#fff}
+</style>
+</helmet>
+<div style="width: 1280px; height: 800px; box-sizing: border-box; display: flex; flex-direction: column; background: #f6f7f9; font-family: 'IBM Plex Sans Thai', system-ui, sans-serif; color: #1f2328; overflow: hidden">
+  <div style="height: 36px; background: #2b2f36; color: #fff; display: flex; align-items: center; padding: 0 14px; font-size: 13px; flex-shrink: 0">Onion ProcOparetor Console</div>
+  <div style="display: flex; flex-grow: 1; min-height: 0">
+    <nav style="width: 210px; flex-shrink: 0; background: #eceef1; padding: 12px 10px; display: flex; flex-direction: column; gap: 2px; box-sizing: border-box">
+      <div style="display: flex; flex-direction: column; padding: 0 6px 8px"><span style="font-weight: 700; font-size: 14px">Onion ProcOparetor</span><span style="font-size: 11px; color: #4b515b">Server Console</span></div>
+      <sc-for list="{{groups}}" as="g" hint-placeholder-count="4">
+        <span class="grp">{{g.name}}</span>
+        <sc-for list="{{g.items}}" as="it" hint-placeholder-count="3">
+          <a href="{{it.href}}" class="nav {{it.cls}}"><span>{{it.label}}</span><sc-if value="{{it.isNew}}" hint-placeholder-val="{{false}}"><span class="tag tag-new">ใหม่</span></sc-if></a>
+        </sc-for>
+      </sc-for>
+    </nav>
+
+    <main style="flex-grow: 1; min-width: 0; display: flex; flex-direction: column">
+      <header style="height: 52px; display: flex; align-items: center; justify-content: space-between; padding: 0 20px; border-bottom: 1.5px solid #d5d8dd; background: #fff; gap: 12px">
+        <div style="display: flex; align-items: center; gap: 14px">
+          <h1 style="margin: 0; font-size: 18px; font-weight: 700">ผังที่นั่ง</h1>
+          <span class="tag tag-new">ใหม่</span>
+          <select class="in" aria-label="ห้อง"><option>Com 1 (40 เครื่อง)</option></select>
+          <span style="font-size: 13px; color: #4b515b">โหมดปกติ · ล็อกอินแล้ว 33 / ออนไลน์ 36</span>
+        </div>
+        <div style="display: flex; gap: 8px; align-items: center">
+          <div class="seg"><a href="con-seatmap.dc.html" class="on">ผัง</a><a href="con-clients.dc.html">ตาราง</a><a href="con-liveview.dc.html">จอรวม</a></div>
+          <button class="btn">จัดผังใหม่ (ลากวาง)</button>
+        </div>
+      </header>
+
+      <div style="display: flex; flex-grow: 1; min-height: 0">
+        <section style="flex-grow: 1; padding: 16px 20px; display: flex; flex-direction: column; gap: 12px; min-width: 0">
+          <div style="display: flex; gap: 16px; font-size: 12px; color: #4b515b; flex-wrap: wrap; align-items: center">
+            <span style="display: flex; gap: 6px; align-items: center"><span class="seat s-on" style="min-height: 0; padding: 0; width: 14px; height: 14px"></span>ล็อกอินแล้ว</span>
+            <span style="display: flex; gap: 6px; align-items: center"><span class="seat s-idle" style="min-height: 0; padding: 0; width: 14px; height: 14px"></span>เปิดอยู่ ยังไม่ล็อกอิน</span>
+            <span style="display: flex; gap: 6px; align-items: center"><span class="seat s-off" style="min-height: 0; padding: 0; width: 14px; height: 14px"></span>ออฟไลน์</span>
+            <span style="display: flex; gap: 6px; align-items: center"><span class="seat s-help" style="min-height: 0; padding: 0; width: 14px; height: 14px"></span>ยกมือขอความช่วยเหลือ (ขั้น 4)</span>
+            <div style="flex-grow: 1"></div>
+            <span>คลิกเลือก · Shift+คลิกเลือกหลายเครื่อง · ลากคลุมเลือกทั้งแถว</span>
+          </div>
+          <div style="text-align: center; font-size: 12px; color: #4b515b; padding: 6px; border: 1.5px dashed #8a8f98; border-radius: 6px">หน้าห้อง · โต๊ะครู</div>
+          <div style="display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 10px">
+            <sc-for list="{{seats}}" as="s" hint-placeholder-count="40">
+              <button class="seat {{s.cls}}"><strong style="font-size: 12px">{{s.pc}}</strong><span style="font-size: 12px">{{s.who}}</span></button>
+            </sc-for>
+          </div>
+        </section>
+        <aside style="width: 250px; flex-shrink: 0; border-left: 1.5px solid #d5d8dd; background: #fff; padding: 16px; display: flex; flex-direction: column; gap: 10px; box-sizing: border-box">
+          <strong style="font-size: 15px">เลือกไว้ 2 เครื่อง</strong>
+          <span style="font-size: 13px; color: #4b515b">COM-11, COM-12</span>
+          <button class="btn" style="width: 100%">ล็อกจอ</button>
+          <button class="btn" style="width: 100%">ส่งข้อความ</button>
+          <button class="btn" style="width: 100%">ดูหน้าจอ</button>
+          <button class="btn" style="width: 100%">เปิด URL… (ขั้น 4)</button>
+          <a href="con-actionpanel.dc.html" class="btn btn-pri" style="display: flex; align-items: center; justify-content: center; text-decoration: none">คำสั่งอื่นๆ…</a>
+        </aside>
+      </div>
+    </main>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":800}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const active = 'con-seatmap.dc.html';
+    const n = (label, href, isNew) => ({ label, href, isNew: !!isNew, cls: href === active ? 'nav-on' : '' });
+    const groups = [
+      { name: 'ห้องเรียน', items: [n('Clients', 'con-clients.dc.html'), n('ผังที่นั่ง', 'con-seatmap.dc.html', true), n('Live View', 'con-liveview.dc.html'), n('โหมดสอบ', 'nf-exam.dc.html', true)] },
+      { name: 'กฎ', items: [n('กฎโปรแกรม', 'con-rules.dc.html'), n('Program Review', 'con-programreview.dc.html'), n('Website Control', 'con-website.dc.html')] },
+      { name: 'บันทึก', items: [n('Logs / Audit', 'con-logs.dc.html'), n('ประวัติการใช้เครื่อง', 'nf-attendance.dc.html', true)] },
+      { name: 'ระบบ', items: [n('ผู้ใช้', 'con-users.dc.html'), n('ห้อง', 'nf-rooms.dc.html', true), n('ตั้งค่า', 'con-settings.dc.html')] }
+    ];
+    const off = [4, 17, 30, 38];
+    const idle = [3, 9, 22];
+    const help = [26];
+    const sel = [11, 12];
+    const seats = [];
+    for (let i = 1; i <= 40; i++) {
+      const pc = 'COM-' + String(i).padStart(2, '0');
+      let cls = 's-on', who = '[ชื่อนักเรียน]';
+      if (off.includes(i)) { cls = 's-off'; who = 'ออฟไลน์'; }
+      else if (idle.includes(i)) { cls = 's-idle'; who = 'ยังไม่ล็อกอิน'; }
+      else if (help.includes(i)) { cls = 's-help'; who = 'ขอความช่วยเหลือ'; }
+      if (sel.includes(i)) cls += ' s-sel';
+      seats.push({ pc, who, cls });
+    }
+    return { groups, seats };
+  }
+}
+</script>
+</body>
+</html>

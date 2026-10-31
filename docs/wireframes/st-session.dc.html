@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<title>นักเรียน ระหว่างใช้งาน</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+.btn{height:28px;padding:0 10px;border:1.5px solid #6b7079;border-radius:6px;font:inherit;font-size:12px;background:#fff;color:#1f2328;white-space:nowrap}
+.desk{position:relative;flex:1;min-width:0;border:1.5px solid #6b7079;border-radius:8px;overflow:hidden;background:repeating-linear-gradient(135deg,#dfe3e8 0 14px,#d6dae0 14px 28px);display:flex;flex-direction:column}
+.browser{margin:10px 10px 0;background:#fff;border:1px solid #8a8f98;border-radius:6px 6px 0 0;flex-grow:1;display:flex;flex-direction:column}
+.tabs{display:flex;gap:4px;padding:6px 6px 0;background:#e2e5e9;border-radius:6px 6px 0 0}
+.tabs span{font-size:11px;padding:4px 10px;background:#fff;border-radius:4px 4px 0 0}
+.taskbar{height:30px;background:#2b2f36;display:flex;align-items:center;justify-content:flex-end;gap:10px;padding:0 10px;color:#fff;font-size:11px}
+.pill{position:absolute;right:10px;bottom:40px;display:flex;align-items:center;gap:8px;padding:6px 10px;border-radius:8px;font-size:12px;box-shadow:0 2px 8px rgba(0,0,0,.2)}
+.lbl{font-size:13px;font-weight:700;margin:0}
+.tag{font-size:11px;font-weight:600;padding:2px 7px;border-radius:999px;white-space:nowrap}
+.tag-new{background:#dbe6fd;color:#1a3fa8}
+.menu{position:absolute;right:56px;bottom:34px;background:#fff;border:1.5px solid #6b7079;border-radius:8px;padding:6px;display:flex;flex-direction:column;font-size:12px;min-width:170px;box-shadow:0 2px 8px rgba(0,0,0,.2)}
+.menu span{padding:6px 8px}
+</style>
+</helmet>
+<div style="width: 1280px; height: 720px; box-sizing: border-box; padding: 24px 28px; display: flex; flex-direction: column; gap: 14px; background: #f6f7f9; font-family: 'IBM Plex Sans Thai', system-ui, sans-serif; color: #1f2328; outline: 2px dashed #1d4ed8; outline-offset: -2px">
+  <div style="display: flex; align-items: center; gap: 10px"><strong style="font-size: 18px">ระหว่างใช้งาน · ไม่มีแถบบนจอ (ไม่ทับแท็บเบราว์เซอร์)</strong><span class="tag tag-new">ใหม่</span></div>
+  <div style="display: flex; gap: 16px; flex-grow: 1; min-height: 0">
+    <div style="flex: 1; display: flex; flex-direction: column; gap: 6px; min-width: 0">
+      <p class="lbl">1 · ปกติ: เด้งแจ้ง 5 วิแล้วหาย + เมนูที่ไอคอน tray</p>
+      <div class="desk">
+        <div class="browser"><div class="tabs"><span>Google Classroom</span><span>Scratch</span></div></div>
+        <div class="pill" style="background: #fff; border: 1.5px solid #8a8f98; bottom: 150px"><span>เข้าสู่ระบบเป็น <strong>[ชื่อนักเรียน]</strong></span><span style="color: #4b515b">(หายใน 5 วิ)</span></div>
+        <div class="menu"><strong style="padding: 6px 8px">[ชื่อนักเรียน] · 65xxx</strong><span>ไม่ใช่ฉัน (สลับผู้ใช้)</span><span>ออกจากระบบ</span><span style="color: #4b515b">ยกมือ (ขั้น 4)</span></div>
+        <div class="taskbar"><span style="border: 1.5px solid #fff; border-radius: 4px; padding: 1px 5px">O</span><span>10:42</span></div>
+      </div>
+    </div>
+    <div style="flex: 1; display: flex; flex-direction: column; gap: 6px; min-width: 0">
+      <p class="lbl">2 · โหมดสอบ: ป้ายเล็กมุมขวาล่าง ซ่อนไม่ได้</p>
+      <div class="desk">
+        <div class="browser"><div class="tabs"><span>Google Forms</span></div></div>
+        <div class="pill" style="background: #1f2328; color: #fff"><strong>โหมดสอบ</strong><span>เหลือ 41 นาที</span></div>
+        <div class="taskbar"><span>10:42</span></div>
+      </div>
+    </div>
+    <div style="flex: 1; display: flex; flex-direction: column; gap: 6px; min-width: 0">
+      <p class="lbl">3 · Staff session: ป้ายสีส้ม มีปุ่มจบในตัว</p>
+      <div class="desk">
+        <div class="browser"><div class="tabs"><span>ตั้งค่าเครื่อง</span></div></div>
+        <div class="pill" style="background: #fdf3e7; border: 2px solid #b45309"><strong>Staff session</strong><span>kru.xxx · 28:12</span><button class="btn">จบ</button></div>
+        <div class="taskbar"><span>10:42</span></div>
+      </div>
+    </div>
+  </div>
+  <p style="margin: 0; font-size: 13px; color: #2b2f36; line-height: 1.5">ป้ายวางมุมขวาล่างเหนือนาฬิกา (มุมแจ้งเตือนของ Windows) · Staff session บันทึกชื่อบัญชีครูเหมือนตอน admin ล็อกอิน Console · ไม่นับเป็นการใช้เครื่องของนักเรียน</p>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":720}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

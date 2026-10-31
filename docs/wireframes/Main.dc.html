@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<title>แผนผังทั้งระบบ</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+.chip{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:9px 12px;border-radius:6px;font-size:14px;background:#fff;border:1.5px solid #8a8f98;color:#1f2328}
+.chip-chg{border:2px dashed #b45309}
+.chip-new{border:2px dashed #1d4ed8}
+.tag{font-size:11px;font-weight:600;padding:2px 7px;border-radius:999px;white-space:nowrap}
+.tag-chg{background:#fdecd8;color:#8a3c04}
+.tag-new{background:#dbe6fd;color:#1a3fa8}
+</style>
+</helmet>
+<div style="width: 1600px; height: 1100px; box-sizing: border-box; padding: 48px; display: flex; flex-direction: column; gap: 32px; background: #f6f7f9; font-family: 'IBM Plex Sans Thai', system-ui, sans-serif; color: #1f2328">
+  <div style="display: flex; justify-content: space-between; align-items: flex-end; gap: 24px">
+    <div style="display: flex; flex-direction: column; gap: 6px">
+      <h1 style="margin: 0; font-size: 34px; font-weight: 700">แผนผังหน้าจอทั้งระบบ</h1>
+      <p style="margin: 0; font-size: 16px; color: #4b515b">ทุกแอป · ทุกหน้าที่มีอยู่ตอนนี้ + ที่เสนอแก้ + ที่จะเพิ่มใหม่ในขั้น 1–5 · การตัดสินใจทั้งหมดอยู่ในกรอบ "สรุปการตัดสินใจ" ด้านล่าง</p>
+    </div>
+    <div style="display: flex; gap: 16px; align-items: center; font-size: 14px">
+      <span class="chip" style="padding: 6px 12px">มีแล้ว</span>
+      <span class="chip chip-chg" style="padding: 6px 12px">เสนอแก้</span>
+      <span class="chip chip-new" style="padding: 6px 12px">ใหม่</span>
+    </div>
+  </div>
+
+  <div style="display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 12px; flex-grow: 1">
+    <sc-for list="{{apps}}" as="app" hint-placeholder-count="6">
+      <section style="display: flex; flex-direction: column; gap: 10px; background: #eceef1; border-radius: 10px; padding: 16px">
+        <div style="display: flex; flex-direction: column; gap: 2px; margin-bottom: 4px">
+          <h2 style="margin: 0; font-size: 18px; font-weight: 700">{{app.name}}</h2>
+          <span style="font-size: 13px; color: #4b515b">{{app.who}}</span>
+        </div>
+        <sc-for list="{{app.screens}}" as="s" hint-placeholder-count="6">
+          <div class="chip {{s.cls}}">
+            <span>{{s.name}}</span>
+            <sc-if value="{{s.isChg}}" hint-placeholder-val="{{false}}"><span class="tag tag-chg">เสนอแก้</span></sc-if>
+            <sc-if value="{{s.isNew}}" hint-placeholder-val="{{false}}"><span class="tag tag-new">ใหม่</span></sc-if>
+          </div>
+        </sc-for>
+      </section>
+    </sc-for>
+  </div>
+
+  <div style="display: flex; flex-direction: column; gap: 12px">
+    <h2 style="margin: 0; font-size: 18px; font-weight: 700">ลำดับงานที่คุยกันไว้ (ร่าง ยังไม่ยืนยัน)</h2>
+    <div style="display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 12px">
+      <sc-for list="{{phases}}" as="p" hint-placeholder-count="6">
+        <div style="background: #fff; border: 1.5px solid #8a8f98; border-radius: 8px; padding: 12px 14px; display: flex; flex-direction: column; gap: 4px">
+          <span style="font-size: 13px; font-weight: 600; color: #4b515b">ขั้น {{p.n}}</span>
+          <span style="font-size: 15px; font-weight: 600">{{p.title}}</span>
+          <span style="font-size: 13px; color: #4b515b; line-height: 1.45">{{p.desc}}</span>
+        </div>
+      </sc-for>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1600,"height":1100}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const s = (name, st) => ({ name, cls: st === 'c' ? 'chip-chg' : st === 'n' ? 'chip-new' : '', isChg: st === 'c', isNew: st === 'n' });
+    const apps = [
+      { name: 'Console', who: 'ครู/Admin · คอม (WPF)', screens: [
+        s('เข้าสู่ระบบ'), s('Clients + Inspector', 'c'), s('ผังที่นั่ง', 'n'), s('Live View จอรวม'), s('Screen View'),
+        s('แผงคำสั่ง', 'c'), s('กฎโปรแกรม'), s('Program Review'), s('Website Control', 'c'), s('Logs'),
+        s('Audit Log'), s('ผู้ใช้ + Role', 'c'), s('ตั้งค่า', 'c'), s('หน้าต่างย่อย 14 ตัว')
+      ]},
+      { name: 'OnlineConsole', who: 'ครู/Admin · มือถือ (เว็บ)', screens: [
+        s('เข้าสู่ระบบ'), s('Clients', 'c'), s('คำสั่งเครื่อง'), s('ดูหน้าจอ / VNC'), s('กฎ'), s('Website Control'),
+        s('Program Review'), s('Logs / Audit'), s('ผู้ใช้'), s('ตั้งค่า'), s('รหัสฉุกเฉิน', 'n')
+      ]},
+      { name: 'จอนักเรียน', who: 'นักเรียน · AgentTray', screens: [
+        s('จอล็อกอิน', 'n'), s('ครูล็อกจอ', 'c'), s('แถบระหว่างใช้งาน', 'n'), s('Staff session', 'n'), s('ข้อความจากครู'),
+        s('แจ้งปิดเครื่อง'), s('จอฟ้าปลอม (มุก)'), s('รหัสฉุกเฉิน', 'n'), s('Tray สถานะ (ช่าง)'), s('Log Terminal')
+      ]},
+      { name: 'Roster Manager', who: 'Admin · โปรแกรมแยก', screens: [
+        s('เข้าสู่ระบบ', 'n'), s('รายชื่อนักเรียน', 'n'), s('นำเข้า CSV', 'n'), s('พิมพ์ใบรหัสผ่าน', 'n'), s('รีเซ็ตรหัส', 'n'), s('ห้อง / คลาส', 'n')
+      ]},
+      { name: 'ตั้งค่าระบบใหม่', who: 'อยู่ใน Console + Online', screens: [
+        s('ตั้งค่า Sign-in', 'n'), s('โหมดสอบ / Allow-list', 'n'), s('ชุด Allow-list สำเร็จรูป', 'n'), s('ป้องกันการเลี่ยงเว็บ', 'n'),
+        s('ประวัติเว็บ', 'n'), s('ห้อง + ผังที่นั่ง', 'n'), s('ประวัติการใช้เครื่อง', 'n'),
+        s('Staff / ฉุกเฉิน / HTTPS / สำรอง', 'n')
+      ]},
+      { name: 'สอน + รายงาน', who: 'ขั้น 4–5 · Console', screens: [
+        s('เปิด URL / โปรแกรม', 'n'), s('ยกมือ', 'n'), s('แจก / เก็บไฟล์', 'n'), s('ส่งจอให้ทั้งห้อง', 'n'),
+        s('รายงานรายคน', 'n'), s('ตั้งเวลาเปิด-ปิด + WoL', 'n'), s('รายการเครื่อง', 'n')
+      ]},
+      { name: 'เครื่องมือเสริม', who: 'Admin · ใช้นานๆ ครั้ง', screens: [
+        s('RemoteBridge'), s('UninstallHelper'), s('ตัวติดตั้ง Server+Console'), s('ตัวติดตั้ง Agent')
+      ]}
+    ];
+    const phases = [
+      { n: 0, title: 'Pilot', desc: 'ลง MSI ชุดปัจจุบัน 2–3 เครื่อง ทดสอบใช้จริง' },
+      { n: 1, title: 'ฐานราก', desc: 'HTTPS, token แทน bypass, ห้อง/คลาส (ไม่มีตาราง), Role' },
+      { n: 2, title: 'Website', desc: 'ปิดทางเลี่ยง, โหมดสอบ, กฎรายห้อง, ประวัติเว็บ' },
+      { n: 3, title: 'Sign-in', desc: 'Roster Manager, ล็อกอินนักเรียน, Staff, รหัสฉุกเฉิน' },
+      { n: 4, title: 'เครื่องมือสอน', desc: 'เปิด URL ทั้งห้อง, ยกมือ, แจก/เก็บไฟล์, ส่งจอครู' },
+      { n: 5, title: 'รายงาน/ดูแลเครื่อง', desc: 'รายงานรายคน, ตั้งเวลาเปิด-ปิด + WoL, รายการเครื่อง' }
+    ];
+    return { apps, phases };
+  }
+}
+</script>
+</body>
+</html>

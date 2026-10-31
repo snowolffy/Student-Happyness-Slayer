@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<title>Online ตั้งค่า</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+.item{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 14px;min-height:50px;box-sizing:border-box;border-bottom:1px solid #d5d8dd;font-size:14px;background:#fff;color:#1f2328;text-decoration:none}
+.item div{display:flex;flex-direction:column;gap:2px}
+.item span.sub{font-size:12px;color:#4b515b}
+.h{font-size:12px;font-weight:700;color:#4b515b;padding:16px 16px 6px;margin:0}
+.box{border:1.5px solid #8a8f98;border-radius:10px;overflow:hidden;margin:0 16px}
+.tag{font-size:10px;font-weight:600;padding:1px 6px;border-radius:999px;white-space:nowrap}
+.tag-new{background:#dbe6fd;color:#1a3fa8}
+.tab{display:flex;flex-direction:column;align-items:center;gap:2px;font-size:11px;color:#4b515b;text-decoration:none;flex:1;padding:6px 0;min-height:44px;justify-content:center}
+.ico{width:22px;height:22px;border-radius:6px;background:#c9cdd3}
+.tab-on{color:#1f2328;font-weight:700}
+.tab-on .ico{background:#2b2f36}
+</style>
+</helmet>
+<div style="width: 390px; height: 844px; box-sizing: border-box; display: flex; flex-direction: column; background: #f6f7f9; font-family: 'IBM Plex Sans Thai', system-ui, sans-serif; color: #1f2328">
+  <header style="padding: 14px 16px; display: flex; align-items: center; gap: 12px; background: #fff; border-bottom: 1.5px solid #d5d8dd"><a href="oc-more.dc.html" style="font-size: 14px; color: #1f2328">← เมนู</a><strong style="font-size: 18px">ตั้งค่า</strong></header>
+  <div style="flex-grow: 1; overflow: hidden">
+    <p class="h">มือถือเครื่องนี้</p>
+    <div class="box">
+      <label class="item"><div><span>ธีม</span><span class="sub">ตามระบบ / สว่าง / มืด</span></div><select aria-label="ธีม"><option>ตามระบบ</option></select></label>
+      <label class="item" style="border-bottom: none"><div><span>รีเฟรชอัตโนมัติ</span><span class="sub">ทุกกี่วินาที</span></div><select aria-label="รีเฟรช"><option>5 วิ</option></select></label>
+    </div>
+    <p class="h">ทั้งระบบ (Admin)</p>
+    <div class="box">
+      <label class="item"><div><span>การบังคับใช้กฎทั้งระบบ</span><span class="sub">ปิด = กฎหยุดทุกเครื่อง</span></div><input type="checkbox" checked aria-label="บังคับใช้"></label>
+      <a href="#" class="item"><div><span>Sign-in นักเรียน <span class="tag tag-new">ใหม่</span></span><span class="sub">บังคับล็อกอิน, guest, รหัสผ่าน</span></div><span>›</span></a>
+      <a href="#" class="item"><div><span>Staff session <span class="tag tag-new">ใหม่</span></span><span class="sub">เวลาเริ่มต้น / สูงสุด</span></div><span>›</span></a>
+      <a href="oc-emergency.dc.html" class="item"><div><span>รหัสฉุกเฉิน <span class="tag tag-new">ใหม่</span></span><span class="sub">ตั้ง Authenticator</span></div><span>›</span></a>
+      <a href="#" class="item" style="border-bottom: none"><div><span>ข้อความจอล็อกเริ่มต้น <span class="tag tag-new">ใหม่</span></span><span class="sub">กรุณาละสายตาจากหน้าจอ…</span></div><span>›</span></a>
+    </div>
+    <p style="margin: 10px 16px 0; font-size: 12px; color: #4b515b; line-height: 1.5">HTTPS และสำรองข้อมูลตั้งได้เฉพาะบนคอม (Console) เพราะต้องจัดการไฟล์บนเครื่อง Server</p>
+  </div>
+  <nav style="display: flex; border-top: 1.5px solid #d5d8dd; background: #fff; padding-bottom: 14px">
+    <a href="oc-clients.dc.html" class="tab"><span class="ico"></span>Clients</a>
+    <a href="oc-rules.dc.html" class="tab"><span class="ico"></span>Rules</a>
+    <a href="oc-programs.dc.html" class="tab"><span class="ico"></span>Programs</a>
+    <a href="oc-logs.dc.html" class="tab"><span class="ico"></span>Logs</a>
+    <a href="oc-more.dc.html" class="tab tab-on"><span class="ico"></span>เมนู</a>
+  </nav>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

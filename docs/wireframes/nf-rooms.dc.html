@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<title>ห้องและผังที่นั่ง</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+.btn{height:32px;padding:0 12px;border:1.5px solid #6b7079;border-radius:6px;font:inherit;font-size:13px;background:#fff;color:#1f2328;white-space:nowrap}
+.btn-pri{background:#2b2f36;color:#fff;border-color:#2b2f36}
+.in{height:32px;box-sizing:border-box;border:1.5px solid #8a8f98;border-radius:6px;padding:0 10px;font:inherit;font-size:13px;background:#fff;color:#1f2328}
+.card{background:#fff;border:1.5px solid #8a8f98;border-radius:8px;padding:14px;display:flex;flex-direction:column;gap:8px}
+.room{display:flex;justify-content:space-between;align-items:center;padding:10px 12px;border:1.5px solid #8a8f98;border-radius:8px;font-size:13px;background:#fff}
+.room-on{border:2px solid #2b2f36;background:#f1f3f5}
+.seat{display:flex;align-items:center;justify-content:center;min-height:40px;border-radius:6px;border:1.5px solid #8a8f98;background:#fff;font-size:12px}
+.empty{border-style:dashed;background:#f1f3f5;color:#5b616b}
+</style>
+</helmet>
+<div style="width: 1280px; height: 800px; box-sizing: border-box; display: flex; flex-direction: column; background: #f6f7f9; font-family: 'IBM Plex Sans Thai', system-ui, sans-serif; color: #1f2328; overflow: hidden; outline: 2px dashed #1d4ed8; outline-offset: -2px">
+  <div style="height: 36px; background: #2b2f36; color: #fff; display: flex; align-items: center; padding: 0 14px; font-size: 13px; flex-shrink: 0">Onion ProcOparetor Console · ห้อง</div>
+  <div style="flex-grow: 1; min-height: 0; padding: 16px 22px; display: grid; grid-template-columns: 300px minmax(0, 1fr); gap: 18px">
+    <div style="display: flex; flex-direction: column; gap: 10px">
+      <div style="display: flex; justify-content: space-between; align-items: center"><strong style="font-size: 15px">ห้องคอม</strong><button class="btn">+ ห้อง</button></div>
+      <div class="room room-on"><span style="display: flex; flex-direction: column"><strong>Com 1</strong><span style="color: #4b515b">40 เครื่อง · ผัง 5 แถว × 8</span></span><span>แก้ชื่อ</span></div>
+      <div class="room"><span style="display: flex; flex-direction: column"><strong>Com 2 (อนาคต)</strong><span style="color: #4b515b">0 เครื่อง</span></span><span>แก้ชื่อ</span></div>
+      <div class="card">
+        <strong style="font-size: 13px">เครื่องที่ยังไม่อยู่ห้องไหน</strong>
+        <span style="font-size: 12px; color: #4b515b">COM-41 (ใหม่) · ลากไปวางในผังด้านขวา</span>
+      </div>
+      <div class="card">
+        <strong style="font-size: 13px">ไม่มีตารางคาบ</strong>
+        <span style="font-size: 12px; color: #4b515b; line-height: 1.5">ห้องอยู่โหมดใช้งานทั่วไปเสมอ ใครมาใช้ก็ล็อกอินได้ ระบบจำว่าใครใช้เครื่องไหนเมื่อไร · ห้องเรียนของนักเรียน (ม.2/3 ฯลฯ) มาจาก Roster Manager ไม่ใช่จากหน้านี้</span>
+      </div>
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 10px; min-width: 0">
+      <div style="display: flex; justify-content: space-between; align-items: center">
+        <div style="display: flex; flex-direction: column"><strong style="font-size: 15px">ผังที่นั่ง Com 1</strong><span style="font-size: 12px; color: #4b515b">ลากเครื่องไปวางให้ตรงกับโต๊ะจริง · ใช้ในหน้าผังที่นั่งและการเลือก "ทั้งแถว"</span></div>
+        <span style="display: flex; gap: 8px; align-items: center"><label style="display: flex; gap: 6px; align-items: center; font-size: 13px">แถว<input class="in" value="5" style="width: 56px"></label><label style="display: flex; gap: 6px; align-items: center; font-size: 13px">ต่อแถว<input class="in" value="8" style="width: 56px"></label><button class="btn btn-pri">บันทึก</button></span>
+      </div>
+      <div class="card">
+        <div style="text-align: center; font-size: 12px; color: #4b515b; padding: 6px; border: 1.5px dashed #8a8f98; border-radius: 6px">หน้าห้อง · โต๊ะครู</div>
+        <div style="display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 8px">
+          <sc-for list="{{seats}}" as="s" hint-placeholder-count="40">
+            <span class="seat {{s.cls}}">{{s.pc}}</span>
+          </sc-for>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":800}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const seats = [];
+    for (let i = 1; i <= 40; i++) {
+      const empty = i === 40;
+      seats.push({ pc: empty ? 'ว่าง' : 'COM-' + String(i).padStart(2, '0'), cls: empty ? 'empty' : '' });
+    }
+    return { seats };
+  }
+}
+</script>
+</body>
+</html>

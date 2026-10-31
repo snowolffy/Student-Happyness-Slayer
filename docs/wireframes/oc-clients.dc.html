@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<title>Online Clients</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+.btn{height:44px;padding:0 14px;border:1.5px solid #6b7079;border-radius:8px;font:inherit;font-size:14px;background:#fff;color:#1f2328;white-space:nowrap}
+.in{height:44px;box-sizing:border-box;border:1.5px solid #8a8f98;border-radius:8px;padding:0 12px;font:inherit;font-size:14px;background:#fff;color:#1f2328;width:100%}
+.chip{flex-shrink:0;padding:8px 12px;border:1.5px solid #8a8f98;border-radius:10px;background:#fff;display:flex;flex-direction:column;font:inherit;text-align:left;color:#1f2328}
+.card{display:flex;align-items:center;gap:12px;padding:12px;border:1.5px solid #8a8f98;border-radius:10px;background:#fff;text-decoration:none;color:#1f2328;min-height:44px}
+.badge{font-size:11px;font-weight:600;padding:1px 8px;border-radius:999px;border:1.5px solid #6b7079}
+.tab{display:flex;flex-direction:column;align-items:center;gap:2px;font-size:11px;color:#4b515b;text-decoration:none;flex:1;padding:6px 0;min-height:44px;justify-content:center}
+.tab-on{color:#1f2328;font-weight:700}
+.ico{width:22px;height:22px;border-radius:6px;background:#c9cdd3}
+.tab-on .ico{background:#2b2f36}
+.new{outline:2px dashed #1d4ed8;outline-offset:2px}
+.tag{font-size:10px;font-weight:600;padding:1px 6px;border-radius:999px;white-space:nowrap}
+.tag-new{background:#dbe6fd;color:#1a3fa8}
+</style>
+</helmet>
+<div style="width: 390px; height: 844px; box-sizing: border-box; display: flex; flex-direction: column; background: #f6f7f9; font-family: 'IBM Plex Sans Thai', system-ui, sans-serif; color: #1f2328">
+  <header style="padding: 16px 16px 10px; display: flex; flex-direction: column; gap: 10px; background: #fff; border-bottom: 1.5px solid #d5d8dd">
+    <div style="display: flex; justify-content: space-between; align-items: center">
+      <h1 style="margin: 0; font-size: 22px; font-weight: 700">Clients</h1>
+      <select class="in new" style="width: 150px" aria-label="ห้อง"><option>Com 1</option><option>ทุกห้อง</option></select>
+    </div>
+    <div style="display: flex; gap: 8px; overflow: hidden">
+      <button class="chip"><span style="font-size: 11px; color: #4b515b">ทั้งหมด</span><strong>40</strong></button>
+      <button class="chip"><span style="font-size: 11px; color: #4b515b">ออนไลน์</span><strong>36</strong></button>
+      <button class="chip"><span style="font-size: 11px; color: #4b515b">ออฟไลน์</span><strong>4</strong></button>
+      <button class="chip"><span style="font-size: 11px; color: #4b515b">กฎไม่ทำงาน</span><strong>1</strong></button>
+    </div>
+    <input class="in" placeholder="ค้นหาเครื่อง / นักเรียน">
+  </header>
+  <div style="display: flex; gap: 8px; padding: 10px 16px">
+    <button class="btn" style="flex: 1">ล็อกทั้งห้อง</button>
+    <button class="btn" style="flex: 1">ส่งข้อความ</button>
+    <button class="btn new" style="flex: 1">โหมดสอบ</button>
+  </div>
+  <div style="flex-grow: 1; overflow: hidden; padding: 0 16px; display: flex; flex-direction: column; gap: 8px">
+    <sc-for list="{{rows}}" as="r" hint-placeholder-count="7">
+      <a href="oc-actions.dc.html" class="card">
+        <div style="flex-grow: 1; display: flex; flex-direction: column; gap: 2px">
+          <strong style="font-size: 15px">{{r.pc}}</strong>
+          <span style="font-size: 13px; color: #4b515b">{{r.who}} · {{r.seen}}</span>
+        </div>
+        <span class="badge">{{r.st}}</span>
+      </a>
+    </sc-for>
+  </div>
+  <nav style="display: flex; border-top: 1.5px solid #d5d8dd; background: #fff; padding-bottom: 14px">
+    <a href="oc-clients.dc.html" class="tab tab-on"><span class="ico"></span>Clients</a>
+    <a href="oc-rules.dc.html" class="tab"><span class="ico"></span>Rules</a>
+    <a href="#" class="tab"><span class="ico"></span>Programs</a>
+    <a href="#" class="tab"><span class="ico"></span>Logs</a>
+    <a href="oc-more.dc.html" class="tab"><span class="ico"></span>เมนู</a>
+  </nav>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const rows = [
+      { pc: 'COM-01', who: '[ชื่อนักเรียน]', seen: '3 วิ', st: 'ONLINE' },
+      { pc: 'COM-02', who: '[ชื่อนักเรียน]', seen: '8 วิ', st: 'ONLINE' },
+      { pc: 'COM-03', who: 'ยังไม่ล็อกอิน', seen: '12 วิ', st: 'ONLINE' },
+      { pc: 'COM-04', who: '—', seen: '2 วัน', st: 'OFFLINE' },
+      { pc: 'COM-05', who: 'Staff session (kru.xxx)', seen: '4 วิ', st: 'BYPASS' },
+      { pc: 'COM-06', who: '[ชื่อนักเรียน]', seen: '6 วิ', st: 'ONLINE' },
+      { pc: 'COM-07', who: '[ชื่อนักเรียน]', seen: '2 วิ', st: 'ONLINE' }
+    ];
+    return { rows };
+  }
+}
+</script>
+</body>
+</html>

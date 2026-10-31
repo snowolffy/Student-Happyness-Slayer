@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<title>Console แผงคำสั่ง</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+.btn{height:34px;padding:0 12px;border:1.5px solid #6b7079;border-radius:6px;font:inherit;font-size:13px;background:#fff;color:#1f2328;white-space:nowrap;text-align:left}
+.btn-pri{background:#2b2f36;color:#fff;border-color:#2b2f36}
+.btn-danger{border-color:#b42318;color:#b42318}
+.in{height:34px;box-sizing:border-box;border:1.5px solid #8a8f98;border-radius:6px;padding:0 10px;font:inherit;font-size:13px;background:#fff;color:#1f2328}
+.sec{display:flex;flex-direction:column;gap:8px;padding:14px;border:1.5px solid #d5d8dd;border-radius:8px}
+.sec h3{margin:0;font-size:13px;font-weight:700;color:#2b2f36}
+.new{outline:2px dashed #1d4ed8;outline-offset:2px}
+.chg{outline:2px dashed #b45309;outline-offset:3px}
+.tag{font-size:10px;font-weight:600;padding:1px 6px;border-radius:999px;white-space:nowrap}
+.tag-chg{background:#fdecd8;color:#8a3c04}
+.tag-new{background:#dbe6fd;color:#1a3fa8}
+.radio{display:flex;align-items:center;gap:6px;font-size:13px;padding:6px 10px;border:1.5px solid #8a8f98;border-radius:6px}
+</style>
+</helmet>
+<div style="width: 1280px; height: 800px; box-sizing: border-box; display: flex; align-items: center; justify-content: center; background: #9aa0a8; font-family: 'IBM Plex Sans Thai', system-ui, sans-serif; color: #1f2328">
+  <div class="chg" style="width: 760px; background: #fff; border-radius: 10px; border: 1.5px solid #6b7079; display: flex; flex-direction: column">
+    <div style="padding: 16px 20px; border-bottom: 1.5px solid #d5d8dd; display: flex; justify-content: space-between; align-items: center">
+      <div style="display: flex; flex-direction: column; gap: 2px">
+        <strong style="font-size: 17px">แผงคำสั่ง</strong>
+        <span style="font-size: 12px; color: #4b515b">ตอนนี้ปุ่มเรียงยาวแถวเดียว → เสนอจัดเป็น 4 กลุ่มตามงาน <span class="tag tag-chg">เสนอแก้</span></span>
+      </div>
+      <button class="btn" aria-label="ปิด">ปิด</button>
+    </div>
+    <div style="padding: 16px 20px; display: flex; flex-direction: column; gap: 14px">
+      <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap">
+        <span style="font-size: 13px; font-weight: 600">ส่งคำสั่งไปที่</span>
+        <label class="radio"><input type="radio" name="t" checked>เครื่องที่เลือกไว้ (3)</label>
+        <label class="radio"><input type="radio" name="t">ทุกเครื่อง</label>
+        <label class="radio new"><input type="radio" name="t">ทั้งห้อง Com 1 <span class="tag tag-new">ใหม่</span></label>
+      </div>
+      <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px">
+        <section class="sec">
+          <h3>ห้องเรียน</h3>
+          <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px">
+            <button class="btn">ล็อกหน้าจอ</button><button class="btn">ปลดล็อกหน้าจอ</button>
+            <button class="btn">ส่งข้อความ…</button><button class="btn">ดูหน้าจอ</button>
+            <button class="btn new">เปิด URL… <span class="tag tag-new">ขั้น 4</span></button><button class="btn new">logout นักเรียน <span class="tag tag-new">ใหม่</span></button>
+          </div>
+        </section>
+        <section class="sec">
+          <h3>พลังงาน</h3>
+          <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px">
+            <button class="btn">รีสตาร์ทเครื่อง</button><button class="btn">ปิดเครื่อง</button>
+            <button class="btn new">เปิดเครื่อง (Wake-on-LAN) <span class="tag tag-new">ขั้น 5</span></button>
+          </div>
+          <label style="display: flex; align-items: center; gap: 8px; font-size: 13px">เตือนก่อน <input class="in" value="10" style="width: 64px"> วินาที (1–120)</label>
+        </section>
+        <section class="sec">
+          <h3>กฎ</h3>
+          <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px">
+            <button class="btn">เปิด/ปิดการบังคับใช้</button><button class="btn">ยกเว้นกฎเฉพาะเครื่อง…</button>
+            <button class="btn">ดูโปรแกรมที่เปิดอยู่…</button>
+          </div>
+        </section>
+        <section class="sec">
+          <h3>ดูแลเครื่อง</h3>
+          <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px">
+            <button class="btn">ตั้งค่าเครื่องนี้…</button><button class="btn">คำสั่งที่ค้างอยู่…</button>
+            <button class="btn">Tailscale ▾ (ซ่อนได้)</button>
+          </div>
+        </section>
+      </div>
+      <div style="display: flex; justify-content: space-between; align-items: center; padding-top: 8px; border-top: 1.5px solid #d5d8dd">
+        <span style="font-size: 12px; color: #4b515b">ทุกคำสั่งหมดอายุเอง ถ้าเครื่องปิดอยู่จะไม่ทำตามคำสั่งเก่าตอนเปิดกลับมา</span>
+        <button class="btn btn-danger">ลบเครื่องนี้ออกจากระบบ…</button>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":800}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

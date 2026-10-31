@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<title>รายการเครื่อง ซอฟต์แวร์</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+.btn{height:32px;padding:0 12px;border:1.5px solid #6b7079;border-radius:6px;font:inherit;font-size:13px;background:#fff;color:#1f2328;white-space:nowrap}
+.btn-pri{background:#2b2f36;color:#fff;border-color:#2b2f36}
+.in{height:32px;box-sizing:border-box;border:1.5px solid #8a8f98;border-radius:6px;padding:0 10px;font:inherit;font-size:13px;background:#fff;color:#1f2328}
+.tabs{display:flex;gap:4px;border-bottom:1.5px solid #8a8f98}
+.tab{padding:8px 14px;font-size:13px;border:1.5px solid transparent;border-bottom:none;border-radius:6px 6px 0 0;color:#1f2328;text-decoration:none}
+.tab-on{border-color:#8a8f98;background:#fff;font-weight:600;margin-bottom:-1.5px}
+table{border-collapse:collapse;width:100%;font-size:13px}
+th{text-align:left;font-weight:600;color:#4b515b;font-size:12px;padding:7px 10px;border-bottom:1.5px solid #8a8f98;background:#f1f3f5;white-space:nowrap}
+td{padding:7px 10px;border-bottom:1px solid #d5d8dd;white-space:nowrap}
+.warn td{background:#fdf3e7}
+.badge{font-size:11px;font-weight:600;padding:1px 8px;border-radius:999px;border:1.5px solid #6b7079}
+</style>
+</helmet>
+<div style="width: 1280px; height: 800px; box-sizing: border-box; display: flex; flex-direction: column; background: #f6f7f9; font-family: 'IBM Plex Sans Thai', system-ui, sans-serif; color: #1f2328; overflow: hidden; outline: 2px dashed #1d4ed8; outline-offset: -2px">
+  <div style="height: 36px; background: #2b2f36; color: #fff; display: flex; align-items: center; padding: 0 14px; font-size: 13px; flex-shrink: 0">Onion ProcOparetor Console · รายการเครื่อง</div>
+  <section style="padding: 14px 22px; display: flex; flex-direction: column; gap: 12px; flex-grow: 1; min-height: 0">
+    <div class="tabs"><a href="#" class="tab tab-on">ฮาร์ดแวร์</a><a href="#" class="tab">ซอฟต์แวร์</a><a href="#" class="tab">เปลี่ยนแปลงล่าสุด</a></div>
+    <div style="display: flex; gap: 8px; align-items: center">
+      <input class="in" placeholder="ค้นหาเครื่อง" style="width: 200px">
+      <label style="display: flex; gap: 6px; align-items: center; font-size: 13px"><input type="checkbox">เฉพาะที่มีปัญหา</label>
+      <div style="flex-grow: 1"></div>
+      <span style="font-size: 12px; color: #4b515b">อัปเดตอัตโนมัติวันละครั้งตอนเปิดเครื่อง</span>
+      <button class="btn btn-pri">Export Excel</button>
+    </div>
+    <div style="flex-grow: 1; min-height: 0; overflow: auto; background: #fff; border: 1.5px solid #8a8f98; border-radius: 8px">
+      <table>
+        <thead><tr><th>เครื่อง</th><th>CPU</th><th>RAM</th><th>ดิสก์ว่าง</th><th>Windows</th><th>MAC (สำหรับ WoL)</th><th>Agent</th><th>หมายเหตุ</th></tr></thead>
+        <tbody>
+          <sc-for list="{{rows}}" as="r" hint-placeholder-count="10">
+            <tr class="{{r.cls}}"><td>{{r.pc}}</td><td>{{r.cpu}}</td><td>{{r.ram}}</td><td>{{r.disk}}</td><td>{{r.win}}</td><td>{{r.mac}}</td><td><span class="badge">{{r.ag}}</span></td><td>{{r.note}}</td></tr>
+          </sc-for>
+        </tbody>
+      </table>
+    </div>
+    <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; font-size: 13px">
+      <div style="background: #fff; border: 1.5px solid #8a8f98; border-radius: 8px; padding: 12px">แท็บ <strong>ซอฟต์แวร์</strong>: โปรแกรมที่ติดตั้งในแต่ละเครื่อง + เครื่องไหนมี/ไม่มี เช่น "Scratch ขาด 2 เครื่อง"</div>
+      <div style="background: #fff; border: 1.5px solid #8a8f98; border-radius: 8px; padding: 12px">แท็บ <strong>เปลี่ยนแปลงล่าสุด</strong>: RAM หาย, ดิสก์เปลี่ยน, โปรแกรมใหม่โผล่ (disk freeze ทำให้ของที่โผล่ใหม่ = มีคนแก้ baseline)</div>
+      <div style="background: #fff; border: 1.5px solid #8a8f98; border-radius: 8px; padding: 12px">เวอร์ชัน Agent ไม่ตรงกัน = ยังไม่ได้ลง MSI ใหม่ · ใช้เช็กหลังลงแล็บว่าลงครบทุกเครื่องไหม</div>
+    </div>
+  </section>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":800}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const rows = [];
+    for (let i = 1; i <= 10; i++) {
+      const pc = 'COM-' + String(i).padStart(2, '0');
+      let ram = '8 GB', note = '—', ag = '1.2.6', cls = '', disk = (40 + i) + ' GB';
+      if (i === 4) { ram = '4 GB'; note = 'RAM ลดจาก 8 GB (เมื่อ 21 ต.ค.)'; cls = 'warn'; }
+      if (i === 7) { ag = '1.2.5'; note = 'Agent เก่า ยังไม่ได้ลง MSI ใหม่'; cls = 'warn'; }
+      if (i === 9) { disk = '3 GB'; note = 'ดิสก์ใกล้เต็ม'; cls = 'warn'; }
+      rows.push({ pc, cpu: 'Core i5-10400', ram, disk, win: '10 22H2', mac: 'xx:xx:xx:xx:xx:' + String(i * 7).padStart(2, '0'), ag, note, cls });
+    }
+    return { rows };
+  }
+}
+</script>
+</body>
+</html>

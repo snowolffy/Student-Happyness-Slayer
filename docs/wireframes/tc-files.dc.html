@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<title>แจก เก็บไฟล์</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+.btn{height:34px;padding:0 12px;border:1.5px solid #6b7079;border-radius:6px;font:inherit;font-size:13px;background:#fff;color:#1f2328;white-space:nowrap}
+.btn-pri{background:#2b2f36;color:#fff;border-color:#2b2f36}
+.in{height:34px;box-sizing:border-box;border:1.5px solid #8a8f98;border-radius:6px;padding:0 10px;font:inherit;font-size:13px;background:#fff;color:#1f2328}
+.card{background:#fff;border:1.5px solid #6b7079;border-radius:12px;padding:18px;display:flex;flex-direction:column;gap:12px}
+.lbl{font-size:13px;font-weight:700}
+.drop{border:2px dashed #8a8f98;border-radius:8px;padding:18px;text-align:center;font-size:13px;color:#4b515b;background:#f6f7f9}
+table{border-collapse:collapse;width:100%;font-size:13px}
+th{text-align:left;font-weight:600;color:#4b515b;font-size:12px;padding:6px 8px;border-bottom:1.5px solid #8a8f98;background:#f1f3f5}
+td{padding:6px 8px;border-bottom:1px solid #d5d8dd}
+.badge{font-size:11px;font-weight:600;padding:1px 8px;border-radius:999px;border:1.5px solid #6b7079}
+.miss td{background:#fdf3e7}
+</style>
+</helmet>
+<div style="width: 1280px; height: 800px; box-sizing: border-box; padding: 24px 28px; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr); gap: 24px; background: #f6f7f9; font-family: 'IBM Plex Sans Thai', system-ui, sans-serif; color: #1f2328; outline: 2px dashed #1d4ed8; outline-offset: -2px">
+  <div style="display: flex; flex-direction: column; gap: 12px">
+    <strong style="font-size: 18px">แจกไฟล์</strong>
+    <div class="card">
+      <div class="drop">ลากไฟล์มาวาง หรือ <button class="btn">เลือกไฟล์…</button><br><span style="font-size: 12px">สูงสุด 100 MB ต่อครั้ง</span></div>
+      <div style="font-size: 13px; display: flex; flex-direction: column; gap: 4px"><span>ใบงานที่5.docx · 48 KB</span><span>รูปประกอบ.zip · 3.2 MB</span></div>
+      <label style="display: flex; flex-direction: column; gap: 4px; font-size: 13px"><span class="lbl">วางไว้ที่ (บนเครื่องนักเรียน)</span><select class="in"><option>เดสก์ท็อป › ใบงานจากครู</option><option>Documents › ใบงานจากครู</option></select></label>
+      <label style="display: flex; gap: 8px; font-size: 13px"><input type="checkbox" checked>เปิดไฟล์แรกให้อัตโนมัติ</label>
+      <div style="display: flex; justify-content: space-between; align-items: center"><span style="font-size: 13px">ส่งไปทั้งห้อง Com 1 (36 เครื่อง)</span><button class="btn btn-pri">แจกไฟล์</button></div>
+    </div>
+    <span style="font-size: 12px; color: #4b515b; line-height: 1.5">ไฟล์วิ่งผ่าน Server (Agent ดึงลงมาเอง) · เครื่องรีบูตแล้วไฟล์หายตาม disk freeze — ตั้งใจแบบนั้น ไม่ค้างข้ามคาบ</span>
+  </div>
+  <div style="display: flex; flex-direction: column; gap: 12px; min-height: 0">
+    <strong style="font-size: 18px">เก็บงาน</strong>
+    <div class="card" style="flex-grow: 1; min-height: 0">
+      <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap">
+        <label style="display: flex; flex-direction: column; gap: 4px; font-size: 13px; flex-grow: 1"><span class="lbl">เก็บจากโฟลเดอร์</span><input class="in" value="เดสก์ท็อป › ส่งงาน"></label>
+        <label style="display: flex; flex-direction: column; gap: 4px; font-size: 13px"><span class="lbl">ชนิดไฟล์</span><input class="in" value="*.sb3, *.docx" style="width: 130px"></label>
+        <button class="btn btn-pri" style="align-self: flex-end">เก็บงานตอนนี้</button>
+      </div>
+      <div style="flex-grow: 1; min-height: 0; overflow: auto; border: 1.5px solid #8a8f98; border-radius: 8px">
+        <table>
+          <thead><tr><th>นักเรียน</th><th>เครื่อง</th><th>ไฟล์</th><th>สถานะ</th></tr></thead>
+          <tbody>
+            <sc-for list="{{rows}}" as="r" hint-placeholder-count="8">
+              <tr class="{{r.cls}}"><td>[ชื่อ] · {{r.id}}</td><td>{{r.pc}}</td><td>{{r.f}}</td><td><span class="badge">{{r.st}}</span></td></tr>
+            </sc-for>
+          </tbody>
+        </table>
+      </div>
+      <div style="display: flex; justify-content: space-between; align-items: center; font-size: 13px"><span>ได้ 33/36 · ไม่มีไฟล์ 3 คน</span><span style="display: flex; gap: 8px"><button class="btn">เปิดโฟลเดอร์ที่เก็บ</button><button class="btn">ส่งข้อความเตือนคนที่ยังไม่ส่ง</button></span></div>
+    </div>
+    <span style="font-size: 12px; color: #4b515b; line-height: 1.5">เก็บลงเครื่องครูแยกโฟลเดอร์ตาม วันที่ › ห้องเรียน › ชื่อนักเรียน (ชื่อมาจากการล็อกอิน ไม่ต้องให้นักเรียนตั้งชื่อไฟล์เอง) · แนะนำเก็บก่อนหมดคาบ เพราะรีบูตแล้วงานหาย</span>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":800}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const d = [['COM-01', 'โปรเจกต์เกม.sb3', 'ได้แล้ว'], ['COM-02', 'โปรเจกต์เกม.sb3', 'ได้แล้ว'], ['COM-03', '—', 'ไม่มีไฟล์'], ['COM-05', 'งาน.sb3 + รายงาน.docx', 'ได้แล้ว'], ['COM-06', 'โปรเจกต์เกม.sb3', 'ได้แล้ว'], ['COM-07', '—', 'ไม่มีไฟล์'], ['COM-08', 'Untitled.sb3', 'ได้แล้ว'], ['COM-09', 'โปรเจกต์เกม.sb3', 'ได้แล้ว']];
+    const rows = d.map((x, i) => ({ id: '651' + String(i + 1).padStart(2, '0'), pc: x[0], f: x[1], st: x[2], cls: x[2] === 'ไม่มีไฟล์' ? 'miss' : '' }));
+    return { rows };
+  }
+}
+</script>
+</body>
+</html>

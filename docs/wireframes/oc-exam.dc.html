@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<title>Online โหมดสอบ</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+.btn{height:48px;padding:0 14px;border:1.5px solid #6b7079;border-radius:10px;font:inherit;font-size:15px;background:#fff;color:#1f2328}
+.btn-pri{background:#2b2f36;color:#fff;border-color:#2b2f36}
+.preset{display:flex;gap:10px;align-items:center;padding:12px;border:1.5px solid #8a8f98;border-radius:10px;background:#fff;font-size:14px;min-height:44px;box-sizing:border-box}
+.preset-on{border:2px solid #2b2f36;background:#f1f3f5}
+.pill{flex:1;padding:10px 0;border:1.5px solid #6b7079;border-radius:999px;font:inherit;font-size:14px;background:#fff;color:#1f2328}
+.pill-on{background:#2b2f36;color:#fff;border-color:#2b2f36}
+.h{font-size:13px;font-weight:700;color:#2b2f36;margin:0}
+</style>
+</helmet>
+<div style="width: 390px; height: 844px; box-sizing: border-box; display: flex; flex-direction: column; background: #f6f7f9; font-family: 'IBM Plex Sans Thai', system-ui, sans-serif; color: #1f2328; outline: 2px dashed #1d4ed8; outline-offset: -2px">
+  <header style="padding: 14px 16px; display: flex; align-items: center; gap: 12px; background: #fff; border-bottom: 1.5px solid #d5d8dd"><a href="oc-clients.dc.html" style="font-size: 14px; color: #1f2328">← กลับ</a><strong style="font-size: 18px">เปิดโหมดสอบ</strong></header>
+  <section style="flex-grow: 1; padding: 16px; display: flex; flex-direction: column; gap: 12px">
+    <p class="h">1 · เว็บที่อนุญาต</p>
+    <label class="preset preset-on"><input type="checkbox" checked>Google Forms</label>
+    <label class="preset preset-on"><input type="checkbox" checked>Google Classroom</label>
+    <label class="preset"><input type="checkbox">Quizizz / Wayground</label>
+    <label class="preset"><input type="checkbox">Kahoot</label>
+    <a href="#" style="font-size: 13px; color: #1d4ed8">ดูชุดอื่น / เพิ่มเว็บเอง</a>
+    <p class="h">2 · นานแค่ไหน</p>
+    <div style="display: flex; gap: 6px"><button class="pill">30 น.</button><button class="pill pill-on">50 น.</button><button class="pill">60 น.</button></div>
+    <p class="h">3 · ใช้กับ</p>
+    <span style="font-size: 14px">ทั้งห้อง Com 1 (36 เครื่อง)</span>
+    <div style="flex-grow: 1"></div>
+    <button class="btn btn-pri">เริ่มโหมดสอบ</button>
+    <span style="font-size: 12px; color: #4b515b; text-align: center">ครูยืนคุมสอบในห้องแล้วเปิด/ปิดจากมือถือได้เลย</span>
+  </section>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

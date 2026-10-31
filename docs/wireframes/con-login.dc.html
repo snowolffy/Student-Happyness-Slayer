@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<title>Console เข้าสู่ระบบ</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+.btn{height:40px;padding:0 14px;border:1.5px solid #6b7079;border-radius:6px;font:inherit;font-size:14px;background:#fff;color:#1f2328;white-space:nowrap}
+.btn-pri{background:#2b2f36;color:#fff;border-color:#2b2f36}
+.in{height:38px;box-sizing:border-box;border:1.5px solid #8a8f98;border-radius:6px;padding:0 10px;font:inherit;font-size:14px;background:#fff;color:#1f2328;width:100%}
+.lbl{font-size:12px;font-weight:600;color:#4b515b}
+.tag{font-size:11px;font-weight:600;padding:2px 7px;border-radius:999px;white-space:nowrap}
+.tag-chg{background:#fdecd8;color:#8a3c04}
+</style>
+</helmet>
+<div style="width: 1280px; height: 800px; box-sizing: border-box; display: flex; flex-direction: column; font-family: 'IBM Plex Sans Thai', system-ui, sans-serif; color: #1f2328; outline: 2px dashed #b45309; outline-offset: -2px">
+  <div style="height: 36px; background: #2b2f36; color: #fff; display: flex; align-items: center; justify-content: space-between; padding: 0 14px; font-size: 13px; flex-shrink: 0"><span>Onion ProcOparetor Console</span><span>— ☐ ✕</span></div>
+  <div style="flex-grow: 1; display: flex; align-items: center; justify-content: center; position: relative; background: {{bg}}">
+    <span class="tag tag-chg" style="position: absolute; top: 14px; left: 16px">เสนอแก้: จากหน้าต่างล็อกอินเล็ก → หน้าต่างขนาด Console เต็ม</span>
+    <div style="width: 880px; height: 500px; display: flex; background: #fff; border: 1px solid #c9cdd3; border-radius: 12px; overflow: hidden">
+      <div style="width: 400px; flex-shrink: 0; background: repeating-linear-gradient(135deg,#d5d8dd 0 12px,#cdd1d6 12px 24px); display: flex; flex-direction: column; justify-content: space-between; padding: 24px; box-sizing: border-box; color: #2b2f36">
+        <span style="font-size: 12px; background: rgba(255,255,255,.8); padding: 4px 8px; border-radius: 4px; align-self: flex-start">ภาพ: Assets\LoginHero.png (เปลี่ยนไฟล์ในโฟลเดอร์แอปเท่านั้น)</span>
+        <div style="display: flex; flex-direction: column; gap: 4px; background: rgba(255,255,255,.8); padding: 10px 12px; border-radius: 6px">
+          <strong style="font-size: 20px">Onion ProcOparetor</strong>
+          <span style="font-size: 13px">We peel, We See, We Oparete</span>
+          <span style="font-size: 11px; color: #4b515b">v1.2.5 · ข้อความทับภาพ ซ่อนได้ถ้าภาพมีโลโก้อยู่แล้ว</span>
+        </div>
+      </div>
+      <form style="flex-grow: 1; padding: 36px 40px; display: flex; flex-direction: column; justify-content: center; gap: 14px">
+        <div style="display: flex; flex-direction: column; gap: 2px"><strong style="font-size: 22px">เข้าสู่ระบบ</strong><span style="font-size: 13px; color: #4b515b">Server Console</span></div>
+        <div style="display: grid; grid-template-columns: 1fr 100px; gap: 10px">
+          <label style="display: flex; flex-direction: column; gap: 4px"><span class="lbl">SERVER IP</span><input class="in" value="192.168.17.249"></label>
+          <label style="display: flex; flex-direction: column; gap: 4px"><span class="lbl">PORT</span><input class="in" value="8787"></label>
+        </div>
+        <label style="display: flex; flex-direction: column; gap: 4px"><span class="lbl">USERNAME</span><input class="in" value="admin"></label>
+        <label style="display: flex; flex-direction: column; gap: 4px"><span class="lbl">PASSWORD</span><input class="in" type="password" value="password"></label>
+        <span style="font-size: 12px; color: #4b515b">เชื่อมต่อแบบเข้ารหัส (HTTPS) · ใบรับรองของ Server ถูกต้อง</span>
+        <a href="con-clients.dc.html" class="btn btn-pri" style="display: flex; align-items: center; justify-content: center; text-decoration: none">เชื่อมต่อ</a>
+      </form>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"pattern":{"editor":"enum","options":["จุดเรียงตาราง","จุดกระจาย","พื้นเรียบ"],"default":"จุดเรียงตาราง"},"$preview":{"width":1280,"height":800}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const p = this.props.pattern ?? 'จุดเรียงตาราง';
+    const base = '#eceef1';
+    const grid = 'radial-gradient(circle, #b9bec6 1.2px, transparent 1.6px) 0 0 / 20px 20px, ' + base;
+    const scatter = 'radial-gradient(circle, #b9bec6 1.3px, transparent 1.7px) 0 0 / 37px 37px, radial-gradient(circle, #c4c8cf 1px, transparent 1.4px) 13px 22px / 29px 29px, radial-gradient(circle, #c9cdd3 1.6px, transparent 2px) 25px 7px / 53px 53px, ' + base;
+    const bg = p === 'จุดกระจาย' ? scatter : p === 'พื้นเรียบ' ? base : grid;
+    return { bg };
+  }
+}
+</script>
+</body>
+</html>

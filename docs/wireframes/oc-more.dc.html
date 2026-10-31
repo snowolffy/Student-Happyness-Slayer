@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<title>Online เมนู</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+.item{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:0 14px;min-height:50px;border-bottom:1px solid #d5d8dd;font-size:15px;color:#1f2328;text-decoration:none;background:#fff}
+.h{font-size:12px;font-weight:700;color:#4b515b;padding:16px 16px 6px;margin:0}
+.box{border:1.5px solid #8a8f98;border-radius:10px;overflow:hidden;margin:0 16px}
+.tab{display:flex;flex-direction:column;align-items:center;gap:2px;font-size:11px;color:#4b515b;text-decoration:none;flex:1;padding:6px 0;min-height:44px;justify-content:center}
+.tab-on{color:#1f2328;font-weight:700}
+.ico{width:22px;height:22px;border-radius:6px;background:#c9cdd3}
+.tab-on .ico{background:#2b2f36}
+.tag{font-size:10px;font-weight:600;padding:1px 6px;border-radius:999px;white-space:nowrap}
+.tag-new{background:#dbe6fd;color:#1a3fa8}
+</style>
+</helmet>
+<div style="width: 390px; height: 844px; box-sizing: border-box; display: flex; flex-direction: column; background: #f6f7f9; font-family: 'IBM Plex Sans Thai', system-ui, sans-serif; color: #1f2328">
+  <header style="padding: 16px; background: #fff; border-bottom: 1.5px solid #d5d8dd"><h1 style="margin: 0; font-size: 22px; font-weight: 700">เมนู</h1></header>
+  <div style="flex-grow: 1; overflow: hidden">
+    <p class="h">ห้องเรียน</p>
+    <div class="box">
+      <a href="#" class="item">ผังที่นั่ง <span class="tag tag-new">ใหม่</span></a>
+      <a href="#" class="item">โหมดสอบ <span class="tag tag-new">ใหม่</span></a>
+      <a href="#" class="item" style="border-bottom: none">ประวัติการใช้เครื่อง <span class="tag tag-new">ใหม่</span></a>
+    </div>
+    <p class="h">บันทึก</p>
+    <div class="box">
+      <a href="#" class="item">Audit Log</a>
+      <a href="#" class="item" style="border-bottom: none">ประวัติเว็บ <span class="tag tag-new">ใหม่</span></a>
+    </div>
+    <p class="h">ระบบ</p>
+    <div class="box">
+      <a href="#" class="item">ผู้ใช้</a>
+      <a href="#" class="item">ตั้งค่า</a>
+      <a href="oc-emergency.dc.html" class="item">ตั้งค่ารหัสฉุกเฉิน <span class="tag tag-new">ใหม่</span></a>
+      <a href="#" class="item">เปลี่ยนรหัสผ่าน</a>
+      <a href="oc-login.dc.html" class="item" style="border-bottom: none">ออกจากระบบ</a>
+    </div>
+  </div>
+  <nav style="display: flex; border-top: 1.5px solid #d5d8dd; background: #fff; padding-bottom: 14px">
+    <a href="oc-clients.dc.html" class="tab"><span class="ico"></span>Clients</a>
+    <a href="oc-rules.dc.html" class="tab"><span class="ico"></span>Rules</a>
+    <a href="#" class="tab"><span class="ico"></span>Programs</a>
+    <a href="#" class="tab"><span class="ico"></span>Logs</a>
+    <a href="oc-more.dc.html" class="tab tab-on"><span class="ico"></span>เมนู</a>
+  </nav>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

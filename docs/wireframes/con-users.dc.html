@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<title>Console ผู้ใช้</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+.btn{height:32px;padding:0 12px;border:1.5px solid #6b7079;border-radius:6px;font:inherit;font-size:13px;background:#fff;color:#1f2328;white-space:nowrap}
+.btn-pri{background:#2b2f36;color:#fff;border-color:#2b2f36}
+.btn-danger{border-color:#b42318;color:#b42318}
+.in{height:32px;box-sizing:border-box;border:1.5px solid #8a8f98;border-radius:6px;padding:0 10px;font:inherit;font-size:13px;background:#fff;color:#1f2328}
+.nav{display:flex;align-items:center;justify-content:space-between;gap:8px;height:32px;padding:0 10px;border-radius:6px;font-size:13px;color:#2b2f36;text-decoration:none}
+.nav-on{background:#2b2f36;color:#fff}
+.grp{font-size:11px;font-weight:600;color:#5b616b;padding:10px 10px 2px}
+.new{outline:2px dashed #1d4ed8;outline-offset:2px}
+.newc{outline:2px dashed #1d4ed8;outline-offset:-2px}
+.tag{font-size:10px;font-weight:600;padding:1px 6px;border-radius:999px;white-space:nowrap}
+.tag-new{background:#dbe6fd;color:#1a3fa8}
+table{border-collapse:collapse;width:100%;font-size:13px}
+th{text-align:left;font-weight:600;color:#4b515b;font-size:12px;padding:7px 10px;border-bottom:1.5px solid #8a8f98;background:#f1f3f5;white-space:nowrap}
+td{padding:7px 10px;border-bottom:1px solid #d5d8dd;white-space:nowrap}
+.badge{font-size:11px;font-weight:600;padding:1px 8px;border-radius:999px;border:1.5px solid #6b7079}
+</style>
+</helmet>
+<div style="width: 1280px; height: 800px; box-sizing: border-box; display: flex; flex-direction: column; background: #f6f7f9; font-family: 'IBM Plex Sans Thai', system-ui, sans-serif; color: #1f2328; overflow: hidden">
+  <div style="height: 36px; background: #2b2f36; color: #fff; display: flex; align-items: center; padding: 0 14px; font-size: 13px; flex-shrink: 0">Onion ProcOparetor Console</div>
+  <div style="display: flex; flex-grow: 1; min-height: 0">
+    <nav style="width: 210px; flex-shrink: 0; background: #eceef1; padding: 12px 10px; display: flex; flex-direction: column; gap: 2px; box-sizing: border-box">
+      <div style="display: flex; flex-direction: column; padding: 0 6px 8px"><span style="font-weight: 700; font-size: 14px">Onion ProcOparetor</span><span style="font-size: 11px; color: #4b515b">Server Console</span></div>
+      <sc-for list="{{groups}}" as="g" hint-placeholder-count="4">
+        <span class="grp">{{g.name}}</span>
+        <sc-for list="{{g.items}}" as="it" hint-placeholder-count="3">
+          <a href="{{it.href}}" class="nav {{it.cls}}"><span>{{it.label}}</span><sc-if value="{{it.isNew}}" hint-placeholder-val="{{false}}"><span class="tag tag-new">ใหม่</span></sc-if></a>
+        </sc-for>
+      </sc-for>
+    </nav>
+    <main style="flex-grow: 1; min-width: 0; display: flex; flex-direction: column">
+      <header style="height: 52px; display: flex; align-items: center; justify-content: space-between; padding: 0 20px; border-bottom: 1.5px solid #d5d8dd; background: #fff; gap: 12px">
+        <div style="display: flex; flex-direction: column"><h1 style="margin: 0; font-size: 18px; font-weight: 700">ผู้ใช้ (ครู / Admin)</h1><span style="font-size: 12px; color: #4b515b">บัญชีที่เข้า Console ได้ · บัญชีนักเรียนอยู่ใน Roster Manager แยกต่างหาก</span></div>
+      </header>
+      <section style="padding: 14px 20px; flex-grow: 1; min-height: 0; display: flex; flex-direction: column; gap: 12px">
+        <form style="display: flex; gap: 8px; align-items: center; background: #fff; border: 1.5px solid #8a8f98; border-radius: 8px; padding: 12px; flex-wrap: wrap">
+          <strong style="font-size: 13px; margin-right: 6px">เพิ่มผู้ใช้</strong>
+          <input class="in" placeholder="Username (ใช้ล็อกอิน แก้ไม่ได้)" style="width: 200px" aria-label="Username">
+          <input class="in new" placeholder="ชื่อที่แสดง เช่น ครูสมชาย" style="width: 190px" aria-label="ชื่อที่แสดง">
+          <input class="in" type="password" placeholder="Password (8 ตัวขึ้นไป)" style="width: 200px" aria-label="Password">
+          <select class="in new" aria-label="Role"><option>Teacher</option><option>Admin</option></select>
+          <span class="tag tag-new">Role ใหม่</span>
+          <div style="flex-grow: 1"></div>
+          <button class="btn btn-pri">เพิ่มผู้ใช้</button>
+        </form>
+        <div style="flex-grow: 1; min-height: 0; overflow: auto; background: #fff; border: 1.5px solid #8a8f98; border-radius: 8px">
+          <table>
+            <thead><tr><th class="newc">ชื่อที่แสดง <span class="tag tag-new">ใหม่</span></th><th>Username</th><th class="newc">Role <span class="tag tag-new">ใหม่</span></th><th>บัญชีระบบ</th><th>ใช้รหัสผ่านเริ่มต้น</th><th>สร้างเมื่อ</th><th>ล็อกอินล่าสุด</th><th>จัดการ</th></tr></thead>
+            <tbody>
+              <sc-for list="{{rows}}" as="r" hint-placeholder-count="4">
+                <tr><td><strong>{{r.dn}}</strong></td><td>{{r.u}}</td><td><span class="badge">{{r.role}}</span></td><td>{{r.sys}}</td><td>{{r.def}}</td><td>{{r.c}}</td><td>{{r.l}}</td><td style="display: flex; gap: 6px"><button class="btn" style="height: 26px">แก้ชื่อ</button><button class="btn" style="height: 26px">รีเซ็ตรหัสผ่าน</button><button class="btn btn-danger" style="height: 26px">ลบ</button></td></tr>
+              </sc-for>
+            </tbody>
+          </table>
+        </div>
+        <div class="new" style="background: #f1f5fe; border-radius: 8px; padding: 12px 14px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; font-size: 13px">
+          <div style="display: flex; flex-direction: column; gap: 4px"><strong>Admin ทำได้</strong><span style="color: #2b2f36">ทุกอย่าง: กฎถาวร, Website, ผู้ใช้, นักเรียน, ห้อง/ตาราง, ตั้งค่าระบบ, ลบเครื่อง</span></div>
+          <div style="grid-column: 1 / -1; display: flex; flex-direction: column; gap: 4px"><strong>ชื่อที่แสดง</strong><span style="color: #2b2f36">ขึ้นทุกที่ที่คนเห็น: Staff session, "ล็อกโดย…", ผู้ส่งข้อความ, แถบล่าง Console · เจ้าของแก้เองได้ Admin แก้ให้ได้ · Audit Log เก็บทั้ง username และชื่อที่แสดง ณ ตอนนั้น (ชื่อแก้ได้/ซ้ำได้ แต่ username ไม่เปลี่ยน)</span></div>
+          <div style="display: flex; flex-direction: column; gap: 4px"><strong>Teacher ทำได้</strong><span style="color: #2b2f36">คุมห้อง (ล็อก/ข้อความ/ดูจอ/ปิดเครื่อง), เปิดโหมดสอบ, ดู log, รีเซ็ตรหัสนักเรียน (ถ้าเปิดสิทธิ์), Staff session</span></div>
+        </div>
+      </section>
+    </main>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":800}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const active = 'con-users.dc.html';
+    const n = (label, href, isNew) => ({ label, href, isNew: !!isNew, cls: href === active ? 'nav-on' : '' });
+    const groups = [
+      { name: 'ห้องเรียน', items: [n('Clients', 'con-clients.dc.html'), n('ผังที่นั่ง', 'con-seatmap.dc.html', true), n('Live View', 'con-liveview.dc.html'), n('โหมดสอบ', 'nf-exam.dc.html', true)] },
+      { name: 'กฎ', items: [n('กฎโปรแกรม', 'con-rules.dc.html'), n('Program Review', 'con-programreview.dc.html'), n('Website Control', 'con-website.dc.html')] },
+      { name: 'บันทึก', items: [n('Logs / Audit', 'con-logs.dc.html'), n('ประวัติการใช้เครื่อง', 'nf-attendance.dc.html', true)] },
+      { name: 'ระบบ', items: [n('ผู้ใช้', 'con-users.dc.html'), n('ห้อง', 'nf-rooms.dc.html', true), n('ตั้งค่า', 'con-settings.dc.html')] }
+    ];
+    const rows = [
+      { dn: 'ผู้ดูแลระบบ', u: 'admin', role: 'Admin', sys: 'ใช่', def: 'ไม่', c: '10 ส.ค.', l: 'วันนี้ 08:50' },
+      { dn: 'ครูสมชาย', u: 'kru.somchai', role: 'Teacher', sys: 'ไม่', def: 'ไม่', c: '1 ก.ย.', l: 'เมื่อวาน' },
+      { dn: 'ครู[ชื่อ]', u: 'kru.xxx', role: 'Teacher', sys: 'ไม่', def: 'ใช่', c: '20 ต.ค.', l: '—' }
+    ];
+    return { groups, rows };
+  }
+}
+</script>
+</body>
+</html>

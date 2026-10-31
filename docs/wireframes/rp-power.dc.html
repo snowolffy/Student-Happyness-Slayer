@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<title>ตั้งเวลาเปิดปิดเครื่อง</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+.btn{height:34px;padding:0 12px;border:1.5px solid #6b7079;border-radius:6px;font:inherit;font-size:13px;background:#fff;color:#1f2328;white-space:nowrap}
+.btn-pri{background:#2b2f36;color:#fff;border-color:#2b2f36}
+.in{height:32px;box-sizing:border-box;border:1.5px solid #8a8f98;border-radius:6px;padding:0 10px;font:inherit;font-size:13px;background:#fff;color:#1f2328}
+.card{background:#fff;border:1.5px solid #8a8f98;border-radius:8px;padding:16px;display:flex;flex-direction:column;gap:10px}
+.rule{display:grid;grid-template-columns:110px 1fr 1fr auto;gap:10px;align-items:center;padding:10px 0;border-bottom:1px solid #e2e5e9;font-size:13px}
+.day{width:30px;height:30px;border-radius:50%;border:1.5px solid #6b7079;display:inline-flex;align-items:center;justify-content:center;font-size:12px;background:#fff}
+.day-on{background:#2b2f36;color:#fff;border-color:#2b2f36}
+.badge{font-size:11px;font-weight:600;padding:1px 8px;border-radius:999px;border:1.5px solid #6b7079}
+</style>
+</helmet>
+<div style="width: 1280px; height: 800px; box-sizing: border-box; display: flex; flex-direction: column; background: #f6f7f9; font-family: 'IBM Plex Sans Thai', system-ui, sans-serif; color: #1f2328; overflow: hidden; outline: 2px dashed #1d4ed8; outline-offset: -2px">
+  <div style="height: 36px; background: #2b2f36; color: #fff; display: flex; align-items: center; padding: 0 14px; font-size: 13px; flex-shrink: 0">Onion ProcOparetor Console · ห้อง › พลังงาน</div>
+  <section style="padding: 18px 24px; display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 18px; flex-grow: 1; min-height: 0">
+    <div class="card">
+      <div style="display: flex; justify-content: space-between; align-items: center"><strong style="font-size: 16px">ตั้งเวลาอัตโนมัติ · Com 1</strong><button class="btn">+ เพิ่มเวลา</button></div>
+      <div class="rule"><strong>เปิดเครื่อง</strong><span><span class="day day-on">จ</span> <span class="day day-on">อ</span> <span class="day day-on">พ</span> <span class="day day-on">พฤ</span> <span class="day day-on">ศ</span> <span class="day">ส</span> <span class="day">อา</span></span><span style="display: flex; gap: 6px; align-items: center">เวลา <input class="in" value="07:50" style="width: 80px"></span><span class="badge">Wake-on-LAN</span></div>
+      <div class="rule"><strong>ปิดเครื่อง</strong><span><span class="day day-on">จ</span> <span class="day day-on">อ</span> <span class="day day-on">พ</span> <span class="day day-on">พฤ</span> <span class="day day-on">ศ</span> <span class="day">ส</span> <span class="day">อา</span></span><span style="display: flex; gap: 6px; align-items: center">เวลา <input class="in" value="16:30" style="width: 80px"></span><span class="badge">เตือน 5 นาที</span></div>
+      <div class="rule" style="border-bottom: none"><strong>ปิดเครื่องว่าง</strong><span style="grid-column: span 2">เครื่องที่ไม่มีใครล็อกอินนานเกิน <input class="in" value="30" style="width: 60px"> นาที (หลัง 15:00)</span><input type="checkbox" checked aria-label="ปิดเครื่องว่าง"></div>
+      <div style="padding: 10px 12px; background: #f1f3f5; border-radius: 6px; font-size: 13px; line-height: 1.5">ข้ามวันหยุดได้: <button class="btn" style="height: 28px">เพิ่มวันหยุด…</button> · ปิดเครื่องตามเวลา ใช้คำสั่งที่มีอายุ (เครื่องที่ปิดอยู่แล้วจะไม่ดับเองตอนเปิดวันหลัง)</div>
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 14px">
+      <div class="card">
+        <strong style="font-size: 16px">เปิดเครื่องตอนนี้ (Wake-on-LAN)</strong>
+        <span style="font-size: 13px; color: #4b515b; line-height: 1.5">ส่งจาก Server ในวง LAN เดียวกัน · ต้องเปิด WoL ใน BIOS ทุกเครื่องก่อน (งานตอนลงแล็บ)</span>
+        <div style="display: flex; gap: 8px"><button class="btn btn-pri">เปิดทั้งห้อง</button><button class="btn">เปิดเครื่องที่เลือก</button></div>
+        <div style="font-size: 13px; display: flex; flex-direction: column; gap: 4px"><span>ผลล่าสุด: ส่งไป 40 · ตื่น 37 · ไม่ตอบ 3</span><span style="color: #4b515b">COM-04, COM-17, COM-38 → ตรวจสาย LAN / BIOS</span></div>
+      </div>
+      <div class="card">
+        <strong style="font-size: 14px">ทำไมไม่ทำผ่าน Tailscale/WiFi</strong>
+        <span style="font-size: 13px; color: #4b515b; line-height: 1.5">WoL ทำงานแค่ในวงสาย LAN เดียวกัน (สอดคล้องกับแผนเดินสายแลนแทน WiFi ที่ตัดสินไว้แล้ว)</span>
+      </div>
+    </div>
+  </section>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":800}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

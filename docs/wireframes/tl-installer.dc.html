@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<title>ตัวติดตั้ง MSI</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+.btn{height:28px;padding:0 14px;border:1px solid #6b7079;border-radius:3px;font:inherit;font-size:12px;background:#f1f3f5;color:#1f2328;white-space:nowrap}
+.in{height:26px;box-sizing:border-box;border:1px solid #8a8f98;padding:0 6px;font:inherit;font-size:12px;background:#fff;color:#1f2328;width:100%}
+.msi{width:440px;background:#fff;border:1px solid #6b7079;display:flex;flex-direction:column}
+.mh{padding:12px 16px;border-bottom:1px solid #b7bcc3;display:flex;flex-direction:column;gap:2px;background:#fff}
+.mb{padding:14px 16px;display:flex;flex-direction:column;gap:10px;font-size:12px;min-height:190px}
+.mf{padding:10px 16px;border-top:1px solid #b7bcc3;display:flex;justify-content:flex-end;gap:6px;background:#f1f3f5}
+.opt{display:flex;flex-direction:column;gap:2px}
+.opt span{color:#4b515b;padding-left:22px}
+</style>
+</helmet>
+<div style="width: 1000px; height: 640px; box-sizing: border-box; padding: 28px; display: flex; flex-direction: column; gap: 18px; background: #eceef1; font-family: 'IBM Plex Sans Thai', system-ui, sans-serif; color: #1f2328">
+  <div style="display: flex; gap: 28px">
+    <div style="display: flex; flex-direction: column; gap: 6px">
+      <strong style="font-size: 13px">Server + Console · เลือกส่วนที่จะติดตั้ง</strong>
+      <div class="msi">
+        <div class="mh"><strong style="font-size: 13px">เลือกส่วนประกอบ</strong><span style="font-size: 11px; color: #4b515b">OnionProcOparetor Server + Console</span></div>
+        <div class="mb">
+          <label class="opt"><span style="padding: 0; color: #1f2328; display: flex; gap: 6px"><input type="checkbox" checked>Server</span><span>Windows Service · ฐานข้อมูล · port 8787</span></label>
+          <label class="opt"><span style="padding: 0; color: #1f2328; display: flex; gap: 6px"><input type="checkbox" checked>Console</span><span>โปรแกรมคุมห้องบนคอมครู</span></label>
+          <label class="opt"><span style="padding: 0; color: #1f2328; display: flex; gap: 6px"><input type="checkbox">Online Console</span><span>เว็บสำหรับมือถือผ่าน Tailscale · port 8788 · ต้องติ๊ก Server ด้วย</span></label>
+          <label class="opt" style="outline: 2px dashed #1d4ed8; outline-offset: 2px"><span style="padding: 0; color: #1f2328; display: flex; gap: 6px"><input type="checkbox">Roster Manager (ใหม่)</span><span>โปรแกรมจัดการรายชื่อนักเรียน</span></label>
+        </div>
+        <div class="mf"><button class="btn">&lt; Back</button><button class="btn">Next &gt;</button><button class="btn">Cancel</button></div>
+      </div>
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 6px">
+      <strong style="font-size: 13px">Agent (เครื่องนักเรียน) · ตั้งค่าการเชื่อมต่อ</strong>
+      <div class="msi">
+        <div class="mh"><strong style="font-size: 13px">เชื่อมต่อ Server</strong><span style="font-size: 11px; color: #4b515b">OnionProcOparetor Agent</span></div>
+        <div class="mb">
+          <label style="display: flex; flex-direction: column; gap: 3px">Server URL<input class="in" value="http://192.168.17.249:8787"></label>
+          <label style="display: flex; flex-direction: column; gap: 3px">Fallback URL (Tailscale)<input class="in" value="http://100.x.x.x:8787"></label>
+          <label style="display: flex; flex-direction: column; gap: 3px">รหัสถอนการติดตั้ง<input class="in" type="password" value="password"></label>
+          <label style="display: flex; flex-direction: column; gap: 3px; outline: 2px dashed #1d4ed8; outline-offset: 2px">Emergency secret (ใหม่ · วางจาก Console)<input class="in" value="XXXX XXXX XXXX XXXX"></label>
+        </div>
+        <div class="mf"><button class="btn">&lt; Back</button><button class="btn">Install</button><button class="btn">Cancel</button></div>
+      </div>
+    </div>
+  </div>
+  <p style="margin: 0; font-size: 13px; color: #2b2f36; line-height: 1.5; max-width: 900px">หน้าตัวติดตั้งเป็นหน้าต่างมาตรฐานของ Windows Installer แต่งได้แค่ข้อความ ลำดับ และช่องกรอก · เมื่อเปลี่ยนเป็น HTTPS ช่อง Server URL จะเป็น https:// และตัวติดตั้งต้องลงใบรับรองของ Server ให้เครื่องเชื่อถือด้วย · ค่าในช่องจริงของ Agent MSI ให้ตรวจกับไฟล์ .wxs อีกครั้งก่อนแก้</p>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1000,"height":640}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

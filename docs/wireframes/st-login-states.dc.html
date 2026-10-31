@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<title>จอล็อกอินตอนมีปัญหา</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+.btn{height:38px;padding:0 14px;border:1.5px solid #1e3a5f;border-radius:6px;font:inherit;font-size:14px;background:#fff;color:#1e3a5f}
+.btn-pri{background:#1e3a5f;color:#fff}
+.in{height:38px;box-sizing:border-box;border:1.5px solid #8a8f98;border-radius:6px;padding:0 10px;font:inherit;font-size:14px;background:#fff;color:#1f2328;width:100%}
+.in-err{border-color:#b42318;border-width:2px}
+.lbl{font-size:12px;font-weight:600;color:#2b2f36}
+.card{background:#fff;border-radius:12px;border-top:4px solid #1e3a5f;padding:18px 20px;display:flex;flex-direction:column;gap:10px;box-shadow:0 10px 28px rgba(16,32,56,.18)}
+.msg{padding:9px 11px;border-radius:6px;font-size:13px;line-height:1.5}
+.err{background:#fdecea;border:1.5px solid #b42318;color:#6b1a14}
+.warn{background:#fdf3e7;border:1.5px solid #b45309;color:#5c2d06}
+.info{background:#eef3fb;border:1.5px solid #1e3a5f;color:#1e3a5f}
+.cap{font-size:13px;font-weight:700;color:#1f2328;margin:0}
+</style>
+</helmet>
+<div style="width: 1280px; height: 720px; box-sizing: border-box; padding: 26px 32px; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 20px; align-content: start; background: radial-gradient(circle, #aeb8c6 1.3px, transparent 1.7px) 0 0 / 22px 22px, #e6eaf0; font-family: 'IBM Plex Sans Thai', system-ui, sans-serif; color: #1f2328; outline: 2px dashed #1d4ed8; outline-offset: -2px">
+  <div style="grid-column: 1 / -1; display: flex; justify-content: space-between; align-items: baseline"><strong style="font-size: 18px">ฝั่งขวาของการ์ดล็อกอิน ตอนเกิดปัญหา 4 แบบ</strong><span style="font-size: 13px; color: #4b515b">ภาพฝั่งซ้ายและปุ่มปิดเครื่องยังอยู่เหมือนเดิมทุกแบบ</span></div>
+
+  <div style="display: flex; flex-direction: column; gap: 8px">
+    <p class="cap">1 · รหัสผิด</p>
+    <form class="card">
+      <div class="msg err">รหัสนักเรียนหรือรหัสผ่านไม่ถูกต้อง · ลองได้อีก 3 ครั้ง</div>
+      <label style="display: flex; flex-direction: column; gap: 4px"><span class="lbl">เมลโรงเรียน หรือ รหัสนักเรียน</span><input class="in" value="65103"></label>
+      <label style="display: flex; flex-direction: column; gap: 4px"><span class="lbl">รหัสผ่าน</span><input class="in in-err" type="password" value=""></label>
+      <button class="btn btn-pri">เข้าสู่ระบบ</button>
+      <span style="font-size: 12px; color: #4b515b">ไม่บอกว่าผิดช่องไหน กันการเดาว่ารหัสนักเรียนนี้มีอยู่จริงไหม</span>
+    </form>
+  </div>
+
+  <div style="display: flex; flex-direction: column; gap: 8px">
+    <p class="cap">2 · บัญชีถูกล็อก</p>
+    <form class="card">
+      <div class="msg err"><strong>บัญชีนี้ถูกล็อกชั่วคราว</strong><br>เพราะกรอกรหัสผิด 5 ครั้ง กรุณาแจ้งครูผู้สอนเพื่อปลดล็อก</div>
+      <span style="font-size: 13px; color: #2b2f36; line-height: 1.5">ครูปลดได้จาก Console (หน้า Clients › นักเรียน) หรือ Roster Manager</span>
+      <button class="btn">กลับไปหน้าเข้าสู่ระบบ</button>
+      <span style="font-size: 12px; color: #4b515b">Console แจ้งเตือนครูทันทีว่ามีบัญชีถูกล็อกที่เครื่องไหน</span>
+    </form>
+  </div>
+
+  <div style="display: flex; flex-direction: column; gap: 8px">
+    <p class="cap">3 · บัญชีใช้อยู่ที่เครื่องอื่น</p>
+    <form class="card">
+      <div class="msg warn"><strong>บัญชีนี้กำลังใช้อยู่ที่ COM-12</strong><br>ถ้าดำเนินการต่อ เครื่อง COM-12 จะถูกออกจากระบบทันที</div>
+      <button class="btn btn-pri">ใช้ที่เครื่องนี้แทน</button>
+      <button class="btn">ยกเลิก</button>
+      <span style="font-size: 12px; color: #4b515b">ขึ้นกับตั้งค่า "บัญชีเดียวหลายเครื่อง" · ถ้าตั้งเป็น "ไม่ให้เข้าเครื่องใหม่" จะมีแค่ปุ่มยกเลิก · ทุกครั้งที่เกิดจะบันทึก log</span>
+    </form>
+  </div>
+
+  <div style="display: flex; flex-direction: column; gap: 8px">
+    <p class="cap">4 · ต้องตั้งรหัสใหม่ (ครั้งแรก / หลังรีเซ็ต)</p>
+    <form class="card">
+      <div class="msg info">สวัสดี [ชื่อนักเรียน] · กรุณาตั้งรหัสผ่านใหม่ก่อนใช้งาน</div>
+      <label style="display: flex; flex-direction: column; gap: 4px"><span class="lbl">รหัสผ่านใหม่ (อย่างน้อย 6 ตัว)</span><input class="in" type="password"></label>
+      <label style="display: flex; flex-direction: column; gap: 4px"><span class="lbl">ยืนยันรหัสผ่านใหม่</span><input class="in" type="password"></label>
+      <button class="btn btn-pri">บันทึกแล้วเข้าใช้งาน</button>
+    </form>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":720}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>
