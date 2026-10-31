@@ -97,7 +97,11 @@
         <StackPanel Grid.Row="4" Orientation="Horizontal" HorizontalAlignment="Left" Margin="0,12,0,0">
             <Button x:Name="AllowButton" Content="อนุญาตถาวร (ทุกเครื่อง)" Style="{StaticResource ButtonSecondary}"
                     Padding="16,7" Margin="0,0,10,0" IsEnabled="False" Click="AllowButton_Click"/>
-            <Button x:Name="BlockButton" Content="บล็อกถาวร (ทุกเครื่อง)" Style="{StaticResource ButtonPrimary}"
+            <!-- สไตล์ (C1, 2026-10-31): เปลี่ยนจาก ButtonPrimary เป็น ButtonDanger - ตรงกับ wireframe
+                 con-programreview.dc.html ที่ทำปุ่ม "บล็อกถาวร" เป็น btn-danger (ขอบ/ตัวอักษรแดง) ชัดเจนว่า
+                 เป็นการกระทำที่ทำลาย/บล็อกถาวรทั้งห้อง ต่างจาก ButtonPrimary ปกติที่ใช้กับ action ทั่วไป -
+                 ButtonDanger มีอยู่แล้วในธีม ใช้ปุ่ม DELETE ในหน้า ผู้ใช้ ด้วย -->
+            <Button x:Name="BlockButton" Content="บล็อกถาวร (ทุกเครื่อง)" Style="{StaticResource ButtonDanger}"
                     Padding="16,7" IsEnabled="False" Click="BlockButton_Click"/>
         </StackPanel>
     </Grid>

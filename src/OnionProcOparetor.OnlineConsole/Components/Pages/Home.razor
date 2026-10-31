@@ -239,7 +239,9 @@ else
                         <td><TimeAgo Value="client.LastSeenAt" /></td>
                         <td>
                             <div style="display:flex; gap:.3rem">
-                                <button class="btn btn-secondary btn-sm" @onclick="() => _actionPanelClient = client">ACTIONS</button>
+                                @* ข้อความ (C1, 2026-10-31): "คำสั่ง" แทน "ACTIONS" - ตรงกับปุ่มเดียวกันในการ์ด
+                                   มือถือด้านบน (บรรทัด ~198) และตรงกับ con-clients.dc.html/con-actionpanel.dc.html *@
+                                <button class="btn btn-secondary btn-sm" @onclick="() => _actionPanelClient = client">คำสั่ง</button>
                                 <button class="btn btn-secondary btn-sm" disabled="@(!client.IsOnline)" @onclick="() => NavigateToScreenView(client)">
                                     <Icon Name="video" Size="14" />
                                     <span class="sr-only">ดูจอ @client.MachineName</span>

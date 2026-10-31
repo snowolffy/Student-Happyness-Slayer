@@ -65,14 +65,16 @@ else
     </div>
 
     <div class="table-scroll wide-only">
+        @* ลำดับคอลัมน์ (C1, 2026-10-31): ชื่อที่แสดงอยู่ก่อน Username ตาม wireframe con-users.dc.html และให้
+           ตรงกับการ์ดมือถือด้านบน ซึ่งเอาชื่อที่แสดงขึ้นหัวการ์ดอยู่แล้ว (Username เป็นแค่ caption เล็กๆ) *@
         <table>
-            <thead><tr><th>Username</th><th>ชื่อที่แสดง</th><th>Role</th><th>Built-in</th><th>Default Password</th><th>Created</th><th>Last Login</th><th></th></tr></thead>
+            <thead><tr><th>ชื่อที่แสดง</th><th>Username</th><th>Role</th><th>Built-in</th><th>Default Password</th><th>Created</th><th>Last Login</th><th></th></tr></thead>
             <tbody>
                 @foreach (var user in _users)
                 {
                     <tr @key="user.Id" class="@(user.HasDefaultPassword ? "row-attention" : "")">
-                        <td><strong>@user.Username</strong></td>
                         <td>@user.DisplayName</td>
+                        <td><strong>@user.Username</strong></td>
                         <td><span class="badge @(user.Role == "Admin" ? "badge-offline" : "badge-warning")">@user.Role</span></td>
                         <td>@(user.IsBuiltIn ? "Yes" : "No")</td>
                         <td>
@@ -93,8 +95,11 @@ else
                                 @if (!user.IsBuiltIn)
                                 {
                                     <button class="btn btn-secondary btn-sm" @onclick="() => OpenChangeRole(user)">เปลี่ยน Role</button>
-                                    <button class="btn btn-secondary btn-sm" @onclick="() => OpenReset(user)">RESET PASSWORD</button>
-                                    <button class="btn btn-danger btn-sm" @onclick="() => _deleting = user">DELETE</button>
+                                    @* ข้อความ (C1, 2026-10-31): ใช้ "รีเซ็ตรหัสผ่าน"/"ลบ" แบบเดียวกับการ์ดมือถือด้านบน
+                                       และตรงกับ wireframe con-users.dc.html - ตารางจอกว้างเคยเป็นภาษาอังกฤษล้วน
+                                       (RESET PASSWORD/DELETE) ซึ่งไม่ตรงกับทุกที่อื่นในแอปนี้ *@
+                                    <button class="btn btn-secondary btn-sm" @onclick="() => OpenReset(user)">รีเซ็ตรหัสผ่าน</button>
+                                    <button class="btn btn-danger btn-sm" @onclick="() => _deleting = user">ลบ</button>
                                 }
                             </div>
                         </td>

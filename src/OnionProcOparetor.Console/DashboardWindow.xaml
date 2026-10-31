@@ -550,7 +550,11 @@
                                                 <Button Content="ยกเว้นกฎเฉพาะเครื่องนี้" Style="{StaticResource ButtonSecondary}"
                                                         HorizontalAlignment="Stretch" Margin="0,0,0,6"
                                                         Click="InspectorRuleOverridesButton_Click"/>
-                                                <Button Content="เปิดแผงคำสั่ง..." Style="{StaticResource ButtonSecondary}"
+                                                <!-- ข้อความ (C1, 2026-10-31): "คำสั่งอื่นๆ..." ตรงกับ wireframe
+                                                     con-clients.dc.html ที่ผูกปุ่มนี้ไปที่ con-actionpanel.dc.html
+                                                     โดยตรง (ปุ่มนี้เปิด ActionPanelWindow เดียวกันจริงๆ - ดู
+                                                     InspectorActionsButton_Click) -->
+                                                <Button Content="คำสั่งอื่นๆ..." Style="{StaticResource ButtonSecondary}"
                                                         HorizontalAlignment="Stretch"
                                                         Click="InspectorActionsButton_Click"/>
 
@@ -1035,13 +1039,16 @@
                                 <TextBox Grid.Column="0" x:Name="NewUserUsernameBox" Width="150" Height="35" VerticalAlignment="Center"
                                          Style="{StaticResource PlaceholderTextBox}" Tag="Username"
                                          ToolTip="Username" TextChanged="NewUserUsernameBox_TextChanged"/>
-                                <PasswordBox Grid.Column="2" x:Name="NewUserPasswordBox" Width="170" Height="35" VerticalAlignment="Center"
-                                             Style="{StaticResource PlaceholderPasswordBox}" Tag="Password (อย่างน้อย 8 ตัว)"
-                                             ToolTip="Password (อย่างน้อย 8 ตัวอักษร)"/>
-                                <!-- ชื่อที่แสดง: ว่างไว้ได้ - Server fallback เป็น Username เอง (WP4b, 2026-10-30) -->
-                                <TextBox Grid.Column="4" x:Name="NewUserDisplayNameBox" Width="160" Height="35" VerticalAlignment="Center"
+                                <!-- ชื่อที่แสดง: ว่างไว้ได้ - Server fallback เป็น Username เอง (WP4b, 2026-10-30)
+                                     ลำดับช่อง (C1, 2026-10-31): สลับมาอยู่ก่อน Password ตาม wireframe con-users.dc.html
+                                     (Username -> ชื่อที่แสดง -> Password -> Role) - แค่สลับ Grid.Column ไม่แตะ
+                                     x:Name/logic เดิมเลย -->
+                                <TextBox Grid.Column="2" x:Name="NewUserDisplayNameBox" Width="160" Height="35" VerticalAlignment="Center"
                                          Style="{StaticResource PlaceholderTextBox}" Tag="ชื่อที่แสดง (ว่างไว้ = ใช้ Username)"
                                          ToolTip="ชื่อที่แสดง (ว่างไว้ = ใช้ Username)"/>
+                                <PasswordBox Grid.Column="4" x:Name="NewUserPasswordBox" Width="170" Height="35" VerticalAlignment="Center"
+                                             Style="{StaticResource PlaceholderPasswordBox}" Tag="Password (อย่างน้อย 8 ตัว)"
+                                             ToolTip="Password (อย่างน้อย 8 ตัวอักษร)"/>
                                 <ComboBox Grid.Column="6" x:Name="NewUserRoleCombo" Width="110" Height="35" VerticalAlignment="Center"
                                           ToolTip="Role ของบัญชีใหม่" SelectedIndex="0">
                                     <ComboBoxItem Content="Admin" Tag="0"/>
@@ -1068,9 +1075,12 @@
                                     RowStyle="{StaticResource ConsoleGridRowStyle}"
                                     CellStyle="{StaticResource ConsoleGridCellStyle}">
                                 <DataGrid.Columns>
-                                    <DataGridTextColumn Header="ชื่อผู้ใช้" Binding="{Binding Username}" Width="120"/>
-                                    <!-- ชื่อที่แสดง + Role (WP4b, 2026-10-30) - Role มาจาก Server เป็น string อยู่แล้ว ("Admin"/"Teacher") -->
+                                    <!-- ชื่อที่แสดง + Role (WP4b, 2026-10-30) - Role มาจาก Server เป็น string อยู่แล้ว ("Admin"/"Teacher")
+                                         ลำดับคอลัมน์ (C1, 2026-10-31): ชื่อที่แสดงอยู่ก่อน Username ตาม wireframe con-users.dc.html
+                                         เพราะชื่อที่แสดงคือสิ่งที่คนเห็นจริงทุกที่ (Staff session, "ล็อกโดย...") Username
+                                         แค่ใช้ล็อกอิน แก้ไม่ได้ -->
                                     <DataGridTextColumn Header="ชื่อที่แสดง" Binding="{Binding DisplayName}" Width="150"/>
+                                    <DataGridTextColumn Header="ชื่อผู้ใช้" Binding="{Binding Username}" Width="120"/>
                                     <DataGridTextColumn Header="Role" Binding="{Binding Role}" Width="80"/>
                                     <DataGridTextColumn Header="บัญชีระบบ" Binding="{Binding IsBuiltIn}" Width="80"/>
                                     <DataGridTextColumn Header="ใช้รหัสผ่านเริ่มต้น" Binding="{Binding HasDefaultPassword}" Width="130"/>
@@ -1121,10 +1131,15 @@
                                                             Margin="0,0,4,0"/>
 
                                                     <!--
-                                                        ปุ่ม DELETE: disable ถ้าเป็น built-in account (กัน lockout)
+                                                        ปุ่มลบ: disable ถ้าเป็น built-in account (กัน lockout)
                                                         ใช้ DataTrigger เทียบ IsBuiltIn แทนการเขียน converter class ใหม่
+
+                                                        ข้อความ (C1, 2026-10-31): "ลบ" แทน "DELETE" เดิม - ตรงกับ
+                                                        wireframe con-users.dc.html และปุ่มลบที่อื่นในแอป (เช่น
+                                                        WebsiteCatalogSourcesWindow) ที่ใช้ "ลบ" อยู่แล้วทั้งหมด
+                                                        DELETE ตัวเดียวที่เหลือเป็นภาษาอังกฤษแบบไม่มีเหตุผลรองรับ
                                                     -->
-                                                    <Button Content="DELETE" Tag="{Binding Id}"
+                                                    <Button Content="ลบ" Tag="{Binding Id}"
                                                             Click="DeleteUserButton_Click"
                                                             Padding="10,5" FontSize="11">
                                                         <Button.Style>
