@@ -23,14 +23,17 @@
              มาก ไม่แย่งความสนใจจากการ์ด) ผ่าน DynamicResource เพื่อให้ตามธีมสว่าง/มืดเองเหมือนทุกจุดในแอป -->
         <Rectangle IsHitTestVisible="False">
             <Rectangle.Fill>
-                <DrawingBrush TileMode="Tile" Viewport="0,0,28,28" ViewportUnits="Absolute">
+                <!-- Viewbox ต้องระบุเอง ไม่งั้น WPF ใช้ขอบของวงกลม (2.4px) เป็น Viewbox แล้วยืดให้เต็ม
+                     Viewport ทั้งช่อง จุดจะใหญ่เท่าช่อง - ตรงกับ wireframe con-login: รัศมี 1.2px ห่าง 20px -->
+                <DrawingBrush TileMode="Tile" Viewport="0,0,20,20" ViewportUnits="Absolute"
+                              Viewbox="0,0,20,20" ViewboxUnits="Absolute">
                     <DrawingBrush.Drawing>
                         <GeometryDrawing>
                             <GeometryDrawing.Brush>
                                 <SolidColorBrush Color="{DynamicResource Color.Border.Default}"/>
                             </GeometryDrawing.Brush>
                             <GeometryDrawing.Geometry>
-                                <EllipseGeometry Center="2,2" RadiusX="1.4" RadiusY="1.4"/>
+                                <EllipseGeometry Center="10,10" RadiusX="1.2" RadiusY="1.2"/>
                             </GeometryDrawing.Geometry>
                         </GeometryDrawing>
                     </DrawingBrush.Drawing>
