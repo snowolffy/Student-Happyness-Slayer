@@ -76,10 +76,28 @@
                     </Border.Clip>
                     <Grid>
                         <Image x:Name="HeroImage" Stretch="UniformToFill"/>
-                        <StackPanel VerticalAlignment="Bottom" Margin="20">
+                        <!-- แถบไล่สีเข้มด้านล่าง: ภาพที่โรงเรียนใส่มาเองอาจมีตัวหนังสือหรือส่วนสว่างตรงนี้
+                             (ภาพตัวอย่างมีชื่อแอปพิมพ์อยู่ในภาพ) ข้อความจากหน้าตั้งค่าต้องอ่านออกเสมอ -->
+                        <Border VerticalAlignment="Bottom" Padding="20,36,20,20">
+                            <Border.Background>
+                                <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                                    <GradientStop Color="#00000000" Offset="0"/>
+                                    <GradientStop Color="#CC000000" Offset="0.45"/>
+                                    <GradientStop Color="#E6000000" Offset="1"/>
+                                </LinearGradientBrush>
+                            </Border.Background>
+                            <Border.Style>
+                                <Style TargetType="Border">
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding Text, ElementName=LoginScreenMessageText}" Value="">
+                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Border.Style>
                             <TextBlock x:Name="LoginScreenMessageText" Text="" FontSize="12"
-                                       Foreground="White" TextWrapping="Wrap" Opacity="0.9"/>
-                        </StackPanel>
+                                       Foreground="White" TextWrapping="Wrap"/>
+                        </Border>
                     </Grid>
                 </Border>
 
