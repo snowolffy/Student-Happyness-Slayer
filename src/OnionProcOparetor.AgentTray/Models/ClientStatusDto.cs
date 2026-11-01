@@ -27,4 +27,12 @@ public class ClientStatusDto
 
     /// <summary>true = เครื่องนี้ตั้งค่า secret รหัสฉุกเฉินไว้แล้ว (WP3-4b, 2026-10-31) - StudentLoginWindow ใช้เปิด/ปิดลิงก์ "รหัสฉุกเฉิน"</summary>
     public bool EmergencyCodeConfigured { get; set; }
+
+    /// <summary>true = เครื่องนี้มีรายการค้างอยู่ในคิวยกมือตอนนี้ (WP4-2, 2026-11-01 - แก้ตาม feedback ก่อน
+    /// merge) RaiseHandBadgeWindow poll ค่านี้ทุก ~5 วิ (เหมือน StudentLoginWindow poll emergencyCodeConfigured)
+    /// แล้วปิดตัวเองเมื่อกลายเป็น false</summary>
+    public bool RaisedHand { get; set; }
+
+    /// <summary>ตำแหน่งในคิวปัจจุบัน (1 = คิวแรก) - มีค่าเฉพาะตอน RaisedHand เป็น true</summary>
+    public int? RaiseHandQueuePosition { get; set; }
 }

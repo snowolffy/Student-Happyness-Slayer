@@ -60,6 +60,17 @@ public class PollResponse
     /// <summary>ออกจากระบบเองเมื่อไม่ได้ใช้งานกี่นาที (SignInSettings.AutoLogoutIdleMinutes) - AgentTray
     /// เป็นคนจับเวลา idle จริง (ดู IdleActivityMonitor) Agent แค่ relay ค่านี้ผ่าน status/push เท่านั้น</summary>
     public int AutoLogoutIdleMinutes { get; set; } = 15;
+
+    /// <summary>
+    /// true = เครื่องนี้มีรายการค้างอยู่ในคิวยกมือตอนนี้ (WP4-2, 2026-11-01 - แก้ตาม feedback ก่อน merge)
+    /// ดู RaiseHandQueue.GetStatusForClient ฝั่ง Server - Agent cache ค่านี้ไว้ (ดู ClientState.UpdateRaiseHand)
+    /// ให้ RaiseHandBadgeWindow ฝั่ง AgentTray poll /status ของ Agent ถี่กว่ารอบ poll ปกติ (ทุก ~5 วิ) แล้ว
+    /// ปิดตัวเองเมื่อค่านี้กลายเป็น false โดยไม่ต้องมีช่องทาง push ใหม่
+    /// </summary>
+    public bool RaisedHand { get; set; }
+
+    /// <summary>ตำแหน่งในคิวปัจจุบัน (1 = คิวแรก) - มีค่าเฉพาะตอน RaisedHand เป็น true</summary>
+    public int? RaiseHandQueuePosition { get; set; }
 }
 
 /// <summary>ส่วนหนึ่งของ PollResponse - ดู ExamMode ด้านบน</summary>

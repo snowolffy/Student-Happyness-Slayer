@@ -19,7 +19,7 @@ public static class PollEndpoints
         // บน HTTP ธรรมดาทุกๆ 30 วินาที ใครที่อยู่ใน LAN เดียวกันเก็บ GUID ของทุกเครื่องได้ครบแล้วดึงกฎ
         // ทั้งชุดมาดูเพื่อหาทางเลี่ยง ตั้งแต่ 2026-08-31 ตรวจ agent secret เพิ่ม (ดู AgentAuthenticator -
         // โหมดบังคับใช้เปิด/ปิดด้วย config Security:RequireAgentSecret)
-        app.MapGet("/api/poll/{clientGuid}", async (string clientGuid, string machineName, HttpContext httpContext, AppDbContext db, IHubContext<LabHub> hub, AgentConnectionRegistry connectionRegistry, AgentAuthenticator agentAuth, IActivityLogService activityLog, bool usingFallback = false, string? blocklistVersion = null) =>
+        app.MapGet("/api/poll/{clientGuid}", async (string clientGuid, string machineName, HttpContext httpContext, AppDbContext db, IHubContext<LabHub> hub, AgentConnectionRegistry connectionRegistry, AgentAuthenticator agentAuth, IActivityLogService activityLog, RaiseHandQueue raiseHandQueue, bool usingFallback = false, string? blocklistVersion = null) =>
         {
             var client = await db.ClientMachines.FirstOrDefaultAsync(c => c.ClientGuid == clientGuid);
             var providedSecret = httpContext.Request.Headers[AgentAuthenticator.SecretHeaderName].ToString();
@@ -226,6 +226,11 @@ public static class PollEndpoints
                 _ => false
             };
 
+            // ยกมือ (WP4-2, 2026-11-01 - แก้ตาม feedback ก่อน merge) - แนบสถานะคิวของเครื่องนี้ไปทุกรอบ
+            // poll เพื่อให้ Agent/AgentTray ปิดป้าย "ยกมืออยู่" เองได้เมื่อครูกด "ไปช่วยแล้ว"/ล้างคิวจาก
+            // Console โดยไม่ต้องมีช่องทาง push ใหม่ (ดู RaiseHandQueue.GetStatusForClient)
+            var (raisedHand, raiseHandQueuePosition) = raiseHandQueue.GetStatusForClient(clientGuid);
+
             return Results.Ok(new
             {
                 enabled = globalEnabled && client.IsEnabled,
@@ -237,6 +242,8 @@ public static class PollEndpoints
                 blocklistVersion = currentBlocklistVersion,
                 blockedHashes,
                 requireLogin,
+                raisedHand,
+                raiseHandQueuePosition,
                 // ข้อความของจอนักเรียน (WP3-3, 2026-10-31) - ส่งไปเฉยๆ ให้ Agent cache ไว้ (ดู ClientState/
                 // Worker.cs) แล้วส่งต่อให้ AgentTray ใช้แสดงจอล็อกอิน/จอครูล็อกเมื่อ Console ไม่ได้ระบุ
                 // ข้อความเฉพาะครั้งมาด้วย (ดู CommandProcessor.HandleShowLockScreenAsync) ไม่ต้อง admin auth

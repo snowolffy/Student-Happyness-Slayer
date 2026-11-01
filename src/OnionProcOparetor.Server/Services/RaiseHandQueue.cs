@@ -77,6 +77,19 @@ public sealed class RaiseHandQueue
         return index < 0 ? null : index + 1;
     }
 
+    /// <summary>
+    /// สถานะคิวยกมือของเครื่องหนึ่ง (ไม่ใช่ entry id) - ใช้แนบไปกับ GET /api/poll (2026-11-01 แก้ตาม
+    /// feedback ก่อน merge) ให้ Agent/AgentTray รู้ว่าต้องปิดป้าย "ยกมืออยู่" เองเมื่อครูกด "ไปช่วยแล้ว"/
+    /// ล้างคิวจาก Console โดยไม่ต้องเปิดช่องทาง push ใหม่ - เครื่องนี้ poll อยู่แล้วทุก ~30 วิ และ
+    /// RaiseHandBadgeWindow เองก็ poll /status ของ Agent ถี่กว่านั้นอีกชั้น (ดู AgentTray)
+    /// </summary>
+    public (bool RaisedHand, int? QueuePosition) GetStatusForClient(string clientGuid)
+    {
+        var queue = GetActiveQueue();
+        var index = queue.FindIndex(e => string.Equals(e.ClientGuid, clientGuid, StringComparison.OrdinalIgnoreCase));
+        return index < 0 ? (false, null) : (true, index + 1);
+    }
+
     /// <summary>ครูกด "ไปช่วยแล้ว" - คืน Entry ที่ถูกเอาออก หรือ null ถ้าไม่พบ (id ไม่ตรง/ถูกเอาออกไปแล้ว)</summary>
     public RaiseHandEntry? Resolve(int entryId)
     {

@@ -11,12 +11,12 @@
         AllowsTransparency="True"
         Background="Transparent">
     <!-- ป้ายมุมขวาล่าง "ยกมืออยู่ · คิวที่ N [ยกเลิก]" (WP4-2, 2026-11-01) - ตาม wireframe
-         docs/wireframes/tc-raisehand.dc.html ขั้น 2 ("รอครู: ป้ายเล็กมุมขวาล่าง")
+         docs/wireframes/tc-raisehand.dc.html ขั้น 2 ("รอครู: ป้ายเล็กมุมขวาล่าง · ครูกด 'ไปช่วยแล้ว' →
+         ป้ายหายเอง")
 
-         รู้ขอบเขตที่ไม่ได้ทำ (เขียนไว้ตรงนี้กันลืม): ป้ายนี้ "ไม่" หายเองอัตโนมัติตอนครูกด "ไปช่วยแล้ว" จาก
-         Console แบบที่ wireframe อธิบายไว้ - ต้องกด "ยกเลิก" เองเท่านั้น (หรือรอ AgentTray/คอมพิวเตอร์รีสตาร์ท)
-         เพราะยังไม่มีช่องทาง push จาก Server กลับมาที่ Tray เฉพาะเครื่องนี้สำหรับเหตุการณ์นี้ - ไม่ได้อยู่ใน
-         เกณฑ์เสร็จของ WP4-2 (ดู docs/roadmap.md) จึงเป็น known limitation ที่ตั้งใจเว้นไว้ -->
+         ปิดเองอัตโนมัติตอนครูกด "ไปช่วยแล้ว"/ล้างคิวจาก Console (แก้ตาม feedback ก่อน merge, 2026-11-01)
+         ผ่านการ poll Agent /status ทุก 5 วิ ไม่ใช่ช่องทาง push ใหม่ (ดู RaiseHandBadgeWindow.xaml.cs
+         RefreshFromAgentStatusAsync + RaiseHandQueue.GetStatusForClient ฝั่ง Server) -->
     <Border Background="#FDF3E7" BorderBrush="#B45309" BorderThickness="2" CornerRadius="8" Padding="12,8" Margin="12">
         <Border.Effect>
             <DropShadowEffect BlurRadius="14" ShadowDepth="2" Opacity="0.28" Color="#000000"/>

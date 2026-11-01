@@ -218,6 +218,11 @@ app.MapGet("/status", (ClientState state, AgentBypassState bypassState, ServerCl
         autoLogoutIdleMinutes = state.AutoLogoutIdleMinutes,
         currentStudentCode = state.CurrentStudentCode,
         currentStudentName = state.CurrentStudentName,
+        // ยกมือ (WP4-2, 2026-11-01 - แก้ตาม feedback ก่อน merge) - ให้ RaiseHandBadgeWindow poll ค่านี้
+        // ถี่กว่ารอบ poll ปกติของ Worker (ทุก ~5 วิ) แล้วปิดตัวเองเมื่อ raisedHand กลายเป็น false (ครูกด
+        // "ไปช่วยแล้ว"/ล้างคิวจาก Console) โดยไม่ต้องมีช่องทาง push ใหม่ - เหตุผลเดียวกับ requireLogin ด้านบน
+        raisedHand = state.RaisedHand,
+        raiseHandQueuePosition = state.RaiseHandQueuePosition,
         // รหัสฉุกเฉิน (WP3-4b, 2026-10-31) - ให้ StudentLoginWindow รู้ว่าเครื่องนี้ตั้งค่า secret ไว้
         // หรือยัง (เปิด/ปิดลิงก์ "รหัสฉุกเฉิน") โดยไม่ต้องยิง GET /emergency/status แยกอีกครั้ง
         emergencyCodeConfigured = emergencyCode.IsConfigured
