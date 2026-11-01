@@ -1,0 +1,58 @@
+<Window x:Class="OnionProcOparetor.AgentTray.RaiseHandWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="ยกมือขอความช่วยเหลือ"
+        Width="340" SizeToContent="Height"
+        WindowStartupLocation="CenterScreen"
+        Topmost="True"
+        ResizeMode="NoResize"
+        Style="{StaticResource AppWindowStyle}">
+    <!-- WP4-2 (2026-11-01) - ตาม wireframe docs/wireframes/tc-raisehand.dc.html ขั้น 1 ("การ์ด
+         'ขอความช่วยเหลือจากครู' มุมขวาล่างจอ · ปุ่มเหตุผลสำเร็จรูป 3 ปุ่ม + ช่องพิมพ์เพิ่ม (ไม่บังคับ)")
+         ที่นี่เปิดเป็นหน้าต่างปกติตรงกลางจอแทนป็อปอัพลอยมุมขวาล่าง (เปิดจากเมนู tray ไม่ใช่คลิกที่ desktop)
+         ส่วนป้าย "รอครู" มุมขวาล่างหลังกดยกมือสำเร็จ เป็นหน้าต่างแยกคนละตัว (RaiseHandBadgeWindow) -->
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <Border Grid.Row="0" Style="{StaticResource BrandHeaderBar}" Background="#B45309">
+            <StackPanel Orientation="Horizontal">
+                <Border Style="{StaticResource LogoPlaceholder}">
+                    <Image Source="/Theme/logo.png" Stretch="UniformToFill"/>
+                </Border>
+                <StackPanel Margin="10,0,0,0" VerticalAlignment="Center">
+                    <TextBlock Text="ขอความช่วยเหลือจากครู" Style="{StaticResource BrandHeaderTitleText}"/>
+                    <TextBlock Text="เลือกเหตุผล แล้วกดยกมือ" Style="{StaticResource BrandHeaderSubText}"/>
+                </StackPanel>
+            </StackPanel>
+        </Border>
+
+        <StackPanel Grid.Row="1" Margin="20">
+            <TextBlock Text="เกิดอะไรขึ้น" Style="{StaticResource LabelText}" Margin="0,0,0,8"/>
+            <StackPanel Orientation="Horizontal" Margin="0,0,0,14">
+                <Button x:Name="ReasonJammedButton" Content="โปรแกรมค้าง" Height="32" Padding="10,0" Margin="0,0,8,0" Click="ReasonButton_Click"/>
+                <Button x:Name="ReasonUnsureButton" Content="ทำไม่เป็น" Height="32" Padding="10,0" Margin="0,0,8,0" Click="ReasonButton_Click"/>
+                <Button x:Name="ReasonWebButton" Content="เว็บเข้าไม่ได้" Height="32" Padding="10,0" Click="ReasonButton_Click"/>
+            </StackPanel>
+
+            <TextBlock Text="พิมพ์เพิ่ม (ไม่บังคับ)" Style="{StaticResource LabelText}"/>
+            <TextBox x:Name="NoteBox" Margin="0,0,0,14" MaxLength="200"/>
+
+            <TextBlock x:Name="StatusText" TextWrapping="Wrap" FontSize="12" Margin="0,0,0,12"
+                       Foreground="{StaticResource AccentRedBrush}"/>
+
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="10"/>
+                    <ColumnDefinition Width="2*"/>
+                </Grid.ColumnDefinitions>
+                <Button Grid.Column="0" Content="ปิด" Height="38" Style="{StaticResource SecondaryButton}" Click="CancelButton_Click"/>
+                <Button Grid.Column="2" x:Name="RaiseButton" Content="ยกมือ" Height="38"
+                        Style="{StaticResource PrimaryButton}" Click="RaiseButton_Click"/>
+            </Grid>
+        </StackPanel>
+    </Grid>
+</Window>

@@ -244,7 +244,9 @@ public partial class App : Application
                 PreviewSidebarExpanded = e.Args.Contains("--sidebar-expanded"),
                 // WP4b (2026-10-30)
                 PreviewUsers = e.Args.Contains("--users-sample"),
-                PreviewAsTeacher = e.Args.Contains("--as-teacher")
+                PreviewAsTeacher = e.Args.Contains("--as-teacher"),
+                // WP4-2 (2026-11-01)
+                PreviewRaiseHand = e.Args.Contains("--raisehand-sample")
             };
 
             // --tab=<ชื่อแท็บ> เลือกแท็บก่อนถ่ายภาพ ใช้ไล่ตรวจทุกหน้าจอในโหมดมืดรอบเดียว

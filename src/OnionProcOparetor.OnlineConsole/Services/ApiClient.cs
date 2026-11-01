@@ -379,6 +379,47 @@ public class ApiClient
         }
     }
 
+    // ---- คิวยกมือ (WP4-2, 2026-11-01) ----
+
+    public async Task<List<RaiseHandQueueEntryDto>> GetRaiseHandQueueAsync()
+    {
+        try
+        {
+            var result = await _httpClient.GetFromJsonAsync<List<RaiseHandQueueEntryDto>>("/api/raisehand");
+            return result ?? new List<RaiseHandQueueEntryDto>();
+        }
+        catch (Exception)
+        {
+            return new List<RaiseHandQueueEntryDto>();
+        }
+    }
+
+    public async Task<bool> ResolveRaiseHandAsync(int id)
+    {
+        try
+        {
+            var response = await _httpClient.PostAsync($"/api/raisehand/{id}/resolve", null);
+            return response.IsSuccessStatusCode;
+        }
+        catch (Exception)
+        {
+            return false;
+        }
+    }
+
+    public async Task<bool> ClearRaiseHandQueueAsync()
+    {
+        try
+        {
+            var response = await _httpClient.PostAsync("/api/raisehand/clear", null);
+            return response.IsSuccessStatusCode;
+        }
+        catch (Exception)
+        {
+            return false;
+        }
+    }
+
     public async Task<bool> CancelExamSessionAsync(int id)
     {
         try
