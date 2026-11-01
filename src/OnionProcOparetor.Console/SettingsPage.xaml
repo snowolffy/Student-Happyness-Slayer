@@ -242,6 +242,21 @@
                             </StackPanel>
                         </Border>
 
+                        <!-- ==== รายการโปรแกรมที่เปิดได้ทั้งห้อง (WP4-1, 2026-11-01) - จัดการเต็มใน
+                             LaunchableProgramsWindow (เพิ่ม/แก้ไข/ลบ) หน้านี้แค่ทางเข้า + สรุปจำนวน ==== -->
+                        <Border Style="{StaticResource Card}" Margin="0,0,0,12">
+                            <StackPanel>
+                                <TextBlock Text="รายการโปรแกรมที่เปิดได้ทั้งห้อง" Style="{StaticResource Label}" Margin="0,0,0,8"/>
+                                <TextBlock x:Name="LaunchableProgramCountText" Text="กำลังโหลด..." Style="{StaticResource Body}"
+                                           TextWrapping="Wrap" Margin="0,0,0,10"/>
+                                <Button Content="จัดการรายการโปรแกรม..." HorizontalAlignment="Left"
+                                        Style="{StaticResource ButtonSecondary}" Padding="10,9" FontSize="12"
+                                        Click="ManageLaunchableProgramsButton_Click"/>
+                                <TextBlock Text="Teacher เลือกเปิดได้จากรายการนี้เท่านั้นตอนสั่ง &quot;เปิด URL/โปรแกรม&quot; จากแถบคำสั่งของ Clients - ไม่พิมพ์ path เองได้"
+                                           Style="{StaticResource Caption}" TextWrapping="Wrap" Margin="0,8,0,0"/>
+                            </StackPanel>
+                        </Border>
+
                         <!-- ==== สำรองข้อมูล - ไม่มีปุ่มกู้คืน (restore) เพราะไม่มี endpoint ==== -->
                         <Border Style="{StaticResource Card}" Margin="0,0,0,12">
                             <StackPanel>

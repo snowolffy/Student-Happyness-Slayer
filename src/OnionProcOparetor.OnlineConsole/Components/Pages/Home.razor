@@ -123,6 +123,10 @@ else
         <button class="btn btn-secondary btn-sm" @onclick='() => Navigation.NavigateTo($"exam-mode?roomId={_roomFilter}")'>
             <Icon Name="shield" Size="14" /> เปิดโหมดสอบ
         </button>
+        @* "เปิด URL/โปรแกรมทั้งห้อง" (WP4-1, 2026-11-01) - pattern เดียวกับปุ่ม "เปิดโหมดสอบ" ข้างบนเป๊ะๆ *@
+        <button class="btn btn-secondary btn-sm" @onclick='() => Navigation.NavigateTo($"open-url?roomId={_roomFilter}")'>
+            <Icon Name="external-link" Size="14" /> เปิด URL/โปรแกรม
+        </button>
     }
     <span class="spacer"></span>
     <button class="btn btn-secondary @(_refreshing ? "is-busy" : "")" @onclick="RefreshAsync">
@@ -283,6 +287,10 @@ else
            /api/exam-sessions/start รับ clientGuids (ดู ExamSessionEndpoints.cs) *@
         <button class="btn btn-secondary btn-sm" @onclick="OpenExamModeForSelection">
             <Icon Name="shield" Size="14" /> โหมดสอบ
+        </button>
+        @* "เปิด URL/โปรแกรม" กับเครื่องที่เลือกไว้ (WP4-1, 2026-11-01) - ส่ง ClientGuid เหมือน OpenExamModeForSelection *@
+        <button class="btn btn-secondary btn-sm" @onclick="OpenUrlProgramForSelection">
+            <Icon Name="external-link" Size="14" /> เปิด URL
         </button>
         <button class="btn btn-primary btn-sm" @onclick="() => _bulkActionPanelOpen = true">
             <Icon Name="list" Size="14" /> คำสั่ง
@@ -670,6 +678,13 @@ else
     {
         var guids = string.Join(',', SelectedClients().Select(c => c.ClientGuid));
         Navigation.NavigateTo($"exam-mode?clients={Uri.EscapeDataString(guids)}");
+    }
+
+    /// <summary>WP4-1 (2026-11-01) - pattern เดียวกับ OpenExamModeForSelection ข้างบนเป๊ะๆ</summary>
+    private void OpenUrlProgramForSelection()
+    {
+        var guids = string.Join(',', SelectedClients().Select(c => c.ClientGuid));
+        Navigation.NavigateTo($"open-url?clients={Uri.EscapeDataString(guids)}");
     }
 
     private void NavigateToScreenView(ClientMachineDto client) => Navigation.NavigateTo($"screen-view/{client.ClientGuid}");

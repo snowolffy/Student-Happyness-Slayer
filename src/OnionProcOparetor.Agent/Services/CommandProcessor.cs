@@ -31,6 +31,9 @@ public class CommandProcessor
     private readonly IServiceProvider _serviceProvider;
     private readonly CommandResultReporter _resultReporter;
 
+    /// <summary>ใช้เปิด URL/โปรแกรมใน session ของ user ที่ login อยู่หน้าเครื่อง (WP4-1, 2026-11-01) - ดู HandleOpenUrlAsync/HandleLaunchProgramAsync</summary>
+    private readonly UserSessionLauncher _userSessionLauncher;
+
     // เก็บ commandId ที่ process ไปแล้วล่าสุด กันประมวลผลซ้ำตอน network race
     // (เช่น SignalR ReceiveCommand กับ poll loop เห็น command เดียวกันเกือบพร้อมกัน หรือ ExecuteAsync
     // loop กับ RunPeriodicProcessScanAsync loop เห็น pendingCommands ตัวเดียวกันพร้อมกัน)
@@ -47,7 +50,8 @@ public class CommandProcessor
         ClientState clientState,
         VncSessionManager vncSessionManager,
         IServiceProvider serviceProvider,
-        CommandResultReporter resultReporter)
+        CommandResultReporter resultReporter,
+        UserSessionLauncher userSessionLauncher)
     {
         _logger = logger;
         _serverClient = serverClient;
@@ -56,6 +60,7 @@ public class CommandProcessor
         _vncSessionManager = vncSessionManager;
         _serviceProvider = serviceProvider;
         _resultReporter = resultReporter;
+        _userSessionLauncher = userSessionLauncher;
     }
 
     /// <summary>
@@ -165,6 +170,12 @@ public class CommandProcessor
 
             case "GetTailscaleStatus":
                 return HandleGetTailscaleStatusAsync(ct);
+
+            case "OpenUrl":
+                return HandleOpenUrlAsync(payloadJson, ct);
+
+            case "LaunchProgram":
+                return HandleLaunchProgramAsync(payloadJson, ct);
 
             // TODO Phase 3/4: ใส่ command อื่นๆ ตรงนี้เพิ่ม เช่น "Kill", "RunCommand"
             default:
@@ -761,6 +772,140 @@ public class CommandProcessor
 
     private static string GetTailscaleExePath() =>
         Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "Tailscale", "tailscale.exe");
+
+    /// <summary>
+    /// "เปิด URL ทั้งห้อง" (WP4-1, 2026-11-01) - ตรวจซ้ำว่า Url เป็น http/https เท่านั้นก่อนเปิดเสมอ (ห้าม
+    /// เชื่อ validation ฝั่ง Console อย่างเดียว - ดู doc comment บน OpenUrlPayload) แล้วเปิดใน session ของ
+    /// user ที่ login อยู่หน้าเครื่องผ่าน UserSessionLauncher (Agent เอง Session 0 ไม่มี desktop ให้เปิด
+    /// เบราว์เซอร์เลย - เหตุผลเดียวกับ LockWorkstation/BroadcastMessage) ใช้ "explorer.exe <url>" แทนการรัน
+    /// เบราว์เซอร์ตรงๆ เพราะเป็นวิธีให้ Windows เปิดด้วย default browser ของ user คนนั้นเองโดยไม่ต้องรู้ว่า
+    /// ติดตั้งเบราว์เซอร์ตัวไหนไว้ - ปลอดภัยเพราะ scheme ถูกบังคับให้เป็น http/https เท่านั้นแล้วด้านบน
+    /// (ไม่ใช่ ShellExecute ของ scheme handler อื่นที่อาจรันโปรแกรมได้)
+    ///
+    /// โหมด Fullscreen (wireframe tc-openurl: "เต็มจอ (โหมดตั้งใจ)") เป็น best-effort เท่านั้นในรอบนี้ -
+    /// ลองเปิดแบบ kiosk ถ้าหาเบราว์เซอร์ที่รองรับ (Edge/Chrome) เจอ ไม่เจอก็เปิดแบบปกติแทน ยังไม่ได้ทำ
+    /// "ออกได้ด้วยคำสั่งจากครูเท่านั้น" (ต้อง lock/track process เพิ่ม - ทิ้งไว้เป็นงานต่อ ดู CommandProcessor
+    /// comment ในรายงานของ WP4-1)
+    /// </summary>
+    private async Task<CommandExecutionResult> HandleOpenUrlAsync(string? payloadJson, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(payloadJson))
+        {
+            _logger.LogWarning("OpenUrl command ไม่มี payload มาด้วย - ข้าม");
+            return CommandExecutionResult.Fail("OpenUrl command ไม่มี payload มาด้วย");
+        }
+
+        OpenUrlPayload? payload;
+        try
+        {
+            payload = JsonSerializer.Deserialize<OpenUrlPayload>(
+                payloadJson, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "แปลง payload ของ OpenUrl ไม่สำเร็จ: {Payload}", payloadJson);
+            return CommandExecutionResult.Fail($"payload ของ OpenUrl ไม่ถูกต้อง: {ex.Message}");
+        }
+
+        if (payload is null || string.IsNullOrWhiteSpace(payload.Url))
+        {
+            return CommandExecutionResult.Fail("OpenUrl payload ไม่มี Url");
+        }
+
+        // ตรวจซ้ำที่นี่เสมอ - ด่านนี้คือสิ่งที่กันไม่ให้ใครที่มี admin token ยิง POST /api/commands ตรงๆ
+        // สั่งเปิด scheme อื่น (เช่น file://, custom protocol handler ที่อาจรันโปรแกรมได้) บน 40 เครื่องพร้อมกัน
+        if (!Uri.TryCreate(payload.Url, UriKind.Absolute, out var uri)
+            || (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps))
+        {
+            _logger.LogWarning("OpenUrl ปฏิเสธ Url ที่ไม่ใช่ http/https: '{Url}'", payload.Url);
+            return CommandExecutionResult.Fail($"ปฏิเสธ - รองรับเฉพาะ URL แบบ http/https เท่านั้น (ได้รับ '{payload.Url}')");
+        }
+
+        var explorerPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), "explorer.exe");
+        var launched = payload.Mode == OpenUrlMode.Fullscreen
+            ? TryLaunchFullscreen(uri)
+            : _userSessionLauncher.TryLaunchInActiveUserSession(explorerPath, $"\"{uri.AbsoluteUri}\"");
+
+        return launched
+            ? CommandExecutionResult.Ok($"เปิด {uri.AbsoluteUri} แล้ว")
+            : CommandExecutionResult.Fail("เปิด URL ไม่สำเร็จ (อาจไม่มี user login อยู่หน้าเครื่องนี้)");
+    }
+
+    /// <summary>
+    /// best-effort kiosk mode สำหรับ "เต็มจอ (โหมดตั้งใจ)" - ลอง Edge แล้ว Chrome ตามลำดับที่ path เริ่มต้น
+    /// ของ MSI/installer ทั่วไป ถ้าไม่เจอทั้งคู่ fallback เป็นเปิดแบบ NewTab ธรรมดาผ่าน explorer.exe
+    /// (ยังเปิดเว็บได้อยู่ แค่ไม่เต็มจอ - ดีกว่ารายงาน Fail ทั้งที่เปิดได้จริง)
+    /// </summary>
+    private bool TryLaunchFullscreen(Uri uri)
+    {
+        var programFiles = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles);
+        var programFilesX86 = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86);
+
+        var kioskCandidates = new[]
+        {
+            Path.Combine(programFilesX86, "Microsoft", "Edge", "Application", "msedge.exe"),
+            Path.Combine(programFiles, "Microsoft", "Edge", "Application", "msedge.exe"),
+            Path.Combine(programFilesX86, "Google", "Chrome", "Application", "chrome.exe"),
+            Path.Combine(programFiles, "Google", "Chrome", "Application", "chrome.exe")
+        };
+
+        var browserPath = kioskCandidates.FirstOrDefault(File.Exists);
+        if (browserPath is null)
+        {
+            _logger.LogInformation("OpenUrl Fullscreen: ไม่พบ Edge/Chrome ที่ path เริ่มต้น - เปิดแบบ NewTab ปกติแทน");
+            var explorerPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), "explorer.exe");
+            return _userSessionLauncher.TryLaunchInActiveUserSession(explorerPath, $"\"{uri.AbsoluteUri}\"");
+        }
+
+        return _userSessionLauncher.TryLaunchInActiveUserSession(browserPath, $"--start-fullscreen \"{uri.AbsoluteUri}\"");
+    }
+
+    /// <summary>
+    /// "เปิดโปรแกรมทั้งห้อง" (WP4-1, 2026-11-01) - payload มีแค่ ProgramId ตั้งใจ (ดู doc comment บน
+    /// LaunchProgramPayload) ต้องขอ Path/Arguments จริงจาก Server ก่อนรันเสมอ เพื่อตรวจซ้ำว่าโปรแกรมนี้ยัง
+    /// อยู่ในรายการที่ Admin อนุญาตจริง ณ เวลาที่รัน ไม่ใช่เชื่อ path ที่อาจติดมากับ payload เก่า/ถูกแก้ไข
+    /// </summary>
+    private async Task<CommandExecutionResult> HandleLaunchProgramAsync(string? payloadJson, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(payloadJson))
+        {
+            _logger.LogWarning("LaunchProgram command ไม่มี payload มาด้วย - ข้าม");
+            return CommandExecutionResult.Fail("LaunchProgram command ไม่มี payload มาด้วย");
+        }
+
+        LaunchProgramPayload? payload;
+        try
+        {
+            payload = JsonSerializer.Deserialize<LaunchProgramPayload>(
+                payloadJson, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "แปลง payload ของ LaunchProgram ไม่สำเร็จ: {Payload}", payloadJson);
+            return CommandExecutionResult.Fail($"payload ของ LaunchProgram ไม่ถูกต้อง: {ex.Message}");
+        }
+
+        if (payload is null || payload.ProgramId <= 0)
+        {
+            return CommandExecutionResult.Fail("LaunchProgram payload ไม่มี ProgramId ที่ถูกต้อง");
+        }
+
+        // ด่านตรวจซ้ำตัวจริง - ไม่เชื่อ path ใดๆ ที่มาทาง payload เลย ขอจาก Server ใหม่เสมอ (fail-secure:
+        // ติดต่อ Server ไม่ได้ก็ไม่รัน ไม่ fallback ไปรันด้วยข้อมูลเก่า)
+        var program = await _serverClient.GetLaunchableProgramAsync(payload.ProgramId, ct);
+        if (program is null || string.IsNullOrWhiteSpace(program.Path))
+        {
+            _logger.LogWarning("LaunchProgram ปฏิเสธ ProgramId {ProgramId} - ไม่อยู่ในรายการที่ Admin อนุญาตแล้ว (อาจถูกลบ/ไม่ติดต่อ Server ได้)", payload.ProgramId);
+            return CommandExecutionResult.Fail("ปฏิเสธ - โปรแกรมนี้ไม่อยู่ในรายการที่ Admin อนุญาตแล้ว (อาจถูกลบ/ปิดใช้งาน หรือติดต่อ Server ไม่ได้)");
+        }
+
+        var launched = _userSessionLauncher.TryLaunchInActiveUserSession(program.Path, program.Arguments);
+
+        return launched
+            ? CommandExecutionResult.Ok($"เปิดโปรแกรม '{program.Name}' แล้ว")
+            : CommandExecutionResult.Fail(
+                $"เปิดโปรแกรม '{program.Name}' ไม่สำเร็จ (อาจไม่มี user login อยู่หน้าเครื่องนี้ หรือหาไฟล์ที่ '{program.Path}' บนเครื่องนี้ไม่พบ)");
+    }
 
     /// <summary>
     /// รัน external process แบบ async พร้อม timeout - ใช้ร่วมกันทั้ง 3 handler ของ Tailscale ด้านบน

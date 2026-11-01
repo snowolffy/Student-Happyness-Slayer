@@ -253,5 +253,6 @@ app.MapStudentSessionEndpoints(); // session ที่เปิดอยู่ +
 app.MapRosterEndpoints(); // CRUD/นำเข้า CSV/รีเซ็ตรหัส/ปลดล็อก/เลื่อนชั้นของ Roster Manager (WP3-2)
 app.MapSignInSettingsEndpoints(); // ตั้งค่า Sign-in + ตั้งค่า/สั่งสำรองข้อมูล DB
 app.MapEmergencyCodeEndpoints(); // WP3-4 (2026-10-31) - รหัสฉุกเฉิน TOTP: ตั้งค่า/ทดสอบ/rotate + Agent ส่งประวัติการใช้ขึ้นมา
+app.MapLaunchableProgramEndpoints(); // WP4-1 (2026-11-01) - รายการโปรแกรมที่ Admin อนุญาตให้เปิดทั้งห้องได้
 
 app.Run();

@@ -68,6 +68,9 @@ public class AppDbContext : DbContext
     /// <summary>ประวัติการใช้รหัสฉุกเฉิน ที่ Agent ส่งขึ้นมาตอนกลับมาออนไลน์ (WP3-4, 2026-10-31) - ดู Models/EmergencyCodeUsage.cs</summary>
     public DbSet<EmergencyCodeUsage> EmergencyCodeUsages => Set<EmergencyCodeUsage>();
 
+    /// <summary>โปรแกรมที่ Admin อนุญาตให้เปิดทั้งห้องได้ (WP4-1, 2026-11-01) - ดู Models/LaunchableProgram.cs</summary>
+    public DbSet<LaunchableProgram> LaunchablePrograms => Set<LaunchableProgram>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
@@ -148,6 +151,11 @@ public class AppDbContext : DbContext
         // เหมือนกับ index อื่นข้างบนทั้งหมดในกลุ่มนี้
         modelBuilder.Entity<Room>()
             .HasIndex(r => r.Name)
+            .IsUnique();
+
+        // ชื่อโปรแกรมที่เปิดได้ทั้งห้องต้องไม่ซ้ำกัน (WP4-1, 2026-11-01) - เหตุผลเดียวกับ Room.Name ข้างบน
+        modelBuilder.Entity<LaunchableProgram>()
+            .HasIndex(p => p.Name)
             .IsUnique();
 
         // query หลักของ GET /api/clients?roomId= (ดู ClientEndpoints.cs) - เครื่อง 40 ตัวไม่จำเป็นต้องมี

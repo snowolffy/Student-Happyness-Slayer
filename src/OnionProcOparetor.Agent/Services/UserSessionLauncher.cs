@@ -35,12 +35,17 @@ public class UserSessionLauncher
     /// สตาร์ท exe ที่ระบุใน session ของ user ที่กำลัง active อยู่
     /// คืน true ถ้าสร้าง process สำเร็จ - ไม่ throw ไม่ว่ากรณีใด (ผู้เรียกเป็น safety net
     /// ไม่ควรพังเพราะ recover ไม่สำเร็จ)
+    ///
+    /// <paramref name="arguments"/> (WP4-1, 2026-11-01) - command-line arguments ที่จะส่งต่อให้
+    /// executablePath ไม่บังคับ (default null = ไม่มี, พฤติกรรมเดิมทุกประการสำหรับ caller เก่าที่ไม่ส่ง
+    /// มา เช่น AgentTrayRecoveryService) ใช้โดย CommandProcessor.HandleOpenUrlAsync/HandleLaunchProgramAsync
+    /// เพื่อเปิด URL ผ่าน explorer.exe หรือเปิดโปรแกรมพร้อม argument ที่ Admin ตั้งไว้
     /// </summary>
-    public bool TryLaunchInActiveUserSession(string executablePath)
+    public bool TryLaunchInActiveUserSession(string executablePath, string? arguments = null)
     {
         try
         {
-            return LaunchCore(executablePath);
+            return LaunchCore(executablePath, arguments);
         }
         catch (Exception ex)
         {
@@ -49,7 +54,7 @@ public class UserSessionLauncher
         }
     }
 
-    private bool LaunchCore(string executablePath)
+    private bool LaunchCore(string executablePath, string? arguments = null)
     {
         if (!File.Exists(executablePath))
         {
@@ -120,7 +125,10 @@ public class UserSessionLauncher
 
             // CreateProcessAsUser แก้ไข command line buffer ที่ส่งเข้าไปได้ (documented behaviour)
             // เลยต้องส่งเป็น StringBuilder/ตัวแปรที่เขียนทับได้ ไม่ใช่ string literal
-            var commandLine = new System.Text.StringBuilder($"\"{executablePath}\"");
+            // arguments (WP4-1) ต่อท้ายดิบๆ - ผู้เรียกเป็นคนรับผิดชอบ quote เองถ้าจำเป็น (เหมือน
+            // executablePath ข้างบนที่ quote เองตรงนี้แค่ตัวมันเอง)
+            var commandLine = new System.Text.StringBuilder(
+                string.IsNullOrEmpty(arguments) ? $"\"{executablePath}\"" : $"\"{executablePath}\" {arguments}");
 
             var created = CreateProcessAsUser(
                 duplicatedToken,

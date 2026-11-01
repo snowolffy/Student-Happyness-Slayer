@@ -235,6 +235,33 @@ public class ApiClient
         return result ?? new List<RoomDto>();
     }
 
+    /// <summary>รายการโปรแกรมที่ Admin อนุญาตให้เปิดทั้งห้องได้ (WP4-1, 2026-11-01) - Teacher อ่านได้
+    /// เพื่อเลือกจาก dropdown ตอนสั่ง "เปิดโปรแกรมทั้งห้อง" (ดู OpenUrlWindow) แก้ไขได้แค่ Admin เท่านั้น
+    /// (ดู LaunchableProgramsWindow)</summary>
+    public async Task<List<LaunchableProgramDto>> GetLaunchableProgramsAsync()
+    {
+        var result = await _httpClient.GetFromJsonAsync<List<LaunchableProgramDto>>("/api/launchable-programs");
+        return result ?? new List<LaunchableProgramDto>();
+    }
+
+    public async Task<bool> AddLaunchableProgramAsync(string name, string path, string? arguments)
+    {
+        var response = await _httpClient.PostAsJsonAsync("/api/launchable-programs", new { name, path, arguments });
+        return response.IsSuccessStatusCode;
+    }
+
+    public async Task<bool> UpdateLaunchableProgramAsync(int id, string name, string path, string? arguments)
+    {
+        var response = await _httpClient.PutAsJsonAsync($"/api/launchable-programs/{id}", new { name, path, arguments });
+        return response.IsSuccessStatusCode;
+    }
+
+    public async Task<bool> DeleteLaunchableProgramAsync(int id)
+    {
+        var response = await _httpClient.DeleteAsync($"/api/launchable-programs/{id}");
+        return response.IsSuccessStatusCode;
+    }
+
     public async Task<bool> ToggleClientAsync(int clientId)
     {
         var response = await _httpClient.PostAsync($"/api/clients/{clientId}/toggle", null);
