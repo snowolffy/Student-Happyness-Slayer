@@ -814,8 +814,9 @@ public class CommandProcessor
 
         // ตรวจซ้ำที่นี่เสมอ - ด่านนี้คือสิ่งที่กันไม่ให้ใครที่มี admin token ยิง POST /api/commands ตรงๆ
         // สั่งเปิด scheme อื่น (เช่น file://, custom protocol handler ที่อาจรันโปรแกรมได้) บน 40 เครื่องพร้อมกัน
-        if (!Uri.TryCreate(payload.Url, UriKind.Absolute, out var uri)
-            || (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps))
+        // logic จริงอยู่ใน OpenUrlValidation.TryGetAllowedUri (แยกเป็น static ล้วนๆ เพื่อ unit test ได้
+        // โดยไม่ต้องสร้าง CommandProcessor ทั้งก้อน)
+        if (!OpenUrlValidation.TryGetAllowedUri(payload.Url, out var uri) || uri is null)
         {
             _logger.LogWarning("OpenUrl ปฏิเสธ Url ที่ไม่ใช่ http/https: '{Url}'", payload.Url);
             return CommandExecutionResult.Fail($"ปฏิเสธ - รองรับเฉพาะ URL แบบ http/https เท่านั้น (ได้รับ '{payload.Url}')");
@@ -891,9 +892,10 @@ public class CommandProcessor
         }
 
         // ด่านตรวจซ้ำตัวจริง - ไม่เชื่อ path ใดๆ ที่มาทาง payload เลย ขอจาก Server ใหม่เสมอ (fail-secure:
-        // ติดต่อ Server ไม่ได้ก็ไม่รัน ไม่ fallback ไปรันด้วยข้อมูลเก่า)
+        // ติดต่อ Server ไม่ได้ก็ไม่รัน ไม่ fallback ไปรันด้วยข้อมูลเก่า) ตัดสินใจ "อนุญาตไหม" ด้วย
+        // LaunchProgramValidation.IsAllowedToLaunch (static ล้วนๆ เพื่อ unit test ได้โดยไม่ต้องยิง HTTP จริง)
         var program = await _serverClient.GetLaunchableProgramAsync(payload.ProgramId, ct);
-        if (program is null || string.IsNullOrWhiteSpace(program.Path))
+        if (!LaunchProgramValidation.IsAllowedToLaunch(program))
         {
             _logger.LogWarning("LaunchProgram ปฏิเสธ ProgramId {ProgramId} - ไม่อยู่ในรายการที่ Admin อนุญาตแล้ว (อาจถูกลบ/ไม่ติดต่อ Server ได้)", payload.ProgramId);
             return CommandExecutionResult.Fail("ปฏิเสธ - โปรแกรมนี้ไม่อยู่ในรายการที่ Admin อนุญาตแล้ว (อาจถูกลบ/ปิดใช้งาน หรือติดต่อ Server ไม่ได้)");
