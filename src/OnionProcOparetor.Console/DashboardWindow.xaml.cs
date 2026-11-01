@@ -18,6 +18,9 @@ public partial class DashboardWindow : Window
     private readonly DispatcherTimer _autoRefreshTimer;
     private readonly LabHubClient _labHubClient = new();
 
+    /// <summary>คิวยกมือล่าสุด (WP4-2, 2026-11-01) - โหลดครั้งแรกใน LoadAllDataAsync แล้วอัปเดตผ่าน SignalR "RaiseHandQueueChanged" (push คิวทั้งก้อนเสมอ ไม่ใช่ diff)</summary>
+    private List<RaiseHandQueueEntryDto> _raiseHandQueue = new();
+
     // ==================== Step 4d: embedded VNC screen view (SCREEN VIEW tab) ====================
     // ทุก field ตรงนี้แตะ/แก้ได้จาก UI thread เท่านั้น (ไม่มี lock ป้องกัน race เพราะทุกจุดที่แก้เป็น
     // UI-thread event handler ทั้งหมด - RfbClient framebuffer loop เองรันบน background thread แยก
@@ -128,6 +131,13 @@ public partial class DashboardWindow : Window
     public bool PreviewAsTeacher { get; set; }
 
     /// <summary>
+    /// WP4-2 (2026-11-01, --raisehand-sample): ใส่คิวยกมือตัวอย่าง 3 รายการลงแท็บ "คิวยกมือ" + ไฮไลต์
+    /// แถวที่เกี่ยวข้องใน ClientsGrid ตามตัวอย่างใน docs/wireframes/tc-raisehand.dc.html (renderVals)
+    /// - opt-in แยกต่างหากเหมือน PreviewUsers เพื่อให้ยังเห็น empty state ของจริงได้ถ้าไม่ใส่ธงนี้
+    /// </summary>
+    public bool PreviewRaiseHand { get; set; }
+
+    /// <summary>
     /// ใส่ข้อมูลปลอมลงตารางเพื่อให้เห็น badge / การ์ดตัวเลข / แถบเลือก ตอนตรวจงาน UI โดยไม่ต้อง
     /// login เข้า Server ตัวจริงที่รันอยู่บนเครื่อง dev เครื่องนี้ - ค่าถูกเลือกให้ครบทุกสถานะที่
     /// UI ต้องรับมือ (ออนไลน์/ออฟไลน์, กฎทำงาน/ไม่ทำงาน, ต่อผ่าน LAN/Tailscale) ไม่ใช่แค่แถวสวย ๆ
@@ -168,6 +178,21 @@ public partial class DashboardWindow : Window
         RulesEmptyText.Visibility = Visibility.Visible;
         LogsEmptyText.Visibility = Visibility.Visible;
         AuditLogEmptyText.Visibility = Visibility.Visible;
+
+        // WP4-2 (2026-11-01): --raisehand-sample ใส่คิวตัวอย่าง 3 แถวตรงกับ renderVals ของ
+        // docs/wireframes/tc-raisehand.dc.html (COM-26/โปรแกรมค้าง/2 นาที ฯลฯ) ผูกกับเครื่อง LAB-PC-01..03
+        // ที่มีอยู่แล้วด้านบน เพื่อให้เห็นแถวไฮไลต์สีส้มใน ClientsGrid พร้อมกันในภาพเดียว
+        if (PreviewRaiseHand)
+        {
+            _raiseHandQueue =
+            [
+                new() { Id = 1, ClientGuid = "a1", MachineName = "LAB-PC-01", StudentName = "สมชาย ใจดี", Reason = "โปรแกรมค้าง", RaisedAt = now.AddMinutes(-2), QueuePosition = 1 },
+                new() { Id = 2, ClientGuid = "b2", MachineName = "LAB-PC-02", StudentName = null, Reason = "ทำไม่เป็น", Note = "ไม่รู้จะกดตรงไหนต่อ", RaisedAt = now.AddMinutes(-1), QueuePosition = 2 },
+                new() { Id = 3, ClientGuid = "c3", MachineName = "LAB-PC-03", StudentName = "มานี มีนา", Reason = "เว็บเข้าไม่ได้", RaisedAt = now.AddSeconds(-10), QueuePosition = 3 },
+            ];
+            ApplyClientsFilter(); // rebind ClientsGrid ใหม่ให้ HasRaisedHand ที่เพิ่งเติมมีผล (ดู ApplyClientsFilter)
+        }
+        ApplyRaiseHandQueueUi();
 
         // WP4b (2026-10-30): --users-sample ใส่แถวตัวอย่างแทน empty state (ดู PreviewUsers) - ผสม
         // built-in/Admin/Teacher ให้เห็นทุกปุ่มที่ disable ตามเงื่อนไข (DELETE/เปลี่ยน Role ของ built-in)
@@ -434,6 +459,7 @@ public partial class DashboardWindow : Window
         // ไวขึ้นโดยไม่ต้องรอรอบ poll ถ้า SignalR หลุด/ต่อไม่ได้ ตาราง ยังอัปเดตปกติผ่าน auto refresh เดิม
         _labHubClient.ClientStatusChanged += OnClientStatusChangedFromHub;
         _labHubClient.ConnectionStateChanged += OnHubConnectionStateChanged;
+        _labHubClient.RaiseHandQueueChanged += OnRaiseHandQueueChangedFromHub;
         _ = _labHubClient.StartAsync(_apiClient.BaseUrl!, CancellationToken.None);
 
         // Step 4h: กัน Alt+F4 (หรือทางอื่นที่ทำให้ Window พยายามปิด เช่นปุ่ม X บน title bar) ปิด Console
@@ -462,8 +488,76 @@ public partial class DashboardWindow : Window
             DisconnectVncView();
             await CloseAllLiveViewSessionsAsync();
             _labHubClient.ClientStatusChanged -= OnClientStatusChangedFromHub;
+            _labHubClient.RaiseHandQueueChanged -= OnRaiseHandQueueChangedFromHub;
             await _labHubClient.DisposeAsync();
         };
+    }
+
+    /// <summary>
+    /// เรียกจาก SignalR background thread ตอนคิวยกมือเปลี่ยน (ยกมือใหม่/ครูกด "ไปช่วยแล้ว"/ล้างคิว) -
+    /// Server ส่งคิวทั้งก้อนมาเสมอ (ดู LabHubClient.RaiseHandQueueChanged) toast เฉพาะรายการที่เพิ่งมาใหม่
+    /// จริงๆ (เทียบ Id กับคิวเดิมก่อนเขียนทับ) กันไม่ให้ toast ซ้ำตอนแค่ครูกด "ไปช่วยแล้ว" ของคนอื่น
+    /// </summary>
+    private void OnRaiseHandQueueChangedFromHub(List<RaiseHandQueueEntryDto> queue)
+    {
+        Dispatcher.Invoke(() =>
+        {
+            var previousIds = _raiseHandQueue.Select(e => e.Id).ToHashSet();
+            foreach (var entry in queue.Where(e => !previousIds.Contains(e.Id)))
+            {
+                ToastService.Info($"{entry.MachineName} ยกมือ · {entry.Reason}", entry.StudentDisplayText);
+            }
+
+            _raiseHandQueue = queue;
+            ApplyRaiseHandQueueUi();
+            ApplyClientsFilter();
+        });
+    }
+
+    /// <summary>ผูก _raiseHandQueue เข้า RaiseHandGrid + หัวข้อ/empty state - เรียกทุกครั้งที่ _raiseHandQueue เปลี่ยน (โหลดครั้งแรก, SignalR push, หลังกด resolve/clear เอง)</summary>
+    private void ApplyRaiseHandQueueUi()
+    {
+        RaiseHandCountText.Text = $"คิวยกมือ ({_raiseHandQueue.Count})";
+        RaiseHandGrid.ItemsSource = _raiseHandQueue;
+        RaiseHandEmptyText.Visibility = _raiseHandQueue.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    private async void ResolveRaiseHandButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button { Tag: int entryId }) return;
+
+        var ok = await _apiClient.ResolveRaiseHandAsync(entryId);
+        if (ok)
+        {
+            // อัปเดตทันทีโดยไม่รอ SignalR push กลับมา (เผื่อ hub หลุดอยู่พอดี) - push ที่ตามมาทีหลัง
+            // จะเขียนทับด้วยคิวจริงจาก Server อยู่ดี (ดู OnRaiseHandQueueChangedFromHub)
+            _raiseHandQueue = _raiseHandQueue.Where(x => x.Id != entryId).ToList();
+            ApplyRaiseHandQueueUi();
+            ApplyClientsFilter();
+            ToastService.Success("ปิดคิวยกมือแล้ว");
+        }
+        else
+        {
+            ToastService.Error("ไปช่วยแล้วไม่สำเร็จ - รายการนี้อาจถูกปิดไปแล้วจากเครื่องอื่น");
+        }
+    }
+
+    private async void ClearRaiseHandQueueButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_raiseHandQueue.Count == 0) return;
+
+        var ok = await _apiClient.ClearRaiseHandQueueAsync();
+        if (ok)
+        {
+            _raiseHandQueue = new List<RaiseHandQueueEntryDto>();
+            ApplyRaiseHandQueueUi();
+            ApplyClientsFilter();
+            ToastService.Success("ล้างคิวยกมือทั้งหมดแล้ว");
+        }
+        else
+        {
+            ToastService.Error("ล้างคิวไม่สำเร็จ - ต่อ Server ไม่ได้");
+        }
     }
 
     private void OnSettingsChanged(ConsoleSettings settings)
@@ -518,6 +612,11 @@ public partial class DashboardWindow : Window
 
             _allRooms = await _apiClient.GetRoomsAsync();
             PopulateRoomFilterCombo();
+
+            // ก่อน _allClients เสมอ - ApplyClientsFilter ต้องใช้คิวนี้เติม ClientMachineDto.HasRaisedHand
+            // (WP4-2, 2026-11-01) เหมือนที่ _globalState ต้องโหลดก่อนเพื่อเติม GlobalEnforcementEnabled
+            _raiseHandQueue = await _apiClient.GetRaiseHandQueueAsync();
+            ApplyRaiseHandQueueUi();
 
             _allClients = await _apiClient.GetClientsAsync();
             ApplyClientsFilter();
@@ -1513,9 +1612,13 @@ public partial class DashboardWindow : Window
         // ทำอยู่ ไม่ใช่แค่ค่ารายเครื่อง (ดู ClientMachineDto.EnforcementBadgeText) ถ้าอ่านค่า global
         // ไม่ได้เลย ให้ถือว่าเปิด = แสดงผลแบบเดิมทุกประการ ไม่ใช่ขึ้น OFF (GLOBAL) ผิดๆ ทั้งตาราง
         var globalEnforcementEnabled = _globalState?.IsEnabled ?? true;
+
+        // ไฮไลต์แถวที่ยกมืออยู่ (WP4-2, 2026-11-01) - ดู ClientMachineDto.HasRaisedHand/ClientsGrid.RowStyle
+        var raisedHandClientGuids = _raiseHandQueue.Select(e => e.ClientGuid).ToHashSet(StringComparer.OrdinalIgnoreCase);
         foreach (var client in _allClients)
         {
             client.GlobalEnforcementEnabled = globalEnforcementEnabled;
+            client.HasRaisedHand = raisedHandClientGuids.Contains(client.ClientGuid);
         }
 
         // ตัวเลขบนการ์ดคิดจาก _allClients เสมอ ไม่ใช่จากผลที่กรองแล้ว - ไม่งั้นพอกด "ออนไลน์" การ์ด

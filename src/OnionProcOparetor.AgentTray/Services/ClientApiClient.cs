@@ -251,6 +251,47 @@ public class ClientApiClient
         }
     }
 
+    /// <summary>
+    /// ยกมือขอความช่วยเหลือจากครู (WP4-2, 2026-11-01) - ยิงไป Agent local API ตรงๆ (Agent เป็นคนส่งต่อ
+    /// Server พร้อมแนบ agent secret ของเครื่องนี้ - ดู ServerClient.SendRaiseHandAsync) คืน null ถ้า Agent
+    /// local API ไม่ตอบเลย (service ไม่ได้รันอยู่) ต่างจาก Success=false ที่แปลว่า Agent ตอบจริงแต่ถูก
+    /// cooldown หรือมีรายการค้างอยู่แล้ว - caller ต้องแยกสองกรณีนี้ (ดู RaiseHandWindow.xaml.cs)
+    /// </summary>
+    public async Task<RaiseHandSendResponseDto?> RaiseHandAsync(string reason, string? note)
+    {
+        try
+        {
+            var response = await _httpClient.PostAsJsonAsync("/raisehand/send", new { reason, note });
+            return await response.Content.ReadFromJsonAsync<RaiseHandSendResponseDto>();
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    /// <summary>ยกเลิกยกมือที่ค้างอยู่ของเครื่องนี้ (WP4-2, 2026-11-01) - เรียกจากปุ่ม "ยกเลิก" บนป้าย RaiseHandBadgeWindow</summary>
+    public async Task<bool> CancelRaiseHandAsync()
+    {
+        try
+        {
+            var response = await _httpClient.PostAsync("/raisehand/cancel", null);
+            if (!response.IsSuccessStatusCode)
+            {
+                return false;
+            }
+
+            var result = await response.Content.ReadFromJsonAsync<RaiseHandCancelResponseDto>();
+            return result?.Success ?? false;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private sealed record RaiseHandCancelResponseDto(bool Success);
+
     /// <summary>ปิด staff session info ที่เก็บไว้ (เรียกตอนกด "จบ" หรือ session หมดอายุไปแล้ว) - ไม่กระทบ bypass จริงฝั่ง Agent (SetBypassAsync(false) เป็นคนจัดการนั้น)</summary>
     public void ClearStaffSessionInfo()
     {

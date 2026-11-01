@@ -58,6 +58,13 @@ public class LabHubClient : IAsyncDisposable
     public event Action<string, string>? ProcessListFailed;
 
     /// <summary>
+    /// เรียกทุกครั้งที่คิวยกมือเปลี่ยน (มีคนยกมือ/ครูกด "ไปช่วยแล้ว"/ล้างคิว) - Server ส่งคิวทั้งก้อนมาเสมอ
+    /// ไม่ใช่ diff (ดู RaiseHandQueueEntryResponse.FromQueue ฝั่ง Server) ง่ายกว่าและพอสำหรับคิวที่ไม่น่าจะ
+    /// ยาวเกินหลักสิบรายการพร้อมกัน - background thread เหมือน event อื่นในคลาสนี้ ต้อง marshal เข้า UI thread เอง
+    /// </summary>
+    public event Action<List<RaiseHandQueueEntryDto>>? RaiseHandQueueChanged;
+
+    /// <summary>
     /// สถานะการเชื่อมต่อ SignalR เปลี่ยน (true = ต่ออยู่) - Dashboard ใช้ขึ้นประกาศ "การอัปเดตสด
     /// กำลังเชื่อมต่อใหม่" บนแถบหัว (WP6) ยิงจาก background thread เหมือน event อื่นในคลาสนี้
     /// ยิงซ้ำค่าเดิมได้ (เช่นทุกรอบ retry ที่ต่อไม่ติด) ผู้ฟังต้องรับมือเอง
@@ -104,6 +111,7 @@ public class LabHubClient : IAsyncDisposable
             ConsoleDiagnostics.WriteLine($"[LabHubClient] ได้รับ ProcessListFailed จาก hub - ClientGuid: {clientGuid}, Reason: {reason} (SessionId ของเรา: {SessionId})");
             ProcessListFailed?.Invoke(clientGuid, reason);
         });
+        _connection.On<List<RaiseHandQueueEntryDto>>("RaiseHandQueueChanged", queue => RaiseHandQueueChanged?.Invoke(queue));
 
         _connection.Reconnecting += ex =>
         {

@@ -1157,6 +1157,35 @@ public class ApiClient
         }
     }
 
+    // ---- คิวยกมือ (WP4-2, 2026-11-01) ----
+
+    public async Task<List<RaiseHandQueueEntryDto>> GetRaiseHandQueueAsync()
+    {
+        try
+        {
+            var result = await _httpClient.GetFromJsonAsync<List<RaiseHandQueueEntryDto>>("/api/raisehand");
+            return result ?? new List<RaiseHandQueueEntryDto>();
+        }
+        catch (Exception)
+        {
+            return new List<RaiseHandQueueEntryDto>();
+        }
+    }
+
+    /// <summary>ครูกด "ไปช่วยแล้ว"</summary>
+    public async Task<bool> ResolveRaiseHandAsync(int id)
+    {
+        var response = await _httpClient.PostAsync($"/api/raisehand/{id}/resolve", null);
+        return response.IsSuccessStatusCode;
+    }
+
+    /// <summary>ครูกด "ล้างคิวทั้งหมด"</summary>
+    public async Task<bool> ClearRaiseHandQueueAsync()
+    {
+        var response = await _httpClient.PostAsync("/api/raisehand/clear", null);
+        return response.IsSuccessStatusCode;
+    }
+
     /// <summary>ใช้ร่วมกันทุกเมธอดใน WP3-5 ที่ต้องอ่าน { "error": "..." } จาก response ที่ไม่สำเร็จ (pattern เดิมของไฟล์นี้แต่แยกเป็น helper กันก๊อปซ้ำ 6 ที่)</summary>
     private static async Task<string> ExtractErrorAsync(HttpResponseMessage response, string fallback)
     {

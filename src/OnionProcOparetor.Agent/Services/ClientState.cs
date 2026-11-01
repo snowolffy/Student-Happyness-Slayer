@@ -39,6 +39,12 @@ public class ClientState
     public string? CurrentStudentCode { get; private set; }
     public string? CurrentStudentName { get; private set; }
 
+    /// <summary>ยกมือ (WP4-2, 2026-11-01 - แก้ตาม feedback ก่อน merge) - cache ดิบจาก poll ล่าสุด เหมือน
+    /// RequireLogin ด้านบน ให้ /status แจก RaiseHandBadgeWindow ฝั่ง AgentTray ปิดป้ายเองได้เมื่อครูกด
+    /// "ไปช่วยแล้ว"/ล้างคิวจาก Console โดยไม่ต้องมีช่องทาง push ใหม่</summary>
+    public bool RaisedHand { get; private set; }
+    public int? RaiseHandQueuePosition { get; private set; }
+
     public void UpdatePollResult(bool enabled, int rulesCount, bool succeeded)
     {
         IsEnabled = enabled;
@@ -56,6 +62,13 @@ public class ClientState
         LoginScreenMessage = loginScreenMessage;
         LockScreenDefaultMessage = lockScreenDefaultMessage;
         AutoLogoutIdleMinutes = autoLogoutIdleMinutes;
+    }
+
+    /// <summary>เรียกจาก Worker.cs ทุกครั้งที่ poll สำเร็จ (ดู ExecuteAsync) - sync ดิบจาก Server ตรงๆ เหมือน UpdateSignInSettings</summary>
+    public void UpdateRaiseHand(bool raisedHand, int? queuePosition)
+    {
+        RaisedHand = raisedHand;
+        RaiseHandQueuePosition = queuePosition;
     }
 
     /// <summary>เรียกจาก POST /student-session (local loopback API) ตอน AgentTray login/เปลี่ยนรหัสผ่านสำเร็จกับ Server</summary>

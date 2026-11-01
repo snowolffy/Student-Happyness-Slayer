@@ -1,0 +1,131 @@
+@page "/raise-hand"
+@rendermode InteractiveServer
+@inherits AuthenticatedPageBase
+@inject ToastService Toasts
+
+@* คิวยกมือ (WP4-2, 2026-11-01) - ตาม wireframe docs/wireframes/tc-raisehand.dc.html ฝั่ง "ครู (Console /
+   มือถือ)" หน้านี้เป็น poll-based เหมือน ExamMode.razor (โหลดตอนเปิดหน้า + ปุ่มรีเฟรชเอง) ไม่ใช่ SignalR
+   live push แบบฝั่ง WPF Console เพราะหน้านี้ไม่มี hub connection ของตัวเอง (ดู docs/architecture.md
+   เรื่อง OnlineConsole ไม่มี SignalR client) - ยอมรับได้เพราะครูมักเปิดหน้านี้ตอนมีแจ้งเตือนอยู่แล้ว ไม่ใช่
+   เปิดค้างไว้เฝ้าดู *@
+
+<PageTitle>คิวยกมือ - OnionProcOparetor Online Console</PageTitle>
+
+<div class="page-head">
+    <div>
+        <h2 class="heading2" style="margin:0">คิวยกมือ (@_queue.Count)</h2>
+        <div class="page-subtitle">นักเรียนยกมือขอความช่วยเหลือจากจอล็อก/เมนู tray</div>
+    </div>
+    <span class="spacer"></span>
+    <button class="btn btn-secondary @(_refreshing ? "is-busy" : "")" @onclick="RefreshAsync">
+        <Icon Name="refresh-cw" Size="15" /> รีเฟรช
+    </button>
+</div>
+
+@if (_queue.Count > 0)
+{
+    <div class="toolbar">
+        <span class="spacer"></span>
+        <button class="btn btn-danger" disabled="@_clearing" @onclick="ClearAllAsync">
+            <Icon Name="trash" Size="15" /> ล้างคิวทั้งหมด
+        </button>
+    </div>
+}
+
+@if (_loading)
+{
+    @for (var i = 0; i < 3; i++) { <div class="skeleton skeleton-card"></div> }
+}
+else if (_queue.Count == 0)
+{
+    <div class="card">
+        <EmptyState IconName="alert-triangle" Title="ไม่มีใครยกมืออยู่ตอนนี้"
+                    Detail="รายการจะขึ้นที่นี่ทันทีเมื่อมีนักเรียนกดยกมือจากเมนู tray - กดรีเฟรชเพื่อดูล่าสุด" />
+    </div>
+}
+else
+{
+    <div class="card-list">
+        @foreach (var entry in _queue.OrderBy(e => e.QueuePosition))
+        {
+            <div class="data-card" @key="entry.Id">
+                <div class="data-card-head">
+                    <div style="flex:1; min-width:0">
+                        <div class="data-card-title">คิวที่ @entry.QueuePosition · @entry.MachineName</div>
+                        <div class="data-card-sub">@entry.StudentDisplayText</div>
+                    </div>
+                    <span class="badge badge-warning">@entry.Reason</span>
+                </div>
+                @if (!string.IsNullOrWhiteSpace(entry.Note))
+                {
+                    <div class="caption" style="margin:.3rem 0">@entry.Note</div>
+                }
+                <dl class="data-card-rows">
+                    <dt>รอมา</dt><dd><TimeAgo Value="entry.RaisedAt" /></dd>
+                </dl>
+                <button class="btn btn-primary btn-block" style="margin-top:.6rem" disabled="@_resolvingIds.Contains(entry.Id)"
+                        @onclick="() => ResolveAsync(entry.Id)">
+                    <Icon Name="check-circle" Size="15" /> ไปช่วยแล้ว
+                </button>
+            </div>
+        }
+    </div>
+}
+
+@code {
+    private List<RaiseHandQueueEntryDto> _queue = new();
+    private bool _loading = true;
+    private bool _refreshing;
+    private bool _clearing;
+    private readonly HashSet<int> _resolvingIds = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await base.OnInitializedAsync();
+        await LoadAsync();
+        _loading = false;
+    }
+
+    private async Task LoadAsync() => _queue = await Api.GetRaiseHandQueueAsync();
+
+    private async Task RefreshAsync()
+    {
+        _refreshing = true;
+        await LoadAsync();
+        _refreshing = false;
+    }
+
+    private async Task ResolveAsync(int id)
+    {
+        _resolvingIds.Add(id);
+        var ok = await Api.ResolveRaiseHandAsync(id);
+        _resolvingIds.Remove(id);
+
+        if (ok)
+        {
+            _queue = _queue.Where(e => e.Id != id).ToList();
+            Toasts.Success("ปิดคิวยกมือแล้ว");
+        }
+        else
+        {
+            Toasts.Error("ไปช่วยแล้วไม่สำเร็จ", "รายการนี้อาจถูกปิดไปแล้วจากเครื่องอื่น");
+        }
+    }
+
+    private async Task ClearAllAsync()
+    {
+        _clearing = true;
+        var ok = await Api.ClearRaiseHandQueueAsync();
+        _clearing = false;
+
+        if (ok)
+        {
+            _queue = new List<RaiseHandQueueEntryDto>();
+            Toasts.Success("ล้างคิวยกมือทั้งหมดแล้ว");
+        }
+        else
+        {
+            Toasts.Error("ล้างคิวไม่สำเร็จ", "ต่อ Server ไม่ได้");
+        }
+    }
+}

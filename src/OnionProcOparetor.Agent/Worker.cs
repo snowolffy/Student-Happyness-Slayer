@@ -223,6 +223,9 @@ public class Worker : BackgroundService
                 // แจ้ง AgentTray ไหม" จริงอยู่ที่ ScanRunningProcessesAsync (ผสมกับ bypass/enabled อีกชั้น)
                 _state.UpdateSignInSettings(polled.RequireLogin, polled.LoginScreenMessage, polled.LockScreenDefaultMessage, polled.AutoLogoutIdleMinutes);
 
+                // ยกมือ (WP4-2, 2026-11-01 - แก้ตาม feedback ก่อน merge) - cache ดิบเหมือน sign-in ด้านบน
+                _state.UpdateRaiseHand(polled.RaisedHand, polled.RaiseHandQueuePosition);
+
                 _state.UpdatePollResult(polled.Enabled, polled.Rules.Count, succeeded: true);
                 _state.SetPollIntervalOverride(polled.PollIntervalOverrideSeconds);
 

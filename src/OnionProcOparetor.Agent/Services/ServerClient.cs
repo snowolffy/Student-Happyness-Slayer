@@ -294,6 +294,56 @@ public class ServerClient
     }
 
     /// <summary>
+    /// ยกมือขอความช่วยเหลือจากครู (WP4-2, 2026-11-01) - ส่งต่อให้ Server ตรงๆ (clientGuid/secret แนบมาจาก
+    /// DefaultRequestHeaders อยู่แล้วทุก request - ดู constructor) คืน null เฉพาะตอนติดต่อ Server ไม่ได้
+    /// เลย (network/timeout) ส่วน cooldown/มีรายการค้างอยู่แล้วเป็น "ตอบสำเร็จ แต่ Success=false" ที่ Server
+    /// ตอบ 200 กลับมาเสมอ (ดู RaiseHandEndpoints.cs) ไม่ throw ไม่ว่ากรณีไหน - ผู้เรียก (loopback endpoint
+    /// ด้านล่างใน Program.cs) เป็นคนแปลงเป็น HTTP response ให้ AgentTray อีกชั้น
+    /// </summary>
+    public async Task<RaiseHandResult?> SendRaiseHandAsync(string reason, string? note, CancellationToken ct)
+    {
+        try
+        {
+            var url = ActiveBaseUrl.TrimEnd('/') + "/api/raisehand";
+            var response = await _httpClient.PostAsJsonAsync(url, new { reason, note }, ct);
+            if (!response.IsSuccessStatusCode)
+            {
+                _logger.LogWarning("ยกมือไม่สำเร็จ - Server ตอบ {StatusCode}", response.StatusCode);
+                return null;
+            }
+
+            return await response.Content.ReadFromJsonAsync<RaiseHandResult>(cancellationToken: ct);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "ยกมือไม่สำเร็จ - ติดต่อ Server ไม่ได้");
+            return null;
+        }
+    }
+
+    /// <summary>ยกเลิกยกมือที่ค้างอยู่ของเครื่องนี้ (WP4-2, 2026-11-01) - คืน false ทั้งกรณีติดต่อไม่ได้และ Server ตอบว่าไม่พบรายการให้ยกเลิก (ผู้เรียกไม่ต้องแยกสองกรณีนี้ - ผลลัพธ์ฝั่ง UI เหมือนกัน)</summary>
+    public async Task<bool> CancelRaiseHandAsync(CancellationToken ct)
+    {
+        try
+        {
+            var url = ActiveBaseUrl.TrimEnd('/') + "/api/raisehand/cancel";
+            var response = await _httpClient.PostAsync(url, null, ct);
+            if (!response.IsSuccessStatusCode)
+            {
+                return false;
+            }
+
+            var result = await response.Content.ReadFromJsonAsync<RaiseHandCancelResponse>(cancellationToken: ct);
+            return result?.Success ?? false;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "ยกเลิกยกมือไม่สำเร็จ - ติดต่อ Server ไม่ได้");
+            return false;
+        }
+    }
+
+    /// <summary>
     /// รายงาน "ผลจริง" ของ command กลับไปหา Server (ทาง HTTP) - fallback ของ SignalR hub method
     /// "ReportCommandResult" ใช้เมื่อ Agent ไม่ได้ connect SignalR อยู่ (ดู CommandResultReporter)
     ///

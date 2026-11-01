@@ -37,6 +37,15 @@ public class ClientMachineDto
     /// <summary>true = มีนักเรียน login อยู่บนเครื่องนี้ตอนนี้ - ใช้ซ่อน/แสดงคอลัมน์และการ์ด "นักเรียนที่ใช้อยู่"</summary>
     public bool HasActiveStudent => CurrentStudentId is not null;
 
+    /// <summary>
+    /// true = เครื่องนี้มีรายการค้างอยู่ในคิวยกมือตอนนี้ (WP4-2, 2026-11-01) - ไม่ได้มาจาก GET /api/clients
+    /// ตรงๆ (Server ไม่รู้จักเครื่องนี้ด้วยซ้ำ) แต่ DashboardWindow เป็นคนเติมให้หลัง merge กับคิวยกมือล่าสุด
+    /// ทุกครั้งที่อย่างใดอย่างหนึ่งเปลี่ยน (ClientsGrid refresh หรือ RaiseHandQueueChanged) - pattern เดียวกับ
+    /// GlobalEnforcementEnabled ด้านล่างที่ set จากภายนอกก่อน bind เข้าตาราง ใช้ไฮไลต์แถวใน ClientsGrid
+    /// (กรอบสีส้ม - ดู ClientsGrid.RowStyle ใน DashboardWindow.xaml)
+    /// </summary>
+    public bool HasRaisedHand { get; set; }
+
     /// <summary>ข้อความแสดงในคอลัมน์ "นักเรียน" ของตาราง Clients - "ชื่อ · รหัส" หรือ "—" ถ้าไม่มีใคร login</summary>
     public string StudentDisplayText => HasActiveStudent
         ? $"{CurrentStudentName} · {CurrentStudentCode}"

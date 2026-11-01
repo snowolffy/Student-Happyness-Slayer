@@ -85,3 +85,6 @@ record StartExamSessionRequest(
     List<int>? PresetIds,
     List<string>? ExtraDomains,
     int DurationMinutes);
+
+/// <summary>ยกมือขอความช่วยเหลือ (WP4-2, 2026-11-01) - ส่งมาจาก Agent loopback /raisehand/send ตรงๆ (ดู RaiseHandEndpoints.cs)</summary>
+record RaiseHandSendRequest(string Reason, string? Note);

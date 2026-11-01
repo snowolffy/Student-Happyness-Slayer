@@ -218,6 +218,11 @@ app.MapGet("/status", (ClientState state, AgentBypassState bypassState, ServerCl
         autoLogoutIdleMinutes = state.AutoLogoutIdleMinutes,
         currentStudentCode = state.CurrentStudentCode,
         currentStudentName = state.CurrentStudentName,
+        // ยกมือ (WP4-2, 2026-11-01 - แก้ตาม feedback ก่อน merge) - ให้ RaiseHandBadgeWindow poll ค่านี้
+        // ถี่กว่ารอบ poll ปกติของ Worker (ทุก ~5 วิ) แล้วปิดตัวเองเมื่อ raisedHand กลายเป็น false (ครูกด
+        // "ไปช่วยแล้ว"/ล้างคิวจาก Console) โดยไม่ต้องมีช่องทาง push ใหม่ - เหตุผลเดียวกับ requireLogin ด้านบน
+        raisedHand = state.RaisedHand,
+        raiseHandQueuePosition = state.RaiseHandQueuePosition,
         // รหัสฉุกเฉิน (WP3-4b, 2026-10-31) - ให้ StudentLoginWindow รู้ว่าเครื่องนี้ตั้งค่า secret ไว้
         // หรือยัง (เปิด/ปิดลิงก์ "รหัสฉุกเฉิน") โดยไม่ต้องยิง GET /emergency/status แยกอีกครั้ง
         emergencyCodeConfigured = emergencyCode.IsConfigured
@@ -318,6 +323,27 @@ app.MapPost("/emergency/verify", (EmergencyVerifyRequest request, EmergencyCodeS
 app.MapGet("/emergency/status", (EmergencyCodeService emergencyCode) =>
 {
     return Results.Ok(new { configured = emergencyCode.IsConfigured, lastUnlockedAtUtc = emergencyCode.LastUnlockedAtUtc });
+});
+
+// ---- ยกมือขอความช่วยเหลือ (WP4-2, 2026-11-01) - ตาม docs/wireframes/tc-raisehand.dc.html ----
+// AgentTray เป็นคนรันเป็น user session จริง ไม่มี secret แนบ (เหมือน /bypass/set เดิมก่อน WP2 - ความเสี่ยง
+// ต่ำ: อย่างมากก็ปลอมแจ้งยกมือ/ยกเลิกของเครื่องตัวเอง) Agent แค่ส่งต่อให้ Server ตรงๆ ผ่าน ServerClient
+// ที่แนบ X-Agent-Guid/X-Agent-Secret ของเครื่องนี้ให้เองอยู่แล้วทุก request (ดู ServerClient constructor)
+app.MapPost("/raisehand/send", async (RaiseHandSendLoopbackRequest request, ServerClient serverClient, CancellationToken ct) =>
+{
+    var result = await serverClient.SendRaiseHandAsync(request.Reason, request.Note, ct);
+    if (result is null)
+    {
+        return Results.Json(new { success = false, error = "ติดต่อ Server ไม่ได้" }, statusCode: StatusCodes.Status502BadGateway);
+    }
+
+    return Results.Ok(result);
+});
+
+app.MapPost("/raisehand/cancel", async (ServerClient serverClient, CancellationToken ct) =>
+{
+    var success = await serverClient.CancelRaiseHandAsync(ct);
+    return Results.Ok(new { success });
 });
 
 app.Run();

@@ -33,6 +33,9 @@ public partial class App : System.Windows.Application
     /// <summary>ป้ายมุมขวาล่าง "โหมดสอบ" (WP2-2, 2026-10-31) - null = ไม่มีโหมดสอบทำงานอยู่ตอนนี้</summary>
     private ExamModeBadgeWindow? _examModeBadgeWindow;
 
+    /// <summary>ป้ายมุมขวาล่าง "ยกมืออยู่" (WP4-2, 2026-11-01) - null = ไม่ได้ยกมืออยู่ตอนนี้</summary>
+    private RaiseHandBadgeWindow? _raiseHandBadgeWindow;
+
     // ---- Sign-in (WP3-3, 2026-10-31) ----
     private StudentLoginWindow? _studentLoginWindow;
     private StaffSessionBadgeWindow? _staffSessionBadgeWindow;
@@ -78,6 +81,10 @@ public partial class App : System.Windows.Application
                 "staff-session-badge" => new StaffSessionBadgeWindow(previewApiClient),
                 "session-toast" => new SessionToastWindow("เข้าสู่ระบบเป็น สมชาย ใจดี"),
                 "lock-screen" => new LockScreenWindow(System.Windows.Forms.Screen.PrimaryScreen!, installInputBlocking: false, "กรุณาละสายตาจากหน้าจอและฟังครูผู้สอน (ทดสอบ)"),
+                // WP4-2 (2026-11-01) - raise-hand-badge ใส่ queuePosition=2 ให้ตรงกับตัวอย่างใน
+                // docs/wireframes/tc-raisehand.dc.html (renderVals: แถวที่สองคือ "คิวที่ 2")
+                "raise-hand" => new RaiseHandWindow(previewApiClient),
+                "raise-hand-badge" => new RaiseHandBadgeWindow(previewApiClient, queuePosition: 2),
                 _ => null
             };
 
@@ -173,6 +180,12 @@ public partial class App : System.Windows.Application
             var statusMenuItem = new System.Windows.Controls.MenuItem { Header = "Open Status..." };
             statusMenuItem.Click += (_, _) => OpenLoginWindow();
             contextMenu.Items.Add(statusMenuItem);
+
+            // ยกมือขอความช่วยเหลือ (WP4-2, 2026-11-01) - อยู่ได้ทุกเมนู ไม่ผูกกับสถานะ sign-in (ยังใช้ได้
+            // แม้ไม่มีนักเรียน login อยู่ - ดู RaiseHandEndpoints.cs ฝั่ง Server ที่รับได้ทั้งสองกรณี)
+            var raiseHandMenuItem = new System.Windows.Controls.MenuItem { Header = "ยกมือขอความช่วยเหลือ..." };
+            raiseHandMenuItem.Click += (_, _) => OpenRaiseHandWindow();
+            contextMenu.Items.Add(raiseHandMenuItem);
 
             // Sign-in (WP3-3, 2026-10-31) - "ไม่ใช่ฉัน"/"ออกจากระบบ" โชว์เฉพาะตอนมีนักเรียน login อยู่
             // เท่านั้น (ดู RebuildTrayContextMenu) สร้าง MenuItem ไว้เป็น field ล่วงหน้าแล้วย้าย
@@ -313,6 +326,44 @@ public partial class App : System.Windows.Application
         TrayDiagnostics.Log("[ui] เปิดหน้า login ใหม่");
         var loginWindow = new LoginWindow(_apiClient);
         loginWindow.Show();
+    }
+
+    /// <summary>
+    /// เปิดการ์ด "ขอความช่วยเหลือจากครู" (WP4-2, 2026-11-01) - ถ้ายกมืออยู่แล้ว (มีป้ายค้างอยู่) ไม่เปิด
+    /// การ์ดซ้ำ แค่เลื่อนป้ายขึ้นมาแทน (Server ปฏิเสธซ้ำอยู่ดีถ้าเปิดได้ - กันงงตั้งแต่ฝั่ง UI ดีกว่า)
+    /// </summary>
+    private void OpenRaiseHandWindow()
+    {
+        if (_raiseHandBadgeWindow is not null)
+        {
+            RestoreAndActivate(_raiseHandBadgeWindow);
+            return;
+        }
+
+        var existing = Windows.OfType<RaiseHandWindow>().FirstOrDefault();
+        if (existing is not null)
+        {
+            RestoreAndActivate(existing);
+            return;
+        }
+
+        var window = new RaiseHandWindow(_apiClient);
+        window.Raised += OnRaiseHandRaised;
+        window.ShowDialog();
+    }
+
+    private void OnRaiseHandRaised(int? queuePosition)
+    {
+        Dispatcher.BeginInvoke(() =>
+        {
+            var badge = new RaiseHandBadgeWindow(_apiClient, queuePosition);
+            badge.Cancelled += () => _raiseHandBadgeWindow = null;
+            badge.Closed += (_, _) => _raiseHandBadgeWindow = null;
+            _raiseHandBadgeWindow = badge;
+            badge.Show();
+
+            TrayDiagnostics.Log($"[raise-hand] ยกมือสำเร็จ (คิวที่ {queuePosition?.ToString() ?? "?"})");
+        });
     }
 
     /// <summary>
@@ -899,6 +950,7 @@ public partial class App : System.Windows.Application
         _examModeBadgeWindow?.ForceClose();
         _studentLoginWindow?.ForceClose();
         _staffSessionBadgeWindow?.ForceClose();
+        _raiseHandBadgeWindow?.ForceClose();
         _jokeShutdownController.Cancel();
         _trayIcon?.Dispose();
         _singleInstanceGuard.Dispose();

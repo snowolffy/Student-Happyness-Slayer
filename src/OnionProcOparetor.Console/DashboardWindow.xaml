@@ -372,8 +372,22 @@
                                     VerticalGridLinesBrush="{DynamicResource Brush.Border.Default}"
                                     RowHeight="40" CanUserAddRows="False"
                                     ColumnHeaderStyle="{StaticResource ConsoleGridColumnHeaderStyle}"
-                                    RowStyle="{StaticResource ConsoleGridRowStyle}"
                                     CellStyle="{StaticResource ConsoleGridCellStyle}">
+                                <!-- ไฮไลต์แถวที่ยกมืออยู่ (WP4-2, 2026-11-01) - ตาม wireframe tc-raisehand.dc.html
+                                     ("เครื่องที่ยกมือเป็นกรอบสีส้ม") HasRaisedHand มาจาก DashboardWindow.ApplyClientsFilter
+                                     เติมให้หลัง merge กับคิวยกมือล่าสุด ไม่ได้มาจาก GET /api/clients ตรงๆ (ดู
+                                     ClientMachineDto.HasRaisedHand) ใช้สีพื้นแทนกรอบ เพราะ DataGridRow เทมเพลตปกติไม่
+                                     วาด BorderBrush ของแถวให้เห็นชัดเท่าสีพื้น (สีเดียวกับ RaiseHandBadgeWindow ของ AgentTray) -->
+                                <DataGrid.RowStyle>
+                                    <Style TargetType="DataGridRow" BasedOn="{StaticResource ConsoleGridRowStyle}">
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding HasRaisedHand}" Value="True">
+                                                <Setter Property="Background" Value="#FDF3E7"/>
+                                                <Setter Property="ToolTip" Value="ยกมืออยู่ - รอครู (ดูแท็บ &quot;คิวยกมือ&quot;)"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </DataGrid.RowStyle>
                                 <DataGrid.Resources>
                                     <!-- แยก 2 badge ชัดเจน เป็นคนละคอลัมน์ ไม่ปนกันเหมือนเดิม (บั๊กจริงที่เจอตอน
                                          field test 2026-08-20: badge เดิมรวม 4 สถานะ DISABLED/ONLINE/OFFLINE/MISSING
@@ -647,6 +661,97 @@
                                     </StackPanel>
                                 </Grid>
                             </Border>
+                        </Grid>
+                    </Grid>
+                </TabItem>
+
+                <!-- ========== คิวยกมือ (WP4-2, 2026-11-01) - ตาม docs/wireframes/tc-raisehand.dc.html
+                     ฝั่ง "ครู (Console)" wireframe วางไว้เป็นแผงข้างของ Clients/ผังที่นั่ง แต่ที่นี่แยกเป็น
+                     หน้าของตัวเองในกลุ่ม "ห้องเรียน" แทน เพื่อไม่ต้องแก้โครง inspector panel ที่ WP6 สร้างไว้
+                     (slide จากขวาทับ grid, ยังไม่รองรับ "โหมดเนื้อหาอื่นที่ไม่ใช่เครื่อง") - รายงานไว้เป็น
+                     จุดต่างจาก wireframe ที่ orchestrator/ผู้ใช้ตัดสินได้ว่าจะย้ายเข้า inspector ทีหลังไหม ========== -->
+                <TabItem x:Name="RaiseHandTabItem" Header="คิวยกมือ" controls:Nav.Icon="alert-triangle" controls:Nav.Group="ห้องเรียน">
+                    <Grid Margin="0,12,0,0">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="*"/>
+                        </Grid.RowDefinitions>
+
+                        <Grid Grid.Row="0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Grid.Column="0">
+                                <TextBlock x:Name="RaiseHandCountText" Text="คิวยกมือ (0)" Style="{StaticResource Heading2}"/>
+                                <TextBlock Text="นักเรียนยกมือขอความช่วยเหลือจากจอล็อก/เมนู tray - กดซ้ำได้หลัง 1 นาที" FontSize="12"
+                                           Foreground="{DynamicResource Brush.Text.Secondary}" Margin="0,2,0,0"/>
+                            </StackPanel>
+                            <Button Grid.Column="1" x:Name="ClearRaiseHandQueueButton" Content="ล้างคิวทั้งหมด" Style="{StaticResource ButtonSecondary}"
+                                    VerticalAlignment="Center" Click="ClearRaiseHandQueueButton_Click"/>
+                        </Grid>
+
+                        <Grid Grid.Row="1" Margin="0,10,0,0">
+                            <Border CornerRadius="12" ClipToBounds="True"
+                                    Background="{DynamicResource Brush.Background.Card}"
+                                    BorderBrush="{DynamicResource Brush.Border.Default}" BorderThickness="1">
+                            <DataGrid x:Name="RaiseHandGrid" AutoGenerateColumns="False" IsReadOnly="True"
+                                    Background="Transparent"
+                                    BorderThickness="0"
+                                    RowBackground="{DynamicResource Brush.Background.Card}"
+                                    AlternatingRowBackground="{DynamicResource Brush.Background.Card}"
+                                    HorizontalGridLinesBrush="{DynamicResource Brush.Border.Default}"
+                                    VerticalGridLinesBrush="{DynamicResource Brush.Border.Default}"
+                                    RowHeight="44" CanUserAddRows="False"
+                                    ColumnHeaderStyle="{StaticResource ConsoleGridColumnHeaderStyle}"
+                                    RowStyle="{StaticResource ConsoleGridRowStyle}"
+                                    CellStyle="{StaticResource ConsoleGridCellStyle}">
+                                <DataGrid.Resources>
+                                    <Style x:Key="RaiseHandNoteText" TargetType="TextBlock">
+                                        <Setter Property="Text" Value="{Binding Note}"/>
+                                        <Setter Property="FontSize" Value="11"/>
+                                        <Setter Property="Margin" Value="0,3,0,0"/>
+                                        <Setter Property="Foreground" Value="{DynamicResource Brush.Text.Secondary}"/>
+                                        <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
+                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding HasNote}" Value="True">
+                                                <Setter Property="Visibility" Value="Visible"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </DataGrid.Resources>
+                                <DataGrid.Columns>
+                                    <DataGridTextColumn Header="คิวที่" Binding="{Binding QueuePosition}" Width="50"/>
+                                    <DataGridTextColumn Header="เครื่อง" Binding="{Binding MachineName}" Width="110"/>
+                                    <DataGridTextColumn Header="นักเรียน" Binding="{Binding StudentDisplayText}" Width="120"/>
+                                    <DataGridTemplateColumn Header="เหตุผล" Width="*" MinWidth="150">
+                                        <DataGridTemplateColumn.CellTemplate>
+                                            <DataTemplate>
+                                                <StackPanel>
+                                                    <ContentControl Style="{StaticResource StatusBadge}" Tag="Warning" Content="{Binding Reason}" HorizontalAlignment="Left"/>
+                                                    <TextBlock Style="{StaticResource RaiseHandNoteText}"/>
+                                                </StackPanel>
+                                            </DataTemplate>
+                                        </DataGridTemplateColumn.CellTemplate>
+                                    </DataGridTemplateColumn>
+                                    <DataGridTextColumn Header="รอมา" Binding="{Binding WaitedText}" Width="90"/>
+                                    <DataGridTemplateColumn Header="จัดการ" Width="100">
+                                        <DataGridTemplateColumn.CellTemplate>
+                                            <DataTemplate>
+                                                <Button Content="ไปช่วยแล้ว" Style="{StaticResource ButtonPrimary}"
+                                                        Padding="8,5" FontSize="11"
+                                                        Click="ResolveRaiseHandButton_Click" Tag="{Binding Id}"/>
+                                            </DataTemplate>
+                                        </DataGridTemplateColumn.CellTemplate>
+                                    </DataGridTemplateColumn>
+                                </DataGrid.Columns>
+                            </DataGrid>
+                            </Border>
+                            <ContentControl x:Name="RaiseHandEmptyText"
+                                            Style="{StaticResource EmptyState}" controls:Nav.Icon="alert-triangle"
+                                            Content="ไม่มีใครยกมืออยู่ตอนนี้" Tag="รายการจะขึ้นที่นี่ทันทีเมื่อมีนักเรียนกดยกมือจากเมนู tray"
+                                            Visibility="Collapsed"/>
                         </Grid>
                     </Grid>
                 </TabItem>
