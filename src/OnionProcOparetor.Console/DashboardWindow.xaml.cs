@@ -1377,6 +1377,54 @@ public partial class DashboardWindow : Window
         }
     }
 
+    /// <summary>
+    /// ปุ่ม "เปิด URL/โปรแกรม" บนแถบคำสั่งของ Clients (WP4-1, 2026-11-01) - ส่งเครื่องที่เลือกไว้ + ห้องที่
+    /// กรองอยู่ตอนนี้ (ถ้ามี) ให้ OpenUrlWindow เป็นค่าเริ่มต้น เหมือน OpenExamModeButton_Click ข้างบน
+    ///
+    /// OpenUrlWindow เป็น dialog แบบเดียวกับ ActionPanelWindow (ฝาก PendingReport ไว้แล้วปิดตัวเองก่อน)
+    /// จึงเปิด ActionReportWindow ต่อที่นี่เอง (ไม่เรียก RunActionPanelAsync เพราะ method นั้นรับเฉพาะ
+    /// ActionPanelWindow - คัดลอกบล็อกเปิดหน้า report มาเฉพาะส่วนที่ต้องใช้ ไม่แก้ RunActionPanelAsync
+    /// เดิมเพื่อลดความเสี่ยงชนกับ WP4-2 ที่แก้ไฟล์นี้พร้อมกัน)
+    /// </summary>
+    private async void OpenUrlProgramButton_Click(object sender, RoutedEventArgs e)
+    {
+        var selected = ClientsGrid.SelectedItems.Cast<ClientMachineDto>().ToList();
+        var currentRoomFilterId = (RoomFilterCombo.SelectedItem as RoomFilterOption)?.RoomIdOrSentinel;
+        var preselectRoomId = currentRoomFilterId is > 0 ? currentRoomFilterId : null;
+
+        var dialog = new OpenUrlWindow(_apiClient, selected, _allClients, _allRooms, preselectRoomId) { Owner = this };
+        dialog.ShowDialog();
+
+        if (dialog.PendingReport is not { } request)
+        {
+            return;
+        }
+
+        var report = new ActionReportWindow(_apiClient, _labHubClient, request) { Owner = this };
+        report.Show();
+
+        ToastService.Info(
+            $"ส่งคำสั่ง \"{request.ActionLabel}\" ไป {request.Rows.Count} เครื่อง",
+            "ดูผล",
+            () =>
+            {
+                if (report.IsLoaded)
+                {
+                    if (report.WindowState == WindowState.Minimized)
+                    {
+                        report.WindowState = WindowState.Normal;
+                    }
+
+                    report.Activate();
+                }
+                else
+                {
+                    ToastService.Info("หน้ารายงานผลถูกปิดไปแล้ว - ประวัติคำสั่งดูได้ที่ Audit Log",
+                        "เปิด Audit Log", () => SelectAuditLogSubTab());
+                }
+            });
+    }
+
     private async void ResetUserPasswordButton_Click(object sender, RoutedEventArgs e)
     {
         if (sender is Button { Tag: UserDto user })

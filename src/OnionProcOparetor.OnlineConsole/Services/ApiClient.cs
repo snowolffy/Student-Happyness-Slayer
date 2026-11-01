@@ -570,6 +570,15 @@ public class ApiClient
         return response.IsSuccessStatusCode;
     }
 
+    // ---- รายการโปรแกรมที่เปิดได้ทั้งห้อง (WP4-1, 2026-11-01) - อ่านอย่างเดียวฝั่งมือถือ (จัดการรายการ
+    // ทำที่ Console WPF เท่านั้นในรอบนี้ - ดู docs/roadmap.md WP4-1 "Console: ... หน้าตั้งค่ารายการโปรแกรม
+    // (Admin)" ไม่ได้ระบุ OnlineConsole) ----
+    public async Task<List<LaunchableProgramDto>> GetLaunchableProgramsAsync()
+    {
+        var result = await _httpClient.GetFromJsonAsync<List<LaunchableProgramDto>>("/api/launchable-programs");
+        return result ?? new List<LaunchableProgramDto>();
+    }
+
     public async Task<bool> SendCommandAsync(string clientGuid, string commandType, object? payload)
         => (await SendCommandTrackedAsync(clientGuid, commandType, payload, batchId: null)).CommandId is not null;
 

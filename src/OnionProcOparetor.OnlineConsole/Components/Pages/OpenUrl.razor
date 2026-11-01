@@ -1,0 +1,242 @@
+@page "/open-url"
+@rendermode InteractiveServer
+@inherits AuthenticatedPageBase
+@inject NavigationManager Navigation
+@inject ToastService Toasts
+
+@* "เปิด URL/โปรแกรมทั้งห้อง" บนมือถือ (WP4-1, 2026-11-01) - ไม่มี wireframe oc-* เฉพาะของหน้านี้ (ดูสารบัญ
+   docs/wireframes/README.md - WP4-1 อ้างแค่ tc-openurl.dc.html ของฝั่ง Console) จึงเดินตาม pattern
+   เดียวกับ ExamMode.razor ที่ใกล้เคียงที่สุด: รับเป้าหมาย (ห้อง/เครื่องที่เลือก) จาก query string แทน
+   ตัวเลือกในหน้าเดียวกัน - ครูเลือกเป้าหมายมาจากหน้า Home ก่อนแล้ว (ดู ปุ่ม "เปิด URL/โปรแกรม" ใน Home.razor)
+
+   ต่างจาก ExamMode.razor ตรงที่ "เปิด URL/โปรแกรม" ยิง command ทีละเครื่อง (ผ่าน /api/commands/{clientGuid}
+   เหมือน BroadcastMessage) ไม่ใช่ API เฉพาะทางที่สร้าง session เดียวในตัว - จึงต้องมี ActionReportModal
+   แสดงผลรายเครื่อง (pattern เดียวกับ SendBroadcastAsync ใน Home.razor) *@
+
+<PageTitle>เปิด URL/โปรแกรม - OnionProcOparetor Online Console</PageTitle>
+
+<div class="page-head">
+    <div>
+        <h2 class="heading2" style="margin:0">เปิด URL/โปรแกรม</h2>
+        <div class="page-subtitle">เปิดเว็บหรือโปรแกรมจากรายการที่ Admin ตั้งไว้ - ส่งให้เป้าหมายที่เลือกมาจากหน้า Clients</div>
+    </div>
+    <span class="spacer"></span>
+    <button class="btn btn-secondary" @onclick='() => Navigation.NavigateTo("/")'>
+        <Icon Name="chevron-left" Size="15" /> กลับ
+    </button>
+</div>
+
+@if (_loading)
+{
+    @for (var i = 0; i < 2; i++) { <div class="skeleton skeleton-card"></div> }
+}
+else if (!HasTarget)
+{
+    <div class="card">
+        <EmptyState IconName="alert-triangle" Title="ยังไม่ได้เลือกเป้าหมาย"
+                    Detail="กลับไปหน้า Clients แล้วเลือกห้องหรือเครื่องก่อน จึงเปิด URL/โปรแกรมทั้งห้องได้" />
+    </div>
+}
+else
+{
+    <section style="display:flex; flex-direction:column; gap:.6rem">
+        <div class="chip-row" style="margin-bottom:0">
+            <button type="button" class="chip @(_isWebsiteMode ? "active" : "")" @onclick="() => SetMode(true)">เว็บไซต์</button>
+            <button type="button" class="chip @(!_isWebsiteMode ? "active" : "")" @onclick="() => SetMode(false)">โปรแกรม</button>
+        </div>
+
+        @if (_isWebsiteMode)
+        {
+            <div class="form-row">
+                <label for="url">ลิงก์ (http/https เท่านั้น)</label>
+                <input id="url" type="url" placeholder="https://classroom.google.com/c/xxxx" @bind="_url" @bind:event="oninput" />
+            </div>
+        }
+        else
+        {
+            <div class="form-row">
+                <label for="program">เลือกโปรแกรม</label>
+                @if (_programs.Count == 0)
+                {
+                    <span class="caption">ยังไม่มีโปรแกรมในรายการ - ให้ Admin เพิ่มจาก Console (WPF) ก่อน</span>
+                }
+                else
+                {
+                    <select id="program" @bind="_selectedProgramId">
+                        @foreach (var program in _programs)
+                        {
+                            <option value="@program.Id">@program.Name</option>
+                        }
+                    </select>
+                }
+            </div>
+        }
+
+        <span class="field-label">ใช้กับ @TargetDescription()</span>
+
+        @if (_statusMessage is not null)
+        {
+            <span class="@(_statusIsError ? "error-text" : "status-text")">@_statusMessage</span>
+        }
+
+        <button class="btn btn-primary btn-block" disabled="@(_submitting || !CanSubmit)" @onclick="SendAsync">
+            <Icon Name="external-link" Size="15" /> @(RoomId is not null ? "เปิดทั้งห้อง" : $"เปิด {_clientGuids.Count} เครื่อง")
+        </button>
+    </section>
+}
+
+@if (_report is not null)
+{
+    <ActionReportModal Request="_report" OnClose="() => _report = null" />
+}
+
+@code {
+    [SupplyParameterFromQuery(Name = "roomId")]
+    [Parameter]
+    public int? RoomId { get; set; }
+
+    /// <summary>GUID ของเครื่องที่เลือกไว้ คั่นด้วยคอมมา - ส่งมาจากหน้า Clients (ดู Home.razor)</summary>
+    [SupplyParameterFromQuery(Name = "clients")]
+    [Parameter]
+    public string? ClientsQuery { get; set; }
+
+    private List<string> _clientGuids = new();
+    private RoomDto? _room;
+    private List<LaunchableProgramDto> _programs = new();
+
+    private bool _isWebsiteMode = true;
+    private string _url = string.Empty;
+    private int? _selectedProgramId;
+
+    private bool _loading = true;
+    private bool _submitting;
+    private string? _statusMessage;
+    private bool _statusIsError;
+    private ActionReportRequest? _report;
+
+    private bool HasTarget => RoomId is not null || _clientGuids.Count > 0;
+
+    private bool CanSubmit => _isWebsiteMode
+        ? Uri.TryCreate(_url.Trim(), UriKind.Absolute, out var uri) && (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps)
+        : _selectedProgramId is not null;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await base.OnInitializedAsync();
+
+        _clientGuids = (ClientsQuery ?? string.Empty)
+            .Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
+            .ToList();
+
+        if (HasTarget)
+        {
+            if (RoomId is not null)
+            {
+                var rooms = await Api.GetRoomsAsync();
+                _room = rooms.FirstOrDefault(r => r.Id == RoomId);
+            }
+
+            try
+            {
+                _programs = await Api.GetLaunchableProgramsAsync();
+                if (_programs.Count > 0)
+                {
+                    _selectedProgramId = _programs[0].Id;
+                }
+            }
+            catch (Exception)
+            {
+                // โหลดรายการโปรแกรมไม่สำเร็จ - โหมดเว็บไซต์ยังใช้ได้ตามปกติ
+            }
+        }
+
+        _loading = false;
+    }
+
+    private void SetMode(bool isWebsite)
+    {
+        _isWebsiteMode = isWebsite;
+        SetStatus(null, isError: false);
+    }
+
+    private string TargetDescription() => RoomId is not null
+        ? $"ทั้งห้อง {_room?.Name ?? "(ไม่พบห้อง)"} ({_room?.ClientCount ?? 0} เครื่อง)"
+        : $"{_clientGuids.Count} เครื่องที่เลือกไว้";
+
+    private async Task SendAsync()
+    {
+        if (!CanSubmit)
+        {
+            SetStatus("กรุณากรอก/เลือกให้ครบก่อน", isError: true);
+            return;
+        }
+
+        List<ClientMachineDto> targets;
+        if (RoomId is not null)
+        {
+            var clients = await Api.GetClientsAsync();
+            targets = clients.Where(c => c.RoomId == RoomId).ToList();
+        }
+        else
+        {
+            targets = _clientGuids.Select(g => new ClientMachineDto { ClientGuid = g, MachineName = g }).ToList();
+        }
+
+        if (targets.Count == 0)
+        {
+            SetStatus("เป้าหมายที่เลือกไม่มีเครื่องอยู่เลย", isError: true);
+            return;
+        }
+
+        string commandType;
+        object payload;
+        string actionLabel;
+
+        if (_isWebsiteMode)
+        {
+            var uri = new Uri(_url.Trim(), UriKind.Absolute);
+            commandType = "OpenUrl";
+            payload = new { url = uri.AbsoluteUri, mode = "NewTab" };
+            actionLabel = "เปิด URL ทั้งห้อง";
+        }
+        else
+        {
+            var program = _programs.FirstOrDefault(p => p.Id == _selectedProgramId);
+            if (program is null)
+            {
+                SetStatus("กรุณาเลือกโปรแกรม", isError: true);
+                return;
+            }
+
+            commandType = "LaunchProgram";
+            payload = new { programId = program.Id };
+            actionLabel = $"เปิดโปรแกรม '{program.Name}' ทั้งห้อง";
+        }
+
+        _submitting = true;
+        SetStatus(null, isError: false);
+
+        var batchId = Guid.NewGuid().ToString();
+        _report = new ActionReportRequest
+        {
+            ActionLabel = actionLabel,
+            BatchId = batchId,
+            Rows = targets.Select(c => new ActionReportRow { ClientGuid = c.ClientGuid, MachineName = c.MachineName }).ToList(),
+            SendAsync = async row =>
+            {
+                var (commandId, error) = await Api.SendCommandTrackedAsync(row.ClientGuid, commandType, payload, batchId);
+                row.CommandId = commandId;
+                return commandId is not null ? (true, null) : (false, error);
+            }
+        };
+
+        _submitting = false;
+        Toasts.Success($"ส่งคำสั่ง \"{actionLabel}\" ไป {targets.Count} เครื่องแล้ว");
+    }
+
+    private void SetStatus(string? message, bool isError)
+    {
+        _statusMessage = message;
+        _statusIsError = isError;
+    }
+}

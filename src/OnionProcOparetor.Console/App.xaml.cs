@@ -191,6 +191,12 @@ public partial class App : Application
                 // โหมดนี้) แต่ LoadPresetsAsync จับ exception ไว้แล้วไม่พัง (ดู ExamModeWindow.xaml.cs)
                 "exam-mode" => new ExamModeWindow(
                     api, [sampleClient], [new Models.RoomDto { Id = 1, Name = "ห้องคอม 1", ClientCount = 40 }], currentRoomFilterId: 1),
+                // WP4-1 (2026-11-01) - เหมือน exam-mode เป๊ะๆ (ดู comment ด้านบน): โหลดรายการโปรแกรมจาก
+                // Server จริงไม่สำเร็จเพราะ ApiClient ยังไม่ login แต่ LoadProgramsAsync จับ exception
+                // ไว้แล้ว ไม่พัง (ดู OpenUrlWindow.xaml.cs)
+                "open-url" => new OpenUrlWindow(
+                    api, [sampleClient], [sampleClient], [new Models.RoomDto { Id = 1, Name = "ห้องคอม 1", ClientCount = 40 }], currentRoomFilterId: 1),
+                "launchable-programs" => new LaunchableProgramsWindow(api),
                 "pending-commands" => new PendingCommandsWindow(api, sampleClient),
                 "running-processes" => new RunningProcessesWindow(api, new Services.LabHubClient(), sampleClient),
                 "action-panel" => new ActionPanelWindow(api, sampleClient),

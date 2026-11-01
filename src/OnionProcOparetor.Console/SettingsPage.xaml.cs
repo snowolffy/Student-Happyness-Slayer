@@ -130,8 +130,8 @@ public partial class SettingsPage : UserControl
 
     private SignInSettingsDto? _signInSettings;
 
-    /// <summary>โหลดทั้ง 3 อย่างที่มี API จริง (Sign-in, thumbprint cert, backup) - Staff session/
-    /// รหัสฉุกเฉินไม่มี API ให้โหลด (ดู XAML) ซ่อนคอลัมน์ทั้งหมดให้ Teacher แทนปล่อยให้เจอ 403</summary>
+    /// <summary>โหลดทุกอย่างที่มี API จริง (Sign-in, thumbprint cert, backup, รายการโปรแกรม WP4-1) - Staff
+    /// session/รหัสฉุกเฉินไม่มี API ให้โหลด (ดู XAML) ซ่อนคอลัมน์ทั้งหมดให้ Teacher แทนปล่อยให้เจอ 403</summary>
     private async Task LoadAdminSettingsAsync()
     {
         if (_apiClient is null)
@@ -153,6 +153,39 @@ public partial class SettingsPage : UserControl
         await LoadEmergencyCodeSettingsAsync();
         await LoadCertificateThumbprintAsync();
         await LoadBackupSettingsAsync();
+        await LoadLaunchableProgramCountAsync();
+    }
+
+    /// <summary>แค่สรุปจำนวนให้เห็นในหน้าตั้งค่า - รายการจริงจัดการใน LaunchableProgramsWindow (WP4-1, 2026-11-01)</summary>
+    private async Task LoadLaunchableProgramCountAsync()
+    {
+        try
+        {
+            var programs = await _apiClient!.GetLaunchableProgramsAsync();
+            LaunchableProgramCountText.Text = programs.Count == 0
+                ? "ยังไม่มีโปรแกรมในรายการ - Teacher จะยังเลือกเปิดโปรแกรมไม่ได้จนกว่าจะเพิ่ม"
+                : $"มี {programs.Count} โปรแกรมในรายการตอนนี้";
+        }
+        catch (Exception)
+        {
+            LaunchableProgramCountText.Text = "โหลดจำนวนโปรแกรมไม่สำเร็จ";
+        }
+    }
+
+    private async void ManageLaunchableProgramsButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_apiClient is null)
+        {
+            return;
+        }
+
+        var dialog = new LaunchableProgramsWindow(_apiClient) { Owner = Window.GetWindow(this) };
+        dialog.ShowDialog();
+
+        if (dialog.DataChanged)
+        {
+            await LoadLaunchableProgramCountAsync();
+        }
     }
 
     private async Task LoadSignInSettingsAsync()

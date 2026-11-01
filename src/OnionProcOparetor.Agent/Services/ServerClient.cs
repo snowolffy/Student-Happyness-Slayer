@@ -199,6 +199,36 @@ public class ServerClient
         }
     }
 
+    /// <summary>
+    /// ขอ Path/Arguments จริงของโปรแกรมที่ Admin อนุญาตให้เปิดทั้งห้องได้ (WP4-1, 2026-11-01) - เรียกก่อน
+    /// รัน LaunchProgram command เสมอ (ดู CommandProcessor.HandleLaunchProgramAsync) เพื่อตรวจซ้ำว่า
+    /// โปรแกรมนี้ยังอยู่ในรายการจริง ณ เวลาที่รัน ไม่ใช่ตอนที่ command ถูกสร้างขึ้นมา (รายการอาจถูกแก้/ลบ
+    /// ไปแล้วระหว่างที่ command ค้างอยู่ใน queue)
+    ///
+    /// คืน null ทั้งกรณี "ไม่พบ" (404 - ถูกลบ/ไม่อยู่ในรายการ) และกรณี "ติดต่อ Server ไม่ได้" เพราะทั้งสอง
+    /// กรณีผู้เรียกต้องปฏิเสธการรันเหมือนกัน (fail-secure - ไม่รันถ้ายืนยันกับ Server ไม่ได้ว่าอนุญาตจริง)
+    /// </summary>
+    public async Task<LaunchableProgramDto?> GetLaunchableProgramAsync(int programId, CancellationToken ct)
+    {
+        try
+        {
+            var url = ActiveBaseUrl.TrimEnd('/') + $"/api/launchable-programs/{programId}/for-agent";
+            var response = await _httpClient.GetAsync(url, ct);
+            if (!response.IsSuccessStatusCode)
+            {
+                _logger.LogWarning("ขอข้อมูลโปรแกรม id={ProgramId} ไม่สำเร็จ - Server ตอบ {StatusCode}", programId, response.StatusCode);
+                return null;
+            }
+
+            return await response.Content.ReadFromJsonAsync<LaunchableProgramDto>(ct);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "ขอข้อมูลโปรแกรม id={ProgramId} จาก Server ไม่สำเร็จ", programId);
+            return null;
+        }
+    }
+
     /// <summary>ส่ง log กลับไปให้ server เก็บ ไม่ throw ถ้า fail (log เป็นแค่ best-effort)</summary>
     public async Task SendLogAsync(LogEntryDto log, CancellationToken ct)
     {

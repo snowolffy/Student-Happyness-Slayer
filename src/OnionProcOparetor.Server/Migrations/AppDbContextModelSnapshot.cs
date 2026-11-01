@@ -694,6 +694,37 @@ namespace OnionProcOparetor.Server.Migrations
                         });
                 });
 
+            modelBuilder.Entity("OnionProcOparetor.Server.Models.LaunchableProgram", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Arguments")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Path")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Name")
+                        .IsUnique();
+
+                    b.ToTable("LaunchablePrograms");
+                });
+
             modelBuilder.Entity("OnionProcOparetor.Server.Models.LogEntry", b =>
                 {
                     b.Property<int>("Id")
