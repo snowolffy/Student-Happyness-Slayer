@@ -17,7 +17,8 @@
 | 1 ข้อจำกัดที่รู้ | pipe squatting: โปรแกรมที่เปิด named pipe ชื่อเดียวกันก่อน tray จะได้ secret ของ WP2b (ต้องมีสิทธิ์ระดับปิด tray ได้อยู่แล้ว ความเสี่ยงต่ำ) · `server.log` บนเครื่อง dev มีบรรทัดจากการทดสอบปนอยู่ |
 | 2 Website | **✅ โค้ดครบ (31 ต.ค.)** WP2-3 กฎรายห้อง, WP2-1 hardening, WP2-2 โหมดสอบ + Allow-list (`c0a66e6`), WP2-4 ประวัติเว็บ (`a431a43`, migration `AddWebVisit`, retention 7 วัน) · หน้าโหมดสอบใน OnlineConsole (`91194ad`, เปิดจาก Clients ได้ทั้งแบบทั้งห้องและเครื่องที่เลือก ถ้ามีโหมดสอบอยู่แล้วจะแสดงปุ่มยกเลิกแทนฟอร์ม) · ต้องตรวจในแล็บ: โดเมนของ preset (โดยเฉพาะ CDN ของ Canva), ชื่อ publisher ของเบราว์เซอร์ที่บล็อก, Agent อ่าน History ของ user ที่ล็อกอินจริง · ข้อสังเกต: DatabaseBackupService เขียน backup ลง `C:\ProgramData\OnionProcOparetor\backups` แม้รัน Server ทดสอบด้วย DB แยก
 | 3 Sign-in | **✅ โค้ดครบ (1 พ.ย.)** WP3-1 Server, WP3-2 Roster Manager, WP3-5 Console (`836b34a`, แก้ loop `381662a`), WP3-3 จอนักเรียน (`7c72c7b`, `6ae096d`), WP3-4 รหัสฉุกเฉิน (`752fe4e`) + WP3-4b ต่อเข้ากับจอล็อกอิน (`90d3813`: ปลดได้จนกว่า poll ครั้งถัดไปสำเร็จ สูงสุด 8 ชม.) · ยังไม่มี: เส้นทาง restore backup, API ตั้งค่า Staff session (แสดง 30/120 นาทีแบบอ่านอย่างเดียว), ช่องกรอก secret รหัสฉุกเฉินในหน้า MSI (ตอนนี้ใช้ property `EMERGENCYTOTPSECRET` ทาง command line) · ข้อจำกัดที่รู้: ค่าตั้ง sign-in ใหม่ถึงเครื่องตอน poll ครั้งถัดไป · รหัสนักเรียนยังไม่ติดไปกับ log การปิดโปรแกรม · จอล็อกยังเป็นดีไซน์เดิม (ดำ + ข้อความ) · ประวัติการใช้รหัสฉุกเฉินที่ยังไม่ได้ส่งหายเมื่อรีบูต · preview หน้าตั้งค่า Console ยังไม่มีข้อมูลตัวอย่าง · **ต้อง field test:** ล็อกอิน→poll→บังคับ, ออกเองเมื่อไม่ใช้งาน, logout ตอนปิดเครื่อง, staff session จากจอล็อกอิน, Server ล่ม→รหัสฉุกเฉิน→กลับมาล็อกอิน, MSI ใส่ secret, Apps Script บน Workspace จริง |
-| 4–5 | ออกแบบเสร็จ (wireframe) · ยังไม่เริ่ม · ขั้น 4 รอคุยเรื่องส่งจอครูก่อน |
+| 4 เครื่องมือสอน | กำลังทำ: WP4-1, WP4-2 · ส่งจอครูทำตามแผนเดิมไปก่อน (ผู้ใช้มีจุดจะแก้ คุยทีหลัง) |
+| 5 | ออกแบบเสร็จ (wireframe) · ยังไม่เริ่ม |
 
 งานที่ผู้ใช้รับไปทำเองที่แล็บ: เปิด Wake-on-LAN ใน BIOS · เดินสาย LAN แทน WiFi · เลือกเครื่อง pilot · ตรวจว่ามี Google Workspace สำหรับหน้า Apps Script
 
@@ -317,6 +318,39 @@ orchestrator ส่ง WP0, WP5 และ WP6 ออกพร้อมกัน�
   - **หน้า Clients:** เพิ่มคอลัมน์นักเรียน + การ์ด "ล็อกอินแล้ว" + ปุ่ม "บังคับ logout" ใน inspector
   - **หน้าต่างล็อกจอ** พิมพ์ข้อความทับได้
   - **OnlineConsole:** คอลัมน์นักเรียน + หน้าประวัติการใช้เครื่องบนมือถือ
+
+---
+
+## ขั้น 4: เครื่องมือสอน · work packages
+อ้างอิง wireframe: `tc-openurl`, `tc-raisehand`, `tc-files`, `tc-broadcast`, `tc-broadcast-student`
+
+**ลำดับ:** รอบแรก WP4-1 + WP4-2 ทำขนานกัน · รอบสอง WP4-3 + WP4-4 · **ลำดับ migration:** WP4-1 → WP4-3 (ต่อจาก `AddEmergencyCode`)
+**ส่งคำสั่งไปเครื่องนักเรียน:** ใช้ช่องทางเดิม (Command queue → Agent `CommandProcessor` → pipe → AgentTray) เพิ่ม command type ใหม่ ห้ามสร้างช่องทางใหม่ ยกเว้น WP4-4 ที่ต้องส่งภาพต่อเนื่อง
+**จุดชนที่รู้ล่วงหน้า:** `Agent/Services/CommandProcessor.cs`, `AgentTray/App.xaml.cs`, `Console/DashboardWindow.xaml(.cs)` แก้ได้แบบเพิ่มเท่านั้น (case ใหม่, ปุ่มใหม่) ไม่จัดโครงเดิม
+
+### WP4-1: เปิด URL / โปรแกรมทั้งห้อง (migration)
+- **Server:** ตาราง `LaunchableProgram` (ชื่อ, path, arguments) Admin ตั้งได้ · endpoint สั่งเปิด URL หรือโปรแกรมกับทั้งห้องหรือเครื่องที่เลือก (Teacher ใช้ได้) · โปรแกรมต้องเลือกจากรายการเท่านั้น ห้ามรับ path อิสระจาก Teacher
+- **Agent:** command `OpenUrl` (เฉพาะ http/https) และ `LaunchProgram` (ตรวจซ้ำกับรายการจาก Server) เปิดใน session ของผู้ใช้ผ่าน `UserSessionLauncher`
+- **Console:** dialog ตาม `tc-openurl` เปิดจากแถบ Clients · หน้าตั้งค่ารายการโปรแกรม (Admin) · **OnlineConsole:** หน้าเปิด URL บนมือถือ
+- **เกณฑ์เสร็จ:** ทดสอบ API กับ Server ทดลอง · Agent ปฏิเสธ URL ที่ไม่ใช่ http/https และโปรแกรมนอกรายการ (unit test)
+
+### WP4-2: ยกมือ (ไม่มี migration)
+- **AgentTray:** ปุ่มยกมือ (ตามตำแหน่งใน `tc-raisehand`) กดซ้ำได้หลัง 1 นาที · ส่งผ่าน Agent loopback → Server
+- **Server:** คิวยกมือเก็บในหน่วยความจำ (หายเมื่อรีสตาร์ต Server ยอมรับได้) ผูกชื่อนักเรียนจาก session ปัจจุบัน · push ผ่าน SignalR ไป Console · ครูกดรับ/ล้างคิว
+- **Console:** แผงคิวยกมือ + toast เมื่อมีคนยกมือ + ไฮไลต์เครื่องใน grid · **OnlineConsole:** แสดงคิว
+- **เกณฑ์เสร็จ:** API + cooldown ทดสอบจริง · ภาพหน้าจอ Console (สว่าง/มืด) และปุ่มบน AgentTray
+
+### WP4-3: แจก / เก็บไฟล์ (migration)
+- **Server:** เก็บไฟล์ที่ครูแจกไว้ในโฟลเดอร์ข้อมูลของ Server (จำกัดขนาดต่อไฟล์ ตั้งค่าได้) · งานเก็บไฟล์ (ชื่องาน, เป้าหมาย, เวลาปิดรับ) · ไฟล์ที่เก็บได้แยกโฟลเดอร์ตามชื่อนักเรียนจากการล็อกอิน (ถ้าไม่ได้ล็อกอินใช้ชื่อเครื่อง)
+- **Agent:** command ดาวน์โหลดไฟล์ไปไว้ใน Desktop ของผู้ใช้ (โฟลเดอร์ "ไฟล์จากครู") · เก็บไฟล์: AgentTray ให้นักเรียนเลือกไฟล์ส่ง แล้วอัปโหลดผ่าน Agent
+- **Console:** หน้าตาม `tc-files` (แจก / เก็บ / ดูสถานะรายเครื่อง / เปิดโฟลเดอร์ที่เก็บได้)
+- **เกณฑ์เสร็จ:** อัปโหลด/ดาวน์โหลดผ่าน API จริงกับ Server ทดลอง (ตั้ง storage path ไป temp) · ตรวจชื่อไฟล์กัน path traversal
+
+### WP4-4: ส่งจอครู (ไม่มี migration)
+- **Console:** จับจอครู 5–10 fps เป็น JPEG ย่อขนาด ส่งขึ้น Server · แถบแดงเตือนบนจอครูตลอดที่ส่ง (`tc-broadcast`) · หยุดได้ทันที
+- **Server:** relay เฟรมล่าสุดผ่าน SignalR (ไม่เก็บลงดิสก์ ทิ้งเฟรมเก่าถ้าผู้รับช้า)
+- **Agent/AgentTray:** command เริ่ม/หยุด · AgentTray แสดงเต็มจอตาม `tc-broadcast-student` (ล็อกจอระหว่างดู หรือเป็นหน้าต่างก็ได้ตามที่ครูเลือก) · Agent ดึงเฟรมจาก Server ส่งต่อให้ tray
+- **เกณฑ์เสร็จ:** ส่งเฟรมจาก Console ทดลองผ่าน Server ทดลอง ไปถึงตัวรับทดลองได้ วัด fps และขนาดเฟรมจริง · ภาพหน้าจอแถบแดงและจอนักเรียน
 
 ---
 
