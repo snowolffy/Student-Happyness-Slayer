@@ -50,4 +50,61 @@
         <Setter Property="VerticalAlignment" Value="Center"/>
     </Style>
 
+    <!-- ====================================================================================
+         Implicit styles ที่หายไปตอนลบ Theme/AppTheme.xaml (พบจากภาพตรวจ before/after, 2026-11-03)
+
+         AppTheme.xaml เดิมมี implicit style (TargetType ล้วน ไม่มี x:Key) ของ TextBox/PasswordBox/
+         ListView/GridViewColumnHeader/ListViewItem ที่ "ทุก control ชนิดนั้นในแอปได้ใช้เองอัตโนมัติ
+         โดยไม่ต้องอ้าง Style=" - ตอน merge ไลบรารีเข้ามาแทน ไฟล์นี้มีแค่ LabelText/BrandHeaderBar ฯลฯ
+         ไม่มี implicit style พวกนี้เลย (ไลบรารีของ Console ก็ไม่มีเหมือนกัน เพราะ Console ใช้ RoundedTextBox/
+         RoundedPasswordBox แบบมี key เสมอ ไม่เคยพึ่ง implicit - และ Console ใช้ DataGrid ไม่ใช่
+         ListView/GridView เลย) ผลคือ TextBox/PasswordBox ทุกกล่องใน AgentTray (ที่ไม่ได้ตั้ง Style=
+         ไว้ตรงๆ) ตกไปใช้ template default ของ Fluent ตรงๆ (ขอบเหลี่ยม ไม่มี focus ring สีเน้น) และ
+         ListView/GridViewColumnHeader ของ StatusWindow/LogTerminalWindow ก็เหมือนกัน - ต้องประกาศ
+         implicit style ชุดนี้กลับคืนที่นี่ (ไม่แก้ไลบรารี เพราะ Console/RosterManager ไม่ต้องการ
+         implicit style พวกนี้)
+
+         TextBox/PasswordBox: BasedOn คีย์ RoundedTextBox/RoundedPasswordBox ของไลบรารีตรงๆ (ไม่ copy
+         template มาเอง) เพื่อให้ได้มุมโค้ง + focus ring สีเน้นเหมือน Console ตามที่ orchestrator ยืนยันว่า
+         "มุมโค้งแบบ Console โอเค" - แค่ทำให้เป็น implicit (ไม่มี x:Key) จะได้ไม่ต้องไล่เติม
+         Style="{StaticResource RoundedTextBox}" ทุกกล่องในทุกไฟล์ xaml
+
+         ListView/GridViewColumnHeader/ListViewItem: ไลบรารีไม่มี key ให้ BasedOn เลย (ไม่มีใครในไลบรารี
+         ใช้ ListView) จึงประกาศเองทั้งชุด หน้าตา/ค่าตัวเลขเหมือน AppTheme.xaml เดิมทุกจุด เปลี่ยนแค่
+         brush key ให้ชี้ไปที่ token ของไลบรารี (TableHeaderBgBrush -> Brush.Background.Sunken,
+         RowHoverBgBrush -> Brush.Row.Hover) -->
+
+    <Style TargetType="TextBox" BasedOn="{StaticResource RoundedTextBox}"/>
+    <Style TargetType="PasswordBox" BasedOn="{StaticResource RoundedPasswordBox}"/>
+
+    <Style TargetType="ListView">
+        <Setter Property="Background" Value="{DynamicResource Brush.Background.Card}"/>
+        <Setter Property="Foreground" Value="{DynamicResource Brush.Text.Primary}"/>
+        <Setter Property="BorderBrush" Value="{DynamicResource Brush.Border.Default}"/>
+        <Setter Property="BorderThickness" Value="1"/>
+    </Style>
+
+    <Style TargetType="GridViewColumnHeader">
+        <Setter Property="Background" Value="{DynamicResource Brush.Background.Sunken}"/>
+        <Setter Property="Foreground" Value="{DynamicResource Brush.Text.Primary}"/>
+        <Setter Property="Padding" Value="8,6"/>
+        <Setter Property="BorderBrush" Value="{DynamicResource Brush.Border.Default}"/>
+        <Setter Property="BorderThickness" Value="0,0,1,1"/>
+        <Setter Property="FontWeight" Value="Bold"/>
+        <Setter Property="FontSize" Value="11"/>
+        <Setter Property="HorizontalContentAlignment" Value="Left"/>
+    </Style>
+
+    <Style TargetType="ListViewItem">
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="Padding" Value="6,4"/>
+        <Setter Property="BorderBrush" Value="{DynamicResource Brush.Border.Default}"/>
+        <Setter Property="BorderThickness" Value="0,0,0,1"/>
+        <Style.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+                <Setter Property="Background" Value="{DynamicResource Brush.Row.Hover}"/>
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+
 </ResourceDictionary>
