@@ -404,6 +404,7 @@ orchestrator ส่ง WP0, WP5 และ WP6 ออกพร้อมกัน�
   - **dialog ลอยในหน้าต่างหลัก + พื้นมืดทับ:** ฟอร์มสั้น เช่น ยืนยัน, ส่งข้อความ, เปิด URL, โหมดสอบ, ข้อความล็อกจอ, เพิ่ม/แก้กฎ, รีเซ็ตรหัส
   - **คงหน้าต่างแยก:** Screen View/remote (ลากไปจออื่นได้) และไว้ใจใบรับรอง (ขึ้นก่อนล็อกอิน)
   - ทำต่อจาก UI-2
+  - **รวมงาน "เด้งกลับหน้าล็อกอินเองเมื่อ token หมดอายุ (401)" ไว้ใน UI-3 (ผู้ใช้สั่ง 3 พ.ย.)** ใช้ `ReturnToLoginAsync` ที่ UI-2 ทำไว้ และดักจุดเดียวที่ ApiClient ไม่ต้องแก้ทีละ method
 - **UI-4 หน้า Dashboard (หน้าแรกหลังล็อกอิน):** จำนวนเครื่องออนไลน์/ออฟไลน์ + นักเรียนที่ล็อกอิน · คิวยกมือ · โหมดสอบที่ทำงานอยู่ · เหตุการณ์ล่าสุด (ปิดโปรแกรม, บล็อกเว็บ, เครื่องหลุด) · ปุ่มลัด (ล็อกทั้งห้อง, ส่งข้อความ, โหมดสอบ) · ใช้ API ที่มีอยู่เป็นหลัก
 - **UI-5 Live View ใหม่:**
   - เลือกห้องแล้วเห็นทุกเครื่องทันที เรียงตามผังที่นั่งถ้ามี · ปรับขนาดภาพย่อได้
@@ -432,6 +433,12 @@ orchestrator ส่ง WP0, WP5 และ WP6 ออกพร้อมกัน�
     - แก้ csproj/XAML/razor ได้เฉพาะบรรทัดที่อ้างไฟล์เหล่านี้
     - ห้ามแตะ `src/OnionProcOparetor.AgentTray/**`, ภาพ `LoginHero.png` และภาพ banner/dialog ของ MSI (ถ้าคิดว่าควรเปลี่ยน ให้ระบุในรายงาน)
     - **แก้ตามคำสั่งผู้ใช้ 3 พ.ย.:** เอากล่องข้อความทับมุมภาพ LoginHero ของ RosterManager ออกแล้ว (`c1fbe22`) · **เอาพื้นสี่เหลี่ยมสีเน้นหลังโลโก้ออกทุกจุด** ทั้ง sidebar, การ์ดล็อกอิน และ About ของ Console กับการ์ดล็อกอินของ RosterManager (`6347d48`)
+  - **WP UI-7c โลโก้แบบเวกเตอร์ (ผู้ใช้สั่ง 3 พ.ย.)** (branch `feat/p1-ui7c`)
+    - โลโก้ในหน้าล็อกอิน, sidebar, About และแถบหัวของ AgentTray ตอนนี้เป็น PNG 256px ที่ WPF ย่อลงเหลือราว 30–36px จึงไม่คม
+    - ให้แปลง `assets/icons/export/app/app.svg` และ `roster-app/roster-app.svg` เป็น `DrawingImage` ของ WPF (path/circle/transform/stroke ตามต้นฉบับ) แล้วใช้แทน PNG ในทุกจุดที่แสดงโลโก้
+    - ใช้เวอร์ชัน `small` ของ SVG กับจุดที่แสดงขนาด ≤32px ตาม README ของชุดไอคอน
+    - ไฟล์ที่แตะได้: `src/OnionProcOparetor.UI/Theme/**` (ใส่โลโก้ส้ม) และ XAML/Theme ของ Console, RosterManager (ใส่โลโก้ฟ้าในแอปตัวเอง) และ AgentTray เฉพาะบรรทัดที่อ้างโลโก้
+    - ไอคอนบน title bar/exe/tray ยังใช้ `.ico` ตามเดิม
   - **WP UI-7b AgentTray** (ทำหลัง UI-1b merge แล้ว) · **✅ merge แล้ว 3 พ.ย. (`ab03aed`)**
     - tray: `Services/TrayConnectionMonitor.cs` poll `GET /status` ของ Agent ทุก 5 วิ แล้วตัดสินจาก `LastPollSucceeded` (Agent ไม่ต้องแก้) · tooltip ภาษาไทย
     - ทดสอบได้แค่ `--force-tray-state=` (Debug) **ต้อง field test กับ Agent จริง**
