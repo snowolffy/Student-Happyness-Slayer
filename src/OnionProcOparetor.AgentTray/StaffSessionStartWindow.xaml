@@ -16,7 +16,7 @@
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
-        <Border Grid.Row="0" Style="{StaticResource BrandHeaderBar}" Background="#B45309">
+        <Border Grid.Row="0" Style="{StaticResource BrandHeaderBar}">
             <StackPanel Orientation="Horizontal">
                 <Border Style="{StaticResource LogoPlaceholder}">
                     <Image Source="/Theme/logo.png" Stretch="Uniform"/>
