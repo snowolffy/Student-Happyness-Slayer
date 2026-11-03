@@ -5,7 +5,7 @@
         <TextBlock x:Name="CountdownLabel"
                    FontSize="13" FontWeight="SemiBold"
                    TextWrapping="Wrap"
-                   Foreground="{StaticResource TextPrimaryBrush}"
+                   Foreground="{DynamicResource Brush.Text.Primary}"
                    Margin="0,0,0,8"/>
 
         <!--
@@ -13,12 +13,12 @@
             บังคับเป็นสีเขียวตายตัว) วาดเองด้วย Border 2 ชั้นแทน คุมหน้าตาได้แน่นอนทุกเครื่อง
         -->
         <Border Height="8" CornerRadius="4"
-                Background="{StaticResource CardBorderBrush}"
+                Background="{DynamicResource Brush.Border.Default}"
                 SizeChanged="TrackBorder_SizeChanged"
                 x:Name="TrackBorder">
             <Border x:Name="FillBorder" Height="8" CornerRadius="4"
                     HorizontalAlignment="Left" Width="0"
-                    Background="{StaticResource AccentRedBrush}"/>
+                    Background="{DynamicResource Brush.Danger.Default}"/>
         </Border>
     </StackPanel>
 </UserControl>

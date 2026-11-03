@@ -103,6 +103,12 @@ public partial class App : System.Windows.Application
                 // แสดงตอน Agent จริงส่งเฟรมมาเท่านั้น ซึ่งรันบนเครื่อง dev นี้ไม่ได้)
                 "teacher-screen-view" => new TeacherScreenViewWindow(
                     e.Args.Contains("--windowed") ? "Windowed" : "FullscreenLocked", "สมชาย ใจดี"),
+                // WP UI-1b (2026-11-03) - เพิ่มเข้า preview harness เพื่อถ่ายภาพก่อน/หลังเปลี่ยนไป
+                // ใช้ไลบรารี OnionProcOparetor.UI ของหน้าต่างที่ harness เดิมยังไม่ครอบคลุม
+                "login" => new LoginWindow(previewApiClient),
+                "status" => new StatusWindow(previewApiClient),
+                "emergency" => new EmergencyWindow(previewApiClient),
+                "broadcast-popup" => new BroadcastPopupWindow("ข้อความจากครู", "กรุณาเก็บอุปกรณ์และฟังครูผู้สอน"),
                 _ => null
             };
 

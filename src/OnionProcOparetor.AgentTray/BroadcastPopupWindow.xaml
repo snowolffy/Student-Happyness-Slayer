@@ -35,7 +35,7 @@
                 <TextBlock Grid.Row="0" x:Name="MessageText" TextWrapping="Wrap" FontSize="14" MaxWidth="380"/>
 
                 <Button Grid.Row="2" x:Name="CloseButton" Content="ปิด" HorizontalAlignment="Right"
-                        Style="{StaticResource PrimaryButton}" Click="CloseButton_Click"/>
+                        Style="{StaticResource ButtonPrimary}" Click="CloseButton_Click"/>
             </Grid>
         </Border>
     </Grid>

@@ -87,7 +87,7 @@ public partial class CollectFileRequestWindow : Window
 
         if (!success)
         {
-            StatusText.SetResourceReference(System.Windows.Controls.TextBlock.ForegroundProperty, "AccentRedBrush");
+            StatusText.SetResourceReference(System.Windows.Controls.TextBlock.ForegroundProperty, "Brush.Danger.Default");
             StatusText.Text = error ?? "ส่งไฟล์ไม่สำเร็จ";
             SendButton.IsEnabled = true;
             ChooseFileButton.IsEnabled = true;

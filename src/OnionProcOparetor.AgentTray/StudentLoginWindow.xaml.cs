@@ -145,7 +145,7 @@ public partial class StudentLoginWindow : Window
         EmergencyCodeLinkText.Text = configured ? "   รหัสฉุกเฉิน" : "   รหัสฉุกเฉิน (ยังไม่พร้อมใช้งาน)";
         EmergencyCodeLinkText.Cursor = configured ? Cursors.Hand : Cursors.Arrow;
         EmergencyCodeLinkText.TextDecorations = configured ? TextDecorations.Underline : null;
-        EmergencyCodeLinkText.Foreground = (System.Windows.Media.Brush)FindResource(configured ? "BrandDarkBrush" : "TextSecondaryBrush");
+        EmergencyCodeLinkText.Foreground = (System.Windows.Media.Brush)FindResource(configured ? "Brush.Accent.Dark" : "Brush.Text.Secondary");
     }
 
     /// <summary>ก๊อปแนวทางเดียวกับ Console/MainWindow.xaml.cs LoadHeroImage - โหลดจากไฟล์ข้างแอปก่อน (ให้ครูเปลี่ยนภาพเองได้) fallback ไปภาพฝังในตัว exe ถ้าไม่มี/อ่านไม่ได้ ห้าม throw ขึ้นไปเด็ดขาด</summary>

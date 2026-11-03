@@ -21,11 +21,11 @@
             <TextBlock x:Name="AutoRefreshStatusText" Style="{StaticResource LabelText}"
                        Margin="12,0,0,0" VerticalAlignment="Center" Text="auto-refresh: on"/>
             <Button x:Name="PauseButton" Content="PAUSE" Margin="12,0,0,0"
-                    Style="{StaticResource SecondaryButton}" Click="PauseButton_Click"/>
+                    Style="{StaticResource ButtonSecondary}" Click="PauseButton_Click"/>
         </StackPanel>
 
         <!-- แผงเทอร์มินัลจงใจให้เป็นพื้นดำ/ตัวหนังสือเขียวเหมือนคอนโซลจริง ต่างจากธีมหลักของแอปโดยตั้งใจ -->
-        <Border Grid.Row="2" Background="#0A0A0A" BorderBrush="{StaticResource CardBorderBrush}" BorderThickness="1">
+        <Border Grid.Row="2" Background="#0A0A0A" BorderBrush="{DynamicResource Brush.Border.Default}" BorderThickness="1">
             <ScrollViewer x:Name="LogScrollViewer" Padding="10"
                           VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto">
                 <TextBlock x:Name="LogTerminalText"

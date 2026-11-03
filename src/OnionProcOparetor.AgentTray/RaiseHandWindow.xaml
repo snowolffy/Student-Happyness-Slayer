@@ -41,7 +41,7 @@
             <TextBox x:Name="NoteBox" Margin="0,0,0,14" MaxLength="200"/>
 
             <TextBlock x:Name="StatusText" TextWrapping="Wrap" FontSize="12" Margin="0,0,0,12"
-                       Foreground="{StaticResource AccentRedBrush}"/>
+                       Foreground="{DynamicResource Brush.Danger.Default}"/>
 
             <Grid>
                 <Grid.ColumnDefinitions>
@@ -49,9 +49,9 @@
                     <ColumnDefinition Width="10"/>
                     <ColumnDefinition Width="2*"/>
                 </Grid.ColumnDefinitions>
-                <Button Grid.Column="0" Content="ปิด" Height="38" Style="{StaticResource SecondaryButton}" Click="CancelButton_Click"/>
+                <Button Grid.Column="0" Content="ปิด" Height="38" Style="{StaticResource ButtonSecondary}" Click="CancelButton_Click"/>
                 <Button Grid.Column="2" x:Name="RaiseButton" Content="ยกมือ" Height="38"
-                        Style="{StaticResource PrimaryButton}" Click="RaiseButton_Click"/>
+                        Style="{StaticResource ButtonPrimary}" Click="RaiseButton_Click"/>
             </Grid>
         </StackPanel>
     </Grid>

@@ -48,11 +48,11 @@
                          TextAlignment="Center" Height="52" Margin="0,0,0,14"/>
 
                 <Button x:Name="UnlockButton" Content="ปลดล็อกชั่วคราว" Height="36"
-                        Style="{StaticResource PrimaryButton}" Click="UnlockButton_Click"/>
+                        Style="{StaticResource ButtonPrimary}" Click="UnlockButton_Click"/>
 
                 <TextBlock x:Name="StatusText" Margin="0,12,0,0" TextWrapping="Wrap"
                            HorizontalAlignment="Center" TextAlignment="Center"
-                           FontSize="11" Foreground="{StaticResource AccentRedBrush}"/>
+                           FontSize="11" Foreground="{DynamicResource Brush.Danger.Default}"/>
 
                 <TextBlock Text="ปลดแล้วเครื่องใช้งานแบบไม่ระบุชื่อ พอ Server กลับมาระบบจะบันทึกย้อนหลังว่าเครื่องนี้ถูกปลดเมื่อไร"
                            Style="{StaticResource LabelText}" FontSize="10" TextWrapping="Wrap"
