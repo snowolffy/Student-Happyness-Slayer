@@ -363,6 +363,31 @@ public static class FileTransferEndpoints
             var existing = await db.CollectedFiles.FirstOrDefaultAsync(f => f.JobId == job.Id && f.ClientGuid == client.ClientGuid);
             if (existing is not null)
             {
+                // บั๊กที่พบจากการทดสอบจริง (WP4-3 fix, 2026-11-03): ถ้านักเรียนส่งไฟล์ใหม่มาด้วยชื่อไฟล์
+                // คนละชื่อ (เช่น เลือกไฟล์ผิดตอนแรกแล้วเลือกใหม่) โค้ดเดิมจะ "เขียนทับแถว DB" ด้วยชื่อใหม่
+                // แต่ "ไม่ลบไฟล์เก่า" ออกจากดิสก์เลย - ครูเปิดโฟลเดอร์ไปเจอทั้งไฟล์เก่าและไฟล์ใหม่ค้างอยู่
+                // คู่กัน ทั้งที่ DB บอกว่ามีไฟล์เดียว (ดู CollectedFile doc comment: "มีได้แค่ 1 แถวต่อ
+                // (JobId, ClientGuid)" - ตั้งใจให้สื่อว่ามีไฟล์ล่าสุดแค่ไฟล์เดียวบนดิสก์ด้วย) ลบไฟล์เก่าก่อน
+                // เขียนทับแถว DB เสมอถ้า path เปลี่ยน (ชื่อไฟล์เดิมเขียนทับตัวเองอยู่แล้วที่ File.Create
+                // ด้านบน ไม่ต้องลบ) ไม่ throw ถ้าลบไม่สำเร็จ (เช่นไฟล์ถูกลบมือไปแล้ว) เพราะไม่ใช่ความ
+                // ล้มเหลวของการอัปโหลดครั้งนี้
+                if (!string.Equals(existing.StoredRelativePath, relativePath, StringComparison.OrdinalIgnoreCase))
+                {
+                    var oldFullPath = System.IO.Path.Combine(FileTransferPaths.ResolveStorageRoot(options.Value), "collected", existing.StoredRelativePath);
+                    try
+                    {
+                        if (System.IO.File.Exists(oldFullPath))
+                        {
+                            System.IO.File.Delete(oldFullPath);
+                        }
+                    }
+                    catch
+                    {
+                        // ลบไฟล์เก่าไม่สำเร็จ (เช่นถูกลบมือไปแล้ว/ครูเปิดไฟล์ค้างอยู่) - ไม่ถือเป็นความ
+                        // ล้มเหลวของการอัปโหลดครั้งนี้ (ไฟล์ใหม่เขียนสำเร็จแล้ว ครูแค่ต้องลบไฟล์เก่าเองทีหลัง)
+                    }
+                }
+
                 existing.StudentName = studentName;
                 existing.MachineName = client.MachineName;
                 existing.OriginalFileName = sanitizedFileName;

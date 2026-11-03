@@ -133,6 +133,8 @@
                         </Grid.ColumnDefinitions>
                         <TextBlock x:Name="CollectSummaryText" Grid.Column="0" VerticalAlignment="Center" TextWrapping="Wrap"/>
                         <StackPanel Grid.Column="1" Orientation="Horizontal">
+                            <Button x:Name="CloseJobButton" Content="ปิดงาน" Style="{StaticResource ButtonSecondary}"
+                                    Padding="10,5" FontSize="11" Margin="0,0,8,0" Click="CloseJobButton_Click" IsEnabled="False"/>
                             <Button x:Name="OpenFolderButton" Content="เปิดโฟลเดอร์ที่เก็บ" Style="{StaticResource ButtonSecondary}"
                                     Padding="10,5" FontSize="11" Margin="0,0,8,0" Click="OpenFolderButton_Click" IsEnabled="False"/>
                             <Button x:Name="RefreshStatusButton" Content="รีเฟรช" Style="{StaticResource ButtonSecondary}"

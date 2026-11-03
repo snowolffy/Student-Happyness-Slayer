@@ -228,6 +228,7 @@ public partial class FilesWindow : Window
         _currentJobId = job.Id;
         RefreshStatusButton.IsEnabled = true;
         OpenFolderButton.IsEnabled = true;
+        CloseJobButton.IsEnabled = true;
         SetCollectSummary($"สร้างงาน '{job.Name}' แล้ว - กำลังส่งคำขอให้ {targets.Count} เครื่อง", isError: false);
 
         var batchId = Guid.NewGuid().ToString("N");
@@ -258,6 +259,31 @@ public partial class FilesWindow : Window
     }
 
     private async void RefreshStatusButton_Click(object sender, RoutedEventArgs e) => await RefreshCollectionStatusAsync();
+
+    /// <summary>
+    /// ครูกด "ปิดงาน" เอง (WP4-3 fix, 2026-11-03 - บั๊กที่พบจากการทดสอบจริง: endpoint
+    /// POST /api/files/collection-jobs/{id}/close และ ApiClient.CloseCollectionJobAsync มีอยู่แล้วตั้งแต่
+    /// ตอนสร้าง WP4-3 แต่ไม่มีปุ่มไหนในหน้านี้เรียกมันเลย - ครูเลยปิดรับไฟล์ก่อนเวลาไม่ได้จริงถ้าไม่ได้
+    /// ตั้ง "ปิดรับใน (นาที)" ไว้ล่วงหน้าตอนสร้างงาน) ปิดแล้วรีเฟรชสถานะทันทีให้เห็น "ปิดงานแล้ว"
+    /// </summary>
+    private async void CloseJobButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_currentJobId is not { } jobId)
+        {
+            return;
+        }
+
+        CloseJobButton.IsEnabled = false;
+        var success = await _apiClient.CloseCollectionJobAsync(jobId);
+        if (!success)
+        {
+            SetCollectSummary("ปิดงานไม่สำเร็จ", isError: true);
+            CloseJobButton.IsEnabled = true;
+            return;
+        }
+
+        await RefreshCollectionStatusAsync();
+    }
 
     private async Task RefreshCollectionStatusAsync()
     {
