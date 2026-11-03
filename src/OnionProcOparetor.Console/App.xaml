@@ -35,6 +35,9 @@
                      Application เพราะ IconPresenter หา geometry ด้วย key จาก Application.Resources
                      (ถ้าลืม merge ไอคอนจะหายเงียบ ๆ ทั้งแอป ไม่ throw) geometry ไม่มีสี จึงไม่ผูกกับธีม -->
                 <ResourceDictionary Source="pack://application:,,,/OnionProcOparetor.UI;component/Theme/Icons.xaml"/>
+                <!-- โลโก้หัวหอมส้มแบบเวกเตอร์ (WP UI-7c, 2026-11-03) แทน logo.png/logo-source.png
+                     ที่ MainWindow/DashboardWindow/AboutWindow ใช้เดิม - ดูคอมเมนต์เต็มในไฟล์นั้น -->
+                <ResourceDictionary Source="pack://application:,,,/OnionProcOparetor.UI;component/Theme/Logos.xaml"/>
                 <ResourceDictionary Source="pack://application:,,,/OnionProcOparetor.UI;component/Theme/Typography.xaml"/>
                 <ResourceDictionary Source="pack://application:,,,/OnionProcOparetor.UI;component/Theme/Controls.xaml"/>
             </ResourceDictionary.MergedDictionaries>

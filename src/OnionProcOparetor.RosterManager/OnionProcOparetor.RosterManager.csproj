@@ -16,8 +16,8 @@
          Accent.Light.xaml/Accent.Dark.xaml (สีเน้นฟ้า override) และภาพแบรนด์ของตัวเอง -->
     <ProjectReference Include="..\OnionProcOparetor.UI\OnionProcOparetor.UI.csproj" />
 
-    <Resource Include="Theme\logo.png" />
-    <Resource Include="Theme\logo-source.png" />
+    <!-- Theme\logo.png / logo-source.png เลิกใช้แล้ว (WP UI-7c, 2026-11-03) - การ์ดล็อกอินเปลี่ยนไปใช้
+         DrawingImage เวกเตอร์ (Logo.RosterApp) ใน Theme/Logos.xaml ของแอสเซมบลีนี้เองแทน -->
     <Resource Include="Theme\icon.ico" />
 
     <!-- หน้าล็อกอิน (WP3-2) - ภาพฝั่งซ้ายของการ์ดล็อกอิน (placeholder ตอนนี้ เหมือน Console's WP7) -

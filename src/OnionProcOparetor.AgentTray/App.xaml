@@ -20,6 +20,8 @@
                 <ResourceDictionary Source="pack://application:,,,/OnionProcOparetor.UI;component/Theme/Colors.Light.xaml"/>
                 <ResourceDictionary Source="pack://application:,,,/OnionProcOparetor.UI;component/Theme/Accent.Light.xaml"/>
                 <ResourceDictionary Source="pack://application:,,,/OnionProcOparetor.UI;component/Theme/Icons.xaml"/>
+                <!-- โลโก้หัวหอมส้มแบบเวกเตอร์ (WP UI-7c, 2026-11-03) แทน logo.png ที่แถบหัวทุกหน้าต่างใช้เดิม -->
+                <ResourceDictionary Source="pack://application:,,,/OnionProcOparetor.UI;component/Theme/Logos.xaml"/>
                 <ResourceDictionary Source="pack://application:,,,/OnionProcOparetor.UI;component/Theme/Typography.xaml"/>
                 <ResourceDictionary Source="pack://application:,,,/OnionProcOparetor.UI;component/Theme/Controls.xaml"/>
                 <!-- สไตล์เฉพาะของ AgentTray ที่ไม่มีในไลบรารี (แถบหัวแบรนด์, LabelText ฯลฯ) - merge
