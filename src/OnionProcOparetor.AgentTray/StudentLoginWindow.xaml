@@ -60,7 +60,7 @@
              สั่ง (ด้วยกฎเดียวกับ Console/MainWindow.xaml) - ลดคอลัมน์ภาพ ระยะขอบ ช่องว่าง และ chrome ของ
              ตัวควบคุม (ความสูงปุ่ม/padding กล่องข้อความ) แต่ไม่แตะขนาดตัวอักษร (FontSize ทุกจุดเท่าเดิม) และ
              ห้ามแก้ดีไซน์ของจอนักเรียน/ภาพ LoginHero -->
-        <Border Grid.Row="1" Width="645" Height="360" CornerRadius="14"
+        <Border x:Name="LoginCard" Grid.Row="1" Width="645" Height="360" CornerRadius="14"
                 HorizontalAlignment="Center" VerticalAlignment="Center"
                 Background="{DynamicResource Brush.Background.Card}"
                 BorderBrush="{DynamicResource Brush.Border.Default}" BorderThickness="1">

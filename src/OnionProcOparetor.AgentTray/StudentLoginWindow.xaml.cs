@@ -104,14 +104,52 @@ public partial class StudentLoginWindow : Window
         _ = RefreshEmergencyAndConnectivityStateAsync();
 
 #if DEBUG
-        // --ui-preview=student-login --login-error (UI-6, 2026-11-03) - จำลองข้อความ error ของ login
-        // ผิดรหัส/ผิดชื่อผู้ใช้ เพื่อถ่ายภาพตรวจว่าการ์ดที่ย่อลง 75% แล้วไม่มีอะไรล้น/ถูกตัดตอนมีแบนเนอร์
-        // error แสดงอยู่ (roadmap WP UI-6 สั่งให้ตรวจสถานะนี้ด้วย) อ่าน args เองตรงนี้แทนการแก้
-        // App.xaml.cs เพราะไฟล์นี้อยู่นอกขอบเขตไฟล์ที่ WP UI-6 แตะได้
-        if (Environment.GetCommandLineArgs().Contains("--login-error"))
+        // --ui-preview=student-login --login-error|--logged-in-elsewhere|--must-change-password (UI-6,
+        // 2026-11-03) - จำลองอีก 3 สถานะของฟอร์มเพื่อถ่ายภาพตรวจว่าการ์ดที่ย่อลง 75% แล้วไม่มีอะไรล้น/
+        // ถูกตัดในทุกสถานะ (roadmap WP UI-6 + orchestrator ขอให้ตรวจ LoggedInElsewherePanel/
+        // MustChangePasswordPanel เพิ่มด้วย เพราะเป็นสถานะที่มีช่องกรอกเยอะสุด เสี่ยงล้นสุด) อ่าน args
+        // เองตรงนี้แทนการแก้ App.xaml.cs เพราะไฟล์นี้อยู่นอกขอบเขตไฟล์ที่ WP UI-6 แตะได้
+        var cmdArgs = Environment.GetCommandLineArgs();
+        if (cmdArgs.Contains("--login-error"))
         {
             ShowLoginError("ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง กรุณาลองใหม่อีกครั้ง");
         }
+        else if (cmdArgs.Contains("--logged-in-elsewhere"))
+        {
+            LoggedInElsewhereText.Text = "บัญชีนี้กำลังใช้อยู่ที่ LAB-PC-23\nถ้าดำเนินการต่อ เครื่องนั้นจะถูกออกจากระบบทันที";
+            ShowPanel(LoggedInElsewherePanel);
+        }
+        else if (cmdArgs.Contains("--must-change-password"))
+        {
+            MustChangePasswordGreeting.Text = "ยินดีต้อนรับ สมชาย ใจดี - กรุณาตั้งรหัสผ่านใหม่ก่อนใช้งาน";
+            ShowPanel(MustChangePasswordPanel);
+        }
+
+        // วัด overflow จริงด้วย TransformToAncestor แทนการเพ่งภาพ (ตามที่ orchestrator ขอ 2026-11-03) -
+        // วัดเฉพาะ panel ที่กำลัง Visible อยู่จริง (panel ที่ Collapsed มี ActualHeight=0/ไม่ได้ arrange
+        // เต็มที่ วัดแล้วไม่มีความหมาย) เทียบกับความสูงจริงของ LoginCard แล้ว log ผลลง TrayDiagnostics
+        // เพื่อตรวจสอบได้โดยไม่ต้องเพ่งภาพ
+        Dispatcher.BeginInvoke(DispatcherPriority.ApplicationIdle, () =>
+        {
+            try
+            {
+                var (name, panel) = LoggedInElsewherePanel.Visibility == Visibility.Visible
+                    ? ("LoggedInElsewherePanel", (FrameworkElement)LoggedInElsewherePanel)
+                    : MustChangePasswordPanel.Visibility == Visibility.Visible
+                        ? ("MustChangePasswordPanel", MustChangePasswordPanel)
+                        : ("LoginPanel", LoginPanel);
+
+                var bottom = panel.TransformToAncestor(LoginCard).Transform(new Point(0, panel.ActualHeight)).Y;
+                var overflow = bottom - LoginCard.ActualHeight;
+                TrayDiagnostics.Log(
+                    $"UI6-OVERFLOW-CHECK panel={name} LoginCard.ActualHeight={LoginCard.ActualHeight:F1} "
+                    + $"panel.bottom={bottom:F1} overflow={overflow:F1} " + (overflow > 0 ? "CLIPPED" : "OK"));
+            }
+            catch (Exception ex)
+            {
+                TrayDiagnostics.Log($"UI6-OVERFLOW-CHECK measurement failed: {ex.Message}");
+            }
+        });
 #endif
     }
 
