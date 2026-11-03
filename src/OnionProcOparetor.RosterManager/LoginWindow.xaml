@@ -64,11 +64,9 @@
                 <Grid Grid.Column="1" Margin="48,0,48,0">
                     <StackPanel VerticalAlignment="Center">
                         <StackPanel Orientation="Horizontal" Margin="0,0,0,18">
-                            <Border Width="40" Height="40" CornerRadius="10" Background="{DynamicResource Brush.Accent.Dark}">
-                                <Border.Clip>
-                                    <RectangleGeometry RadiusX="10" RadiusY="10" Rect="0,0,40,40"/>
-                                </Border.Clip>
-                                <Image Source="/Theme/logo-source.png" Stretch="UniformToFill"/>
+                            <Border Width="40" Height="40" CornerRadius="10">
+                                <!-- ไม่มีพื้นสี่เหลี่ยมหลังโลโก้ (ผู้ใช้สั่ง 3 พ.ย. 2569) -->
+                                <Image Source="/Theme/logo-source.png" Stretch="Uniform"/>
                             </Border>
                             <StackPanel Margin="14,0,0,0" VerticalAlignment="Center">
                                 <TextBlock Text="Onion ProcOparetor" Style="{StaticResource Heading1}"/>

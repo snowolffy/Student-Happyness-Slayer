@@ -28,12 +28,9 @@
         <!-- ==================== Logo mark (uses logo-source.png - same 4000x4000 master the installer
              banner is generated from - instead of the pre-downscaled logo.png MainWindow/Dashboard use,
              since this is the one place the mark gets shown at meaningfully larger badge sizes) ==================== -->
-        <Border Grid.Row="0" Width="48" Height="48" CornerRadius="12" HorizontalAlignment="Center" VerticalAlignment="Top"
-                Background="{DynamicResource Brush.Accent.Default}">
-            <Border.Clip>
-                <RectangleGeometry RadiusX="12" RadiusY="12" Rect="0,0,48,48"/>
-            </Border.Clip>
-            <Image Source="/Theme/logo-source.png" Stretch="UniformToFill"/>
+        <Border Grid.Row="0" Width="48" Height="48" CornerRadius="12" HorizontalAlignment="Center" VerticalAlignment="Top">
+            <!-- ไม่มีพื้นสี่เหลี่ยมหลังโลโก้ (ผู้ใช้สั่ง 3 พ.ย. 2569) -->
+            <Image Source="/Theme/logo-source.png" Stretch="Uniform"/>
         </Border>
 
         <!-- ==================== Name / tagline ==================== -->
