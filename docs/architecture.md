@@ -551,6 +551,60 @@ thaw → สร้าง user → **login เป็น user นั้น** → *
 **เครื่องแล็บทั้ง 40 เครื่องใช้ Reboot Restore Rx — `tray.log` หายทุก reboot ต้องเก็บ log ตอนอาการ
 ยังค้างอยู่ก่อนรีสตาร์ทเสมอ** และการแก้นี้ไม่มีผลจนกว่าจะ rollout MSI ตัวใหม่ลงเครื่องจริง
 
+## UI-3a: DialogHost / SidePanelHost (2026-11-03)
+
+WP UI-3a สร้างโครง 2 ตัวใน `src/OnionProcOparetor.UI/Controls/` สำหรับย้ายหน้าต่างย่อยของ Console
+30 บานเข้ามาอยู่ในหน้าต่างหลัก (MainWindow) เดียวตามที่ roadmap UI-3 สั่ง — UI-3b/3c ทำต่อจากนี้ ควร
+อ่านหัวข้อนี้ก่อนย้ายหน้าต่างไหนก็ตาม
+
+### `DialogHost` (dialog ลอย + พื้นมืดทับ)
+
+- โหนดเดียวใน `MainWindow.xaml` (`AppDialogHost`) ประกาศเป็นลูกตัวสุดท้ายของ root `Grid` เสมอ (z-order
+  สูงสุด = ทับทุกอย่าง, ดักคลิกทุกอันที่ตกบนพื้นมืดเอง เพราะเป็น `Border` ที่มี `Background`)
+- **เนื้อหา (dialog content) ไม่รู้จัก `DialogHost` เลย** — เป็น `UserControl` ธรรมดาที่ raise event
+  ผลลัพธ์ของตัวเอง (เช่น `event Action<bool>? ResultChosen`) แล้วให้ **ผู้เปิด** เป็นคนเรียก
+  `DialogHost.Push(content, onClosed)` หรือ `await DialogHost.ShowAsync<TResult>(content)` และเป็นคน
+  subscribe `ResultChosen` เพื่อเรียก `DialogHost.CloseTop(result)` เอง — ดูตัวอย่างจริงสองแบบ:
+  - **Async ตรงๆ** (ง่ายที่สุด ใช้เมื่อจุดเรียกเป็น `async` method อยู่แล้ว): `ForceChangePasswordWindow`
+    ใน `MainWindow.ConnectButton_Click`
+  - **Bridge แบบ "ดูเหมือน synchronous"** (ใช้เมื่อ call site เดิมเรียกแบบ
+    `if (ConfirmWindow.Show(...)) { ... }` ไม่ await และมี caller เดิมหลายสิบจุดที่แก้ทุกจุดไม่คุ้ม):
+    `ConfirmWindow.ShowViaHost` ใช้ `DispatcherFrame` แบบเดียวกับที่ `Window.ShowDialog()` ใช้ภายใน —
+    สูบ message loop ต่อจนกว่า dialog จะถูกปิด แล้ว `return` ค่าจริง ไม่ใช่การ block thread เฉยๆ
+- Esc = ปิดแบบยกเลิก (ส่งผล `null`/`default(TResult)` กลับ — สำหรับ `bool` คือ `false` พอดีอยู่แล้ว)
+- Enter = กดปุ่มที่ติด `controls:DialogHost.IsDefaultButton="True"` (attached property เขียนเอง ไม่ใช้
+  `Button.IsDefault`/`IsCancel` ของ WPF ตรงๆ เพราะตัวนั้นผูกกับกลไกภายในของ `Window` ซึ่งอาจมีผลข้างเคียง
+  ไม่คาดคิดถ้า content ไม่ได้เป็น `Window` เอง)
+- โฟกัสไม่หลุดออกนอก dialog ผ่าน `KeyboardNavigation.TabNavigation="Cycle"` บน slot เนื้อหา (มาตรฐานของ
+  WPF สำหรับ trap focus ใน subtree เดียว ไม่ต้องเขียน handler ดัก Tab เอง)
+- Stack ได้ถ้า dialog หนึ่งเปิด dialog อีกใบซ้อน (ใบเดิมไม่หายไป แค่ไม่โชว์จนกว่าใบบนจะปิด)
+- **Owner ที่ยังไม่มี `DialogHost` ของตัวเอง** (ตอนนี้คือหน้าต่างแยกทั้งหมดที่ UI-3c จะย้าย:
+  `ActionPanelWindow`, `LaunchableProgramsWindow`, `RunningProcessesWindow`,
+  `WebsiteCatalogSourcesWindow`) **ยัง fallback ไปเปิดเป็น `Window` ลอยแบบเดิม** — `ConfirmWindow.Show`/
+  `ShowWithTypeToConfirm` เช็คแค่ `owner is MainWindow` แล้วเลือกเส้นทาง ไม่ต้องแก้ 18 call site เดิมเลย
+  แม้แต่จุดเดียว เมื่อ UI-3c ย้ายหน้าต่างพวกนี้เป็น `UserControl` ที่มี `DialogHost` ของตัวเอง (หรือยืมของ
+  `MainWindow` ผ่าน property เดียวกัน) ต้องแก้แค่เงื่อนไขนี้ให้ครอบคลุม owner type ใหม่ด้วย
+
+### `SidePanelHost` (แผงสไลด์ขวา)
+
+- โหนดเดียวใน `MainWindow.xaml` (`AppSidePanel`) ต่อยอดจากลาย `ClientInspector`/`InspectorSlide` เดิมใน
+  `DashboardWindow.xaml` (Border + `TranslateTransform` + ปุ่มกาง/ย่อ/ปิด) — ยกลอจิก slide-in/out ออกมา
+  เป็น control แยกให้ใช้ซ้ำได้ **ยังไม่ได้ย้าย `ClientInspector` เดิมมาใช้ control นี้จริง** (นอกขอบเขต
+  ไฟล์ของ UI-3a — `ClientInspector` อยู่ใน `DashboardWindow.xaml` ซึ่งจะถูกแก้โดย UI-3c ตอนย้ายแผงอื่นๆ
+  เข้ามา เพื่อลดความเสี่ยงชนไฟล์กับ UI-3b ที่ทำงานขนานกันอยู่)
+- `Show(content)` / `Close()` + event `Closed` — ไม่มีพื้นมืดทับ (ต่างจาก `DialogHost` — ครูยังเห็น/คลิก
+  รายการเครื่องข้างหลังได้ระหว่างแผงเปิดอยู่ เหมือน inspector เดิม) Esc ปิดแผงให้เองเสมอ
+
+### 401 → เด้งกลับหน้าล็อกอิน
+
+- `ApiClient` (Console) ครอบ `HttpClientHandler` เดิม (cert pinning) ด้วย `SessionAwareHandler`
+  (`DelegatingHandler`) อีกชั้น — ดัก `401` ของทุก request ที่จุดเดียวใน `SendAsync` ไม่ต้องแก้ 60+
+  method ของ `ApiClient.cs` ทีละตัว ยกเว้น `/api/auth/login` เอง (endpoint นั้นตอบ 401 ปกติเวลา
+  username/password ผิด — ดู `AuthEndpoints.cs`) และยกเว้นตอนที่ยังไม่ login (`IsLoggedIn==false`)
+- ยิง `event Action? SessionExpired` ครั้งเดียวต่อตอนที่หลุด (กันหลาย request พร้อมกันยิงซ้ำ) —
+  `MainWindow.ShowDashboardAsync` subscribe แล้วเรียก `ReturnToLoginAsync("เซสชันหมดอายุ กรุณาเข้าสู่
+  ระบบใหม่")` เส้นทางเดียวกับ logout ปกติ ต่างกันแค่ข้อความสีแดงที่ StatusText ของหน้าล็อกอิน
+
 ## Known limitations / ยังไม่ได้ทำ
 
 - `AgentTrayRecoveryService` กู้ได้เฉพาะ tray ที่ **ตาย** ไม่ใช่ tray ที่ **ค้าง** — `SingleInstanceGuard`

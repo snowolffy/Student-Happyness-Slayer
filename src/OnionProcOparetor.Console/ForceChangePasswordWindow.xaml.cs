@@ -1,24 +1,29 @@
 ﻿using System.Windows;
+using System.Windows.Controls;
 using OnionProcOparetor.Console.Services;
 
 namespace OnionProcOparetor.Console;
 
-public partial class ForceChangePasswordWindow : Window
+public partial class ForceChangePasswordWindow : UserControl
 {
     private readonly ApiClient _apiClient;
 
     /// <summary>
-    /// UI-2 (2026-11-03): เดิมหน้านี้เปิด DashboardWindow เอง (ตอน DashboardWindow ยังเป็น Window แยก)
-    /// ตอนนี้ DashboardWindow เป็น UserControl ที่ฝังอยู่ใน MainWindow (host window เดียวตลอด process)
-    /// แล้ว เลยย้ายหน้าที่ "เปิด Dashboard" ไปให้ MainWindow ทำต่อเอง - หน้าต่างนี้แค่รายงานผลผ่าน
-    /// DialogResult (true = เปลี่ยนรหัสสำเร็จ) ให้ MainWindow.ConnectButton_Click ที่เรียก ShowDialog()
-    /// อ่านต่อ (ดูที่นั่น)
+    /// UI-3a (2026-11-03): เดิม (ก่อน UI-2) เปิด DashboardWindow เอง ตอนเป็น Window แยก - ตอน UI-2
+    /// เปลี่ยนให้แค่รายงานผลผ่าน Window.DialogResult กลับไปให้ MainWindow.ConnectButton_Click (เรียก
+    /// ShowDialog()) อ่านต่อ ตอนนี้ (UI-3a) ย้ายมาฝังใน DialogHost แทน Window ของตัวเองไปเลย - รายงานผล
+    /// ผ่าน <see cref="ResultChosen"/> (true = เปลี่ยนรหัสสำเร็จ, false = ผู้ใช้กด Esc/ยกเลิก) แทน
+    /// DialogResult ให้ผู้เปิด (DialogHost.ShowAsync หรือ caller อื่นในอนาคต) เป็นคนปิด dialog เอง
     /// </summary>
     public ForceChangePasswordWindow(ApiClient apiClient)
     {
         InitializeComponent();
         _apiClient = apiClient;
     }
+
+    /// <summary>true = เปลี่ยนรหัสสำเร็จแล้ว - ไม่ raise เลยถ้าผู้ใช้กด Esc (DialogHost ปิดเองด้วยผล
+    /// null/default ซึ่งตรงกับ false พอดีอยู่แล้ว ไม่ต้อง raise ซ้ำ)</summary>
+    public event System.Action<bool>? ResultChosen;
 
     private async void ChangePasswordButton_Click(object sender, RoutedEventArgs e)
     {
@@ -51,10 +56,10 @@ public partial class ForceChangePasswordWindow : Window
             StatusText.SetResourceReference(System.Windows.Controls.TextBlock.ForegroundProperty, "Brush.Status.Online");
             StatusText.Text = "เปลี่ยน password สำเร็จ กำลังเปิด Dashboard...";
 
-            // UI-2 (2026-11-03): ไม่เปิด DashboardWindow เองแล้ว (ดู comment บน constructor) - แค่ปิดตัวเอง
-            // แบบสำเร็จ ให้ MainWindow (ผู้เปิดหน้าต่างนี้ด้วย ShowDialog) เป็นคนเปิด Dashboard ต่อ
-            DialogResult = true;
-            Close();
+            // UI-3a (2026-11-03): ไม่เปิด DashboardWindow เอง และไม่ปิด Window ของตัวเองแล้ว (ดู
+            // comment บน constructor) - แค่ raise ResultChosen(true) ให้ MainWindow (ผู้เปิดผ่าน
+            // DialogHost.ShowAsync) เป็นคนปิด dialog แล้วเปิด Dashboard ต่อ
+            ResultChosen?.Invoke(true);
         }
         else
         {

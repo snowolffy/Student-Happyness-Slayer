@@ -1,0 +1,49 @@
+<UserControl x:Class="OnionProcOparetor.Console.ConfirmDialogContent"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:controls="clr-namespace:OnionProcOparetor.UI.Controls;assembly=OnionProcOparetor.UI">
+    <!-- UI-3a (2026-11-03): เนื้อหาของกล่องยืนยัน (ย้ายมาจาก ConfirmWindow.xaml เดิมที่เป็น Window ของ
+         ตัวเอง) ใช้ทั้งในเส้นทาง DialogHost ใหม่ (ดู ConfirmWindow.ShowViaHost) และเส้นทาง legacy Window
+         เดิม (ดู ConfirmWindow.xaml.cs - โฮสต์ instance นี้เป็น Content ของ Window แทนการเขียน XAML
+         ซ้ำสองที่) - ต่าง จาก ConfirmWindow เดิมตรงที่มี Title ในตัวการ์ดเองด้วย (Heading2 ด้านบน) เพราะ
+         ตอนอยู่ใน DialogHost ไม่มี Window chrome/title bar ให้โชว์ Title อีกต่อไป -->
+    <Border Style="{StaticResource Card}" Width="420">
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="20"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+
+            <TextBlock x:Name="TitleText" Grid.Row="0" Style="{StaticResource Heading2}" Margin="0,0,0,10"/>
+
+            <StackPanel Grid.Row="1">
+                <TextBlock x:Name="MessageText" Style="{StaticResource Caption}" FontSize="13" TextWrapping="Wrap" HorizontalAlignment="Left"/>
+
+                <!-- ยืนยันด้วยการพิมพ์ชื่อ - ซ่อนไว้เสมอ นอกจากจะเรียกผ่าน ShowWithTypeToConfirm
+                     ใช้เฉพาะปุ่มลบ ซึ่งเป็นอย่างเดียวในแอปนี้ที่กดแล้วเอาคืนไม่ได้ -->
+                <StackPanel x:Name="TypeToConfirmPanel" Visibility="Collapsed" Margin="0,14,0,0">
+                    <TextBlock x:Name="TypeToConfirmPrompt" Style="{StaticResource Label}" Margin="0,0,0,6"/>
+                    <TextBox x:Name="TypeToConfirmBox" HorizontalAlignment="Left"
+                             Style="{StaticResource RoundedTextBox}"
+                             TextChanged="TypeToConfirmBox_TextChanged"/>
+                </StackPanel>
+            </StackPanel>
+
+            <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Right">
+                <!-- ปุ่มยืนยันบอก "การกระทำ" ไม่ใช่คำว่า YES - ตอนกำลังจะสั่งปิด 40 เครื่อง ปุ่มที่เขียนว่า
+                     YES บังคับให้ต้องย้อนกลับไปอ่านข้อความอีกรอบเพื่อรู้ว่ากำลังตอบตกลงกับอะไร
+                     ความกว้างเป็น MinWidth ไม่ใช่ Width ตายตัว เพราะข้อความยาวไม่เท่ากันในแต่ละที่ -->
+                <Button x:Name="CancelButton" MinWidth="90" Content="ยกเลิก" Style="{StaticResource ButtonSecondary}"
+                        Padding="14,5" FontSize="12" Height="35" Click="CancelButton_Click" Margin="0,0,10,0"/>
+                <!-- UI-3a: ติด DialogHost.IsDefaultButton เพื่อให้กด Enter = กดปุ่มนี้ (เหมือน IsDefault
+                     ของ WPF ปกติ แต่ไม่พึ่งกลไกภายในของ Window - ดู DialogHost.cs) -->
+                <Button x:Name="ConfirmButton" MinWidth="90" Content="ยืนยัน"
+                        Padding="14,5" FontSize="12" Height="35"
+                        Style="{StaticResource ButtonDanger}" Click="ConfirmButton_Click"
+                        controls:DialogHost.IsDefaultButton="True"/>
+            </StackPanel>
+        </Grid>
+    </Border>
+</UserControl>
