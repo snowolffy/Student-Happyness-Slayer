@@ -330,6 +330,24 @@ public partial class MainWindow : Window
         DashboardHost.Content = null;
         DashboardHost.Visibility = Visibility.Collapsed;
 
+        // แก้ตามคำสั่ง orchestrator (2026-11-03): ครูอาจ maximize หรือลาก resize หน้าหลักไว้ก่อน logout
+        // (ResizeMode=CanResize ตอนนั้น) - ถ้าแค่สลับ ResizeMode กลับเป็น NoResize เฉยๆ โดยไม่รีเซ็ต
+        // WindowState/ขนาด การ์ดล็อกอินจะไปโผล่กลางหน้าต่างยักษ์ที่ resize ไม่ได้แล้ว ต้องคืนกลับเป็น
+        // Normal + ขนาดล็อกอินเดิม (1000x732) + จัดกลางจอใหม่เองทุกครั้ง (WindowStartupLocation=
+        // CenterScreen มีผลแค่ตอนสร้างหน้าต่างครั้งแรกเท่านั้น ไม่ทำงานซ้ำตอนนี้) - ทำตอนนี้ขณะที่
+        // LoadingOverlay ยังทึบเต็มจอพอดี (fade-in 150ms + รอ 200ms ข้างบนเสร็จแล้วแน่นอน) ผู้ใช้จึงไม่
+        // เห็นหน้าต่างกระตุกขนาด/ตำแหน่งระหว่างเปลี่ยน
+        //
+        // clamp ด้วย SystemParameters.WorkArea (บทเรียนจาก docs/handoff-2026-11-03.md) เผื่อจอเล็กกว่า
+        // 1000x732 จริงๆ (เช่น remote desktop ความละเอียดต่ำ) และคำนวณ Left/Top จาก WorkArea.Left/Top
+        // เสมอ ไม่ใช่ 0,0 ตรงๆ เพราะจอรองที่อยู่ทางซ้าย/บนจอหลักจะมีค่าติดลบได้
+        WindowState = WindowState.Normal;
+        var workArea = SystemParameters.WorkArea;
+        Width = Math.Min(1000, workArea.Width);
+        Height = Math.Min(732, workArea.Height);
+        Left = workArea.Left + Math.Max(0, (workArea.Width - Width) / 2);
+        Top = workArea.Top + Math.Max(0, (workArea.Height - Height) / 2);
+
         ResizeMode = ResizeMode.NoResize;
         MinWidth = 0;
         MinHeight = 0;
