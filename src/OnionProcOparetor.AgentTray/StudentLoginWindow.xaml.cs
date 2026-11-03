@@ -102,6 +102,17 @@ public partial class StudentLoginWindow : Window
         _connectivityTimer.Start();
         Closed += (_, _) => _connectivityTimer.Stop();
         _ = RefreshEmergencyAndConnectivityStateAsync();
+
+#if DEBUG
+        // --ui-preview=student-login --login-error (UI-6, 2026-11-03) - จำลองข้อความ error ของ login
+        // ผิดรหัส/ผิดชื่อผู้ใช้ เพื่อถ่ายภาพตรวจว่าการ์ดที่ย่อลง 75% แล้วไม่มีอะไรล้น/ถูกตัดตอนมีแบนเนอร์
+        // error แสดงอยู่ (roadmap WP UI-6 สั่งให้ตรวจสถานะนี้ด้วย) อ่าน args เองตรงนี้แทนการแก้
+        // App.xaml.cs เพราะไฟล์นี้อยู่นอกขอบเขตไฟล์ที่ WP UI-6 แตะได้
+        if (Environment.GetCommandLineArgs().Contains("--login-error"))
+        {
+            ShowLoginError("ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง กรุณาลองใหม่อีกครั้ง");
+        }
+#endif
     }
 
     /// <summary>
