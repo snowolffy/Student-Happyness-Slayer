@@ -1,15 +1,11 @@
-<Window x:Class="OnionProcOparetor.Console.AddEditWebsiteRuleWindow"
+<UserControl x:Class="OnionProcOparetor.Console.AddEditWebsiteRuleWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Website Rule"
-        Width="440"
-        SizeToContent="Height"
-        WindowStartupLocation="CenterOwner"
-        ResizeMode="NoResize"
-        Icon="/Theme/icon.ico"
-        Style="{StaticResource AppDialogWindow}">
+        xmlns:controls="clr-namespace:OnionProcOparetor.UI.Controls;assembly=OnionProcOparetor.UI">
     <!-- Clone ของ AddEditRuleWindow แต่ฟอร์มสั้นกว่ามาก (Website Control ไม่มี publisher/signature/
-         action-command - action มีแบบเดียวคือเพิ่มเข้า URLBlocklist) ใช้ร่วมกัน Add/Edit เหมือนกัน -->
+         action-command - action มีแบบเดียวคือเพิ่มเข้า URLBlocklist) ใช้ร่วมกัน Add/Edit เหมือนกัน
+         UI-3b (2026-11-03): แปลงจาก Window เป็น UserControl ฝังใน DialogHost ของ MainWindow -->
+    <Border Style="{StaticResource Card}" Width="440">
     <StackPanel Margin="20">
         <TextBlock x:Name="TitleText" Style="{StaticResource Heading2}" Margin="0,0,0,16"/>
 
@@ -38,7 +34,8 @@
             <Button Content="ยกเลิก" Style="{StaticResource ButtonSecondary}"
                     Padding="10,5" FontSize="11" HorizontalAlignment="Right" Margin="0,0,96,0" Click="CancelButton_Click"/>
             <Button Content="บันทึกกฎ" Style="{StaticResource ButtonPrimary}"
-                    HorizontalAlignment="Right" Click="SaveButton_Click"/>
+                    HorizontalAlignment="Right" Click="SaveButton_Click" controls:DialogHost.IsDefaultButton="True"/>
         </Grid>
     </StackPanel>
-</Window>
+    </Border>
+</UserControl>

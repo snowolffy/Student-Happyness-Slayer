@@ -1,4 +1,6 @@
-﻿using System.Windows;
+﻿using System;
+using System.Windows;
+using System.Windows.Controls;
 using OnionProcOparetor.Console.Services;
 
 namespace OnionProcOparetor.Console;
@@ -10,8 +12,11 @@ namespace OnionProcOparetor.Console;
 /// Program.cs's /api/admin/users/{id}/change-password) เท่ากับ "เปลี่ยนได้เฉพาะของ account ที่ login
 /// อยู่จริงเท่านั้น" ไม่ต้องเช็คซ้ำฝั่งนี้อีก
 /// </summary>
-public partial class ChangeMyPasswordWindow : Window
+public partial class ChangeMyPasswordWindow : UserControl
 {
+    /// <summary>UI-3b (2026-11-03): true = เปลี่ยนรหัสสำเร็จ false = ยกเลิก</summary>
+    public event Action<bool>? ResultChosen;
+
     private readonly ApiClient _apiClient;
 
     public ChangeMyPasswordWindow(ApiClient apiClient)
@@ -50,8 +55,7 @@ public partial class ChangeMyPasswordWindow : Window
         {
             StatusText.SetResourceReference(System.Windows.Controls.TextBlock.ForegroundProperty, "Brush.Status.Online");
             StatusText.Text = "เปลี่ยน password สำเร็จ";
-            DialogResult = true;
-            Close();
+            ResultChosen?.Invoke(true);
         }
         else
         {
@@ -63,7 +67,6 @@ public partial class ChangeMyPasswordWindow : Window
 
     private void CancelButton_Click(object sender, RoutedEventArgs e)
     {
-        DialogResult = false;
-        Close();
+        ResultChosen?.Invoke(false);
     }
 }

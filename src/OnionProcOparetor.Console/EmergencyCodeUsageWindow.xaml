@@ -1,15 +1,12 @@
-<Window x:Class="OnionProcOparetor.Console.EmergencyCodeUsageWindow"
+<UserControl x:Class="OnionProcOparetor.Console.EmergencyCodeUsageWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Onion ProcOparetor Console - ประวัติการใช้รหัสฉุกเฉิน"
-        Width="520" Height="480"
-        WindowStartupLocation="CenterOwner"
-        Icon="/Theme/icon.ico"
-        Style="{StaticResource AppDialogWindow}">
+        xmlns:controls="clr-namespace:OnionProcOparetor.UI.Controls;assembly=OnionProcOparetor.UI">
     <!-- WP3-4 (2026-10-31) - ปุ่ม "ดูทั้งหมด" ของการ์ดรหัสฉุกเฉิน แสดงรายการที่ Agent ส่งขึ้นมาจาก
          POST /api/emergency-code/usage (ตอนกลับมาออนไลน์หลัง Server ล่ม) เรียงเวลาล่าสุดก่อน -
-         ไม่มี student ผูกด้วยเลย (ปลดแบบไม่ระบุชื่อตามที่ roadmap กำหนด) -->
-    <Border Style="{StaticResource Card}" Margin="20">
+         ไม่มี student ผูกด้วยเลย (ปลดแบบไม่ระบุชื่อตามที่ roadmap กำหนด)
+         UI-3b (2026-11-03): แปลงจาก Window เป็น UserControl ฝังใน DialogHost ของ MainWindow -->
+    <Border Style="{StaticResource Card}" Width="520" Height="480" Margin="20">
         <Grid>
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto"/>
@@ -33,7 +30,7 @@
                        HorizontalAlignment="Center" VerticalAlignment="Center" Visibility="Collapsed"/>
 
             <Button Grid.Row="2" Content="ปิด" Style="{StaticResource ButtonSecondary}" HorizontalAlignment="Right"
-                    Padding="10,5" FontSize="11" Margin="0,12,0,0" Click="CloseButton_Click"/>
+                    Padding="10,5" FontSize="11" Margin="0,12,0,0" Click="CloseButton_Click" controls:DialogHost.IsDefaultButton="True"/>
         </Grid>
     </Border>
-</Window>
+</UserControl>

@@ -1,3 +1,4 @@
+using System;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
@@ -16,8 +17,11 @@ namespace OnionProcOparetor.Console;
 /// ActionReportWindow ต่อ เพราะ "เปิด URL/โปรแกรม" ก็เป็น command ที่ผ่านระบบ command/ack เดียวกับ
 /// Lock/Shutdown ทุกอย่าง (ไม่ใช่ API เฉพาะทางแบบโหมดสอบที่ต้องสร้าง session แยกเก็บใน DB)
 /// </summary>
-public partial class OpenUrlWindow : Window
+public partial class OpenUrlWindow : UserControl
 {
+    /// <summary>UI-3b (2026-11-03): true = กดเปิด (PendingReport ถูกเติมแล้ว) false = ยกเลิก</summary>
+    public event Action<bool>? ResultChosen;
+
     private readonly ApiClient _apiClient;
     private readonly List<ClientMachineDto> _selectedClients;
     private readonly List<ClientMachineDto> _allClients;
@@ -233,8 +237,7 @@ public partial class OpenUrlWindow : Window
             }
         };
 
-        DialogResult = true;
-        Close();
+        ResultChosen?.Invoke(true);
     }
 
     private void SetStatus(string message, bool isError)
@@ -245,7 +248,6 @@ public partial class OpenUrlWindow : Window
 
     private void CancelButton_Click(object sender, RoutedEventArgs e)
     {
-        DialogResult = false;
-        Close();
+        ResultChosen?.Invoke(false);
     }
 }

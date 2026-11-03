@@ -1,5 +1,7 @@
+using System;
 using System.Linq;
 using System.Windows;
+using System.Windows.Controls;
 using OnionProcOparetor.Console.Services;
 
 namespace OnionProcOparetor.Console;
@@ -10,8 +12,11 @@ namespace OnionProcOparetor.Console;
 /// โชว์ต่อหลังปิดหน้าต่างนี้ (เหตุผลเดียวกับที่ AddEditWebsiteRuleWindow ใช้ DialogResult - แต่ที่นี่
 /// ต้องมีข้อความเพิ่มเติมด้วยเพราะผลลัพธ์เป็นตัวเลขสองค่า ไม่ใช่แค่สำเร็จ/ไม่สำเร็จ)
 /// </summary>
-public partial class BulkAddWebsiteRulesWindow : Window
+public partial class BulkAddWebsiteRulesWindow : UserControl
 {
+    /// <summary>UI-3b (2026-11-03): true = บันทึกสำเร็จ (อ่าน ResultText ต่อ) false = ยกเลิก</summary>
+    public event Action<bool>? ResultChosen;
+
     private readonly ApiClient _apiClient;
 
     public string ResultText { get; private set; } = string.Empty;
@@ -46,13 +51,11 @@ public partial class BulkAddWebsiteRulesWindow : Window
         }
 
         ResultText = $"เพิ่ม {result.Added} รายการ (ข้าม {result.Skipped} รายการซ้ำ)";
-        DialogResult = true;
-        Close();
+        ResultChosen?.Invoke(true);
     }
 
     private void CancelButton_Click(object sender, RoutedEventArgs e)
     {
-        DialogResult = false;
-        Close();
+        ResultChosen?.Invoke(false);
     }
 }

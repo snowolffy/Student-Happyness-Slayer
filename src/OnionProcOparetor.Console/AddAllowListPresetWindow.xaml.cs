@@ -1,10 +1,14 @@
+using System;
 using System.Windows;
 using System.Windows.Controls;
 
 namespace OnionProcOparetor.Console;
 
-public partial class AddAllowListPresetWindow : Window
+public partial class AddAllowListPresetWindow : UserControl
 {
+    /// <summary>UI-3b (2026-11-03): true = สร้างชุดแล้ว (อ่าน PresetName ต่อ) false = ยกเลิก</summary>
+    public event Action<bool>? ResultChosen;
+
     public string PresetName { get; private set; } = string.Empty;
 
     public AddAllowListPresetWindow()
@@ -24,13 +28,11 @@ public partial class AddAllowListPresetWindow : Window
         }
 
         PresetName = name;
-        DialogResult = true;
-        Close();
+        ResultChosen?.Invoke(true);
     }
 
     private void CancelButton_Click(object sender, RoutedEventArgs e)
     {
-        DialogResult = false;
-        Close();
+        ResultChosen?.Invoke(false);
     }
 }

@@ -1,5 +1,7 @@
+using System;
 using System.IO;
 using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Media.Imaging;
 using OnionProcOparetor.Console.Models;
 using OnionProcOparetor.Console.Services;
@@ -13,8 +15,12 @@ namespace OnionProcOparetor.Console;
 /// POST /api/settings/emergency-code/test ตรงๆ เพื่อยืนยันว่า Authenticator ที่ครูเพิ่งสแกนคำนวณรหัส
 /// ตรงกับที่ Server มี (สูตรเดียวกับ Agent ใช้ตรวจแบบ offline - ดู Server/Services/TotpService.cs)
 /// </summary>
-public partial class EmergencyCodeQrWindow : Window
+public partial class EmergencyCodeQrWindow : UserControl
 {
+    /// <summary>UI-3b (2026-11-03): หน้าต่างนี้ไม่มีผลลัพธ์ให้อ่าน - raise เมื่อกดปิดเท่านั้น ให้ผู้เปิดเรียก
+    /// DialogHost.CloseTop ต่อ</summary>
+    public event Action? CloseRequested;
+
     private readonly ApiClient _apiClient;
 
     public EmergencyCodeQrWindow(ApiClient apiClient, EmergencyCodeSettingsDto settings)
@@ -84,5 +90,5 @@ public partial class EmergencyCodeQrWindow : Window
         TestCodeButton.IsEnabled = true;
     }
 
-    private void CloseButton_Click(object sender, RoutedEventArgs e) => Close();
+    private void CloseButton_Click(object sender, RoutedEventArgs e) => CloseRequested?.Invoke();
 }

@@ -1,3 +1,4 @@
+using System;
 using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
@@ -10,8 +11,11 @@ namespace OnionProcOparetor.Console;
 /// ฟอร์มเดียวใช้ร่วมกัน Add/Edit เหมือน AddEditRuleWindow แต่สั้นกว่ามาก - Website Control มีแค่
 /// Name/UrlPattern/IsEnabled ไม่มี publisher/signature/action-command
 /// </summary>
-public partial class AddEditWebsiteRuleWindow : Window
+public partial class AddEditWebsiteRuleWindow : UserControl
 {
+    /// <summary>UI-3b (2026-11-03): true = บันทึกสำเร็จ false = ยกเลิก</summary>
+    public event Action<bool>? ResultChosen;
+
     private readonly ApiClient _apiClient;
     private readonly int _ruleId;
 
@@ -89,8 +93,7 @@ public partial class AddEditWebsiteRuleWindow : Window
 
         if (success)
         {
-            DialogResult = true;
-            Close();
+            ResultChosen?.Invoke(true);
         }
         else
         {
@@ -100,7 +103,6 @@ public partial class AddEditWebsiteRuleWindow : Window
 
     private void CancelButton_Click(object sender, RoutedEventArgs e)
     {
-        DialogResult = false;
-        Close();
+        ResultChosen?.Invoke(false);
     }
 }

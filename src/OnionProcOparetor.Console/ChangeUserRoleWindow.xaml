@@ -1,16 +1,12 @@
-<Window x:Class="OnionProcOparetor.Console.ChangeUserRoleWindow"
+<UserControl x:Class="OnionProcOparetor.Console.ChangeUserRoleWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="เปลี่ยน Role"
-        Width="420"
-        SizeToContent="Height"
-        WindowStartupLocation="CenterOwner"
-        ResizeMode="NoResize"
-        Icon="/Theme/icon.ico"
-        Style="{StaticResource AppDialogWindow}">
+        xmlns:controls="clr-namespace:OnionProcOparetor.UI.Controls;assembly=OnionProcOparetor.UI">
     <!-- WP4b (2026-10-30): เหมือน ResetPasswordWindow/EditDisplayNameWindow ทุกจุด ต่างกันแค่ field
          เป็น ComboBox เลือก Admin/Teacher - Server เป็นคนกันบัญชี built-in และ Admin คนสุดท้ายให้
-         (ดู UserEndpoints.cs MapPut .../role) หน้านี้แค่ส่งค่าไปแล้วโชว์ error ที่ส่งกลับมา -->
+         (ดู UserEndpoints.cs MapPut .../role) หน้านี้แค่ส่งค่าไปแล้วโชว์ error ที่ส่งกลับมา
+         UI-3b (2026-11-03): แปลงจาก Window เป็น UserControl ฝังใน DialogHost ของ MainWindow -->
+    <Border Style="{StaticResource Card}" Width="420">
     <StackPanel Margin="20">
         <TextBlock x:Name="TitleText" Style="{StaticResource Heading2}" Margin="0,0,0,16"/>
 
@@ -31,7 +27,8 @@
             <Button Content="ยกเลิก" Style="{StaticResource ButtonSecondary}"
                     Padding="10,5" FontSize="11" HorizontalAlignment="Right" Margin="0,0,96,0" Click="CancelButton_Click"/>
             <Button Content="บันทึก" Style="{StaticResource ButtonPrimary}"
-                    HorizontalAlignment="Right" Click="SaveButton_Click"/>
+                    HorizontalAlignment="Right" Click="SaveButton_Click" controls:DialogHost.IsDefaultButton="True"/>
         </Grid>
     </StackPanel>
-</Window>
+    </Border>
+</UserControl>
