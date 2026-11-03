@@ -47,7 +47,8 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Resource Include="Theme\logo.png" />
+    <!-- Theme\logo.png เลิกใช้แล้ว (WP UI-7c, 2026-11-03) - โลโก้แถบหัวทุกหน้าต่างเปลี่ยนไปใช้
+         DrawingImage เวกเตอร์ (Logo.App.Small) ใน OnionProcOparetor.UI/Theme/Logos.xaml แทน -->
     <Resource Include="Theme\icon.ico" />
 
     <!-- tray icon 3 สถานะ (WP UI-7b, 2026-11-03) - ฝัง Resource เข้าตัว exe เอง (ไม่ใช่ loose file บน

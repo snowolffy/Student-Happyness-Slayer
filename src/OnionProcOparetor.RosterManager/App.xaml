@@ -18,6 +18,10 @@
                 <ResourceDictionary Source="pack://application:,,,/OnionProcOparetor.UI;component/Theme/Colors.Light.xaml"/>
                 <ResourceDictionary Source="Theme/Accent.Light.xaml"/>
                 <ResourceDictionary Source="pack://application:,,,/OnionProcOparetor.UI;component/Theme/Icons.xaml"/>
+                <!-- โลโก้หัวหอมฟ้าแบบเวกเตอร์ของ Roster Manager (WP UI-7c, 2026-11-03) อยู่ใน
+                     แอสเซมบลีนี้เอง ไม่ใช่ OnionProcOparetor.UI (ดูคอมเมนต์ในไฟล์นั้น) จึง merge ด้วย
+                     path สัมพัทธ์ แทน logo-source.png ที่ LoginWindow ใช้เดิม -->
+                <ResourceDictionary Source="Theme/Logos.xaml"/>
                 <ResourceDictionary Source="pack://application:,,,/OnionProcOparetor.UI;component/Theme/Typography.xaml"/>
                 <ResourceDictionary Source="pack://application:,,,/OnionProcOparetor.UI;component/Theme/Controls.xaml"/>
             </ResourceDictionary.MergedDictionaries>

@@ -25,12 +25,12 @@
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
 
-        <!-- ==================== Logo mark (uses logo-source.png - same 4000x4000 master the installer
-             banner is generated from - instead of the pre-downscaled logo.png MainWindow/Dashboard use,
-             since this is the one place the mark gets shown at meaningfully larger badge sizes) ==================== -->
+        <!-- ==================== Logo mark (WP UI-7c, 2026-11-03: vector DrawingImage "full" from
+             app.svg instead of the pre-downscaled logo-source.png 256px PNG - this is the one place
+             the mark gets shown at meaningfully larger badge sizes, 48px) ==================== -->
         <Border Grid.Row="0" Width="48" Height="48" CornerRadius="12" HorizontalAlignment="Center" VerticalAlignment="Top">
             <!-- ไม่มีพื้นสี่เหลี่ยมหลังโลโก้ (ผู้ใช้สั่ง 3 พ.ย. 2569) -->
-            <Image Source="/Theme/logo-source.png" Stretch="Uniform"/>
+            <Image Source="{StaticResource Logo.App}" Stretch="Uniform"/>
         </Border>
 
         <!-- ==================== Name / tagline ==================== -->

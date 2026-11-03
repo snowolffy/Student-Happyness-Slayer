@@ -86,8 +86,10 @@
                         <StackPanel VerticalAlignment="Center">
                             <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
                                 <Border Width="24" Height="24" CornerRadius="6">
-                                    <!-- ไม่มีพื้นสี่เหลี่ยมหลังโลโก้ (ผู้ใช้สั่ง 3 พ.ย. 2569) -->
-                                    <Image Source="/Theme/logo-source.png" Stretch="Uniform"/>
+                                    <!-- ไม่มีพื้นสี่เหลี่ยมหลังโลโก้ (ผู้ใช้สั่ง 3 พ.ย. 2569)
+                                         โลโก้เวกเตอร์ (WP UI-7c) - "small" เพราะแสดงจริงแค่ 24px (≤32px ตาม
+                                         assets/icons/README.md) แทน logo-source.png 256px ที่ย่อแล้วเบลอ -->
+                                    <Image Source="{StaticResource Logo.App.Small}" Stretch="Uniform"/>
                                 </Border>
                                 <StackPanel Margin="8,0,0,0" VerticalAlignment="Center">
                                     <TextBlock Text="Onion ProcOparetor" Style="{StaticResource Heading1}"/>

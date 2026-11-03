@@ -17,7 +17,8 @@
         <Border Grid.Row="0" Style="{StaticResource BrandHeaderBar}">
             <StackPanel Orientation="Horizontal">
                 <Border Style="{StaticResource LogoPlaceholder}">
-                    <Image Source="/Theme/logo.png" Stretch="Uniform"/>
+                    <!-- โลโก้เวกเตอร์ (WP UI-7c) - "small" เพราะ LogoPlaceholder = 30px (≤32px) -->
+                    <Image Source="{StaticResource Logo.App.Small}" Stretch="Uniform"/>
                 </Border>
                 <TextBlock x:Name="TitleText" Text="ข้อความจากครู" Margin="10,0,0,0"
                            Style="{StaticResource BrandHeaderTitleText}"/>

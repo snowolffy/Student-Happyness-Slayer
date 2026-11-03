@@ -20,8 +20,9 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Resource Include="Theme\logo.png" />
-    <Resource Include="Theme\logo-source.png" />
+    <!-- Theme\logo.png / logo-source.png เลิกใช้แล้ว (WP UI-7c, 2026-11-03) - โลโก้ XAML ทุกจุด
+         เปลี่ยนไปใช้ DrawingImage เวกเตอร์ (Logo.App / Logo.App.Small) ใน OnionProcOparetor.UI
+         /Theme/Logos.xaml แทน ไฟล์ PNG สองไฟล์นี้ยังอยู่ใน Theme/ แต่ไม่ได้ฝังเป็น Resource แล้ว -->
     <Resource Include="Theme\icon.ico" />
 
     <!-- หน้าล็อกอินใหม่ (WP7, 2026-10-30) - ภาพฝั่งซ้ายของการ์ดล็อกอิน (placeholder ตอนนี้)

@@ -144,8 +144,10 @@
                                         <ColumnDefinition Width="*"/>
                                     </Grid.ColumnDefinitions>
                                     <Border Grid.Column="0" Width="36" Height="36" CornerRadius="10">
-                                        <!-- ไม่มีพื้นสี่เหลี่ยมหลังโลโก้ (ผู้ใช้สั่ง 3 พ.ย. 2569) -->
-                                        <Image Source="/Theme/logo.png" Stretch="Uniform"/>
+                                        <!-- ไม่มีพื้นสี่เหลี่ยมหลังโลโก้ (ผู้ใช้สั่ง 3 พ.ย. 2569)
+                                             โลโก้เวกเตอร์ (WP UI-7c) - "full" เพราะแสดงจริง 36px (>32px ตาม
+                                             assets/icons/README.md) แทน logo.png 256px ที่ย่อแล้วเบลอ -->
+                                        <Image Source="{StaticResource Logo.App}" Stretch="Uniform"/>
                                     </Border>
                                     <StackPanel x:Name="BrandText" Grid.Column="1" Margin="10,0,0,0"
                                                 VerticalAlignment="Center">
