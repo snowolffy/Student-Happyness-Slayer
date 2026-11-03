@@ -1291,6 +1291,50 @@ public class ApiClient
         return response.IsSuccessStatusCode;
     }
 
+    /// <summary>
+    /// ดาวน์โหลดไฟล์ทั้งงานเป็น .zip (2026-11-03 - แก้ตามที่ผู้ใช้แจ้ง: Console ของครูไม่ได้รันอยู่บน
+    /// เครื่อง Server เลย ปุ่ม "เปิดโฟลเดอร์ที่เก็บ" ที่ชี้ path บนเครื่อง Server ใช้งานจริงไม่ได้เกือบ
+    /// ทุกกรณี) คืน byte[] ตรงๆ ให้ผู้เรียกเขียนลงไฟล์เอง (ดู FilesWindow.DownloadZipButton_Click ที่ให้
+    /// ครูเลือกที่เก็บผ่าน SaveFileDialog เอง) ใช้ HttpClient แยกตัวใหม่ timeout ยาวกว่า _httpClient ปกติ
+    /// เหมือน UploadDistributedFileAsync เพราะ zip ทั้งงานอาจใหญ่กว่าไฟล์เดียวมาก
+    /// </summary>
+    public async Task<(byte[]? Bytes, string? FileName, string? Error)> DownloadCollectionZipAsync(int jobId)
+    {
+        if (BaseUrl is null)
+        {
+            return (null, null, "ยังไม่ได้เชื่อมต่อ Server");
+        }
+
+        try
+        {
+            using var downloadClient = new HttpClient(ServerCertificatePinning.CreateHandler())
+            {
+                BaseAddress = new Uri(BaseUrl),
+                Timeout = TimeSpan.FromMinutes(5)
+            };
+            if (_token is not null)
+            {
+                downloadClient.DefaultRequestHeaders.Add("X-Auth-Token", _token);
+            }
+
+            var response = await downloadClient.GetAsync($"/api/files/collection-jobs/{jobId}/download-zip");
+            if (!response.IsSuccessStatusCode)
+            {
+                return (null, null, await ExtractErrorAsync(response, $"ดาวน์โหลดไม่สำเร็จ ({response.StatusCode})"));
+            }
+
+            var bytes = await response.Content.ReadAsByteArrayAsync();
+            var fileName = response.Content.Headers.ContentDisposition?.FileNameStar
+                ?? response.Content.Headers.ContentDisposition?.FileName
+                ?? "collected-files.zip";
+            return (bytes, fileName.Trim('"'), null);
+        }
+        catch (Exception ex)
+        {
+            return (null, null, $"ดาวน์โหลดไม่สำเร็จ: {ex.Message}");
+        }
+    }
+
     /// <summary>ใช้ร่วมกันทุกเมธอดใน WP3-5 ที่ต้องอ่าน { "error": "..." } จาก response ที่ไม่สำเร็จ (pattern เดิมของไฟล์นี้แต่แยกเป็น helper กันก๊อปซ้ำ 6 ที่)</summary>
     private static async Task<string> ExtractErrorAsync(HttpResponseMessage response, string fallback)
     {

@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
+using System.IO.Compression;
 using OnionProcOparetor.Server.Data;
 using OnionProcOparetor.Server.Models;
 using OnionProcOparetor.Server.Services;
@@ -286,6 +287,47 @@ public static class FileTransferEndpoints
                 folderPath = System.IO.Path.Combine(FileTransferPaths.ResolveStorageRoot(options.Value), "collected", $"{job.Id}_{FileTransferPaths.SanitizeFolderSegment(job.Name)}"),
                 rows
             });
+        });
+
+        // ---- ดาวน์โหลดไฟล์ทั้งงานเป็น .zip (2026-11-03 - แก้ตามที่ผู้ใช้แจ้ง: Console ของครูไม่ได้รันอยู่
+        // บนเครื่อง Server เลย (Server จริงอยู่ที่ 192.168.17.249 ส่วน Console รันบนเครื่องครูแต่ละคน) ปุ่ม
+        // "เปิดโฟลเดอร์ที่เก็บ" ที่ชี้ path บนเครื่อง Server ใช้งานจริงไม่ได้เกือบทุกกรณี - endpoint นี้ให้
+        // Console ดาวน์โหลดทั้งโฟลเดอร์ผ่าน HTTP แทน) auth เดียวกับ .../status (Admin/Teacher ดูได้ทั้งคู่
+        // ไม่ใช่ Admin อย่างเดียว) โครงสร้างโฟลเดอร์ย่อยต่อนักเรียน/เครื่องยังคงอยู่ใน zip เหมือนบนดิสก์จริง
+        // (ไม่ flatten) - ชื่อไฟล์/โฟลเดอร์ที่มีอักษรไทยใช้ได้ปกติ เพราะ System.IO.Compression.ZipArchive
+        // ตั้ง UTF-8 entry name flag ให้เองอัตโนมัติเมื่อชื่อไม่ใช่ ASCII ล้วน (ไม่ต้องตั้งค่าเพิ่ม)
+        app.MapGet("/api/files/collection-jobs/{id:int}/download-zip", async (int id, HttpRequest request, AppDbContext db, IOptions<FileTransferOptions> options) =>
+        {
+            var admin = await GetAuthorizedAdmin(request, db);
+            if (admin is null)
+                return Results.Unauthorized();
+
+            var job = await db.FileCollectionJobs.FindAsync(id);
+            if (job is null)
+                return Results.NotFound(new { error = "ไม่พบงานเก็บไฟล์นี้ (อาจถูกลบไปแล้ว)" });
+
+            var jobDir = System.IO.Path.Combine(FileTransferPaths.ResolveStorageRoot(options.Value), "collected", $"{job.Id}_{FileTransferPaths.SanitizeFolderSegment(job.Name)}");
+            if (!System.IO.Directory.Exists(jobDir) || !System.IO.Directory.EnumerateFiles(jobDir, "*", System.IO.SearchOption.AllDirectories).Any())
+            {
+                // งานว่าง (ยังไม่มีใครส่งไฟล์มาเลย) - 404 พร้อมข้อความชัดเจน แทนที่จะส่ง zip เปล่ากลับไป
+                return Results.NotFound(new { error = $"ยังไม่มีไฟล์ให้ดาวน์โหลดสำหรับงาน '{job.Name}' (ยังไม่มีใครส่งไฟล์มาเลย)" });
+            }
+
+            using var zipStream = new System.IO.MemoryStream();
+            using (var zip = new System.IO.Compression.ZipArchive(zipStream, System.IO.Compression.ZipArchiveMode.Create, leaveOpen: true))
+            {
+                foreach (var filePath in System.IO.Directory.EnumerateFiles(jobDir, "*", System.IO.SearchOption.AllDirectories))
+                {
+                    // entry name ใช้ path สัมพัทธ์จาก jobDir เก็บโครงสร้างโฟลเดอร์ย่อย (ชื่อนักเรียน/เครื่อง)
+                    // ไว้เหมือนเดิม - แปลง backslash เป็น forward slash เพราะ zip spec กำหนด "/" เป็น separator
+                    var entryName = System.IO.Path.GetRelativePath(jobDir, filePath).Replace('\\', '/');
+                    zip.CreateEntryFromFile(filePath, entryName, System.IO.Compression.CompressionLevel.Fastest);
+                }
+            }
+            zipStream.Position = 0;
+
+            var zipFileName = FileTransferPaths.SanitizeFileName(job.Name, "collected-files") + ".zip";
+            return Results.File(zipStream.ToArray(), "application/zip", zipFileName);
         });
 
         // ---- Agent อัปโหลดไฟล์ที่นักเรียนเลือกส่ง (ส่งต่อมาจาก AgentTray ผ่าน Agent loopback) - agent-auth ----

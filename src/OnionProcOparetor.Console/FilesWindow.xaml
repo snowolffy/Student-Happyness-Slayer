@@ -135,8 +135,14 @@
                         <StackPanel Grid.Column="1" Orientation="Horizontal">
                             <Button x:Name="CloseJobButton" Content="ปิดงาน" Style="{StaticResource ButtonSecondary}"
                                     Padding="10,5" FontSize="11" Margin="0,0,8,0" Click="CloseJobButton_Click" IsEnabled="False"/>
+                            <!-- "เปิดโฟลเดอร์ที่เก็บ" ใช้งานได้จริงเฉพาะตอนที่ Console รันอยู่บนเครื่อง Server เอง
+                                 (ส่วนใหญ่ไม่ใช่ - Server จริงอยู่ที่ 192.168.17.249 ส่วน Console รันบนเครื่องครู)
+                                 ซ่อนปุ่มนี้ไว้ก่อน (Collapsed) แล้วโชว์เฉพาะตอนที่ RefreshCollectionStatusAsync
+                                 เจอว่าโฟลเดอร์มองเห็นได้จากเครื่องนี้จริงๆ (ดู comment ที่นั่น) - 2026-11-03 -->
                             <Button x:Name="OpenFolderButton" Content="เปิดโฟลเดอร์ที่เก็บ" Style="{StaticResource ButtonSecondary}"
-                                    Padding="10,5" FontSize="11" Margin="0,0,8,0" Click="OpenFolderButton_Click" IsEnabled="False"/>
+                                    Padding="10,5" FontSize="11" Margin="0,0,8,0" Click="OpenFolderButton_Click" Visibility="Collapsed"/>
+                            <Button x:Name="DownloadZipButton" Content="ดาวน์โหลดทั้งหมด (.zip)" Style="{StaticResource ButtonSecondary}"
+                                    Padding="10,5" FontSize="11" Margin="0,0,8,0" Click="DownloadZipButton_Click" IsEnabled="False"/>
                             <Button x:Name="RefreshStatusButton" Content="รีเฟรช" Style="{StaticResource ButtonSecondary}"
                                     Padding="10,5" FontSize="11" Margin="0,0,8,0" Click="RefreshStatusButton_Click" IsEnabled="False"/>
                             <Button x:Name="CollectNowButton" Content="เก็บงานตอนนี้" Style="{StaticResource ButtonPrimary}"
