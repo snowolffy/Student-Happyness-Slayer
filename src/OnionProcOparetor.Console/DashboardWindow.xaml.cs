@@ -7,6 +7,8 @@ using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using OnionProcOparetor.Console.Models;
 using OnionProcOparetor.Console.Services;
+using OnionProcOparetor.UI.Controls;
+using OnionProcOparetor.UI.Services;
 
 namespace OnionProcOparetor.Console;
 
@@ -308,11 +310,11 @@ public partial class DashboardWindow : Window
     {
         // ตั้งที่ TabControl ตัวเดียว - Nav.IsCollapsed ประกาศเป็น Inherits จึงไหลลงไปถึงแถวเมนูทุกแถว
         // หัวข้อกลุ่ม ปุ่มท้าย sidebar และ trigger ที่ย่อความกว้างของ sidebar เองพร้อมกันทั้งหมด
-        Controls.Nav.SetIsCollapsed(MainTabControl, collapsed);
+        Nav.SetIsCollapsed(MainTabControl, collapsed);
 
         if (_sidebarCollapseButton is not null)
         {
-            Controls.Nav.SetIcon(_sidebarCollapseButton, collapsed ? "chevron-right" : "chevron-left");
+            Nav.SetIcon(_sidebarCollapseButton, collapsed ? "chevron-right" : "chevron-left");
             _sidebarCollapseButton.Content = collapsed ? string.Empty : "ย่อเมนู";
             _sidebarCollapseButton.ToolTip = collapsed ? "ขยายเมนู" : "ย่อเมนู";
         }
@@ -341,12 +343,12 @@ public partial class DashboardWindow : Window
 
         // ไอคอนบอก "สิ่งที่จะได้ถ้ากด" ไม่ใช่ "สถานะตอนนี้" - ตอนอยู่ธีมสว่างจึงเป็นพระจันทร์ (กดแล้วมืด)
         var dark = ThemeService.IsDarkActive;
-        Controls.Nav.SetIcon(_themeToggleButton, dark ? "sun" : "moon");
+        Nav.SetIcon(_themeToggleButton, dark ? "sun" : "moon");
         _themeToggleButton.Content = dark ? "ธีมสว่าง" : "ธีมมืด";
     }
 
     private void SidebarCollapseButton_Click(object sender, RoutedEventArgs e) =>
-        SetSidebarCollapsed(!Controls.Nav.GetIsCollapsed(MainTabControl), persist: true);
+        SetSidebarCollapsed(!Nav.GetIsCollapsed(MainTabControl), persist: true);
 
     /// <summary>
     /// WP4b (2026-10-30): ซ่อนแท็บ "ผู้ใช้" ทั้งแท็บสำหรับ Teacher แทนปิดปุ่มทีละปุ่ม - GET
@@ -2502,7 +2504,7 @@ public partial class DashboardWindow : Window
         {
             // IconPresenter ไม่ใช่ตัวอักษร "✕": ตัวอักษรจะขึ้นกับ font ที่ระบบ fallback มาให้ ซึ่ง
             // ขนาดและน้ำหนักเส้นไม่ตรงกับไอคอนตัวอื่นในแอปเลย - ชุดเดียวกันทั้งหมดดีกว่า
-            Content = new Controls.IconPresenter { Icon = "x", IconSize = 12 },
+            Content = new IconPresenter { Icon = "x", IconSize = 12 },
             Width = 22,
             Height = 22,
             Padding = new Thickness(0),

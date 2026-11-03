@@ -1,7 +1,8 @@
 ﻿<Window x:Class="OnionProcOparetor.Console.DashboardWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        xmlns:controls="clr-namespace:OnionProcOparetor.Console.Controls"
+        xmlns:controls="clr-namespace:OnionProcOparetor.UI.Controls;assembly=OnionProcOparetor.UI"
+        xmlns:appctl="clr-namespace:OnionProcOparetor.Console.Controls"
         xmlns:local="clr-namespace:OnionProcOparetor.Console"
         Title="Onion ProcOparetor Console - Dashboard"
         Height="732" Width="1000"
@@ -57,8 +58,8 @@
                  ข้อความผลลัพธ์ (สำเร็จ/ล้มเหลว) ไม่อยู่ที่แถบนี้อีกแล้ว ย้ายไปเป็น toast มุมขวาล่าง
                  (Services/ToastService) StatusText ที่เหลือบอกแค่ "อัพเดตล่าสุดเมื่อไหร่" -->
             <controls:Nav.TopBar>
-                <controls:AnnouncementBar x:Name="HeaderBar" Margin="0,0,0,12">
-                    <controls:AnnouncementBar.NormalContent>
+                <appctl:AnnouncementBar x:Name="HeaderBar" Margin="0,0,0,12">
+                    <appctl:AnnouncementBar.NormalContent>
                         <Grid>
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="Auto"/>
@@ -75,13 +76,13 @@
                                        TextAlignment="Right" TextTrimming="CharacterEllipsis"
                                        VerticalAlignment="Center" Margin="0,0,12,0"/>
                         </Grid>
-                    </controls:AnnouncementBar.NormalContent>
-                    <controls:AnnouncementBar.TrailingContent>
+                    </appctl:AnnouncementBar.NormalContent>
+                    <appctl:AnnouncementBar.TrailingContent>
                         <Button x:Name="RefreshButton" Content="รีเฟรช"
                                 Style="{StaticResource ButtonSecondary}" Padding="14,7"
                                 Click="RefreshButton_Click" VerticalAlignment="Center"/>
-                    </controls:AnnouncementBar.TrailingContent>
-                </controls:AnnouncementBar>
+                    </appctl:AnnouncementBar.TrailingContent>
+                </appctl:AnnouncementBar>
             </controls:Nav.TopBar>
 
             <controls:Nav.StatusBar>
@@ -499,7 +500,7 @@
                                             </DataTemplate>
                                         </DataGridTemplateColumn.CellTemplate>
                                     </DataGridTemplateColumn>
-                                    <DataGridTextColumn controls:TimeColumn.Header="เห็นล่าสุด" Binding="{Binding LastSeenAt, Converter={StaticResource DisplayTimeConverter}}" SortMemberPath="LastSeenAt" Width="170"/>
+                                    <DataGridTextColumn appctl:TimeColumn.Header="เห็นล่าสุด" Binding="{Binding LastSeenAt, Converter={StaticResource DisplayTimeConverter}}" SortMemberPath="LastSeenAt" Width="170"/>
                                     <DataGridTemplateColumn Header="จัดการ" Width="120">
                                         <DataGridTemplateColumn.CellTemplate>
                                             <DataTemplate>
@@ -1033,7 +1034,7 @@
                                             </Style>
                                         </DataGrid.Resources>
                                         <DataGrid.Columns>
-                                            <DataGridTextColumn controls:TimeColumn.Header="เวลา" Binding="{Binding Timestamp, Converter={StaticResource DisplayTimeConverter}}" SortMemberPath="Timestamp" Width="150"/>
+                                            <DataGridTextColumn appctl:TimeColumn.Header="เวลา" Binding="{Binding Timestamp, Converter={StaticResource DisplayTimeConverter}}" SortMemberPath="Timestamp" Width="150"/>
                                             <DataGridTextColumn Header="เครื่อง" Binding="{Binding MachineName}" Width="130"/>
                                             <DataGridTextColumn Header="ไฟล์โปรแกรม" Binding="{Binding ProcessPath}" Width="220"/>
                                             <DataGridTextColumn Header="ผู้เผยแพร่" Binding="{Binding DetectedPublisher}" Width="160"/>
@@ -1153,7 +1154,7 @@
                                             </Style>
                                         </DataGrid.Resources>
                                         <DataGrid.Columns>
-                                            <DataGridTextColumn controls:TimeColumn.Header="เวลา" Binding="{Binding Timestamp, Converter={StaticResource DisplayTimeConverter}}" SortMemberPath="Timestamp" Width="150"/>
+                                            <DataGridTextColumn appctl:TimeColumn.Header="เวลา" Binding="{Binding Timestamp, Converter={StaticResource DisplayTimeConverter}}" SortMemberPath="Timestamp" Width="150"/>
                                             <DataGridTextColumn Header="หมวด" Binding="{Binding Category}" Width="130"/>
                                             <DataGridTemplateColumn Header="ระดับ" Width="90" SortMemberPath="Severity">
                                                 <DataGridTemplateColumn.CellTemplate>
@@ -1235,8 +1236,8 @@
                                         <DataGridTextColumn Header="นักเรียน" Binding="{Binding Student.FullName}" Width="170"/>
                                         <DataGridTextColumn Header="ห้องเรียน" Binding="{Binding Student.ClassName}" Width="100"/>
                                         <DataGridTextColumn Header="เครื่อง" Binding="{Binding MachineName}" Width="110"/>
-                                        <DataGridTextColumn controls:TimeColumn.Header="เข้า" Binding="{Binding StartedAt, Converter={StaticResource DisplayTimeConverter}}" SortMemberPath="StartedAt" Width="150"/>
-                                        <DataGridTextColumn controls:TimeColumn.Header="ออก" Binding="{Binding EndedAt, Converter={StaticResource DisplayTimeConverter}}" SortMemberPath="EndedAt" Width="150"/>
+                                        <DataGridTextColumn appctl:TimeColumn.Header="เข้า" Binding="{Binding StartedAt, Converter={StaticResource DisplayTimeConverter}}" SortMemberPath="StartedAt" Width="150"/>
+                                        <DataGridTextColumn appctl:TimeColumn.Header="ออก" Binding="{Binding EndedAt, Converter={StaticResource DisplayTimeConverter}}" SortMemberPath="EndedAt" Width="150"/>
                                         <DataGridTextColumn Header="นาน" Binding="{Binding DurationText}" Width="100"/>
                                         <DataGridTextColumn Header="ออกโดย" Binding="{Binding EndReasonText}" Width="150"/>
                                     </DataGrid.Columns>
@@ -1327,8 +1328,8 @@
                                     <DataGridTextColumn Header="Role" Binding="{Binding Role}" Width="80"/>
                                     <DataGridTextColumn Header="บัญชีระบบ" Binding="{Binding IsBuiltIn}" Width="80"/>
                                     <DataGridTextColumn Header="ใช้รหัสผ่านเริ่มต้น" Binding="{Binding HasDefaultPassword}" Width="130"/>
-                                    <DataGridTextColumn controls:TimeColumn.Header="สร้างเมื่อ" Binding="{Binding CreatedAt, Converter={StaticResource DisplayTimeConverter}}" SortMemberPath="CreatedAt" Width="160"/>
-                                    <DataGridTextColumn controls:TimeColumn.Header="ล็อกอินล่าสุด" Binding="{Binding LastLoginAt, Converter={StaticResource DisplayTimeConverter}}" SortMemberPath="LastLoginAt" Width="160"/>
+                                    <DataGridTextColumn appctl:TimeColumn.Header="สร้างเมื่อ" Binding="{Binding CreatedAt, Converter={StaticResource DisplayTimeConverter}}" SortMemberPath="CreatedAt" Width="160"/>
+                                    <DataGridTextColumn appctl:TimeColumn.Header="ล็อกอินล่าสุด" Binding="{Binding LastLoginAt, Converter={StaticResource DisplayTimeConverter}}" SortMemberPath="LastLoginAt" Width="160"/>
                                     <DataGridTemplateColumn Header="จัดการ" Width="380">
                                         <DataGridTemplateColumn.CellTemplate>
                                             <DataTemplate>
@@ -1499,7 +1500,7 @@
              จากหน้าเต็มจอต้องเห็นได้โดยไม่ต้องออกมาก่อน) ระยะล่าง 80 = เหนือแถบสถานะล่าง ระยะขวาถูก
              ขยับหลบแผงข้อมูลเครื่องจาก code-behind (UpdateToastOffset) ไม่มี Background จึงไม่บังคลิก
              นอกตัว toast -->
-        <controls:ToastHost x:Name="Toasts" HorizontalAlignment="Right" VerticalAlignment="Bottom"
+        <appctl:ToastHost x:Name="Toasts" HorizontalAlignment="Right" VerticalAlignment="Bottom"
                             Margin="0,0,34,80"/>
     </Grid>
 </Window>

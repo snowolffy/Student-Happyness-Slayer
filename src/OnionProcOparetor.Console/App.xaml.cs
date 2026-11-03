@@ -1,6 +1,7 @@
 ﻿using System.Windows;
 using System.Windows.Input;
 using OnionProcOparetor.Console.Services;
+using OnionProcOparetor.UI.Services;
 
 namespace OnionProcOparetor.Console;
 
@@ -28,7 +29,23 @@ public partial class App : Application
 
         // ต้องอยู่ *หลัง* EnsureLoaded (อ่านค่าธีมที่ผู้ใช้เลือกไว้จาก settings) และ *ก่อน* หน้าต่างแรกถูกสร้าง
         // (StartupUri ทำงานหลัง OnStartup) ไม่งั้น MainWindow จะวาดด้วยธีมสว่างแล้วค่อยกระพริบเปลี่ยนเป็นมืด
-        ThemeService.Initialize();
+        //
+        // ไม่ส่ง accentLightUri/accentDarkUri ให้ - Console ใช้สีเน้นส้ม default ของไลบรารีตรงๆ
+        // (WP UI-1a: "Console ใช้สีส้มเดิม หน้าตาต้องไม่เปลี่ยนเลย")
+        ThemeService.Initialize(
+            loadSavedTheme: () => SettingsService.Current.Ui.Theme,
+            saveTheme: theme =>
+            {
+                var settings = SettingsService.Current;
+                settings.Ui.Theme = theme.ToString();
+                var (success, error) = SettingsService.Save(settings);
+                if (!success)
+                {
+                    // จำค่าไม่ได้ไม่ใช่เหตุให้ธีมที่เพิ่งสลับไปแล้วต้องเด้งกลับ - แค่บันทึกไว้ว่าครั้งหน้าจะไม่จำ
+                    ConsoleDiagnostics.WriteLine($"ThemeService: บันทึกธีมลง settings ไม่สำเร็จ ({error}) - ธีมยังเปลี่ยนแล้วในรอบนี้");
+                }
+            },
+            log: ConsoleDiagnostics.WriteLine);
 
         // บั๊กจริงที่เจอซ้ำ 2 ครั้ง (2026-08-25): "VIEW RUNNING PROCESSES..." ทำให้ทั้ง Console หายไปเงียบๆ
         // ทันทีที่กด - รอบแรกเข้าใจผิดว่าอยู่ใน RunningProcessesWindow เอง (ครอบ try/catch ไปแล้ว) แต่ crash

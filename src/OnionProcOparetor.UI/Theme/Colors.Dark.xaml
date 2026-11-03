@@ -1,0 +1,104 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                     xmlns:sys="clr-namespace:System;assembly=System.Runtime">
+
+    <!-- ====================================================================================
+         DARK palette (ไม่รวมสีเน้น/accent) - คู่กับ Colors.Light.xaml ดู comment ที่นั่นสำหรับ
+         เหตุผลที่สีเน้นถูกแยกไปอยู่ Accent.Light.xaml/Accent.Dark.xaml ต่างหาก
+
+         เหตุผลของค่าแต่ละตัว (ย้ายมาจาก Console/Theme/Colors.Dark.xaml เดิมแบบคำต่อคำ):
+         1. SURFACES GET LIGHTER AS THEY COME FORWARD (bg #141210 -> card #1B1815 ->
+            card-raised #221E1A) - ในโหมดมืด elevation ต้องมาจาก luminance ไม่ใช่ shadow
+         2. STATUS COLORS ARE RE-PICKED, NOT REUSED - สีสถานะของธีมมืดสว่างกว่าธีมสว่างและ
+            ความอิ่มสีต่ำกว่า ให้ยังอ่านออกบนพื้นเกือบดำ
+         ==================================================================================== -->
+
+    <sys:String x:Key="Theme.Name">Dark</sys:String>
+    <sys:Boolean x:Key="Theme.IsDark">True</sys:Boolean>
+
+    <!-- ==================== Background / Surface / Border ==================== -->
+    <Color x:Key="Color.Background.Primary">#141210</Color>      <!-- css:bg -->
+    <Color x:Key="Color.Background.Sunken">#0F0D0C</Color>       <!-- css:bg-sunken -->
+    <Color x:Key="Color.Background.Card">#1B1815</Color>         <!-- css:card -->
+    <Color x:Key="Color.Background.CardRaised">#221E1A</Color>   <!-- css:card-raised -->
+    <Color x:Key="Color.Border.Default">#332C26</Color>          <!-- css:border -->
+    <Color x:Key="Color.Border.Strong">#453C34</Color>           <!-- css:border-strong -->
+
+    <SolidColorBrush x:Key="Brush.Background.Primary" Color="{StaticResource Color.Background.Primary}"/>
+    <SolidColorBrush x:Key="Brush.Background.Sunken" Color="{StaticResource Color.Background.Sunken}"/>
+    <SolidColorBrush x:Key="Brush.Background.Card" Color="{StaticResource Color.Background.Card}"/>
+    <SolidColorBrush x:Key="Brush.Background.CardRaised" Color="{StaticResource Color.Background.CardRaised}"/>
+    <SolidColorBrush x:Key="Brush.Border.Default" Color="{StaticResource Color.Border.Default}"/>
+    <SolidColorBrush x:Key="Brush.Border.Strong" Color="{StaticResource Color.Border.Strong}"/>
+
+    <!-- ==================== Status ==================== -->
+    <Color x:Key="Color.Status.Online">#4ADE80</Color>           <!-- css:online -->
+    <Color x:Key="Color.Status.Offline">#8A8681</Color>          <!-- css:offline -->
+    <Color x:Key="Color.Status.Warning">#FACC15</Color>          <!-- css:warning -->
+    <Color x:Key="Color.Status.WarningText">#FACC15</Color>      <!-- css:warning-text: on a dark card the fill colour IS the legible text colour -->
+
+    <SolidColorBrush x:Key="Brush.Status.Online" Color="{StaticResource Color.Status.Online}"/>
+    <SolidColorBrush x:Key="Brush.Status.Offline" Color="{StaticResource Color.Status.Offline}"/>
+    <SolidColorBrush x:Key="Brush.Status.Warning" Color="{StaticResource Color.Status.Warning}"/>
+    <SolidColorBrush x:Key="Brush.Status.WarningText" Color="{StaticResource Color.Status.WarningText}"/>
+
+    <!-- ==================== Danger ====================
+         Light/Dark variants have no CSS counterpart (the web side only needs one danger colour);
+         they exist here because ButtonDanger uses them for its hover/pressed states. -->
+    <Color x:Key="Color.Danger.Default">#F87171</Color>          <!-- css:danger -->
+    <Color x:Key="Color.Danger.Light">#FCA5A5</Color>
+    <Color x:Key="Color.Danger.Dark">#DC2626</Color>
+
+    <SolidColorBrush x:Key="Brush.Danger.Default" Color="{StaticResource Color.Danger.Default}"/>
+    <SolidColorBrush x:Key="Brush.Danger.Light" Color="{StaticResource Color.Danger.Light}"/>
+    <SolidColorBrush x:Key="Brush.Danger.Dark" Color="{StaticResource Color.Danger.Dark}"/>
+
+    <!-- Danger.Fill เข้มกว่า Danger.Default ในธีมมืดโดยเจตนา (ขาวบน #F87171 ตกเกณฑ์ contrast,
+         ขาวบน #DC2626 ผ่าน - เจอจากภาพจริงของปุ่ม SHUTDOWN/DELETE ในโหมดมืด) -->
+    <Color x:Key="Color.Danger.Fill">#DC2626</Color>
+    <SolidColorBrush x:Key="Brush.Danger.Fill" Color="{StaticResource Color.Danger.Fill}"/>
+
+    <!-- ==================== Text ==================== -->
+    <Color x:Key="Color.Text.Primary">#F3EFEA</Color>            <!-- css:text: warm off-white, not #FFF - pure white on near-black glares -->
+    <Color x:Key="Color.Text.Secondary">#A39C93</Color>          <!-- css:text-secondary -->
+    <Color x:Key="Color.Text.OnAccent">#FFFFFF</Color>           <!-- Deliberately the SAME as light - see Colors.Light.xaml -->
+
+    <SolidColorBrush x:Key="Brush.Text.Primary" Color="{StaticResource Color.Text.Primary}"/>
+    <SolidColorBrush x:Key="Brush.Text.Secondary" Color="{StaticResource Color.Text.Secondary}"/>
+    <SolidColorBrush x:Key="Brush.Text.OnAccent" Color="{StaticResource Color.Text.OnAccent}"/>
+
+    <!-- ==================== Badge tints ==================== -->
+    <Color x:Key="Color.Badge.Online.Background">#244ADE80</Color>
+    <Color x:Key="Color.Badge.Offline.Background">#298A8681</Color>
+    <Color x:Key="Color.Badge.Warning.Background">#33FACC15</Color>
+    <Color x:Key="Color.Badge.Danger.Background">#24F87171</Color>
+
+    <SolidColorBrush x:Key="Brush.Badge.Online.Background" Color="{StaticResource Color.Badge.Online.Background}"/>
+    <SolidColorBrush x:Key="Brush.Badge.Offline.Background" Color="{StaticResource Color.Badge.Offline.Background}"/>
+    <SolidColorBrush x:Key="Brush.Badge.Warning.Background" Color="{StaticResource Color.Badge.Warning.Background}"/>
+    <SolidColorBrush x:Key="Brush.Badge.Danger.Background" Color="{StaticResource Color.Badge.Danger.Background}"/>
+
+    <!-- ==================== Text on a saturated status fill ==================== -->
+    <Color x:Key="Color.Text.OnStatusFill">#1F2430</Color>
+    <SolidColorBrush x:Key="Brush.Text.OnStatusFill" Color="{StaticResource Color.Text.OnStatusFill}"/>
+
+    <!-- ==================== Overlay ==================== -->
+    <Color x:Key="Color.Overlay">#9E000000</Color>               <!-- css:overlay: rgba(0,0,0,.62) -->
+    <SolidColorBrush x:Key="Brush.Overlay" Color="{StaticResource Color.Overlay}"/>
+
+    <!-- ==================== Sidebar ====================
+         In dark mode the sidebar goes DARKER than the page, not lighter - it is the sunken
+         layer here, the mirror of being the raised dark layer in light mode. -->
+    <Color x:Key="Color.Sidebar.Background">#0F0D0C</Color>          <!-- css:sidebar-bg -->
+    <Color x:Key="Color.Sidebar.BackgroundRaised">#1D1916</Color>    <!-- css:sidebar-bg-raised -->
+    <Color x:Key="Color.Sidebar.Border">#2A231E</Color>              <!-- css:sidebar-border -->
+    <Color x:Key="Color.Sidebar.Text">#F1EAE3</Color>                <!-- unchanged: the sidebar was already dark in light mode -->
+    <Color x:Key="Color.Sidebar.TextSecondary">#A89A8C</Color>
+
+    <SolidColorBrush x:Key="Brush.Sidebar.Background" Color="{StaticResource Color.Sidebar.Background}"/>
+    <SolidColorBrush x:Key="Brush.Sidebar.BackgroundRaised" Color="{StaticResource Color.Sidebar.BackgroundRaised}"/>
+    <SolidColorBrush x:Key="Brush.Sidebar.Border" Color="{StaticResource Color.Sidebar.Border}"/>
+    <SolidColorBrush x:Key="Brush.Sidebar.Text" Color="{StaticResource Color.Sidebar.Text}"/>
+    <SolidColorBrush x:Key="Brush.Sidebar.TextSecondary" Color="{StaticResource Color.Sidebar.TextSecondary}"/>
+
+</ResourceDictionary>

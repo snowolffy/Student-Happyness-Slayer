@@ -1,7 +1,7 @@
 <UserControl x:Class="OnionProcOparetor.Console.WebsiteBlockTab"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:controls="clr-namespace:OnionProcOparetor.Console.Controls">
+             xmlns:controls="clr-namespace:OnionProcOparetor.UI.Controls;assembly=OnionProcOparetor.UI">
     <!-- แท็บ "บล็อกเว็บ" ของหน้า Website Control (WP2-1, 2026-10-31) - ย้ายเนื้อหาเดิมของ
          WebsiteControlPage.xaml มาไว้ที่นี่เป็นแท็บแรกจาก 4 แท็บ (ดู WebsiteControlPage.xaml สำหรับ
          โครงแท็บ) โค้ดข้างในเหมือนเดิมทุกอย่าง (Bulk Add + Catalog Sources + ค้นหา/กรอง/แบ่งหน้า) -->

@@ -1,7 +1,7 @@
 <UserControl x:Class="OnionProcOparetor.Console.WebsiteAllowListPlaceholderTab"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:controls="clr-namespace:OnionProcOparetor.Console.Controls">
+             xmlns:controls="clr-namespace:OnionProcOparetor.UI.Controls;assembly=OnionProcOparetor.UI">
     <!-- แท็บ "ชุด Allow-list" ของหน้า Website Control (WP2-2, 2026-10-31) - เนื้อหาจริงแทน EmptyState
          เดิมของ WP2-1 แล้ว ดู wireframe con-website-allow.dc.html: รายการชุดทางซ้าย (300px) + รายละเอียด
          ของชุดที่เลือกทางขวา (ชื่อ, ทำสำเนา/ลบชุด, เพิ่มโดเมน, รายการโดเมน, ทดสอบ URL)

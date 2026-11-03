@@ -1,7 +1,7 @@
 <UserControl x:Class="OnionProcOparetor.Console.ProgramReviewPage"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:controls="clr-namespace:OnionProcOparetor.Console.Controls">
+             xmlns:controls="clr-namespace:OnionProcOparetor.UI.Controls;assembly=OnionProcOparetor.UI">
     <!-- Program Review เป็นหน้าใน shell (WP6, 2026-10-30) - เดิมเป็นหน้าต่างลอย ProgramReviewWindow
          เนื้อหา/คอลัมน์/พฤติกรรมเหมือนเดิมทุกอย่าง ที่เปลี่ยนคือ:
          - ผลของการกด อนุญาต/บล็อก และ error ไปเป็น toast แทนข้อความแทรกในหน้า

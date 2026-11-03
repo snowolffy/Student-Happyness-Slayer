@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <!-- WPF class library (UI-1a) - theme token/style/control ชุดเดียวที่ Console, RosterManager
+         และ (ต่อไปใน UI-1b) AgentTray อ้างอิงร่วมกัน ดู docs/roadmap.md "คำขอเพิ่มจากผู้ใช้ (3 พ.ย. 2569)"
+         ไม่มี OutputType/ApplicationIcon/StartupUri เพราะนี่ไม่ใช่โปรแกรมที่รันเอง -->
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyName>OnionProcOparetor.UI</AssemblyName>
+    <RootNamespace>OnionProcOparetor.UI</RootNamespace>
+  </PropertyGroup>
+</Project>

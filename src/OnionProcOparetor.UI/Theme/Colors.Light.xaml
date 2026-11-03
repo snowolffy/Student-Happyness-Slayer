@@ -3,24 +3,18 @@
                      xmlns:sys="clr-namespace:System;assembly=System.Runtime">
 
     <!-- ====================================================================================
-         LIGHT palette. Split out of the old single Theme/Colors.xaml on 2026-09-09 so the
-         Console can switch themes at runtime the way the Blazor OnlineConsole already does.
+         LIGHT palette (ไม่รวมสีเน้น/accent) - ย้ายเข้า OnionProcOparetor.UI (WP UI-1a, 2026-11-03)
+         จาก Console/Theme/Colors.Light.xaml เดิม เพื่อให้ Console, RosterManager และ (UI-1b) AgentTray
+         ใช้ชุดเดียวกัน ส่วน "สีเน้น" (Color.Accent.*, Brush.Accent.*, Badge.Accent.*,
+         Sidebar.ActiveBackground, Row.Hover) ถูกแยกออกไปอยู่ Accent.Light.xaml/Accent.Dark.xaml
+         ต่างหาก เพราะแต่ละแอปต้อง override สีเน้นเองได้ครบชุด (Console ส้ม, RosterManager ฟ้า) โดย
+         ไม่กระทบ palette พื้นฐานที่ใช้ร่วมกัน - ดู Accent.Light.xaml สำหรับคำอธิบายชุด token สีเน้น
 
-         HARD CONTRACT: Colors.Light.xaml and Colors.Dark.xaml MUST declare the EXACT same set
-         of x:Key values. ThemeService swaps one file for the other wholesale at index 0 of
-         Application.Resources.MergedDictionaries, so a key that exists in only one of them
-         becomes an unresolved DynamicResource in the other theme - which does NOT throw, it
-         just renders nothing and nobody notices until a user reports "that panel is invisible
-         in dark mode". ThemeService.VerifyKeyParity() asserts the two key sets match at
-         startup for exactly this reason. If you add a token, add it TWICE.
+         HARD CONTRACT: Colors.Light.xaml และ Colors.Dark.xaml MUST declare the EXACT same set
+         of x:Key values (เหมือนเดิมทุกจุด) ThemeService.VerifyKeyParity() ของไลบรารีนี้ตรวจทั้งคู่นี้
+         และคู่ Accent.Light/Accent.Dark ของแต่ละแอปแยกกัน
 
-         Values are the same tokens as the OnlineConsole's wwwroot/css/theme.css, deliberately -
-         the two consoles must be recognisably the same product. The CSS variable each key
-         mirrors is named in a comment so a change on one side can be traced to the other.
-
-         Consumers must reference these with {DynamicResource}, never {StaticResource}:
-         StaticResource is resolved once at parse time and would freeze the first theme in
-         place forever.
+         Consumers must reference these with {DynamicResource}, never {StaticResource}.
          ==================================================================================== -->
 
     <sys:String x:Key="Theme.Name">Light</sys:String>
@@ -40,20 +34,6 @@
     <SolidColorBrush x:Key="Brush.Background.CardRaised" Color="{StaticResource Color.Background.CardRaised}"/>
     <SolidColorBrush x:Key="Brush.Border.Default" Color="{StaticResource Color.Border.Default}"/>
     <SolidColorBrush x:Key="Brush.Border.Strong" Color="{StaticResource Color.Border.Strong}"/>
-
-    <!-- ==================== Accent (amber/orange) ====================
-         Accent.Text is NOT the same as Accent.Default and the difference is not decoration:
-         #F5A623 is legible as a fill behind white text but fails contrast as small text on a
-         white card, so link/label text gets its own darker shade. Same trap as the CSS side. -->
-    <Color x:Key="Color.Accent.Default">#F5A623</Color>          <!-- css:accent -->
-    <Color x:Key="Color.Accent.Light">#F7B84D</Color>            <!-- css:accent-light -->
-    <Color x:Key="Color.Accent.Dark">#D6890F</Color>             <!-- css:accent-dark -->
-    <Color x:Key="Color.Accent.Text">#B4740C</Color>             <!-- css:accent-text -->
-
-    <SolidColorBrush x:Key="Brush.Accent.Default" Color="{StaticResource Color.Accent.Default}"/>
-    <SolidColorBrush x:Key="Brush.Accent.Light" Color="{StaticResource Color.Accent.Light}"/>
-    <SolidColorBrush x:Key="Brush.Accent.Dark" Color="{StaticResource Color.Accent.Dark}"/>
-    <SolidColorBrush x:Key="Brush.Accent.Text" Color="{StaticResource Color.Accent.Text}"/>
 
     <!-- ==================== Status ==================== -->
     <Color x:Key="Color.Status.Online">#2E9B5D</Color>           <!-- css:online -->
@@ -84,46 +64,27 @@
     <!-- ==================== Text ==================== -->
     <Color x:Key="Color.Text.Primary">#1F2430</Color>            <!-- css:text -->
     <Color x:Key="Color.Text.Secondary">#6B7280</Color>          <!-- css:text-secondary -->
-    <Color x:Key="Color.Text.OnAccent">#FFFFFF</Color>           <!-- text drawn on an Accent/Danger fill. A token rather than a literal
-                                                                      "White" so it stays legible if the accent is ever re-picked, and so
-                                                                      a high-contrast theme has exactly one place to change. -->
+    <Color x:Key="Color.Text.OnAccent">#FFFFFF</Color>           <!-- text drawn on a dark/saturated fill (accent หรือ danger) - token รวม
+                                                                      ไม่ใช่สีเน้นโดยตรง เพราะทั้งสองแอปเลือกขาวเหมือนกันทั้งคู่ -->
 
     <SolidColorBrush x:Key="Brush.Text.Primary" Color="{StaticResource Color.Text.Primary}"/>
     <SolidColorBrush x:Key="Brush.Text.Secondary" Color="{StaticResource Color.Text.Secondary}"/>
     <SolidColorBrush x:Key="Brush.Text.OnAccent" Color="{StaticResource Color.Text.OnAccent}"/>
 
-    <!-- ==================== Row states (DataGrid) ====================
-         เดิมเขียนเป็น <SolidColorBrush Color="{StaticResource Color.Accent.Light}" Opacity="0.15"/>
-         แบบ inline อยู่ใน Setter.Value ของ ConsoleGridRowStyle - ย้ายมาเป็น token เพราะ Freezable ที่
-         ประกาศ inline ใน Style setter จะถูก WPF freeze ทำให้ผูก DynamicResource เข้าไปไม่ได้ (ธีมจะค้าง)
-         ค่า ARGB ตรงนี้ให้ผลเหมือนเดิมทุกพิกเซลในโหมดสว่าง: 0.15 * 255 = 38 = 0x26 -->
-    <Color x:Key="Color.Row.Hover">#26F7B84D</Color>
-    <SolidColorBrush x:Key="Brush.Row.Hover" Color="{StaticResource Color.Row.Hover}"/>
-
     <!-- ==================== Badge tints ====================
-         พื้นของ badge = สีสถานะทับลงบนสีการ์ดด้วย alpha ต่ำ ให้ผลเดียวกับ
-         color-mix(in srgb, var(css:online) 14%, var(css:card)) ของฝั่งเว็บ
-         (14% ของ 255 = 36 = 0x24, 16% = 41 = 0x29, 20% = 51 = 0x33)
-
-         เก็บเป็น alpha ไม่ใช่สีทึบที่ผสมไว้แล้ว เพราะถ้าวันหลังปรับสีการ์ด badge จะตามให้เอง
-         และเป็นเหตุผลเดียวกับที่ฝั่งเว็บผสมกับ var(css:card) ไม่ใช่กับสีขาว - ผสมกับขาวแล้วเอาไป
-         วางบนการ์ดสีเกือบดำจะได้เม็ดสีพาสเทลเรืองแสง -->
+         พื้นของ badge = สีสถานะทับลงบนสีการ์ดด้วย alpha ต่ำ (ไม่รวม Badge.Accent.Background ซึ่งย้ายไป
+         Accent.Light.xaml เพราะอิงสีเน้น) -->
     <Color x:Key="Color.Badge.Online.Background">#242E9B5D</Color>
     <Color x:Key="Color.Badge.Offline.Background">#299AA1AC</Color>
     <Color x:Key="Color.Badge.Warning.Background">#33EAB308</Color>
     <Color x:Key="Color.Badge.Danger.Background">#24D64545</Color>
-    <Color x:Key="Color.Badge.Accent.Background">#29F5A623</Color>
 
     <SolidColorBrush x:Key="Brush.Badge.Online.Background" Color="{StaticResource Color.Badge.Online.Background}"/>
     <SolidColorBrush x:Key="Brush.Badge.Offline.Background" Color="{StaticResource Color.Badge.Offline.Background}"/>
     <SolidColorBrush x:Key="Brush.Badge.Warning.Background" Color="{StaticResource Color.Badge.Warning.Background}"/>
     <SolidColorBrush x:Key="Brush.Badge.Danger.Background" Color="{StaticResource Color.Badge.Danger.Background}"/>
-    <SolidColorBrush x:Key="Brush.Badge.Accent.Background" Color="{StaticResource Color.Badge.Accent.Background}"/>
 
-    <!-- ==================== Text on a saturated status fill ====================
-         พื้นสีสถานะ (เหลืองเตือน/แดงอันตราย) เป็นสีเดียวกันทั้งธีมสว่างและมืด ตัวหนังสือที่วางทับมัน
-         จึงต้องเป็นสีเดียวกันทั้งสองธีมด้วย ห้ามใช้ Text.Primary เพราะในธีมมืดมันคือขาวนวล
-         = ขาวบนเหลือง อ่านไม่ออก (บั๊กเดียวกับที่เคยเจอกับ badge "Warning") -->
+    <!-- ==================== Text on a saturated status fill ==================== -->
     <Color x:Key="Color.Text.OnStatusFill">#1F2430</Color>
     <SolidColorBrush x:Key="Brush.Text.OnStatusFill" Color="{StaticResource Color.Text.OnStatusFill}"/>
 
@@ -132,21 +93,17 @@
     <SolidColorBrush x:Key="Brush.Overlay" Color="{StaticResource Color.Overlay}"/>
 
     <!-- ==================== Sidebar ====================
-         The sidebar is its own dark layer INDEPENDENT of the light content palette above, in
-         both themes - same decision as the CSS. It gives the amber accent something to actually
-         pop against and echoes the onion-skin logo, instead of white nav on a white page. -->
+         สีพื้นฐานของ sidebar (ไม่รวม Sidebar.ActiveBackground ซึ่งอิงสีเน้น ย้ายไป Accent.*.xaml) -->
     <Color x:Key="Color.Sidebar.Background">#241E1A</Color>          <!-- css:sidebar-bg -->
     <Color x:Key="Color.Sidebar.BackgroundRaised">#2E2621</Color>    <!-- css:sidebar-bg-raised -->
     <Color x:Key="Color.Sidebar.Border">#3B322B</Color>              <!-- css:sidebar-border -->
     <Color x:Key="Color.Sidebar.Text">#F1EAE3</Color>                <!-- css:sidebar-text -->
     <Color x:Key="Color.Sidebar.TextSecondary">#A89A8C</Color>       <!-- css:sidebar-text-secondary -->
-    <Color x:Key="Color.Sidebar.ActiveBackground">#29F5A623</Color>  <!-- css:sidebar-active-bg: rgba(245,166,35,.16) -->
 
     <SolidColorBrush x:Key="Brush.Sidebar.Background" Color="{StaticResource Color.Sidebar.Background}"/>
     <SolidColorBrush x:Key="Brush.Sidebar.BackgroundRaised" Color="{StaticResource Color.Sidebar.BackgroundRaised}"/>
     <SolidColorBrush x:Key="Brush.Sidebar.Border" Color="{StaticResource Color.Sidebar.Border}"/>
     <SolidColorBrush x:Key="Brush.Sidebar.Text" Color="{StaticResource Color.Sidebar.Text}"/>
     <SolidColorBrush x:Key="Brush.Sidebar.TextSecondary" Color="{StaticResource Color.Sidebar.TextSecondary}"/>
-    <SolidColorBrush x:Key="Brush.Sidebar.ActiveBackground" Color="{StaticResource Color.Sidebar.ActiveBackground}"/>
 
 </ResourceDictionary>

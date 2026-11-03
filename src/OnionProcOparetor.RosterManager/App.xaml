@@ -1,18 +1,31 @@
 <Application x:Class="OnionProcOparetor.RosterManager.App"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:controls="clr-namespace:OnionProcOparetor.RosterManager.Controls"
              ThemeMode="Light"
              StartupUri="LoginWindow.xaml">
     <!-- เหมือน Console/App.xaml ทุกจุด (ดู comment เต็มที่นั่น) - ThemeMode="Light" ที่นี่เป็นแค่ค่าตั้งต้น
-         ตอน parse XAML เท่านั้น ค่าจริงถูกตั้งทับทันทีโดย ThemeService.Initialize() ใน OnStartup -->
+         ตอน parse XAML เท่านั้น ค่าจริงถูกตั้งทับทันทีโดย OnionProcOparetor.UI.Services.ThemeService
+         .Initialize() ใน OnStartup
+
+         WP UI-1a (2026-11-03): Colors/Icons/Typography/Controls ย้ายเข้า OnionProcOparetor.UI แล้ว -
+         ข้ามแอสเซมบลีจึงต้องใช้ pack URI เต็มรูป Roster Manager ส่ง Theme/Accent.Light.xaml,
+         Theme/Accent.Dark.xaml ของตัวเองให้ ThemeService.Initialize() (สีฟ้า #2A6FD6 แทนส้ม default
+         ของไลบรารี) ไฟล์สองนี้ยังอยู่ในแอสเซมบลีนี้เอง จึง merge ด้วย path สัมพัทธ์ตามปกติ -->
     <Application.Resources>
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>
-                <ResourceDictionary Source="Theme/Colors.Light.xaml"/>
-                <ResourceDictionary Source="Theme/Icons.xaml"/>
-                <ResourceDictionary Source="Theme/Typography.xaml"/>
-                <ResourceDictionary Source="Theme/Controls.xaml"/>
+                <ResourceDictionary Source="pack://application:,,,/OnionProcOparetor.UI;component/Theme/Colors.Light.xaml"/>
+                <ResourceDictionary Source="Theme/Accent.Light.xaml"/>
+                <ResourceDictionary Source="pack://application:,,,/OnionProcOparetor.UI;component/Theme/Icons.xaml"/>
+                <ResourceDictionary Source="pack://application:,,,/OnionProcOparetor.UI;component/Theme/Typography.xaml"/>
+                <ResourceDictionary Source="pack://application:,,,/OnionProcOparetor.UI;component/Theme/Controls.xaml"/>
             </ResourceDictionary.MergedDictionaries>
+
+            <!-- key "DisplayTimeConverter" ที่ Controls.xaml ของไลบรารีต้องการ - Roster Manager ไม่มี
+                 ตัวเลือก "เวลาไทย/UTC" แบบ Console จึงใช้ตัวแปลงอย่างง่ายของตัวเอง (ดู
+                 Controls/DisplayTimeConverter.cs) -->
+            <controls:DisplayTimeConverter x:Key="DisplayTimeConverter"/>
         </ResourceDictionary>
     </Application.Resources>
 </Application>

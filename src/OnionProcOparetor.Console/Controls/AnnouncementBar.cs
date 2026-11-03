@@ -6,6 +6,7 @@ using System.Windows.Documents;
 using System.Windows.Media.Effects;
 using System.Windows.Shapes;
 using OnionProcOparetor.Console.Services;
+using OnionProcOparetor.UI.Controls;
 
 namespace OnionProcOparetor.Console.Controls;
 

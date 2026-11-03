@@ -11,8 +11,11 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <!-- Theme มาจากการคัดลอกโฟลเดอร์ Console/Theme ตรงๆ (ดู docs/roadmap.md WP3-2 "ใช้ theme token
-         ชุดเดียวกับ Console ให้คัดลอกโฟลเดอร์ Theme มา เพราะ repo นี้ไม่มี shared library") -->
+    <!-- WP UI-1a (2026-11-03): theme token/style/control ร่วมย้ายไปไลบรารีนี้ - โฟลเดอร์ Theme ของ
+         Roster Manager ที่เคย copy มาจาก Console ตรงๆ (ดู docs/roadmap.md WP3-2 เดิม) เหลือแค่
+         Accent.Light.xaml/Accent.Dark.xaml (สีเน้นฟ้า override) และภาพแบรนด์ของตัวเอง -->
+    <ProjectReference Include="..\OnionProcOparetor.UI\OnionProcOparetor.UI.csproj" />
+
     <Resource Include="Theme\logo.png" />
     <Resource Include="Theme\logo-source.png" />
     <Resource Include="Theme\icon.ico" />

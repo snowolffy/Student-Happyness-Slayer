@@ -1,5 +1,6 @@
 using System.Windows;
 using OnionProcOparetor.RosterManager.Services;
+using OnionProcOparetor.UI.Services;
 
 namespace OnionProcOparetor.RosterManager;
 
@@ -12,7 +13,23 @@ public partial class App : Application
         var fileVersion = System.Diagnostics.FileVersionInfo.GetVersionInfo(Environment.ProcessPath!).FileVersion;
         RosterDiagnostics.WriteLine($"=== Roster Manager เริ่มทำงาน === FileVersion: {fileVersion}, ProcessPath: {Environment.ProcessPath}, PID: {Environment.ProcessId}");
 
-        ThemeService.Initialize();
+        // ส่ง Theme/Accent.Light.xaml, Theme/Accent.Dark.xaml ของตัวเอง (สีฟ้า #2A6FD6) แทนสีส้ม
+        // default ของไลบรารี - URI สัมพัทธ์เพราะไฟล์ยังอยู่ในแอสเซมบลีนี้เอง (WP UI-1a, 2026-11-03)
+        ThemeService.Initialize(
+            loadSavedTheme: () => SettingsService.Current.Theme,
+            saveTheme: theme =>
+            {
+                var settings = SettingsService.Current;
+                settings.Theme = theme.ToString();
+                var (success, error) = SettingsService.Save(settings);
+                if (!success)
+                {
+                    RosterDiagnostics.WriteLine($"ThemeService: บันทึกธีมลง settings ไม่สำเร็จ ({error}) - ธีมยังเปลี่ยนแล้วในรอบนี้");
+                }
+            },
+            log: RosterDiagnostics.WriteLine,
+            accentLightUri: "/Theme/Accent.Light.xaml",
+            accentDarkUri: "/Theme/Accent.Dark.xaml");
 
         // global handler กัน exception ที่หลุดจาก event handler ไหนก็ตามทำให้ทั้ง process ตาย -
         // pattern เดียวกับ Console/App.xaml.cs (บั๊กจริงที่เคยเจอ: async void event handler ไม่มี

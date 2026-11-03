@@ -21,6 +21,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "OnionProcOparetor.RemoteBri
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "OnionProcOparetor.RosterManager", "src\OnionProcOparetor.RosterManager\OnionProcOparetor.RosterManager.csproj", "{A20C0C6A-EFBB-40F1-8013-DFA286599082}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "OnionProcOparetor.UI", "src\OnionProcOparetor.UI\OnionProcOparetor.UI.csproj", "{C45ADFF7-6645-4C3C-A7DD-C7FB6929CA0F}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -127,6 +129,18 @@ Global
 		{A20C0C6A-EFBB-40F1-8013-DFA286599082}.Release|x64.Build.0 = Release|Any CPU
 		{A20C0C6A-EFBB-40F1-8013-DFA286599082}.Release|x86.ActiveCfg = Release|Any CPU
 		{A20C0C6A-EFBB-40F1-8013-DFA286599082}.Release|x86.Build.0 = Release|Any CPU
+		{C45ADFF7-6645-4C3C-A7DD-C7FB6929CA0F}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{C45ADFF7-6645-4C3C-A7DD-C7FB6929CA0F}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{C45ADFF7-6645-4C3C-A7DD-C7FB6929CA0F}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{C45ADFF7-6645-4C3C-A7DD-C7FB6929CA0F}.Debug|x64.Build.0 = Debug|Any CPU
+		{C45ADFF7-6645-4C3C-A7DD-C7FB6929CA0F}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{C45ADFF7-6645-4C3C-A7DD-C7FB6929CA0F}.Debug|x86.Build.0 = Debug|Any CPU
+		{C45ADFF7-6645-4C3C-A7DD-C7FB6929CA0F}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{C45ADFF7-6645-4C3C-A7DD-C7FB6929CA0F}.Release|Any CPU.Build.0 = Release|Any CPU
+		{C45ADFF7-6645-4C3C-A7DD-C7FB6929CA0F}.Release|x64.ActiveCfg = Release|Any CPU
+		{C45ADFF7-6645-4C3C-A7DD-C7FB6929CA0F}.Release|x64.Build.0 = Release|Any CPU
+		{C45ADFF7-6645-4C3C-A7DD-C7FB6929CA0F}.Release|x86.ActiveCfg = Release|Any CPU
+		{C45ADFF7-6645-4C3C-A7DD-C7FB6929CA0F}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -136,5 +150,6 @@ Global
 		{89297E05-8137-4125-A398-2C6775C0CD6B} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
 		{1DACDDA0-ED42-4331-B827-C28BC18FF99D} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
 		{A20C0C6A-EFBB-40F1-8013-DFA286599082} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
+		{C45ADFF7-6645-4C3C-A7DD-C7FB6929CA0F} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
 	EndGlobalSection
 EndGlobal
