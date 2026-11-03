@@ -1,40 +1,38 @@
-﻿<Window x:Class="OnionProcOparetor.Console.ClientSettingsWindow"
+<UserControl x:Class="OnionProcOparetor.Console.ClientSettingsWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Client Settings"
-        Width="420"
-        SizeToContent="Height"
-        WindowStartupLocation="CenterOwner"
-        ResizeMode="NoResize"
-        Icon="/Theme/icon.ico"
-        Style="{StaticResource AppDialogWindow}">
-    <!-- Rebuilt 2026-09-03 - StackPanel replaces the old fixed-pixel RowDefinitions. -->
-    <StackPanel Margin="20">
-        <TextBlock x:Name="MachineNameText" Style="{StaticResource Heading2}" Margin="0,0,0,16"/>
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <!-- UI-3c (2026-11-03): เดิมเป็น Window ของตัวเอง (ShowDialog) - ย้ายมาเป็น UserControl ตามแบบแผน
+         UI-3a (ดู docs/architecture.md หัวข้อ "UI-3a") เปิดได้ทั้งใน SidePanelHost (จาก Inspector ตรงๆ)
+         และ DialogHost (จาก ActionPanelWindow ที่ครอบ SidePanelHost ไว้แล้ว) - เนื้อหาไม่รู้จัก host
+         เลย แค่ raise ResultChosen ให้ caller ปิดเอง -->
+    <Border Style="{StaticResource Card}" Width="320">
+        <StackPanel Margin="20">
+            <TextBlock x:Name="MachineNameText" Style="{StaticResource Heading2}" Margin="0,0,0,16"/>
 
-        <Border Style="{StaticResource Card}" Margin="0,0,0,16">
-            <StackPanel>
-                <TextBlock Text="POLL INTERVAL OVERRIDE (seconds)" Style="{StaticResource Label}" Margin="0,0,0,6"/>
-                <TextBlock Text="Leave empty to use the Agent's own default (usually 30s)."
-                           Style="{StaticResource Caption}" TextWrapping="Wrap" Margin="0,0,0,10"/>
-                <TextBox x:Name="PollIntervalOverrideBox" Width="120" HorizontalAlignment="Left"
-                         Style="{StaticResource RoundedTextBox}"/>
-            </StackPanel>
-        </Border>
+            <Border Style="{StaticResource Card}" Margin="0,0,0,16">
+                <StackPanel>
+                    <TextBlock Text="POLL INTERVAL OVERRIDE (seconds)" Style="{StaticResource Label}" Margin="0,0,0,6"/>
+                    <TextBlock Text="Leave empty to use the Agent's own default (usually 30s)."
+                               Style="{StaticResource Caption}" TextWrapping="Wrap" Margin="0,0,0,10"/>
+                    <TextBox x:Name="PollIntervalOverrideBox" Width="120" HorizontalAlignment="Left"
+                             Style="{StaticResource RoundedTextBox}"/>
+                </StackPanel>
+            </Border>
 
-        <TextBlock x:Name="StatusText" Style="{StaticResource Caption}" TextWrapping="Wrap" Margin="0,0,0,16"/>
+            <TextBlock x:Name="StatusText" Style="{StaticResource Caption}" TextWrapping="Wrap" Margin="0,0,0,16"/>
 
-        <Grid>
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*"/>
-                <ColumnDefinition Width="Auto"/>
-                <ColumnDefinition Width="Auto"/>
-            </Grid.ColumnDefinitions>
-            <Button Grid.Column="0" Content="ล้างค่าเฉพาะเครื่อง" Style="{StaticResource ButtonSecondary}"
-                    Padding="10,5" FontSize="11" HorizontalAlignment="Left" Click="ClearOverrideButton_Click"/>
-            <Button Grid.Column="1" Content="ยกเลิก" Style="{StaticResource ButtonSecondary}"
-                    Padding="10,5" FontSize="11" Margin="0,0,10,0" Click="CancelButton_Click"/>
-            <Button Grid.Column="2" Content="บันทึก" Style="{StaticResource ButtonPrimary}" Click="SaveButton_Click"/>
-        </Grid>
-    </StackPanel>
-</Window>
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <Button Grid.Column="0" Content="ล้างค่าเฉพาะเครื่อง" Style="{StaticResource ButtonSecondary}"
+                        Padding="10,5" FontSize="11" HorizontalAlignment="Left" Click="ClearOverrideButton_Click"/>
+                <Button Grid.Column="1" Content="ยกเลิก" Style="{StaticResource ButtonSecondary}"
+                        Padding="10,5" FontSize="11" Margin="0,0,10,0" Click="CancelButton_Click"/>
+                <Button Grid.Column="2" Content="บันทึก" Style="{StaticResource ButtonPrimary}" Click="SaveButton_Click"/>
+            </Grid>
+        </StackPanel>
+    </Border>
+</UserControl>

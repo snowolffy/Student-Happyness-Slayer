@@ -1,13 +1,23 @@
-﻿using System.Windows;
+using System.Windows;
+using System.Windows.Controls;
 using OnionProcOparetor.Console.Models;
 using OnionProcOparetor.Console.Services;
 
 namespace OnionProcOparetor.Console;
 
-public partial class ClientSettingsWindow : Window
+/// <summary>
+/// UI-3c (2026-11-03): migrate จาก Window (ShowDialog) เป็น UserControl ตามแบบแผน UI-3a - ไม่ปิดตัวเอง
+/// ตรงๆ อีกต่อไป แค่ raise <see cref="ResultChosen"/> (true = บันทึกสำเร็จ, false = ยกเลิก/Esc) ให้
+/// caller ปิด host ของตัวเอง (SidePanelHost หรือ DialogHost ขึ้นกับว่าเปิดจากไหน - ดู
+/// DashboardWindow.InspectorClientSettingsButton_Click กับ ActionPanelWindow.SettingsButton_Click)
+/// </summary>
+public partial class ClientSettingsWindow : UserControl
 {
     private readonly ApiClient _apiClient;
     private readonly ClientMachineDto _client;
+
+    /// <summary>true = บันทึกสำเร็จ, false = ยกเลิก</summary>
+    public event System.Action<bool>? ResultChosen;
 
     public ClientSettingsWindow(ApiClient apiClient, ClientMachineDto client)
     {
@@ -69,16 +79,14 @@ public partial class ClientSettingsWindow : Window
         if (commandSent)
         {
             _ = _apiClient.UpdateClientSettingsAsync(_client.Id, overrideSeconds);
-            DialogResult = true;
-            Close();
+            ResultChosen?.Invoke(true);
             return;
         }
 
         var dbSuccess = await _apiClient.UpdateClientSettingsAsync(_client.Id, overrideSeconds);
         if (dbSuccess)
         {
-            DialogResult = true;
-            Close();
+            ResultChosen?.Invoke(true);
         }
         else
         {
@@ -87,9 +95,5 @@ public partial class ClientSettingsWindow : Window
         }
     }
 
-    private void CancelButton_Click(object sender, RoutedEventArgs e)
-    {
-        DialogResult = false;
-        Close();
-    }
+    private void CancelButton_Click(object sender, RoutedEventArgs e) => ResultChosen?.Invoke(false);
 }
