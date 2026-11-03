@@ -94,7 +94,8 @@ public partial class App : Application
         // จึงวัดเป็นตัวเลขแล้วเขียนลง console.log แทน
         if (e.Args.Contains("--center-test"))
         {
-            var owner = new DashboardWindow(new Services.ApiClient()) { PreviewMode = true };
+            var ownerContent = new DashboardWindow(new Services.ApiClient()) { PreviewMode = true };
+            var owner = CreateDashboardPreviewHost(ownerContent);
             owner.Show();
 
             owner.Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.ApplicationIdle, () =>
@@ -127,11 +128,12 @@ public partial class App : Application
         // กดปิดไม่ได้ - เช็คด้วยตาไม่ได้ ต้องอ่านว่าใครถือ focus อยู่จริง
         if (e.Args.Contains("--focus-test"))
         {
-            var owner = new DashboardWindow(new Services.ApiClient())
+            var ownerContent = new DashboardWindow(new Services.ApiClient())
             {
                 PreviewMode = true,
                 PreviewFullscreen = true
             };
+            var owner = CreateDashboardPreviewHost(ownerContent);
             owner.Show();
 
             owner.Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.ApplicationIdle, () =>
@@ -313,16 +315,22 @@ public partial class App : Application
                 preview.PreviewTab = tab["--tab=".Length..];
             }
 
+            // UI-2 (2026-11-03): DashboardWindow เป็น UserControl แล้ว (ฝังใน MainWindow ตอนใช้งานจริง)
+            // - เครื่องมือ --ui-preview นี้ยังต้องเห็นมันเป็นหน้าต่างลอยแยกเพื่อถ่ายภาพ/ทดสอบโดยไม่ต้อง
+            // ผ่าน login จริง จึงห่อด้วย Window เปล่าๆ ขนาด/สไตล์เดียวกับที่ DashboardWindow เคยตั้งบน
+            // ตัวเอง (ดู CreateDashboardPreviewHost)
+            var previewHost = CreateDashboardPreviewHost(preview);
+
             // ถ่ายภาพอย่างเดียว: อย่าไปแย่ง focus และอย่าโผล่กลางจอที่ผู้ใช้กำลังทำงานอยู่
             if (e.Args.Any(a => a.StartsWith("--shot=", StringComparison.Ordinal)))
             {
-                preview.ShowActivated = false;
-                preview.WindowStartupLocation = WindowStartupLocation.Manual;
-                preview.Left = -32000;
-                preview.Top = -32000;
+                previewHost.ShowActivated = false;
+                previewHost.WindowStartupLocation = WindowStartupLocation.Manual;
+                previewHost.Left = -32000;
+                previewHost.Top = -32000;
             }
 
-            preview.Show();
+            previewHost.Show();
 
             // --shot=<path> เรนเดอร์หน้าต่างเป็น PNG แล้วปิดโปรแกรม
             //
@@ -332,7 +340,7 @@ public partial class App : Application
             // PrintWindow จะคืนเฟรมขาวเปล่า ๆ (เจอมาแล้วเหมือนกัน) และ Windows ไม่ยอมให้ process
             // เบื้องหลังแย่ง foreground มาแก้ RenderTargetBitmap วาดจาก visual tree ตรง ๆ จึงได้ภาพ
             // ที่ถูกต้องเสมอไม่ว่าหน้าต่างจะถูกบัง ย่อ หรือมีอะไรทับอยู่
-            CapturePreview(preview, e.Args);
+            CapturePreview(previewHost, e.Args);
             // StartupUri ถูกประมวลผลหลัง OnStartup คืนค่า (และ set เป็น null จะ throw) เลยต้องปิด
             // หน้าต่าง login ที่มันเปิดให้ ทีหลังแทน - BeginInvoke จึงจำเป็น ไม่ใช่แค่สไตล์
             Dispatcher.BeginInvoke(() =>
@@ -351,6 +359,26 @@ public partial class App : Application
     }
 
 #if DEBUG
+    /// <summary>
+    /// UI-2 (2026-11-03): DashboardWindow เปลี่ยนจาก Window เป็น UserControl ที่ฝังใน MainWindow แล้ว
+    /// (ดู DashboardWindow.xaml) แต่เครื่องมือ debug สามตัวข้างบน (--center-test/--focus-test/
+    /// --ui-preview) ยังต้องการเห็น Dashboard เป็นหน้าต่างลอยเดี่ยวๆ เพื่อถ่ายภาพ/ทดสอบโดยไม่ต้องผ่าน
+    /// login จริง - ห่อด้วย Window เปล่าๆ ขนาด/สไตล์เดียวกับที่ DashboardWindow เคยตั้งบนตัวเองตอนยัง
+    /// เป็น Window (1000x732, MinWidth/MinHeight 1000x560, AppDialogWindow)
+    /// </summary>
+    private static Window CreateDashboardPreviewHost(DashboardWindow content) => new()
+    {
+        Title = "Onion ProcOparetor Console - Dashboard",
+        Width = 1000,
+        Height = 732,
+        MinWidth = 1000,
+        MinHeight = 560,
+        WindowStartupLocation = WindowStartupLocation.CenterScreen,
+        ResizeMode = ResizeMode.CanResize,
+        Style = (Style)Current.FindResource("AppDialogWindow"),
+        Content = content
+    };
+
     /// <summary>
     /// --shot=&lt;path&gt; เรนเดอร์หน้าต่างเป็น PNG แล้วปิดโปรแกรม (โหมดตรวจ UI เท่านั้น)
     ///
@@ -397,7 +425,11 @@ public partial class App : Application
                 }
                 // วัดตำแหน่ง/ขนาดตาราง Clients ลง console.log (WP6) - เกณฑ์ "ตารางไม่ขยับตอนแผงเปิดหรือ
                 // ตอนประกาศโผล่" พิสูจน์ด้วยตัวเลขเทียบกันระหว่างภาพ ไม่ใช่ด้วยการเพ่งภาพสองใบ
-                if (window is DashboardWindow dashboard && dashboard.ClientsGrid.IsVisible)
+                //
+                // UI-2 (2026-11-03): DashboardWindow เป็น UserControl แล้ว - window ที่ส่งเข้ามาตรงนี้คือ
+                // previewHost ที่ห่ออยู่ (ดู CreateDashboardPreviewHost) จึงต้องมองหา DashboardWindow ผ่าน
+                // window.Content แทนที่จะ cast window ตรงๆ
+                if (window.Content as DashboardWindow is { } dashboard && dashboard.ClientsGrid.IsVisible)
                 {
                     var origin = dashboard.ClientsGrid.TranslatePoint(new Point(0, 0), dashboard);
                     ConsoleDiagnostics.WriteLine(
