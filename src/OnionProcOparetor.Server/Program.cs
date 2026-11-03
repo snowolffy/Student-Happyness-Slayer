@@ -142,7 +142,16 @@ builder.Services.AddSingleton<OnlineGameLookup>();
 builder.Services.AddSingleton<ProgramVerdictService>();
 
 // ---- SignalR: real-time push คู่ขนานกับ HTTP polling เดิม (ไม่แทนที่ poll) ----
-builder.Services.AddSignalR();
+// MaximumReceiveMessageSize (WP4-4, แก้ตามคำขอเพิ่ม 3 พ.ย. 2569 หลัง fps test harness เจอจริง) - default
+// ของ SignalR คือ 32KB/ข้อความ ซึ่ง "น้อยกว่า" ขนาดเฟรม JPEG ที่ ScreenCaptureService ส่งจริงหลายเฟรม
+// (960px กว้าง, quality 45 ได้เฉลี่ย ~20-30KB แต่บางเฟรมที่เนื้อหาซับซ้อน/มีสีเยอะเกิน 32KB ได้) ทำให้
+// PushScreenFrame โดน SignalR ปิด connection ทันทีแบบเงียบๆ (เจอจริงตอนรัน fps test harness end-to-end -
+// connection หลุดกลางทางโดยไม่มี error message ที่ชี้สาเหตุชัดเจน) ตั้งเพดานใหม่ 256KB ให้เผื่อเหลือเฟือ
+// (ไม่กระทบ hub method อื่นที่ไม่เคยส่งข้อมูลใหญ่ขนาดนี้อยู่แล้ว)
+builder.Services.AddSignalR(options =>
+{
+    options.MaximumReceiveMessageSize = 256 * 1024;
+});
 
 // ---- เก็บว่า Agent เครื่องไหนเปิด SignalR connection ค้างอยู่ตอนนี้บ้าง (LabHub.RegisterAgent/
 // OnDisconnectedAsync เขียน, endpoint ต่างๆ ที่คืน/broadcast ClientMachine อ่าน) - ดู

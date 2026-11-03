@@ -39,6 +39,16 @@ public sealed class ScreenCaptureService : IDisposable
     private volatile bool _captureInFlight;
     private bool _disposed;
 
+    /// <summary>
+    /// คำขอเพิ่ม 3 พ.ย. 2569 ("Zoom แบบแว่นขยาย") - true = ย่อ crop รอบตำแหน่งเมาส์ของครูแทนจับทั้งจอ
+    /// นักเรียนเห็นภาพซูมตามครู real-time เพราะเฟรมที่ส่งไปคือภาพที่ครอปมาแล้วตรงๆ (ไม่มี pan/zoom
+    /// control ฝั่งนักเรียนเลยตามที่ตัดสินไว้ - นักเรียนได้แต่ดูเฟรมที่ส่งมา)
+    /// </summary>
+    public volatile bool ZoomEnabled;
+
+    /// <summary>ซูม 3 เท่า (crop พื้นที่ 1/3 ของความกว้าง/สูงจอจริง แล้วขยายให้เท่า TargetWidth เดิม) - ค่าคงที่ ไม่ให้ครูปรับเอง รอบนี้</summary>
+    private const double ZoomFactor = 3.0;
+
     /// <summary>เรียกทุกครั้งที่ capture+encode เฟรมใหม่สำเร็จ - เรียกจาก timer thread ไม่ใช่ UI thread</summary>
     public event Action<byte[]>? FrameCaptured;
 
@@ -76,7 +86,8 @@ public sealed class ScreenCaptureService : IDisposable
         _captureInFlight = true;
         try
         {
-            var jpeg = CapturePrimaryScreenJpeg();
+            var cropRegion = ZoomEnabled ? ComputeZoomCropRegion() : (RECT?)null;
+            var jpeg = CapturePrimaryScreenJpeg(cropRegion);
             if (jpeg is not null)
             {
                 FrameCount++;
@@ -95,15 +106,47 @@ public sealed class ScreenCaptureService : IDisposable
         }
     }
 
-    /// <summary>capture จอหลักเต็มความละเอียดจริงด้วย BitBlt แล้วย่อ+เข้ารหัส JPEG - static เพราะไม่มี state (ไว้เรียกตรงจาก test harness ได้โดยไม่ต้องสร้าง ScreenCaptureService ทั้งก้อน)</summary>
-    public static byte[]? CapturePrimaryScreenJpeg()
+    /// <summary>
+    /// คำนวณพื้นที่ crop รอบตำแหน่งเมาส์ปัจจุบันของครู (GetCursorPos) สำหรับโหมด zoom - ขนาด crop
+    /// = ความกว้าง/สูงจอจริงหารด้วย ZoomFactor แปะกึ่งกลางที่เมาส์ แล้ว clamp ไม่ให้เกินขอบจอ (ไม่งั้น
+    /// BitBlt จากพื้นที่นอกจอจะได้ภาพเพี้ยน/ดำ) คืน null ถ้าอ่านตำแหน่งเมาส์ไม่สำเร็จ (ใช้จับภาพทั้งจอแทน)
+    /// </summary>
+    private static RECT? ComputeZoomCropRegion()
     {
         var screenWidth = GetSystemMetrics(SM_CXSCREEN);
         var screenHeight = GetSystemMetrics(SM_CYSCREEN);
-        if (screenWidth <= 0 || screenHeight <= 0)
+        if (screenWidth <= 0 || screenHeight <= 0 || !GetCursorPos(out var cursor))
         {
             return null;
         }
+
+        var cropWidth = Math.Max(1, (int)Math.Round(screenWidth / ZoomFactor));
+        var cropHeight = Math.Max(1, (int)Math.Round(screenHeight / ZoomFactor));
+
+        var left = Math.Clamp(cursor.X - cropWidth / 2, 0, Math.Max(0, screenWidth - cropWidth));
+        var top = Math.Clamp(cursor.Y - cropHeight / 2, 0, Math.Max(0, screenHeight - cropHeight));
+
+        return new RECT { Left = left, Top = top, Right = left + cropWidth, Bottom = top + cropHeight };
+    }
+
+    /// <summary>
+    /// capture จอหลักเต็มความละเอียดจริงด้วย BitBlt แล้วย่อ+เข้ารหัส JPEG - static เพราะไม่มี state (ไว้เรียกตรงจาก test harness ได้โดยไม่ต้องสร้าง ScreenCaptureService ทั้งก้อน)
+    /// cropRegion (คำขอเพิ่ม 3 พ.ย. 2569 - โหมด zoom): ไม่ null = BitBlt มาจากแค่พื้นที่นี้ของจอจริง แล้ว
+    /// สเกลขยายให้เต็ม TargetWidth เท่าเดิม (ภาพเลยดู "ซูมเข้า") null = capture ทั้งจอตามปกติ
+    /// </summary>
+    public static byte[]? CapturePrimaryScreenJpeg(RECT? cropRegion = null)
+    {
+        var fullScreenWidth = GetSystemMetrics(SM_CXSCREEN);
+        var fullScreenHeight = GetSystemMetrics(SM_CYSCREEN);
+        if (fullScreenWidth <= 0 || fullScreenHeight <= 0)
+        {
+            return null;
+        }
+
+        var srcX = cropRegion?.Left ?? 0;
+        var srcY = cropRegion?.Top ?? 0;
+        var captureWidth = cropRegion is { } r ? Math.Max(1, r.Right - r.Left) : fullScreenWidth;
+        var captureHeight = cropRegion is { } r2 ? Math.Max(1, r2.Bottom - r2.Top) : fullScreenHeight;
 
         var screenDc = GetDC(IntPtr.Zero);
         if (screenDc == IntPtr.Zero)
@@ -118,14 +161,14 @@ public sealed class ScreenCaptureService : IDisposable
         try
         {
             memDc = CreateCompatibleDC(screenDc);
-            bitmap = CreateCompatibleBitmap(screenDc, screenWidth, screenHeight);
+            bitmap = CreateCompatibleBitmap(screenDc, captureWidth, captureHeight);
             if (memDc == IntPtr.Zero || bitmap == IntPtr.Zero)
             {
                 return null;
             }
 
             oldBitmap = SelectObject(memDc, bitmap);
-            if (!BitBlt(memDc, 0, 0, screenWidth, screenHeight, screenDc, 0, 0, SRCCOPY))
+            if (!BitBlt(memDc, 0, 0, captureWidth, captureHeight, screenDc, srcX, srcY, SRCCOPY))
             {
                 return null;
             }
@@ -133,9 +176,9 @@ public sealed class ScreenCaptureService : IDisposable
             var source = Imaging.CreateBitmapSourceFromHBitmap(
                 bitmap, IntPtr.Zero, System.Windows.Int32Rect.Empty, BitmapSizeOptions.FromEmptyOptions());
 
-            var targetHeight = Math.Max(1, (int)Math.Round(TargetWidth * ((double)screenHeight / screenWidth)));
+            var targetHeight = Math.Max(1, (int)Math.Round(TargetWidth * ((double)captureHeight / captureWidth)));
             var scaled = new TransformedBitmap(
-                source, new ScaleTransform((double)TargetWidth / screenWidth, (double)targetHeight / screenHeight));
+                source, new ScaleTransform((double)TargetWidth / captureWidth, (double)targetHeight / captureHeight));
 
             var encoder = new JpegBitmapEncoder { QualityLevel = JpegQuality };
             encoder.Frames.Add(BitmapFrame.Create(scaled));
@@ -204,4 +247,22 @@ public sealed class ScreenCaptureService : IDisposable
 
     [DllImport("gdi32.dll")]
     private static extern bool DeleteObject(IntPtr hObject);
+
+    [DllImport("user32.dll")]
+    private static extern bool GetCursorPos(out POINT point);
+
+    private struct POINT
+    {
+        public int X;
+        public int Y;
+    }
+}
+
+/// <summary>พื้นที่ crop บนจอจริง (พิกเซล, สัมบูรณ์) - ใช้กับโหมด zoom เท่านั้น (ดู ComputeZoomCropRegion)</summary>
+public struct RECT
+{
+    public int Left;
+    public int Top;
+    public int Right;
+    public int Bottom;
 }
