@@ -14,6 +14,14 @@ public static class FileNameSanitizer
     private static readonly char[] InvalidFileNameChars = Path.GetInvalidFileNameChars();
     private const int MaxFileNameLength = 120;
 
+    /// <summary>ชื่ออุปกรณ์สงวนของ Windows - ก๊อปมาจาก FileTransferPaths.ReservedDeviceNames ฝั่ง Server (ดู doc comment ที่นั่น) ใช้ไฟล์ชื่อนี้ไม่ได้เลยไม่ว่าจะมี extension ต่อท้ายหรือไม่</summary>
+    private static readonly HashSet<string> ReservedDeviceNames = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "CON", "PRN", "AUX", "NUL",
+        "COM1", "COM2", "COM3", "COM4", "COM5", "COM6", "COM7", "COM8", "COM9",
+        "LPT1", "LPT2", "LPT3", "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9"
+    };
+
     public static string Sanitize(string? rawFileName, string defaultFileName = "file")
     {
         if (string.IsNullOrWhiteSpace(rawFileName))
@@ -47,6 +55,11 @@ public static class FileNameSanitizer
         if (string.IsNullOrWhiteSpace(name))
         {
             return defaultFileName;
+        }
+
+        if (ReservedDeviceNames.Contains(Path.GetFileNameWithoutExtension(name)))
+        {
+            name = "_" + name;
         }
 
         if (name.Length > MaxFileNameLength)

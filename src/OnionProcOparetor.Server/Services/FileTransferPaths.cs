@@ -21,6 +21,19 @@ public static class FileTransferPaths
     private const int MaxFileNameLength = 120;
 
     /// <summary>
+    /// ชื่ออุปกรณ์สงวนของ Windows (device name) - ใช้เป็นชื่อไฟล์/โฟลเดอร์ "เฉพาะส่วน stem" ไม่ได้เลย
+    /// ไม่ว่าจะมี extension ต่อท้ายหรือไม่ (เช่น "CON", "CON.txt", "com1.log" ล้วนสร้างไฟล์ไม่ได้จริง
+    /// บน Windows - ชนกับ device namespace ไม่ใช่ filesystem) GetInvalidFileNameChars ไม่ครอบคลุมเคสนี้
+    /// ให้เลย ต้องเช็คแยก
+    /// </summary>
+    private static readonly HashSet<string> ReservedDeviceNames = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "CON", "PRN", "AUX", "NUL",
+        "COM1", "COM2", "COM3", "COM4", "COM5", "COM6", "COM7", "COM8", "COM9",
+        "LPT1", "LPT2", "LPT3", "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9"
+    };
+
+    /// <summary>
     /// ทำชื่อไฟล์ดิบ (จากครู/นักเรียน - เชื่อไม่ได้) ให้ปลอดภัยสำหรับใช้เป็น "ชื่อไฟล์เดี่ยว" (ไม่มี
     /// directory separator เหลืออยู่เลย) คืนค่าเสมอ ไม่ throw - ชื่อที่ว่าง/เป็นแค่ ".."/มีแต่อักขระ
     /// ต้องห้ามทั้งหมด จะได้ DefaultFileName แทน
@@ -67,6 +80,13 @@ public static class FileTransferPaths
         if (string.IsNullOrWhiteSpace(name))
         {
             return defaultFileName;
+        }
+
+        // ชื่ออุปกรณ์สงวนของ Windows (CON, PRN, AUX, NUL, COM1-9, LPT1-9) เทียบที่ "stem" (ไม่รวม
+        // extension) เพราะ "CON.txt" ก็ชนเหมือนกับ "CON" เปล่าๆ
+        if (ReservedDeviceNames.Contains(System.IO.Path.GetFileNameWithoutExtension(name)))
+        {
+            name = "_" + name;
         }
 
         if (name.Length > MaxFileNameLength)
