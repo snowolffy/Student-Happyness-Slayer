@@ -18,10 +18,13 @@ namespace OnionProcOparetor.Console;
 /// แต่ละ toggle มีผลทันที (เรียก API ทันทีตอนกด ไม่ต้องกด SAVE รวม) ตาม convention เดิมของแอปนี้
 /// (ToggleRuleButton_Click/LockButton_Click ฯลฯ ก็ immediate เหมือนกันหมด)
 /// </summary>
-public partial class RuleOverridesWindow : Window
+public partial class RuleOverridesWindow : UserControl
 {
     private readonly ApiClient _apiClient;
     private readonly ClientMachineDto _client;
+
+    /// <summary>UI-3c (2026-11-03): raise ตอนกดปิด - ไม่ปิด host เองแล้ว (ดู ClientSettingsWindow.ResultChosen สำหรับ pattern เดียวกัน)</summary>
+    public event System.Action? CloseRequested;
 
     public RuleOverridesWindow(ApiClient apiClient, ClientMachineDto client)
     {
@@ -152,9 +155,5 @@ public partial class RuleOverridesWindow : Window
         }
     }
 
-    private void CloseButton_Click(object sender, RoutedEventArgs e)
-    {
-        DialogResult = true;
-        Close();
-    }
+    private void CloseButton_Click(object sender, RoutedEventArgs e) => CloseRequested?.Invoke();
 }

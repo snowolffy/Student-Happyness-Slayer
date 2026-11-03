@@ -1,4 +1,6 @@
 ﻿using System.Windows;
+using System.Windows.Controls;
+using OnionProcOparetor.UI.Controls;
 using OnionProcOparetor.Console.Models;
 using OnionProcOparetor.Console.Services;
 
@@ -12,8 +14,14 @@ namespace OnionProcOparetor.Console;
 ///   ที่มี pattern เดียวกันอยู่แล้ว
 /// แทนที่ ContextMenu เดิม (ClientActionsButton_Click) และปุ่มแยกบน header (Toggle/Shutdown/Restart Selected)
 /// </summary>
-public partial class ActionPanelWindow : Window
+public partial class ActionPanelWindow : UserControl
 {
+    /// <summary>UI-3c (2026-11-03): raise ครั้งเดียวตอน panel ปิดตัวเอง (ทุกจุดที่เดิมเซ็ต
+    /// DialogResult + Close()) - caller (DashboardWindow.RunActionPanelAsync) อ่าน DataChanged/
+    /// PendingReport/ViewScreenRequested/ฯลฯ ต่อจากนี้เหมือนเดิมทุกประการ แค่เปลี่ยนจาก "หลัง
+    /// ShowDialog() คืนค่า" เป็น "หลัง Closed ยิง"</summary>
+    public event System.Action? Closed;
+
     /// <summary>ต้องตรงกับฝั่ง Agent (PowerActionPayload.MinDelaySeconds) - validate ทั้ง 2 ฝั่ง</summary>
     public const int MinDelaySeconds = 1;
 
@@ -167,7 +175,7 @@ public partial class ActionPanelWindow : Window
         _isBulk && ApplyToAllRadio.IsChecked == true ? _allClients : _selectedClients;
 
     private bool Confirm(string message, string title, string? confirmText = null) =>
-        ConfirmWindow.Show(message, title, this, confirmText);
+        ConfirmWindow.Show(message, title, Window.GetWindow(this), confirmText);
 
     /// <summary>
     /// Toggle enforcement - เป็น action เดียวที่ใช้หน้า report แบบ "immediate" (BatchId = null)
@@ -222,34 +230,45 @@ public partial class ActionPanelWindow : Window
                 .ToList()
         };
 
-        DialogResult = DataChanged;
-        Close();
+        Closed?.Invoke();
     }
 
-    private void SettingsButton_Click(object sender, RoutedEventArgs e)
+    /// <summary>
+    /// UI-3c (2026-11-03): panel นี้ครอง SidePanelHost อยู่แล้ว - เปิด ClientSettingsWindow ผ่าน
+    /// DialogHost ของ MainWindow แทน (ลอยทับแผงนี้ได้ ดู docs/architecture.md หัวข้อ "UI-3a")
+    /// owner ที่ไม่ใช่ MainWindow (เช่น harness --dialog=action-panel) ไม่มี DialogHost ให้ใช้ -
+    /// ข้ามไปเงียบๆ (เหมือนเดิมที่ปุ่มนี้ไม่ทำอะไรถ้า owner เป็น null)
+    /// </summary>
+    private async void SettingsButton_Click(object sender, RoutedEventArgs e)
     {
-        if (_singleClient is null)
+        if (_singleClient is null || Window.GetWindow(this) is not MainWindow mainWindow)
         {
             return;
         }
 
-        var settingsWindow = new ClientSettingsWindow(_apiClient, _singleClient) { Owner = this };
-        if (settingsWindow.ShowDialog() == true)
+        var content = new ClientSettingsWindow(_apiClient, _singleClient);
+        content.ResultChosen += result => mainWindow.DialogHost.CloseTop(result);
+        var saved = await mainWindow.DialogHost.ShowAsync<bool>(content);
+
+        if (saved == true)
         {
             DataChanged = true;
             StatusText.Text = "บันทึก Settings สำเร็จ";
         }
     }
 
-    private void ConfigRuleButton_Click(object sender, RoutedEventArgs e)
+    private async void ConfigRuleButton_Click(object sender, RoutedEventArgs e)
     {
-        if (_singleClient is null)
+        if (_singleClient is null || Window.GetWindow(this) is not MainWindow mainWindow)
         {
             return;
         }
 
-        var ruleOverridesWindow = new RuleOverridesWindow(_apiClient, _singleClient) { Owner = this };
-        if (ruleOverridesWindow.ShowDialog() == true)
+        var content = new RuleOverridesWindow(_apiClient, _singleClient);
+        content.CloseRequested += () => mainWindow.DialogHost.CloseTop(true);
+        var closed = await mainWindow.DialogHost.ShowAsync<bool>(content);
+
+        if (closed == true)
         {
             DataChanged = true;
             StatusText.Text = "อัปเดต Rule override สำเร็จ";
@@ -265,8 +284,7 @@ public partial class ActionPanelWindow : Window
         }
 
         ViewScreenRequested = _singleClient;
-        DialogResult = DataChanged;
-        Close();
+        Closed?.Invoke();
     }
 
     /// <summary>ปิด panel แล้วส่งสัญญาณกลับ DashboardWindow ให้เปิดหน้าต่าง running processes สำหรับเครื่องนี้ (ดู ViewProcessesRequested)</summary>
@@ -278,8 +296,7 @@ public partial class ActionPanelWindow : Window
         }
 
         ViewProcessesRequested = _singleClient;
-        DialogResult = DataChanged;
-        Close();
+        Closed?.Invoke();
     }
 
     /// <summary>ปิด panel แล้วส่งสัญญาณกลับ DashboardWindow ให้เปิดหน้าต่าง pending commands สำหรับเครื่องนี้ (ดู ViewPendingCommandsRequested)</summary>
@@ -291,8 +308,7 @@ public partial class ActionPanelWindow : Window
         }
 
         ViewPendingCommandsRequested = _singleClient;
-        DialogResult = DataChanged;
-        Close();
+        Closed?.Invoke();
     }
 
     // Lock ไม่ต้อง confirm (ทำคืนง่าย - ครูกด Unlock จาก panel นี้ได้ทันที)
@@ -306,7 +322,7 @@ public partial class ActionPanelWindow : Window
     // ในงานนี้ (เป็นขอบเขตของ WP3-3) ดูรายงาน WP3-5 สำหรับรายละเอียด
     private void LockButton_Click(object sender, RoutedEventArgs e)
     {
-        var dialog = new LockScreenMessageWindow { Owner = this };
+        var dialog = new LockScreenMessageWindow { Owner = Window.GetWindow(this) };
         if (dialog.ShowDialog() == true)
         {
             SendToTargets("LockWorkstation", new { message = dialog.Message }, "Lock Workstation");
@@ -342,7 +358,7 @@ public partial class ActionPanelWindow : Window
     /// </summary>
     private void TailscaleLoginButton_Click(object sender, RoutedEventArgs e)
     {
-        var loginWindow = new TailscaleLoginWindow { Owner = this };
+        var loginWindow = new TailscaleLoginWindow { Owner = Window.GetWindow(this) };
         if (loginWindow.ShowDialog() == true)
         {
             SendToTargets("RunTailscaleLogin", new { authKey = loginWindow.AuthKey }, "Tailscale Login");
@@ -469,14 +485,9 @@ public partial class ActionPanelWindow : Window
         if (success)
         {
             DataChanged = true;
-            DialogResult = true;
-            Close();
+            Closed?.Invoke();
         }
     }
 
-    private void CloseButton_Click(object sender, RoutedEventArgs e)
-    {
-        DialogResult = DataChanged;
-        Close();
-    }
+    private void CloseButton_Click(object sender, RoutedEventArgs e) => Closed?.Invoke();
 }
