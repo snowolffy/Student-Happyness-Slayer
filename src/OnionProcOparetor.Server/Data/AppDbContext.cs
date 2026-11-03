@@ -71,6 +71,15 @@ public class AppDbContext : DbContext
     /// <summary>โปรแกรมที่ Admin อนุญาตให้เปิดทั้งห้องได้ (WP4-1, 2026-11-01) - ดู Models/LaunchableProgram.cs</summary>
     public DbSet<LaunchableProgram> LaunchablePrograms => Set<LaunchableProgram>();
 
+    /// <summary>ไฟล์ที่ครูแจกไว้ (WP4-3, 2026-11-01 - ขั้น 4 เครื่องมือสอน) - ดู Models/DistributedFile.cs</summary>
+    public DbSet<DistributedFile> DistributedFiles => Set<DistributedFile>();
+
+    /// <summary>งานเก็บไฟล์ (WP4-3, 2026-11-01) - ดู Models/FileCollectionJob.cs</summary>
+    public DbSet<FileCollectionJob> FileCollectionJobs => Set<FileCollectionJob>();
+
+    /// <summary>ไฟล์ที่เก็บได้จากนักเรียนแต่ละเครื่อง ต่องานเก็บไฟล์หนึ่งงาน (WP4-3, 2026-11-01) - ดู Models/CollectedFile.cs</summary>
+    public DbSet<CollectedFile> CollectedFiles => Set<CollectedFile>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
@@ -231,6 +240,12 @@ public class AppDbContext : DbContext
         // รวมกันในระยะยาว)
         modelBuilder.Entity<WebVisit>()
             .HasIndex(v => new { v.ClientGuid, v.VisitedAt });
+
+        // แจก/เก็บไฟล์ (WP4-3, 2026-11-01) - มีได้แค่ 1 แถวต่อ (JobId, ClientGuid) เท่านั้น (ส่งซ้ำทับของ
+        // เดิม - ดู doc comment บน Models/CollectedFile.cs และ FileTransferEndpoints POST .../upload)
+        modelBuilder.Entity<CollectedFile>()
+            .HasIndex(f => new { f.JobId, f.ClientGuid })
+            .IsUnique();
 
         // Seed ค่าเริ่มต้นของ GlobalState ให้มี row เดียวเสมอ (Id = 1, เปิดใช้งานเป็นค่าเริ่มต้น)
         // สำคัญ: ต้องใช้ค่า DateTime แบบ fixed/static เท่านั้น ห้ามใช้ DateTime.UtcNow หรือ

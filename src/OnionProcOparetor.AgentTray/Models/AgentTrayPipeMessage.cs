@@ -20,6 +20,9 @@ namespace OnionProcOparetor.AgentTray.Models;
 ///   LockScreenWindow.LockMessage (const เดิม) เป็น fail-safe สุดท้าย
 /// - "SignInStatus" (WP3-3, 2026-10-31) — ขึ้น/ลบจอล็อกอินนักเรียน (StudentLoginWindow) (ใช้
 ///   RequireLogin + Message = ข้อความบนจอล็อกอิน) ดู App.xaml.cs OnSignInStatusChanged
+/// - "CollectFile" (WP4-3, 2026-11-01) — โชว่ตัวเลือกไฟล์ให้นักเรียนเลือกส่ง (ใช้ CollectFileJobId/
+///   CollectFileJobName/CollectFileNamePattern/CollectFileClosesAtUtc/CollectFileMaxSizeMb) ดู
+///   CollectFileRequestWindow
 ///
 /// ต้อง "ตรงกัน" กับ OnionProcOparetor.Agent/Models/AgentTrayPipeMessage.cs เป๊ะๆ เสมอ เพราะ
 /// solution นี้ไม่มี shared class library ระหว่างโปรเจกต์ (ก๊อปมือแบบเดียวกับ LogEntryDto) -
@@ -51,4 +54,11 @@ public class AgentTrayPipeMessage
 
     /// <summary>ใช้เฉพาะ Type = "SignInStatus" (WP3-3, 2026-10-31) - true = ต้อง login ก่อนใช้เครื่อง</summary>
     public bool? RequireLogin { get; set; }
+
+    // ---- ใช้เฉพาะ Type = "CollectFile" (WP4-3, 2026-11-01) ----
+    public int? CollectFileJobId { get; set; }
+    public string? CollectFileJobName { get; set; }
+    public string? CollectFileNamePattern { get; set; }
+    public DateTime? CollectFileClosesAtUtc { get; set; }
+    public int? CollectFileMaxSizeMb { get; set; }
 }

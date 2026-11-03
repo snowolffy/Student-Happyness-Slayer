@@ -107,6 +107,10 @@ public class BroadcastPipeListener
     /// (RequireLogin, LoginScreenMessage) เรียกจาก background thread ไม่ใช่ UI thread</summary>
     public event Action<bool, string?>? SignInStatusChanged;
 
+    /// <summary>เรียกทุกครั้งที่ Agent ขอให้โชว่ตัวเลือกไฟล์ให้นักเรียนเลือกส่ง (WP4-3, 2026-11-01) - payload =
+    /// CollectFileRequestDto เรียกจาก background thread ไม่ใช่ UI thread</summary>
+    public event Action<CollectFileRequestDto>? CollectFileRequested;
+
     /// <summary>เริ่มฟัง pipe แบบ fire-and-forget - มี retry loop ในตัว ไม่ throw ออกมาแม้เปิด pipe ไม่สำเร็จ</summary>
     public void Start(CancellationToken ct)
     {
@@ -351,6 +355,20 @@ public class BroadcastPipeListener
 
                 case "SignInStatus":
                     SignInStatusChanged?.Invoke(envelope.RequireLogin ?? false, envelope.Message);
+                    break;
+
+                case "CollectFile":
+                    if (envelope.CollectFileJobId is { } jobId)
+                    {
+                        CollectFileRequested?.Invoke(new CollectFileRequestDto
+                        {
+                            JobId = jobId,
+                            JobName = envelope.CollectFileJobName ?? string.Empty,
+                            FileNamePattern = envelope.CollectFileNamePattern,
+                            ClosesAtUtc = envelope.CollectFileClosesAtUtc,
+                            MaxFileSizeMb = envelope.CollectFileMaxSizeMb ?? 100
+                        });
+                    }
                     break;
 
                 default:

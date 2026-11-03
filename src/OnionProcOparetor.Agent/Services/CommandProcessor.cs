@@ -177,6 +177,12 @@ public class CommandProcessor
             case "LaunchProgram":
                 return HandleLaunchProgramAsync(payloadJson, ct);
 
+            case "DownloadFile":
+                return HandleDownloadFileAsync(payloadJson, ct);
+
+            case "CollectFile":
+                return HandleCollectFileAsync(payloadJson, ct);
+
             // TODO Phase 3/4: ใส่ command อื่นๆ ตรงนี้เพิ่ม เช่น "Kill", "RunCommand"
             default:
                 _logger.LogWarning(
@@ -907,6 +913,130 @@ public class CommandProcessor
             ? CommandExecutionResult.Ok($"เปิดโปรแกรม '{program.Name}' แล้ว")
             : CommandExecutionResult.Fail(
                 $"เปิดโปรแกรม '{program.Name}' ไม่สำเร็จ (อาจไม่มี user login อยู่หน้าเครื่องนี้ หรือหาไฟล์ที่ '{program.Path}' บนเครื่องนี้ไม่พบ)");
+    }
+
+    /// <summary>
+    /// "แจกไฟล์ทั้งห้อง" (WP4-3, 2026-11-01) - ดาวน์โหลดไฟล์จริงจาก Server แล้วเขียนลง
+    /// Desktop\ไฟล์จากครู ของ user ที่ login อยู่หน้าเครื่อง (ไม่ใช่ของ LocalSystem - ต้อง resolve
+    /// profile directory จริงของ user นั้นผ่าน UserSessionLauncher.TryGetActiveUserProfileDirectory
+    /// แบบเดียวกับที่ WP2-4 ใช้หา %LOCALAPPDATA% สำหรับอ่าน Chrome/Edge History) ชื่อไฟล์ปลายทาง sanitize
+    /// ผ่าน FileNameSanitizer เสมอ - ไม่เชื่อชื่อไฟล์ที่ Server ส่งมา 100% (defense-in-depth ชั้นที่ 2
+    /// ต่อจากที่ Server sanitize ไว้แล้วชั้นหนึ่ง)
+    /// </summary>
+    private async Task<CommandExecutionResult> HandleDownloadFileAsync(string? payloadJson, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(payloadJson))
+        {
+            _logger.LogWarning("DownloadFile command ไม่มี payload มาด้วย - ข้าม");
+            return CommandExecutionResult.Fail("DownloadFile command ไม่มี payload มาด้วย");
+        }
+
+        DownloadFilePayload? payload;
+        try
+        {
+            payload = JsonSerializer.Deserialize<DownloadFilePayload>(
+                payloadJson, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "แปลง payload ของ DownloadFile ไม่สำเร็จ: {Payload}", payloadJson);
+            return CommandExecutionResult.Fail($"payload ของ DownloadFile ไม่ถูกต้อง: {ex.Message}");
+        }
+
+        if (payload is null || payload.DistributedFileId <= 0)
+        {
+            return CommandExecutionResult.Fail("DownloadFile payload ไม่มี DistributedFileId ที่ถูกต้อง");
+        }
+
+        var profileDirectory = _userSessionLauncher.TryGetActiveUserProfileDirectory();
+        if (profileDirectory is null)
+        {
+            _logger.LogWarning("DownloadFile: ไม่มี user login อยู่หน้าเครื่องนี้ - ข้าม (ไม่รู้จะเขียนไฟล์ไปที่ไหน)");
+            return CommandExecutionResult.Fail("ดาวน์โหลดไฟล์ไม่สำเร็จ (ไม่มี user login อยู่หน้าเครื่องนี้)");
+        }
+
+        var (bytes, rawFileName) = await _serverClient.DownloadDistributedFileAsync(payload.DistributedFileId, ct);
+        if (bytes is null)
+        {
+            _logger.LogWarning("DownloadFile: ดาวน์โหลดไฟล์ id={Id} จาก Server ไม่สำเร็จ", payload.DistributedFileId);
+            return CommandExecutionResult.Fail("ดาวน์โหลดไฟล์จาก Server ไม่สำเร็จ (ไฟล์อาจถูกลบ/ติดต่อ Server ไม่ได้)");
+        }
+
+        // sanitize ซ้ำเสมอ (ดู doc comment บน method นี้) - ไม่เชื่อ rawFileName จาก Content-Disposition 100%
+        var fileName = FileNameSanitizer.Sanitize(rawFileName, "distributed-file");
+        var targetDirectory = Path.Combine(profileDirectory, "Desktop", "ไฟล์จากครู");
+
+        string fullPath;
+        try
+        {
+            Directory.CreateDirectory(targetDirectory);
+            fullPath = Path.Combine(targetDirectory, fileName);
+            await File.WriteAllBytesAsync(fullPath, bytes, ct);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "DownloadFile: เขียนไฟล์ '{FileName}' ไปที่ '{TargetDirectory}' ไม่สำเร็จ", fileName, targetDirectory);
+            return CommandExecutionResult.Fail($"เขียนไฟล์ลง Desktop ไม่สำเร็จ: {ex.Message}");
+        }
+
+        _logger.LogInformation("DownloadFile: เขียนไฟล์ '{FullPath}' สำเร็จ ({Size} bytes)", fullPath, bytes.Length);
+
+        if (payload.OpenAfterDownload)
+        {
+            // เปิดด้วย default app ของ user คนนั้นผ่าน explorer.exe (trick เดียวกับ HandleOpenUrlAsync) -
+            // ไม่ใช่ตัวตัดสินความสำเร็จของ command นี้ (เขียนไฟล์เสร็จแล้วถือว่าสำเร็จแล้ว เปิดไม่ได้ก็แค่
+            // user เปิดเองจาก Desktop ได้อยู่ดี)
+            var explorerPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), "explorer.exe");
+            _userSessionLauncher.TryLaunchInActiveUserSession(explorerPath, $"\"{fullPath}\"");
+        }
+
+        return CommandExecutionResult.Ok($"ดาวน์โหลดไฟล์ '{fileName}' ไปไว้ที่ Desktop\\ไฟล์จากครู แล้ว");
+    }
+
+    /// <summary>
+    /// "เก็บไฟล์" (WP4-3, 2026-11-01) - re-validate งานกับ Server ก่อนเสมอ (เหมือน HandleLaunchProgramAsync)
+    /// แล้วส่งต่อให้ AgentTray โชว่ตัวเลือกไฟล์ - ผลจริง (อัปโหลดสำเร็จ/ไม่สำเร็จ) เป็นเรื่องระหว่าง
+    /// AgentTray กับ Server เอง (ผ่าน local HTTP /files/collect-result แยกไปเลย ไม่ผ่าน command/ack
+    /// pipeline นี้ - ดู doc comment บน AgentTrayNotifier.SendCollectFileRequestAsync) command นี้แค่
+    /// "ส่งคำขอถึง AgentTray สำเร็จไหม" เท่านั้น
+    /// </summary>
+    private async Task<CommandExecutionResult> HandleCollectFileAsync(string? payloadJson, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(payloadJson))
+        {
+            _logger.LogWarning("CollectFile command ไม่มี payload มาด้วย - ข้าม");
+            return CommandExecutionResult.Fail("CollectFile command ไม่มี payload มาด้วย");
+        }
+
+        CollectFilePayload? payload;
+        try
+        {
+            payload = JsonSerializer.Deserialize<CollectFilePayload>(
+                payloadJson, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "แปลง payload ของ CollectFile ไม่สำเร็จ: {Payload}", payloadJson);
+            return CommandExecutionResult.Fail($"payload ของ CollectFile ไม่ถูกต้อง: {ex.Message}");
+        }
+
+        if (payload is null || payload.JobId <= 0)
+        {
+            return CommandExecutionResult.Fail("CollectFile payload ไม่มี JobId ที่ถูกต้อง");
+        }
+
+        var job = await _serverClient.GetCollectionJobForAgentAsync(payload.JobId, ct);
+        if (job is null || !job.IsOpen)
+        {
+            _logger.LogWarning("CollectFile ปฏิเสธ JobId {JobId} - ไม่พบงาน/ปิดรับไฟล์ไปแล้ว (อาจติดต่อ Server ไม่ได้)", payload.JobId);
+            return CommandExecutionResult.Fail("ปฏิเสธ - งานเก็บไฟล์นี้ไม่พบ หรือปิดรับไฟล์ไปแล้ว");
+        }
+
+        var sentToTray = await _agentTrayNotifier.SendCollectFileRequestAsync(job.Id, job.Name, job.FileNamePattern, job.ClosesAt?.ToUniversalTime(), job.MaxFileSizeMb, ct);
+
+        return sentToTray
+            ? CommandExecutionResult.Ok($"ส่งคำขอเก็บไฟล์งาน '{job.Name}' ให้ AgentTray แล้ว (รอนักเรียนเลือกไฟล์ส่งเอง)")
+            : CommandExecutionResult.Fail(TrayUnreachableMessage("ขอไฟล์งาน"));
     }
 
     /// <summary>

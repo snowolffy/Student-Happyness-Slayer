@@ -1,4 +1,5 @@
-﻿using System.Net.Http;
+﻿using System.IO;
+using System.Net.Http;
 using System.Net.Http.Json;
 using OnionProcOparetor.Console.Models;
 
@@ -1183,6 +1184,110 @@ public class ApiClient
     public async Task<bool> ClearRaiseHandQueueAsync()
     {
         var response = await _httpClient.PostAsync("/api/raisehand/clear", null);
+        return response.IsSuccessStatusCode;
+    }
+
+    // ---- แจก/เก็บไฟล์ (WP4-3, 2026-11-01) ----
+
+    /// <summary>ให้ FilesWindow โชว่ "สูงสุด N MB" บนปุ่มแจกไฟล์ - การบังคับจริงอยู่ที่ Server เสมอ
+    /// (ดู FileTransferOptions) คืน default (100) ถ้าอ่านไม่สำเร็จ ไม่ throw (ข้อมูลนี้แค่ informational)</summary>
+    public async Task<FileTransferSettingsDto> GetFileTransferSettingsAsync()
+    {
+        try
+        {
+            var result = await _httpClient.GetFromJsonAsync<FileTransferSettingsDto>("/api/files/settings");
+            return result ?? new FileTransferSettingsDto();
+        }
+        catch
+        {
+            return new FileTransferSettingsDto();
+        }
+    }
+
+    /// <summary>
+    /// อัปโหลดไฟล์แจกไปเก็บไว้ที่ Server ก่อน (ยังไม่ส่งถึงเครื่องนักเรียน - ต้องสั่ง command
+    /// "DownloadFile" ต่ออีกทีผ่าน SendCommandTrackedAsync เดิม เหมือน OpenUrlWindow) ใช้ HttpClient
+    /// แยกตัวใหม่ timeout ยาวกว่า _httpClient ปกติ (10 วิ - ไม่พอสำหรับไฟล์ขนาดหลักสิบ/ร้อย MB) คัด
+    /// X-Auth-Token ปัจจุบันไปด้วย (ไม่ได้ใช้ DefaultRequestHeaders ร่วมกับ _httpClient)
+    /// </summary>
+    public async Task<(DistributedFileResultDto? Result, string? Error)> UploadDistributedFileAsync(string filePath, bool openAfterDownload)
+    {
+        if (BaseUrl is null)
+        {
+            return (null, "ยังไม่ได้เชื่อมต่อ Server");
+        }
+
+        try
+        {
+            using var uploadClient = new HttpClient(ServerCertificatePinning.CreateHandler())
+            {
+                BaseAddress = new Uri(BaseUrl),
+                Timeout = TimeSpan.FromMinutes(5)
+            };
+            if (_token is not null)
+            {
+                uploadClient.DefaultRequestHeaders.Add("X-Auth-Token", _token);
+            }
+
+            using var content = new MultipartFormDataContent();
+            await using var fileStream = File.OpenRead(filePath);
+            using var fileContent = new StreamContent(fileStream);
+            fileContent.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("application/octet-stream");
+            content.Add(fileContent, "file", Path.GetFileName(filePath));
+            content.Add(new StringContent(openAfterDownload.ToString()), "openAfterDownload");
+
+            var response = await uploadClient.PostAsync("/api/files/distribute", content);
+            if (!response.IsSuccessStatusCode)
+            {
+                return (null, await ExtractErrorAsync(response, $"อัปโหลดไฟล์ไม่สำเร็จ ({response.StatusCode})"));
+            }
+
+            var result = await response.Content.ReadFromJsonAsync<DistributedFileResultDto>();
+            return (result, null);
+        }
+        catch (Exception ex)
+        {
+            return (null, $"อัปโหลดไฟล์ไม่สำเร็จ: {ex.Message}");
+        }
+    }
+
+    /// <summary>สร้างงานเก็บไฟล์ใหม่ - ยังไม่ส่ง command "CollectFile" ให้เครื่องเป้าหมาย (ผู้เรียกทำต่อผ่าน
+    /// SendCommandTrackedAsync เดิม เหมือน UploadDistributedFileAsync ด้านบน)</summary>
+    public async Task<(FileCollectionJobDto? Job, string? Error)> CreateCollectionJobAsync(string name, string? fileNamePattern, DateTime? closesAt, int? roomId)
+    {
+        try
+        {
+            var response = await _httpClient.PostAsJsonAsync("/api/files/collection-jobs", new { name, fileNamePattern, closesAt, roomId });
+            if (!response.IsSuccessStatusCode)
+            {
+                return (null, await ExtractErrorAsync(response, $"สร้างงานเก็บไฟล์ไม่สำเร็จ ({response.StatusCode})"));
+            }
+
+            var job = await response.Content.ReadFromJsonAsync<FileCollectionJobDto>();
+            return (job, null);
+        }
+        catch (Exception ex)
+        {
+            return (null, $"สร้างงานเก็บไฟล์ไม่สำเร็จ: {ex.Message}");
+        }
+    }
+
+    public async Task<CollectionJobStatusDto?> GetCollectionJobStatusAsync(int jobId)
+    {
+        try
+        {
+            return await _httpClient.GetFromJsonAsync<CollectionJobStatusDto>($"/api/files/collection-jobs/{jobId}/status");
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    /// <summary>ครูกด "ปิดงาน" เอง - ไม่รับไฟล์เพิ่มแม้ ClosesAt ยังไม่ถึง</summary>
+    public async Task<bool> CloseCollectionJobAsync(int jobId)
+    {
+        var response = await _httpClient.PostAsync($"/api/files/collection-jobs/{jobId}/close", null);
         return response.IsSuccessStatusCode;
     }
 

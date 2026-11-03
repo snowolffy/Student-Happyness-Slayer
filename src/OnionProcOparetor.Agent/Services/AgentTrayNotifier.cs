@@ -172,6 +172,30 @@ public class AgentTrayNotifier
     }
 
     /// <summary>
+    /// สั่งให้ AgentTray โชว่ตัวเลือกไฟล์ให้นักเรียนเลือกส่ง (WP4-3, 2026-11-01) - รายละเอียดทั้งหมด
+    /// (jobName/fileNamePattern/closesAtUtc/maxFileSizeMb) เป็นค่าที่ CommandProcessor.HandleCollectFileAsync
+    /// ไปขอจาก Server มาสดๆ แล้ว (GetCollectionJobForAgentAsync) ไม่ใช่ค่าที่ติดมากับ command payload เดิม
+    /// คืนค่า bool บอกว่า "ส่งคำขอถึง AgentTray สำเร็จไหม" เท่านั้น - ผลจริง (ส่งไฟล์สำเร็จ/ไม่สำเร็จ) เป็น
+    /// เรื่องของ AgentTray คุยกับ user เอง ไม่มี callback กลับมาที่ CommandProcessor (ต่างจาก VNC/ProcessList
+    /// เพราะ "ส่งคำขอถึง Tray แล้ว" คือจุดจบของ command นี้จริงๆ - การอัปโหลดไฟล์จริงเป็น flow คนละอันที่
+    /// ทำผ่าน local HTTP /files/collect-result แยกไปเลย ไม่ผ่าน command/ack pipeline นี้)
+    /// </summary>
+    public Task<bool> SendCollectFileRequestAsync(int jobId, string jobName, string? fileNamePattern, DateTime? closesAtUtc, int maxFileSizeMb, CancellationToken ct)
+    {
+        var envelope = new AgentTrayPipeMessage
+        {
+            Type = "CollectFile",
+            CollectFileJobId = jobId,
+            CollectFileJobName = jobName,
+            CollectFileNamePattern = fileNamePattern,
+            CollectFileClosesAtUtc = closesAtUtc,
+            CollectFileMaxSizeMb = maxFileSizeMb
+        };
+
+        return SendAsync(envelope, $"CollectFile (job {jobId}: '{jobName}')", ct);
+    }
+
+    /// <summary>
     /// คืน true ถ้าส่งถึง AgentTray สำเร็จจริง, false ถ้าไม่สำเร็จ (ยังคง fail-secure เหมือนเดิม -
     /// ไม่ throw ออกไป เพื่อไม่ให้ command processing ทั้งสายพัง) ผู้เรียกใช้ค่านี้ไปรายงาน
     /// "ผลจริง" กลับ Server ได้ (ดู CommandProcessor) - เดิม method นี้คืน void เลยไม่มีใคร

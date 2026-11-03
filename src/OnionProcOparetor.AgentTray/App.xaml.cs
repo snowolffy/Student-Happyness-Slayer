@@ -85,6 +85,16 @@ public partial class App : System.Windows.Application
                 // docs/wireframes/tc-raisehand.dc.html (renderVals: แถวที่สองคือ "คิวที่ 2")
                 "raise-hand" => new RaiseHandWindow(previewApiClient),
                 "raise-hand-badge" => new RaiseHandBadgeWindow(previewApiClient, queuePosition: 2),
+                // WP4-3 (2026-11-01) - ค่าตัวอย่างตรงกับ wireframe tc-files.dc.html ("เก็บงาน" - ชนิดไฟล์
+                // "*.sb3, *.docx")
+                "collect-file-request" => new CollectFileRequestWindow(previewApiClient, new Models.CollectFileRequestDto
+                {
+                    JobId = 1,
+                    JobName = "ส่งงาน Scratch คาบนี้",
+                    FileNamePattern = "*.sb3, *.docx",
+                    ClosesAtUtc = DateTime.UtcNow.AddMinutes(20),
+                    MaxFileSizeMb = 100
+                }),
                 _ => null
             };
 
@@ -136,6 +146,7 @@ public partial class App : System.Windows.Application
         _broadcastListener.GetRunningProcessesRequested += OnGetRunningProcessesRequested;
         _broadcastListener.ExamModeStatusChanged += OnExamModeStatusChanged;
         _broadcastListener.SignInStatusChanged += OnSignInStatusChanged;
+        _broadcastListener.CollectFileRequested += OnCollectFileRequested;
         _broadcastListener.Start(_broadcastListenerCts.Token);
 
         // โหมดสอบ (WP2-2, 2026-10-31) - ดึงสถานะเริ่มต้นจาก Agent ทันทีตอน Tray เพิ่งเริ่มทำงาน (เช่น
@@ -350,6 +361,27 @@ public partial class App : System.Windows.Application
         var window = new RaiseHandWindow(_apiClient);
         window.Raised += OnRaiseHandRaised;
         window.ShowDialog();
+    }
+
+    /// <summary>
+    /// เรียกจาก background thread ของ pipe listener (WP4-3, 2026-11-01) - ครูกดสั่งเก็บไฟล์จาก Console
+    /// (command "CollectFile" ไปเครื่องเป้าหมาย) ถ้ามีการ์ดของงานนี้เปิดอยู่แล้ว (ครูกดสั่งซ้ำ/ส่งซ้ำ
+    /// จาก poll fallback) แค่เลื่อนหน้าต่างเดิมขึ้นมาแทน ไม่เปิดซ้อนกันหลายใบของงานเดียวกัน
+    /// </summary>
+    private void OnCollectFileRequested(CollectFileRequestDto request)
+    {
+        Dispatcher.BeginInvoke(() =>
+        {
+            var existing = Windows.OfType<CollectFileRequestWindow>().FirstOrDefault(w => w.Tag is int jobId && jobId == request.JobId);
+            if (existing is not null)
+            {
+                RestoreAndActivate(existing);
+                return;
+            }
+
+            var window = new CollectFileRequestWindow(_apiClient, request) { Tag = request.JobId };
+            window.Show();
+        });
     }
 
     private void OnRaiseHandRaised(int? queuePosition)

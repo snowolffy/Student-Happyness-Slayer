@@ -229,6 +229,106 @@ public class ServerClient
         }
     }
 
+    /// <summary>
+    /// ดาวน์โหลดไฟล์แจกจริง (WP4-3, 2026-11-01) - เรียกก่อนเขียนลง Desktop ของ user เสมอ (ดู
+    /// CommandProcessor.HandleDownloadFileAsync) คืน (null, null) ถ้าติดต่อ Server ไม่ได้/404 - ผู้เรียก
+    /// ปฏิเสธการเขียนไฟล์ทันที (fail-secure เหมือน GetLaunchableProgramAsync) ชื่อไฟล์ได้จาก
+    /// Content-Disposition ที่ Server ตั้งไว้ (ไม่เชื่อ 100% - ผู้เรียกต้อง sanitize ซ้ำอีกชั้นเสมอ)
+    /// </summary>
+    public async Task<(byte[]? Bytes, string? FileName)> DownloadDistributedFileAsync(int distributedFileId, CancellationToken ct)
+    {
+        try
+        {
+            var url = ActiveBaseUrl.TrimEnd('/') + $"/api/files/distributed/{distributedFileId}/content";
+            var response = await _httpClient.GetAsync(url, ct);
+            if (!response.IsSuccessStatusCode)
+            {
+                _logger.LogWarning("ดาวน์โหลดไฟล์แจก id={DistributedFileId} ไม่สำเร็จ - Server ตอบ {StatusCode}", distributedFileId, response.StatusCode);
+                return (null, null);
+            }
+
+            var fileName = response.Content.Headers.ContentDisposition?.FileNameStar
+                ?? response.Content.Headers.ContentDisposition?.FileName;
+            var bytes = await response.Content.ReadAsByteArrayAsync(ct);
+            return (bytes, fileName);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "ดาวน์โหลดไฟล์แจก id={DistributedFileId} จาก Server ไม่สำเร็จ", distributedFileId);
+            return (null, null);
+        }
+    }
+
+    /// <summary>
+    /// ขอรายละเอียดจริงของงานเก็บไฟล์ (WP4-3, 2026-11-01) - เรียกก่อนบอก AgentTray ให้โชว์ตัวเลือกไฟล์เสมอ
+    /// (ดู CommandProcessor.HandleCollectFileAsync) คืน null ทั้งกรณี "ไม่พบ" และกรณี "ติดต่อ Server ไม่ได้"
+    /// (ผู้เรียกปฏิเสธเหมือนกันทั้งคู่ - fail-secure เหมือน GetLaunchableProgramAsync)
+    /// </summary>
+    public async Task<CollectionJobForAgentDto?> GetCollectionJobForAgentAsync(int jobId, CancellationToken ct)
+    {
+        try
+        {
+            var url = ActiveBaseUrl.TrimEnd('/') + $"/api/files/collection-jobs/{jobId}/for-agent";
+            var response = await _httpClient.GetAsync(url, ct);
+            if (!response.IsSuccessStatusCode)
+            {
+                _logger.LogWarning("ขอรายละเอียดงานเก็บไฟล์ id={JobId} ไม่สำเร็จ - Server ตอบ {StatusCode}", jobId, response.StatusCode);
+                return null;
+            }
+
+            return await response.Content.ReadFromJsonAsync<CollectionJobForAgentDto>(ct);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "ขอรายละเอียดงานเก็บไฟล์ id={JobId} จาก Server ไม่สำเร็จ", jobId);
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// ส่งไฟล์ที่นักเรียนเลือกส่งขึ้น Server (WP4-3, 2026-11-01) - เรียกจาก local loopback endpoint
+    /// POST /files/collect-result (ดู Program.cs) หลัง AgentTray อัปโหลดไฟล์มาให้ Agent relay ต่อ
+    /// คืนข้อความ error ที่ Server ตอบกลับมาตรงๆ (เช่น "ไฟล์ใหญ่เกินกำหนด") ให้ Tray โชว์ให้นักเรียนเห็น
+    /// ไม่ใช่แค่ true/false เฉยๆ
+    /// </summary>
+    public async Task<(bool Success, string? Error)> UploadCollectedFileAsync(int jobId, string fileName, byte[] fileBytes, CancellationToken ct)
+    {
+        try
+        {
+            var url = ActiveBaseUrl.TrimEnd('/') + $"/api/files/collection-jobs/{jobId}/upload";
+            using var content = new MultipartFormDataContent();
+            using var fileContent = new ByteArrayContent(fileBytes);
+            fileContent.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("application/octet-stream");
+            content.Add(fileContent, "file", fileName);
+
+            var response = await _httpClient.PostAsync(url, content, ct);
+            if (response.IsSuccessStatusCode)
+            {
+                return (true, null);
+            }
+
+            string? error = null;
+            try
+            {
+                var errorBody = await response.Content.ReadFromJsonAsync<ErrorResponseDto>(ct);
+                error = errorBody?.Error;
+            }
+            catch
+            {
+                // ตอบมาไม่เป็น JSON ตามรูปแบบที่คาด (เช่น Server ตัดการเชื่อมต่อกลางทางเพราะเกิน
+                // MaxRequestBodySize) - ใช้ status code ธรรมดาแทน ไม่ throw ต่อ
+            }
+
+            _logger.LogWarning("ส่งไฟล์ที่เก็บได้ (job {JobId}) ไม่สำเร็จ - Server ตอบ {StatusCode}: {Error}", jobId, response.StatusCode, error);
+            return (false, error ?? $"Server ปฏิเสธ (HTTP {(int)response.StatusCode})");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "ส่งไฟล์ที่เก็บได้ (job {JobId}) ขึ้น Server ไม่สำเร็จ", jobId);
+            return (false, "ติดต่อ Server ไม่ได้");
+        }
+    }
+
     /// <summary>ส่ง log กลับไปให้ server เก็บ ไม่ throw ถ้า fail (log เป็นแค่ best-effort)</summary>
     public async Task SendLogAsync(LogEntryDto log, CancellationToken ct)
     {
@@ -372,6 +472,10 @@ public class ServerClient
         }
     }
 }
+
+/// <summary>รูปแบบ error ทั่วไปที่ endpoint ฝั่ง Server ส่งกลับ (WP4-3, 2026-11-01) - ใช้แค่ parse ข้อความ
+/// error จาก UploadCollectedFileAsync เพื่อโชว์ให้นักเรียนเห็นข้อความที่ตรงปัญหาจริง</summary>
+internal sealed record ErrorResponseDto(string? Error);
 
 /// <summary>ผลของการแข่งตอนเริ่มทำงาน - Response เป็น null = ทั้งสองทางยังไม่ตอบ</summary>
 public sealed record StartupRaceResult<T>(T? Response, bool ViaFallback, bool FallbackFired) where T : class;

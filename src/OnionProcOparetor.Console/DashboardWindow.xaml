@@ -311,6 +311,11 @@
                                         Padding="12,6" FontSize="11" Margin="8,0,0,0"
                                         ToolTip="เปิดเว็บหรือโปรแกรมจากรายการที่ Admin ตั้งไว้ - เลือกได้ว่าทั้งห้องหรือเฉพาะที่เลือกไว้"
                                         Click="OpenUrlProgramButton_Click" VerticalAlignment="Center"/>
+                                <!-- "แจก/เก็บไฟล์" (WP4-3, 2026-11-01) - ดู wireframe tc-files.dc.html + FilesWindow -->
+                                <Button Content="แจก/เก็บไฟล์" Style="{StaticResource ButtonSecondary}"
+                                        Padding="12,6" FontSize="11" Margin="8,0,0,0"
+                                        ToolTip="แจกไฟล์ให้นักเรียน หรือเก็บงานจากนักเรียน - เลือกได้ว่าทั้งห้องหรือเฉพาะที่เลือกไว้"
+                                        Click="FilesButton_Click" VerticalAlignment="Center"/>
                             </StackPanel>
 
                             <Border Grid.Column="1" x:Name="ClientsSelectionBar" Style="{StaticResource SelectionBar}"

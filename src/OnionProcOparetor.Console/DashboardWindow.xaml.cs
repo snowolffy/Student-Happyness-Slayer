@@ -1524,6 +1524,23 @@ public partial class DashboardWindow : Window
             });
     }
 
+    /// <summary>
+    /// ปุ่ม "แจก/เก็บไฟล์" บนแถบคำสั่งของ Clients (WP4-3, 2026-11-01) - ส่งเครื่องที่เลือกไว้ + ห้องที่
+    /// กรองอยู่ตอนนี้ (ถ้ามี) ให้ FilesWindow เป็นค่าเริ่มต้น เหมือน OpenUrlProgramButton_Click ข้างบน
+    ///
+    /// ต่างจาก OpenUrlWindow ตรงที่ FilesWindow ไม่ปิดตัวเองแล้วฝาก PendingReport - เปิดด้วย Show()
+    /// (non-modal) ค้างไว้เอง เพราะต้องโชว่สถานะงานเก็บไฟล์ต่อเนื่อง (ดู doc comment บน FilesWindow)
+    /// </summary>
+    private void FilesButton_Click(object sender, RoutedEventArgs e)
+    {
+        var selected = ClientsGrid.SelectedItems.Cast<ClientMachineDto>().ToList();
+        var currentRoomFilterId = (RoomFilterCombo.SelectedItem as RoomFilterOption)?.RoomIdOrSentinel;
+        var preselectRoomId = currentRoomFilterId is > 0 ? currentRoomFilterId : null;
+
+        var window = new FilesWindow(_apiClient, _labHubClient, selected, _allClients, _allRooms, preselectRoomId) { Owner = this };
+        window.Show();
+    }
+
     private async void ResetUserPasswordButton_Click(object sender, RoutedEventArgs e)
     {
         if (sender is Button { Tag: UserDto user })

@@ -153,6 +153,10 @@ builder.Services.AddSingleton<AgentConnectionRegistry>();
 // ---- คิวยกมือ (WP4-2, 2026-11-01) - เก็บในหน่วยความจำล้วนๆ ไม่มี migration (ดู RaiseHandQueue) ----
 builder.Services.AddSingleton<RaiseHandQueue>();
 
+// ---- แจก/เก็บไฟล์ (WP4-3, 2026-11-01) - อ่านจาก appsettings.json section "FileTransfer" เท่านั้น
+// ไม่มี UI แก้ค่านี้ขณะ Server รันอยู่ (ดู Models/FileTransferOptions.cs ว่าทำไม) ----
+builder.Services.Configure<FileTransferOptions>(builder.Configuration.GetSection("FileTransfer"));
+
 // ---- Background scan หาเครื่องที่เปลี่ยนสถานะ online/offline (ดู
 // ClientOnlineStatusMonitorService) - ชั้นเสริมสำหรับเครื่องที่ไม่เคย connect SignalR เลย ----
 builder.Services.AddHostedService<ClientOnlineStatusMonitorService>();
@@ -260,5 +264,6 @@ app.MapLaunchableProgramEndpoints(); // WP4-1 (2026-11-01) - รายการ�
 
 // ---- ขั้น 4 เครื่องมือสอน (2026-11-01) ----
 app.MapRaiseHandEndpoints(); // WP4-2 - ยกมือขอความช่วยเหลือจากครู
+app.MapFileTransferEndpoints(); // WP4-3 - แจก/เก็บไฟล์
 
 app.Run();

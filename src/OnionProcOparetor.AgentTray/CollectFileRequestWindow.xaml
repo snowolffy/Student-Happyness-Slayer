@@ -1,0 +1,54 @@
+<Window x:Class="OnionProcOparetor.AgentTray.CollectFileRequestWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="ครูขอเก็บไฟล์งาน"
+        Width="360" SizeToContent="Height"
+        WindowStartupLocation="CenterScreen"
+        Topmost="True"
+        ResizeMode="NoResize"
+        Style="{StaticResource AppWindowStyle}">
+    <!-- WP4-3 (2026-11-01) - ตาม wireframe docs/wireframes/tc-files.dc.html ฝั่ง "เก็บงาน" แต่ wireframe
+         นั้นวาดมุมมองของครู (ตั้งค่า + ดูสถานะ) ส่วนนี้คือมุมมองนักเรียนที่ wireframe ไม่ได้วาดไว้ - ออกแบบ
+         ตาม pattern เดียวกับ RaiseHandWindow.xaml (การ์ดเล็กตรงกลางจอ ไม่ใช่ป็อปอัพลอยมุมจอ) ครูเป็นคนเปิด
+         ผ่าน command "CollectFile" (ไม่ใช่นักเรียนเปิดเองจากเมนู tray เหมือน RaiseHandWindow) -->
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <Border Grid.Row="0" Style="{StaticResource BrandHeaderBar}" Background="#2563EB">
+            <StackPanel Orientation="Horizontal">
+                <Border Style="{StaticResource LogoPlaceholder}">
+                    <Image Source="/Theme/logo.png" Stretch="UniformToFill"/>
+                </Border>
+                <StackPanel Margin="10,0,0,0" VerticalAlignment="Center">
+                    <TextBlock Text="ครูขอเก็บไฟล์งาน" Style="{StaticResource BrandHeaderTitleText}"/>
+                    <TextBlock x:Name="JobNameText" Style="{StaticResource BrandHeaderSubText}"/>
+                </StackPanel>
+            </StackPanel>
+        </Border>
+
+        <StackPanel Grid.Row="1" Margin="20">
+            <TextBlock x:Name="HintText" Style="{StaticResource LabelText}" TextWrapping="Wrap" Margin="0,0,0,10"/>
+
+            <TextBlock x:Name="SelectedFileText" Text="ยังไม่ได้เลือกไฟล์" TextWrapping="Wrap" Margin="0,0,0,10"/>
+
+            <Button x:Name="ChooseFileButton" Content="เลือกไฟล์ส่ง..." Height="34" Margin="0,0,0,14" Click="ChooseFileButton_Click"/>
+
+            <TextBlock x:Name="StatusText" TextWrapping="Wrap" FontSize="12" Margin="0,0,0,12"
+                       Foreground="{StaticResource AccentRedBrush}"/>
+
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="10"/>
+                    <ColumnDefinition Width="2*"/>
+                </Grid.ColumnDefinitions>
+                <Button Grid.Column="0" Content="ปิด" Height="38" Style="{StaticResource SecondaryButton}" Click="CancelButton_Click"/>
+                <Button Grid.Column="2" x:Name="SendButton" Content="ส่งไฟล์" Height="38" IsEnabled="False"
+                        Style="{StaticResource PrimaryButton}" Click="SendButton_Click"/>
+            </Grid>
+        </StackPanel>
+    </Grid>
+</Window>
