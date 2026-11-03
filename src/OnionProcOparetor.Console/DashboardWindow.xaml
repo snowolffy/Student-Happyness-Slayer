@@ -132,12 +132,9 @@
                                         <ColumnDefinition Width="Auto"/>
                                         <ColumnDefinition Width="*"/>
                                     </Grid.ColumnDefinitions>
-                                    <Border Grid.Column="0" Width="36" Height="36" CornerRadius="10"
-                                            Background="{DynamicResource Brush.Accent.Default}">
-                                        <Border.Clip>
-                                            <RectangleGeometry RadiusX="10" RadiusY="10" Rect="0,0,36,36"/>
-                                        </Border.Clip>
-                                        <Image Source="/Theme/logo.png" Stretch="UniformToFill"/>
+                                    <Border Grid.Column="0" Width="36" Height="36" CornerRadius="10">
+                                        <!-- ไม่มีพื้นสี่เหลี่ยมหลังโลโก้ (ผู้ใช้สั่ง 3 พ.ย. 2569) -->
+                                        <Image Source="/Theme/logo.png" Stretch="Uniform"/>
                                     </Border>
                                     <StackPanel x:Name="BrandText" Grid.Column="1" Margin="10,0,0,0"
                                                 VerticalAlignment="Center">
