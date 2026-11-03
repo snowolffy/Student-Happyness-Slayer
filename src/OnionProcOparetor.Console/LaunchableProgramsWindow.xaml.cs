@@ -11,7 +11,7 @@ namespace OnionProcOparetor.Console;
 /// Teacher เลือกเปิดได้จาก OpenUrlWindow Server เป็นคนกัน 403 จริงถ้า Teacher ยิง API เอง - หน้าต่างนี้
 /// ไม่เช็ค role ซ้ำ (เหมือน AddAllowListPresetWindow ที่ไม่เช็คเองเหมือนกัน)
 /// </summary>
-public partial class LaunchableProgramsWindow : Window
+public partial class LaunchableProgramsWindow : UserControl
 {
     private readonly ApiClient _apiClient;
     private List<LaunchableProgramDto> _programs = new();
@@ -21,6 +21,9 @@ public partial class LaunchableProgramsWindow : Window
     /// เพราะ OpenUrlWindow โหลด GetLaunchableProgramsAsync() ใหม่ทุกครั้งที่เปิดอยู่แล้ว แต่เก็บไว้เผื่อ
     /// ผู้เรียกในอนาคตต้องใช้</summary>
     public bool DataChanged { get; private set; }
+
+    /// <summary>UI-3c (2026-11-03): raise ตอนกดปิด - caller (DialogHost) ปิด host เอง</summary>
+    public event System.Action? CloseRequested;
 
     public LaunchableProgramsWindow(ApiClient apiClient)
     {
@@ -98,7 +101,7 @@ public partial class LaunchableProgramsWindow : Window
 
         if (!ConfirmWindow.Show(
                 $"ยืนยันลบโปรแกรม '{program.Name}'? Teacher จะเลือกโปรแกรมนี้จากรายการเปิด URL/โปรแกรมไม่ได้อีก",
-                "ยืนยันการลบ", this))
+                "ยืนยันการลบ", Window.GetWindow(this)))
         {
             return;
         }
@@ -139,9 +142,5 @@ public partial class LaunchableProgramsWindow : Window
         FormStatusText.SetResourceReference(TextBlock.ForegroundProperty, isError ? "Brush.Danger.Default" : "Brush.Text.Secondary");
     }
 
-    private void CloseButton_Click(object sender, RoutedEventArgs e)
-    {
-        DialogResult = DataChanged;
-        Close();
-    }
+    private void CloseButton_Click(object sender, RoutedEventArgs e) => CloseRequested?.Invoke();
 }

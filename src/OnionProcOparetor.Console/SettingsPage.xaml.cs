@@ -172,15 +172,19 @@ public partial class SettingsPage : UserControl
         }
     }
 
+    /// <summary>UI-3c (2026-11-03): ย้ายไป DialogHost ขนาดใหญ่ (เดิมเป็น ShowDialog แบบ modal Window)</summary>
     private async void ManageLaunchableProgramsButton_Click(object sender, RoutedEventArgs e)
     {
-        if (_apiClient is null)
+        if (_apiClient is null || Window.GetWindow(this) is not MainWindow mainWindow)
         {
             return;
         }
 
-        var dialog = new LaunchableProgramsWindow(_apiClient) { Owner = Window.GetWindow(this) };
-        dialog.ShowDialog();
+        var dialog = new LaunchableProgramsWindow(_apiClient);
+        var tcs = new TaskCompletionSource();
+        dialog.CloseRequested += () => mainWindow.DialogHost.CloseTop(null);
+        mainWindow.DialogHost.Push(dialog, _ => tcs.TrySetResult());
+        await tcs.Task;
 
         if (dialog.DataChanged)
         {
