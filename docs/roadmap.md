@@ -418,7 +418,11 @@ orchestrator ส่ง WP0, WP5 และ WP6 ออกพร้อมกัน�
     - แก้ csproj/XAML/razor ได้เฉพาะบรรทัดที่อ้างไฟล์เหล่านี้
     - ห้ามแตะ `src/OnionProcOparetor.AgentTray/**`, ภาพ `LoginHero.png` และภาพ banner/dialog ของ MSI (ถ้าคิดว่าควรเปลี่ยน ให้ระบุในรายงาน)
     - **แก้ตามคำสั่งผู้ใช้ 3 พ.ย.:** เอากล่องข้อความทับมุมภาพ LoginHero ของ RosterManager ออกแล้ว (`c1fbe22`) · **เอาพื้นสี่เหลี่ยมสีเน้นหลังโลโก้ออกทุกจุด** ทั้ง sidebar, การ์ดล็อกอิน และ About ของ Console กับการ์ดล็อกอินของ RosterManager (`6347d48`)
-  - **WP UI-7b AgentTray** (ทำหลัง UI-1b merge แล้ว)
+  - **WP UI-7b AgentTray** (ทำหลัง UI-1b merge แล้ว) · **✅ merge แล้ว 3 พ.ย. (`ab03aed`)**
+    - tray: `Services/TrayConnectionMonitor.cs` poll `GET /status` ของ Agent ทุก 5 วิ แล้วตัดสินจาก `LastPollSucceeded` (Agent ไม่ต้องแก้) · tooltip ภาษาไทย
+    - ทดสอบได้แค่ `--force-tray-state=` (Debug) **ต้อง field test กับ Agent จริง**
+    - **แถบหัวทุกหน้าต่างเป็นสีเข้มแบบ sidebar ของ Console (ผู้ใช้เลือก 3 พ.ย.)** เพราะหัวหอมส้มบนแถบส้มมองไม่เห็น · สีเฉพาะของหน้ายกมือ/staff (ส้มเข้ม) และเก็บไฟล์ (ฟ้า) ถูกเอาออก
+    - ปุ่ม "เลือกไฟล์ส่ง..." และปุ่มเหตุผลในหน้ายกมือยังเป็นปุ่มสไตล์ default ของ WPF
     - เปลี่ยน `icon.ico`/`logo.png` ของ AgentTray และทำไอคอน tray 3 สถานะตามความหมายข้างล่าง
     - โลโก้ใน header ต้องไม่มีพื้นสี่เหลี่ยมหลังโลโก้ เหมือนกับ Console
   - ใช้ `.ico`/`.png` ที่ export แล้วฝังในแต่ละโปรแกรม ไม่ส่ง `icons.db` · เก็บต้นฉบับทั้งชุดใน repo ที่ `assets/icons/`
