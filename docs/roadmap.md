@@ -406,7 +406,10 @@ orchestrator ส่ง WP0, WP5 และ WP6 ออกพร้อมกัน�
   - ทำต่อจาก UI-2
   - **รวมงาน "เด้งกลับหน้าล็อกอินเองเมื่อ token หมดอายุ (401)" ไว้ใน UI-3 (ผู้ใช้สั่ง 3 พ.ย.)** ใช้ `ReturnToLoginAsync` ที่ UI-2 ทำไว้ และดักจุดเดียวที่ ApiClient ไม่ต้องแก้ทีละ method
   - **แบ่ง WP (3 พ.ย.)** อ้างอิง wireframe `con-dialogs` / `con-actionpanel` / `con-clients`
-    - **UI-3a โครงสร้าง** (branch `feat/p1-ui3a`, ทำก่อน)
+    - **UI-3a โครงสร้าง** (branch `feat/p1-ui3a`, ทำก่อน) · **✅ merge แล้ว 3 พ.ย. (`a4afc86`)**
+      - ทดสอบด้วย input จริงกับ Server ทดสอบ: Esc/Enter, พื้นมืดบังคลิก, Tab ไม่หลุดออกนอก dialog, บังคับเปลี่ยนรหัส, 401 → "เซสชันหมดอายุ" (ทดสอบด้วยการถอน token จริง)
+      - แบบแผนสำหรับ 3b/3c อยู่ใน `docs/architecture.md` หัวข้อ "UI-3a" · ConfirmWindow ยังเรียกแบบ sync ได้ผ่าน DispatcherFrame bridge
+      - SidePanelHost ยังไม่มีหน้าไหนใช้ ให้ UI-3c ต่อเข้ากับ inspector
       - สร้าง `DialogHost` สำหรับ dialog ลอยในหน้าต่างหลัก: พื้นมืดทับ, Esc = ยกเลิก, Enter = ปุ่มหลัก, โฟกัสไม่หลุดออกนอก dialog, คืนผลแบบ `Task<T?>`
       - สร้าง `SidePanelHost` สำหรับแผงสไลด์ขวา โดยต่อยอดจาก inspector เดิม
       - ใช้ได้ทั้งใน MainWindow (ก่อนล็อกอิน) และ Dashboard
