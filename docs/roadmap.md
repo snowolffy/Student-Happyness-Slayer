@@ -418,7 +418,11 @@ orchestrator ส่ง WP0, WP5 และ WP6 ออกพร้อมกัน�
       - วางแบบแผนที่ UI-3b/3c ทำตามได้ทันที: แปลง Window เป็น UserControl แต่คง logic เดิม
     - **UI-3b dialog ลอย (ฟอร์มสั้น)** (ทำหลัง 3a)
       - หน้าต่างที่ย้าย: BroadcastMessage, OpenUrl, ExamMode, LockScreenMessage, AddEditRule, ResetPassword, ChangeUserRole, EditDisplayName, ChangeMyPassword, AddEditWebsiteRule, BulkAddWebsiteRules, AddAllowListPreset, AddEditWebsiteCatalogSource, ScreenBroadcastSetup, EmergencyCodeQr, EmergencyCodeUsage
-    - **UI-3c แผงขวา + dialog ใหญ่** (ทำหลัง 3a ขนานกับ 3b ได้ แต่แตะคนละไฟล์)
+    - **UI-3c แผงขวา + dialog ใหญ่** (ทำหลัง 3a ขนานกับ 3b ได้ แต่แตะคนละไฟล์) · **✅ merge แล้ว 4 พ.ย. (`b93abc9`)**
+      - ทดสอบด้วย input จริง: แผงขวา (โปรแกรมที่เปิดอยู่, คำสั่งค้าง, ตั้งค่าเครื่อง, แผงคำสั่ง) เปลี่ยนเครื่องโดยไม่ปิดแผง, Esc, dialog ซ้อน · Files + ActionReport ซ้อนกัน · LaunchablePrograms เพิ่ม/ลบ
+      - แก้บั๊กที่เจอตอนทดสอบ: ความกว้างแผงตายตัวจนล้น, auto-refresh ทุก ~10 วิปิดแผงเอง
+      - **เปลี่ยนพฤติกรรม:** Files/ActionReport/WebsiteCatalogSources เดิมเป็นหน้าต่างแยกที่เปิดค้างแล้วใช้หน้าหลักต่อได้ ตอนนี้เป็น dialog ที่บังหน้าหลัก
+      - ยังไม่ได้ทดสอบ: แผงคำสั่งแบบหลายเครื่อง/ทั้งห้อง/ตอนเต็มจอ, ปุ่มยกเลิกคำสั่งค้าง, ปุ่มบล็อกในโปรแกรมที่เปิดอยู่
       - แผงขวาของเครื่องเดียว: ClientSettings, RunningProcesses, PendingCommands, RuleOverrides, ActionPanel
       - dialog ใหญ่: ActionReport, Files, LaunchablePrograms, WebsiteCatalogSources
     - **คงหน้าต่างแยก:** Screen View/VNC, TrustCertificate, TailscaleLogin, About, BroadcastWarningBar และหน้าต่างวาด/กรอบของการส่งจอครู (ต้องลอยบนจอ)

@@ -11,10 +11,13 @@ namespace OnionProcOparetor.Console;
 /// เลย - ดึงสถานะปัจจุบันจริงจาก Server ทุกครั้ง ใช้ได้แม้พลาดหน้าต่างตอนสั่งไปแล้วหรือ Console
 /// เปิดใหม่ทับ (เช่น command ที่ค้างจากบั๊ก Restart/Shutdown ack ไม่ทันตอนใช้ Tailscale fallback)
 /// </summary>
-public partial class PendingCommandsWindow : Window
+public partial class PendingCommandsWindow : UserControl
 {
     private readonly ApiClient _apiClient;
     private readonly ClientMachineDto _client;
+
+    /// <summary>UI-3c (2026-11-03): raise ตอนกดปิด - caller (SidePanelHost) ปิด host เอง</summary>
+    public event System.Action? CloseRequested;
 
     public PendingCommandsWindow(ApiClient apiClient, ClientMachineDto client)
     {
@@ -72,4 +75,6 @@ public partial class PendingCommandsWindow : Window
         StatusText.Text = $"ยกเลิกคำสั่ง #{dto.CommandId} สำเร็จ";
         await RefreshAsync(); // โหลดใหม่ - command ที่ยกเลิกแล้วต้องหายจาก list นี้เพราะไม่ Pending อีกต่อไป
     }
+
+    private void CloseButton_Click(object sender, RoutedEventArgs e) => CloseRequested?.Invoke();
 }

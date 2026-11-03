@@ -29,8 +29,6 @@ public partial class WebsiteBlockTab : UserControl
     private int _page = 1;
     private int _totalCount;
 
-    private WebsiteCatalogSourcesWindow? _catalogSourcesWindow;
-
     public WebsiteBlockTab()
     {
         InitializeComponent();
@@ -275,23 +273,29 @@ public partial class WebsiteBlockTab : UserControl
         }
     }
 
-    /// <summary>เก็บ reference ไว้กันเปิดซ้อนหลายบาน (ครูมักกดปุ่มซ้ำตอนหน้าต่างยังโหลดไม่เสร็จ)</summary>
-    private void ManageCatalogButton_Click(object sender, RoutedEventArgs e)
+    /// <summary>
+    /// UI-3c (2026-11-03): ย้ายไป DialogHost ขนาดใหญ่ (เดิมเป็น Window ลอย + singleton reference +
+    /// Activate() กันเปิดซ้อน) - DialogHost เป็น modal อยู่แล้วตามธรรมชาติ เปิดซ้ำไม่ได้เพราะพื้นมืดทับ
+    /// บังปุ่มเดิมไว้ จึงไม่ต้องเก็บ reference กันเปิดซ้อนอีกต่อไป (เอา _catalogSourcesWindow field ทิ้ง
+    /// ได้ แต่เก็บไว้เผื่อ WP อื่นอ้างถึง - ไม่ได้ใช้แล้วในฟังก์ชันนี้)
+    /// </summary>
+    private async void ManageCatalogButton_Click(object sender, RoutedEventArgs e)
     {
-        if (_apiClient is null) return;
-        if (_catalogSourcesWindow is { IsLoaded: true })
+        if (_apiClient is null || OwnerWindow is not MainWindow mainWindow)
         {
-            _catalogSourcesWindow.Activate();
             return;
         }
 
-        _catalogSourcesWindow = new WebsiteCatalogSourcesWindow(_apiClient) { Owner = OwnerWindow };
-        _catalogSourcesWindow.Closed += async (_, _) =>
+        var content = new WebsiteCatalogSourcesWindow(_apiClient);
+        var tcs = new TaskCompletionSource();
+        content.CloseRequested += () =>
         {
-            _catalogSourcesWindow = null;
-            // source อาจถูกเพิ่ม/ลบ/sync ระหว่างที่หน้าต่างนั้นเปิดอยู่ - รีเฟรชตารางหลักให้ตรงเสมอ
-            await RefreshAsync();
+            mainWindow.DialogHost.CloseTop(null);
         };
-        _catalogSourcesWindow.Show();
+        mainWindow.DialogHost.Push(content, _ => tcs.TrySetResult());
+        await tcs.Task;
+
+        // source อาจถูกเพิ่ม/ลบ/sync ระหว่างที่ dialog เปิดอยู่ - รีเฟรชตารางหลักให้ตรงเสมอ
+        await RefreshAsync();
     }
 }

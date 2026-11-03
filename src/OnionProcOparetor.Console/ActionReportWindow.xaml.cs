@@ -21,8 +21,11 @@ namespace OnionProcOparetor.Console;
 /// ผลที่มาถึงทีหลังจะวิ่งเข้า handler ของหน้าต่างที่ตายไปแล้ว (Dispatcher.Invoke บน window
 /// ที่ปิดแล้วทำให้ทั้งแอปพัง) - ดู Closed handler ท้ายไฟล์
 /// </summary>
-public partial class ActionReportWindow : Window
+public partial class ActionReportWindow : UserControl
 {
+    /// <summary>UI-3c (2026-11-03): raise ตอนกดปิด - caller (DialogHost) ปิด host เอง</summary>
+    public event System.Action? CloseRequested;
+
     /// <summary>
     /// จำนวนคำสั่งที่ยิงพร้อมกันสูงสุด - 40 เครื่องยิงรวดเดียวพร้อมกันอาจทำให้ Server (SQLite
     /// เขียนทีละ transaction) คอขวด และ HttpClient timeout 10 วิอาจไม่พอ จำกัดไว้ให้ทยอยส่ง
@@ -79,7 +82,10 @@ public partial class ActionReportWindow : Window
         }
 
         Loaded += async (_, _) => await SendAllAsync();
-        Closed += OnWindowClosed;
+
+        // UI-3c (2026-11-03): เดิมใช้ Window.Closed - ตอนนี้เป็น UserControl จึงใช้ Unloaded แทน (ยิง
+        // ตอนถูกถอดออกจาก visual tree เช่น DialogHost.CloseTop เซ็ต content เป็น null) ความหมายเดียวกัน
+        Unloaded += OnControlUnloaded;
     }
 
     /// <summary>
@@ -281,7 +287,7 @@ public partial class ActionReportWindow : Window
             : $"{row.MachineName} ({row.ClientGuid}) - {row.StatusText}\n{row.Message}";
     }
 
-    private void CloseButton_Click(object sender, RoutedEventArgs e) => Close();
+    private void CloseButton_Click(object sender, RoutedEventArgs e) => CloseRequested?.Invoke();
 
     /// <summary>
     /// ยกเลิก command ที่ยังค้าง Pending อยู่ (ปุ่มต่อแถว โชว์เฉพาะตอน IsPending) - เพิ่มขึ้นหลัง
@@ -334,7 +340,7 @@ public partial class ActionReportWindow : Window
     /// _isClosed ตั้งเป็นตัวแรกสุดเพื่อกัน callback ที่ "เข้าคิว Dispatcher ไว้แล้ว" ก่อนหน้านี้
     /// (unsubscribe อย่างเดียวไม่พอ เพราะ BeginInvoke ที่ queue ไว้แล้วจะยังทำงานต่อ)
     /// </summary>
-    private void OnWindowClosed(object? sender, EventArgs e)
+    private void OnControlUnloaded(object? sender, RoutedEventArgs e)
     {
         _isClosed = true;
 

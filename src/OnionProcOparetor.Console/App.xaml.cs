@@ -232,8 +232,12 @@ public partial class App : Application
                         DateTime.UtcNow.AddYears(10)),
                     isChanged: true, previousThumbprint: "A1B2C3D4E5F60718293A4B5C6D7E8F9001020304"),
                 "tailscale" => new TailscaleLoginWindow(),
-                "client-settings" => new ClientSettingsWindow(api, sampleClient),
-                "rule-overrides" => new RuleOverridesWindow(api, sampleClient),
+                // UI-3c (2026-11-03): 9 ตัวข้างล่างกลายเป็น UserControl แล้ว (ฝังใน SidePanelHost/
+                // DialogHost จริงของ MainWindow ตอนใช้งานจริง) - harness นี้แค่ต้องการถ่ายภาพ chrome
+                // เฉยๆ เลยห่อด้วย Window เปล่าแบบเดียวกับที่ "force-password" ทำ (ดู comment ด้านบน)
+                // ไม่ต้องพึ่ง SidePanelHost/DialogHost จริงสำหรับภาพนิ่งแบบนี้
+                "client-settings" => WrapAsPreviewWindow(new ClientSettingsWindow(api, sampleClient)),
+                "rule-overrides" => WrapAsPreviewWindow(new RuleOverridesWindow(api, sampleClient)),
                 // WP2-2 (2026-10-31) - โหลดชุด Allow-list จาก Server จริง (ApiClient ยังไม่ login ใน
                 // โหมดนี้) แต่ LoadPresetsAsync จับ exception ไว้แล้วไม่พัง (ดู ExamModeWindow.xaml.cs)
                 "exam-mode" => WrapAsDialog("เปิดโหมดสอบ", new ExamModeWindow(
@@ -245,16 +249,26 @@ public partial class App : Application
                     api, [sampleClient], [sampleClient], [new Models.RoomDto { Id = 1, Name = "ห้องคอม 1", ClientCount = 40 }], currentRoomFilterId: 1)),
                 // WP4-3 (2026-11-01) - เหมือน open-url เป๊ะๆ (ดู comment ด้านบน): ApiClient ยังไม่ login
                 // แต่ GetFileTransferSettingsAsync จับ exception ไว้แล้ว ไม่พัง (คืน default 100 MB)
-                "files" => new FilesWindow(
-                    api, labHubClient: null, [sampleClient], [sampleClient], [new Models.RoomDto { Id = 1, Name = "ห้องคอม 1", ClientCount = 40 }], currentRoomFilterId: 1),
-                "launchable-programs" => new LaunchableProgramsWindow(api),
-                "pending-commands" => new PendingCommandsWindow(api, sampleClient),
-                "running-processes" => new RunningProcessesWindow(api, new Services.LabHubClient(), sampleClient),
-                "action-panel" => new ActionPanelWindow(api, sampleClient),
+                "files" => WrapAsPreviewWindow(new FilesWindow(
+                    api, labHubClient: null, [sampleClient], [sampleClient], [new Models.RoomDto { Id = 1, Name = "ห้องคอม 1", ClientCount = 40 }], currentRoomFilterId: 1)),
+                "launchable-programs" => WrapAsPreviewWindow(new LaunchableProgramsWindow(api)),
+                "website-catalog-sources" => WrapAsPreviewWindow(new WebsiteCatalogSourcesWindow(api)),
+                // ActionReportRequest ปลอม - แค่ไว้ถ่ายภาพ chrome/ตาราง ไม่ส่งคำสั่งจริง (SendAsync ไม่
+                // ถูกเรียกเพราะ harness ปิดก่อนที่ Loaded จะยิง SendAllAsync จริง - ยังพอให้เห็นหน้าได้)
+                "action-report" => WrapAsPreviewWindow(new ActionReportWindow(api, labHubClient: null, new Models.ActionReportRequest
+                {
+                    ActionLabel = "Restart",
+                    BatchId = "preview",
+                    SendAsync = _ => Task.FromResult<(bool, string?)>((true, null)),
+                    Rows = [new Models.ActionReportRow { ClientGuid = sampleClient.ClientGuid, MachineName = sampleClient.MachineName }]
+                })),
+                "pending-commands" => WrapAsPreviewWindow(new PendingCommandsWindow(api, sampleClient)),
+                "running-processes" => WrapAsPreviewWindow(new RunningProcessesWindow(api, new Services.LabHubClient(), sampleClient)),
+                "action-panel" => WrapAsPreviewWindow(new ActionPanelWindow(api, sampleClient)),
                 // โหมด bulk โดย "ไม่ได้เลือกเครื่องเลย" - เคสที่เพิ่งแก้ (2026-09-10) ต้องเห็นว่า
                 // ตัวเลือก "เครื่องที่เลือกไว้ (0 เครื่อง)" ถูกปิด และ "ทุกเครื่อง" ถูกเลือกไว้ให้แล้ว
-                "action-panel-room" => new ActionPanelWindow(
-                    api, [], [sampleClient, sampleClient, sampleClient], defaultToAll: true),
+                "action-panel-room" => WrapAsPreviewWindow(new ActionPanelWindow(
+                    api, [], [sampleClient, sampleClient, sampleClient], defaultToAll: true)),
                 // "ส่งจอครู" (WP4-4, 2026-11-01) - เหมือน open-url/exam-mode: เรียก API จริงไม่สำเร็จ
                 // เพราะ ApiClient ยังไม่ login แต่ไม่พัง (ไม่มี async load ตอนเปิดหน้าต่างเหมือนสองอันนั้น
                 // อยู่แล้ว - โหลดแค่ room/client ที่ส่งเข้ามาตรงๆ)
@@ -394,6 +408,21 @@ public partial class App : Application
     /// login จริง - ห่อด้วย Window เปล่าๆ ขนาด/สไตล์เดียวกับที่ DashboardWindow เคยตั้งบนตัวเองตอนยัง
     /// เป็น Window (1000x732, MinWidth/MinHeight 1000x560, AppDialogWindow)
     /// </summary>
+    /// <summary>
+    /// UI-3c (2026-11-03): ห่อ UserControl ที่เดิมเป็น Window ของตัวเอง (ตอนนี้ฝังใน SidePanelHost/
+    /// DialogHost จริงของ MainWindow แทน) ด้วย Window เปล่าสำหรับถ่ายภาพ chrome เฉยๆ - pattern เดียวกับ
+    /// ที่ "force-password" ใช้มาตั้งแต่ UI-3a ไม่ต้องพึ่ง host จริงสำหรับภาพนิ่งแบบนี้ (เนื้อหาเองมี
+    /// Border Style="Card" ของตัวเองกำหนดขนาด/หน้าตาแล้ว ไม่ต้องให้ Window วาด chrome ซ้ำ)
+    /// </summary>
+    private static Window WrapAsPreviewWindow(FrameworkElement content) => new()
+    {
+        SizeToContent = SizeToContent.WidthAndHeight,
+        WindowStartupLocation = WindowStartupLocation.CenterScreen,
+        ResizeMode = ResizeMode.NoResize,
+        Style = (Style)Current.FindResource("AppDialogWindow"),
+        Content = content,
+    };
+
     private static Window CreateDashboardPreviewHost(DashboardWindow content) => new()
     {
         Title = "Onion ProcOparetor Console - Dashboard",

@@ -11,10 +11,13 @@ namespace OnionProcOparetor.Console;
 /// จัดการ WebsiteCatalogSource (2026-09-12) - popup ที่สอง เปิดจากปุ่ม "จัดการ Catalog..." ใน
 /// WebsiteControlWindow แยกจากตาราง WebsiteRule เอง เพราะคนละ data/lifecycle กัน
 /// </summary>
-public partial class WebsiteCatalogSourcesWindow : Window
+public partial class WebsiteCatalogSourcesWindow : UserControl
 {
     private readonly ApiClient _apiClient;
     private List<WebsiteCatalogSourceDto> _sources = new();
+
+    /// <summary>UI-3c (2026-11-03): raise ตอนกดปิด - caller (DialogHost) ปิด host เอง</summary>
+    public event System.Action? CloseRequested;
 
     public WebsiteCatalogSourcesWindow(ApiClient apiClient)
     {
@@ -41,11 +44,12 @@ public partial class WebsiteCatalogSourcesWindow : Window
 
     private async void AddSourceButton_Click(object sender, RoutedEventArgs e)
     {
-        // UI-3b (2026-11-03): AddEditWebsiteCatalogSourceWindow กลายเป็น UserControl แล้ว - owner นี้
-        // (WebsiteCatalogSourcesWindow) ยังไม่มี DialogHost ของตัวเอง (รอ UI-3c ย้าย) ShowViaHost จึง
-        // เลือก fallback เปิดเป็น Window ลอยแบบเดิมเอง
+        // UI-3b/3c (2026-11-03): AddEditWebsiteCatalogSourceWindow กลายเป็น UserControl แล้ว (UI-3b)
+        // และ WebsiteCatalogSourcesWindow เองก็กลายเป็น UserControl ที่ฝังใน DialogHost ของ
+        // MainWindow แล้ว (UI-3c, เป็น "dialog ใหญ่") - Window.GetWindow(this) จึงแก้ไปที่ MainWindow
+        // เสมอ dialog นี้จึงเปิดซ้อนทับผ่าน DialogHost ได้จริง (stack ได้ - ดู DialogHost.Push)
         var dialog = new AddEditWebsiteCatalogSourceWindow(_apiClient);
-        if (await AddEditWebsiteCatalogSourceWindow.ShowViaHost(this, dialog))
+        if (await AddEditWebsiteCatalogSourceWindow.ShowViaHost(Window.GetWindow(this), dialog))
         {
             StatusText.Text = "เพิ่ม source สำเร็จ";
             await RefreshAsync();
@@ -57,7 +61,7 @@ public partial class WebsiteCatalogSourcesWindow : Window
         if (sender is Button { Tag: WebsiteCatalogSourceDto source })
         {
             var dialog = new AddEditWebsiteCatalogSourceWindow(_apiClient, source);
-            if (await AddEditWebsiteCatalogSourceWindow.ShowViaHost(this, dialog))
+            if (await AddEditWebsiteCatalogSourceWindow.ShowViaHost(Window.GetWindow(this), dialog))
             {
                 StatusText.Text = "แก้ไข source สำเร็จ";
                 await RefreshAsync();
@@ -82,7 +86,7 @@ public partial class WebsiteCatalogSourcesWindow : Window
         {
             var confirmed = ConfirmWindow.ShowWithTypeToConfirm(
                 $"กำลังจะลบ catalog source \"{source.Name}\" — กฎบล็อกเว็บทุกรายการที่มาจาก source นี้จะถูกลบไปด้วย การกระทำนี้ย้อนกลับไม่ได้",
-                "ยืนยันการลบ Source", source.Name, this, "ลบ source นี้");
+                "ยืนยันการลบ Source", source.Name, Window.GetWindow(this), "ลบ source นี้");
             if (!confirmed)
             {
                 return;
@@ -93,4 +97,6 @@ public partial class WebsiteCatalogSourcesWindow : Window
             await RefreshAsync();
         }
     }
+
+    private void CloseButton_Click(object sender, System.Windows.RoutedEventArgs e) => CloseRequested?.Invoke();
 }

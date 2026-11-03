@@ -17,8 +17,11 @@ namespace OnionProcOparetor.Console;
 /// ActionReportWindow เองตรงๆ (Show แบบ non-modal ซ้อนขึ้นมาอีกบาน) ทั้งตอนแจกไฟล์และตอนส่ง command
 /// "CollectFile" ให้เครื่องเป้าหมาย - pattern เดียวกับที่ DashboardWindow ทำ แค่เรียกจากที่นี่แทน
 /// </summary>
-public partial class FilesWindow : Window
+public partial class FilesWindow : UserControl
 {
+    /// <summary>UI-3c (2026-11-03): raise ตอนกดปิด - caller (DialogHost) ปิด host เอง</summary>
+    public event System.Action? CloseRequested;
+
     private readonly ApiClient _apiClient;
     private readonly LabHubClient? _labHubClient;
     private readonly List<ClientMachineDto> _selectedClients;
@@ -173,8 +176,12 @@ public partial class FilesWindow : Window
             }
         };
 
-        var report = new ActionReportWindow(_apiClient, _labHubClient, request) { Owner = this };
-        report.Show();
+        if (Window.GetWindow(this) is MainWindow mainWindow)
+        {
+            var report = new ActionReportWindow(_apiClient, _labHubClient, request);
+            report.CloseRequested += () => mainWindow.DialogHost.CloseTop(null);
+            mainWindow.DialogHost.Push(report, _ => { });
+        }
     }
 
     private void SetDistributeStatus(string message, bool isError)
@@ -252,8 +259,12 @@ public partial class FilesWindow : Window
             }
         };
 
-        var report = new ActionReportWindow(_apiClient, _labHubClient, request) { Owner = this };
-        report.Show();
+        if (Window.GetWindow(this) is MainWindow mainWindow)
+        {
+            var report = new ActionReportWindow(_apiClient, _labHubClient, request);
+            report.CloseRequested += () => mainWindow.DialogHost.CloseTop(null);
+            mainWindow.DialogHost.Push(report, _ => { });
+        }
 
         await RefreshCollectionStatusAsync();
     }
@@ -413,4 +424,6 @@ public partial class FilesWindow : Window
         CollectSummaryText.Text = message;
         CollectSummaryText.SetResourceReference(TextBlock.ForegroundProperty, isError ? "Brush.Danger.Default" : "Brush.Text.Secondary");
     }
+
+    private void CloseButton_Click(object sender, RoutedEventArgs e) => CloseRequested?.Invoke();
 }

@@ -13,13 +13,16 @@ namespace OnionProcOparetor.Console;
 /// แล้วรอผลผ่าน LabHubClient event เดียวกับ pattern ที่ DashboardWindow.RequestVncSessionAsync ใช้
 /// (TaskCompletionSource + timeout + subscribe/unsubscribe ชั่วคราว)
 /// </summary>
-public partial class RunningProcessesWindow : Window
+public partial class RunningProcessesWindow : UserControl
 {
     private static readonly TimeSpan ProcessListTimeout = TimeSpan.FromSeconds(15);
 
     private readonly ApiClient _apiClient;
     private readonly LabHubClient _labHubClient;
     private readonly ClientMachineDto _client;
+
+    /// <summary>UI-3c (2026-11-03): raise ตอนกดปิด - caller (SidePanelHost) ปิด host เอง</summary>
+    public event System.Action? CloseRequested;
 
     public RunningProcessesWindow(ApiClient apiClient, LabHubClient labHubClient, ClientMachineDto client)
     {
@@ -175,7 +178,7 @@ public partial class RunningProcessesWindow : Window
                 "ผูกกับลายนิ้วมือของไฟล์ ไม่ใช่ชื่อ เปลี่ยนชื่อไฟล์หรือย้ายที่แล้วยังโดนอยู่\n" +
                 "ยกเลิกได้ทีหลังที่หน้า PROGRAMS",
                 "บล็อกโปรแกรมนี้ทุกเครื่อง",
-                this);
+                Window.GetWindow(this));
 
             if (!confirmed)
             {
@@ -204,11 +207,13 @@ public partial class RunningProcessesWindow : Window
         {
             if (sender is Button { Tag: RunningProcessDto process })
             {
-                // UI-3b (2026-11-03): AddEditRuleWindow กลายเป็น UserControl แล้ว (ดู
-                // AddEditRuleWindow.xaml.cs) - owner นี้ (RunningProcessesWindow) ยังไม่มี DialogHost
-                // ของตัวเอง (รอ UI-3c ย้าย) ShowViaHost จึงเลือก fallback เปิดเป็น Window ลอยแบบเดิมเอง
+                // UI-3b/3c (2026-11-03): AddEditRuleWindow กลายเป็น UserControl แล้ว (UI-3b) และ
+                // RunningProcessesWindow เองก็กลายเป็น UserControl ที่ฝังใน SidePanelHost ของ
+                // MainWindow แล้ว (UI-3c) - Window.GetWindow(this) จึงแก้ไปที่ MainWindow เสมอ แปลว่า
+                // dialog นี้เปิดทับบน SidePanelHost ได้จริงผ่าน DialogHost (z-order สูงสุด) ไม่ต้องใช้
+                // fallback Window ลอยอีกต่อไป
                 var dialog = new AddEditRuleWindow(_apiClient, process);
-                if (await AddEditRuleWindow.ShowViaHost(this, dialog))
+                if (await AddEditRuleWindow.ShowViaHost(Window.GetWindow(this), dialog))
                 {
                     StatusText.Text = $"สร้างกฎจาก '{process.ProcessName}' สำเร็จ - ดูได้ที่แท็บ RULES";
                 }
@@ -221,4 +226,6 @@ public partial class RunningProcessesWindow : Window
             StatusText.Text = $"เปิดหน้าสร้างกฎไม่สำเร็จ: {ex.Message}";
         }
     }
+
+    private void CloseButton_Click(object sender, RoutedEventArgs e) => CloseRequested?.Invoke();
 }

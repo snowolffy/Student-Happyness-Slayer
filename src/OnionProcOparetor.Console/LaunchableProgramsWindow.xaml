@@ -1,14 +1,11 @@
-<Window x:Class="OnionProcOparetor.Console.LaunchableProgramsWindow"
+<UserControl x:Class="OnionProcOparetor.Console.LaunchableProgramsWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="รายการโปรแกรมที่เปิดได้ทั้งห้อง"
-        Width="640" Height="560"
-        WindowStartupLocation="CenterOwner"
-        Icon="/Theme/icon.ico"
-        Style="{StaticResource AppDialogWindow}">
-    <!-- "จัดการรายการโปรแกรม" (Admin) (WP4-1, 2026-11-01) - เปิดจากหน้าตั้งค่า (ดู SettingsPage.xaml
-         การ์ด "รายการโปรแกรมที่เปิดได้ทั้งห้อง") Admin เท่านั้นที่เปิดปุ่มนี้ได้จริง (Server เป็นคนกัน 403
-         จริงอยู่แล้ว - endpoint POST/PUT/DELETE เรียก RequireAdmin ดู LaunchableProgramEndpoints.cs) -->
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <!-- UI-3c (2026-11-03): เดิมเป็น Window ของตัวเอง (ShowDialog) - ย้ายมาเป็น UserControl ใน DialogHost
+         ขนาดใหญ่ตามที่ roadmap UI-3c สั่ง ("dialog ใหญ่: LaunchablePrograms") "จัดการรายการโปรแกรม"
+         (Admin) (WP4-1, 2026-11-01) - เปิดจากหน้าตั้งค่า (ดู SettingsPage.xaml การ์ด "รายการโปรแกรมที่
+         เปิดได้ทั้งห้อง") Admin เท่านั้นที่เปิดปุ่มนี้ได้จริง (Server เป็นคนกัน 403 จริงอยู่แล้ว) -->
+    <Border Style="{StaticResource Card}" Width="640" Height="560">
     <Grid Margin="20">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
@@ -87,4 +84,5 @@
                     Padding="10,5" FontSize="11" HorizontalAlignment="Right" Click="CloseButton_Click"/>
         </Grid>
     </Grid>
-</Window>
+    </Border>
+</UserControl>
