@@ -375,7 +375,10 @@ orchestrator ส่ง WP0, WP5 และ WP6 ออกพร้อมกัน�
     - Console ใช้สีส้มเดิม และ**หน้าตาต้องไม่เปลี่ยนเลย** · RosterManager ใช้ฟ้า `#2A6FD6` ครบทั้งชุด แล้วลบ Theme ที่ copy ไว้
     - ไฟล์ที่แตะได้: `src/OnionProcOparetor.UI/**`, `OnionProcOparetor.sln`, csproj/App.xaml/Theme/Services/ThemeService และ XAML ที่ต้องเปลี่ยน path อ้างอิงใน Console และ RosterManager
     - ห้ามแตะ AgentTray, installer และภาพ LoginHero
-  - **WP UI-1b AgentTray ใช้ไลบรารีร่วม** (ทำหลัง UI-1a merge แล้ว, branch `feat/p1-ui1b`)
+  - **WP UI-1b AgentTray ใช้ไลบรารีร่วม** (ทำหลัง UI-1a merge แล้ว, branch `feat/p1-ui1b`) · **✅ merge แล้ว 3 พ.ย. (`feae1cd`)**
+    - ผลตรวจ: ภาพก่อน/หลังแก้ 12 หน้าต่าง · รอบแรกช่องกรอกกับหัวตารางเสียสไตล์ (implicit style ของ AppTheme หาย) แก้แล้วใน `Theme/AgentTrayLocal.xaml`
+    - ปุ่ม/การ์ดมีมุมโค้งเหมือน Console · harness `--ui-preview=<ชื่อ> --shot=` (Debug) มีครบ 12 หน้าต่าง
+    - ปุ่มเหตุผลในหน้ายกมือยังเป็น ToggleButton สไตล์ default ของ WPF มาตั้งแต่ก่อนงานนี้ ควรจัดตอนทำงาน UI รอบหน้า
     - เลิกใช้ `Theme/AppTheme.xaml` แล้วเปลี่ยนทุกหน้าต่างของ AgentTray มาใช้ token/style ของไลบรารี (ธีมสว่าง สีส้ม)
     - **คงข้อห้ามเรื่องหน้าต่างโปร่งใส/จับภาพในหัวข้อ WP4-4 ไว้ตามเดิม** และพื้นหลังจอล็อกต้องเป็นสีดำ
     - ไฟล์ที่แตะได้: `src/OnionProcOparetor.AgentTray/**` ยกเว้นภาพ LoginHero
