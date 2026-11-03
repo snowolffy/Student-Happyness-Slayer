@@ -74,8 +74,18 @@ public partial class BroadcastWarningBarWindow : Window
 
             // หน้าต่างทึบ (ไม่ใช้ AllowsTransparency เพราะทำให้ exclude ล้ม) มุมโค้งจึงมาจาก window region:
             // ปุ่มกลมตอนหุบ = วงกลม (48x48 รัศมี 24) แถบเต็ม = มุมโค้ง 10 ตาม CornerRadius ใน .xaml
-            SizeChanged += (_, _) => TeacherOnlyWindowHelper.ApplyRoundedRegion(
-                this, FullBar.Visibility == Visibility.Visible ? 10 : 24);
+            //
+            // บั๊กจริงที่เจอ 3 พ.ย. (harness ลากปุ่มกลมไปมุมขวาล่างจอแล้วกดกางคืน): Left/Top ของหน้าต่าง
+            // ไม่เปลี่ยนตอนสลับหุบ/กาง (คงตำแหน่งมุมบนซ้ายเดิมไว้เสมอ) แต่ขนาดเปลี่ยนจาก 48x48 เป็น ~400x44
+            // ถ้าปุ่มกลมถูกลากไปใกล้ขอบจอก่อนกด แถบเต็มที่กางออกมาจะล้นขอบจอ (วัดจริงได้ล้นขวา 316px -
+            // กดปุ่ม "หยุดส่ง" ที่อยู่ขวาสุดของแถบไม่ได้เลย) จึงต้องง้างตำแหน่งกลับเข้าขอบจอทำงาน (WorkArea)
+            // ทุกครั้งที่ขนาดเปลี่ยน (ครอบคลุมทั้งตอนหุบและตอนกาง)
+            SizeChanged += (_, _) =>
+            {
+                TeacherOnlyWindowHelper.ApplyRoundedRegion(
+                    this, FullBar.Visibility == Visibility.Visible ? 10 : 24);
+                ClampToWorkArea();
+            };
 
             _hwndSource = (HwndSource)PresentationSource.FromVisual(this)!;
             _hwndSource.AddHook(WndProc);
@@ -128,9 +138,41 @@ public partial class BroadcastWarningBarWindow : Window
         DragMove();
 
         var moved = Math.Abs(Left - startLeft) > 3 || Math.Abs(Top - startTop) > 3;
-        if (!moved)
+        if (moved)
+        {
+            // กันลากปุ่มกลมออกนอกขอบจอทำงานจนหาไม่เจอ/กดไม่ถึง (ดู comment เต็มที่ ClampToWorkArea)
+            ClampToWorkArea();
+        }
+        else
         {
             SetExpanded(true);
+        }
+    }
+
+    /// <summary>
+    /// ง้างตำแหน่งหน้าต่าง (Left/Top) ให้อยู่ในขอบเขต WorkArea ของจอหลักเสมอ (ไม่นับ taskbar) - เรียกทั้ง
+    /// ตอนลากปุ่มกลมเสร็จ และทุกครั้งที่ขนาดหน้าต่างเปลี่ยน (หุบ/กาง) ดู comment เต็มใน SourceInitialized
+    /// ว่าทำไมจำเป็น (บั๊กจริง 3 พ.ย.: แถบเต็มล้นขอบจอหลังลากปุ่มกลมไปมุมแล้วกดกางคืน)
+    /// </summary>
+    private void ClampToWorkArea()
+    {
+        var workArea = SystemParameters.WorkArea;
+
+        if (Left + ActualWidth > workArea.Right)
+        {
+            Left = Math.Max(workArea.Left, workArea.Right - ActualWidth);
+        }
+        if (Top + ActualHeight > workArea.Bottom)
+        {
+            Top = Math.Max(workArea.Top, workArea.Bottom - ActualHeight);
+        }
+        if (Left < workArea.Left)
+        {
+            Left = workArea.Left;
+        }
+        if (Top < workArea.Top)
+        {
+            Top = workArea.Top;
         }
     }
 

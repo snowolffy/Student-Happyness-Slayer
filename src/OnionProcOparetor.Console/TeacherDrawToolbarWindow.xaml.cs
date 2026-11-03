@@ -45,6 +45,10 @@ public partial class TeacherDrawToolbarWindow : Window
             if (e.OriginalSource is not Button) // ลากได้แค่จากพื้นหลัง ไม่ใช่จากปุ่ม (ปุ่มต้องกดได้ปกติ)
             {
                 DragMove();
+                // กันลากแผงออกนอกขอบจอทำงานจนหาไม่เจอ/กดไม่ถึง เหมือนบั๊กที่เจอกับปุ่มกลมของ
+                // BroadcastWarningBarWindow (ดู ClampToWorkArea ที่นั่น) - แผงนี้มีความเสี่ยงเดียวกัน
+                // เพราะลากได้อิสระและ DragMove ไม่เช็คขอบจอเองเลย
+                ClampToWorkArea();
             }
         };
 
@@ -56,6 +60,29 @@ public partial class TeacherDrawToolbarWindow : Window
             // มุมโค้งจาก window region แทนความโปร่งใส - ดู TeacherOnlyWindowHelper.ApplyRoundedRegion
             SizeChanged += (_, _) => TeacherOnlyWindowHelper.ApplyRoundedRegion(this, 10);
         };
+    }
+
+    /// <summary>ง้างตำแหน่งแผงให้อยู่ในขอบเขต WorkArea ของจอหลักเสมอ - ดู comment เต็มที่จุดเรียกใน ctor</summary>
+    private void ClampToWorkArea()
+    {
+        var workArea = SystemParameters.WorkArea;
+
+        if (Left + ActualWidth > workArea.Right)
+        {
+            Left = Math.Max(workArea.Left, workArea.Right - ActualWidth);
+        }
+        if (Top + ActualHeight > workArea.Bottom)
+        {
+            Top = Math.Max(workArea.Top, workArea.Bottom - ActualHeight);
+        }
+        if (Left < workArea.Left)
+        {
+            Left = workArea.Left;
+        }
+        if (Top < workArea.Top)
+        {
+            Top = workArea.Top;
+        }
     }
 
     private void HighlighterButton_Click(object sender, RoutedEventArgs e) =>
