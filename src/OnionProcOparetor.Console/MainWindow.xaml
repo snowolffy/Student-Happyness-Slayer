@@ -15,115 +15,150 @@
          - พื้นหลังโรยจุดเรียงแบบตาราง (DotGridRectangle ด้านล่าง - DrawingBrush + TileMode="Tile")
          x:Name/event wiring ของฟอร์ม (ServerIpBox/PortBox/UsernameBox/PasswordBox/ConnectButton/
          StatusText/ServerIpBox_TextChanged/ConnectButton_Click) เหมือนเดิมทุกตัว - ไม่แตะ logic
-         การเชื่อมต่อใน .cs เลย นอกจากเพิ่ม toast ตอนสำเร็จและโหลด HeroImage -->
+         การเชื่อมต่อใน .cs เลย นอกจากเพิ่ม toast ตอนสำเร็จและโหลด HeroImage
+
+         UI-2 (2026-11-03): MainWindow ตอนนี้เป็น "เปลือกหน้าต่างเดียว" ตลอดอายุโปรแกรม (ไม่ Close()
+         ตัวเองอีกต่อไปตอน login สำเร็จ) - หน้าการ์ดล็อกอินเดิมทั้งหมดถูกครอบด้วย Grid ชื่อ "LoginRoot"
+         เพิ่ม ContentControl "DashboardHost" (ว่างจนกว่าจะ login สำเร็จ, โชว์ DashboardWindow ที่เป็น
+         UserControl แล้ว - ดู DashboardWindow.xaml) และ Grid ทับหน้า "LoadingOverlay" (ตัวหมุนสั้นๆ
+         ตอน transition) ดู MainWindow.xaml.cs ShowDashboardAsync/ReturnToLoginAsync สำหรับลำดับ
+         spinner -> fade -> resize หน้าต่างแบบนุ่มนวล -->
     <Grid>
-        <!-- ==================== พื้นหลังจุดเรียงแบบตาราง ====================
-             DrawingBrush แบบ Tile คือวิธีมาตรฐานของ WPF สำหรับลายจุดซ้ำแบบนี้ - ปล่อยให้ WPF ปูกระเบื้อง
-             viewport 28x28 เต็มหน้าต่างเอง ไม่ต้องสร้าง Ellipse ทีละตัว ใช้สี Border.Default เดิม (จุดจาง
-             มาก ไม่แย่งความสนใจจากการ์ด) ผ่าน DynamicResource เพื่อให้ตามธีมสว่าง/มืดเองเหมือนทุกจุดในแอป -->
-        <Rectangle IsHitTestVisible="False">
-            <Rectangle.Fill>
-                <!-- Viewbox ต้องระบุเอง ไม่งั้น WPF ใช้ขอบของวงกลม (2.4px) เป็น Viewbox แล้วยืดให้เต็ม
-                     Viewport ทั้งช่อง จุดจะใหญ่เท่าช่อง - ตรงกับ wireframe con-login: รัศมี 1.2px ห่าง 20px -->
-                <DrawingBrush TileMode="Tile" Viewport="0,0,20,20" ViewportUnits="Absolute"
-                              Viewbox="0,0,20,20" ViewboxUnits="Absolute">
-                    <DrawingBrush.Drawing>
-                        <GeometryDrawing>
-                            <GeometryDrawing.Brush>
-                                <SolidColorBrush Color="{DynamicResource Color.Border.Default}"/>
-                            </GeometryDrawing.Brush>
-                            <GeometryDrawing.Geometry>
-                                <EllipseGeometry Center="10,10" RadiusX="1.2" RadiusY="1.2"/>
-                            </GeometryDrawing.Geometry>
-                        </GeometryDrawing>
-                    </DrawingBrush.Drawing>
-                </DrawingBrush>
-            </Rectangle.Fill>
-        </Rectangle>
+        <!-- ==================== หน้าล็อกอิน (เดิมทั้งหมด) ==================== -->
+        <Grid x:Name="LoginRoot">
+            <!-- ==================== พื้นหลังจุดเรียงแบบตาราง ====================
+                 DrawingBrush แบบ Tile คือวิธีมาตรฐานของ WPF สำหรับลายจุดซ้ำแบบนี้ - ปล่อยให้ WPF ปูกระเบื้อง
+                 viewport 28x28 เต็มหน้าต่างเอง ไม่ต้องสร้าง Ellipse ทีละตัว ใช้สี Border.Default เดิม (จุดจาง
+                 มาก ไม่แย่งความสนใจจากการ์ด) ผ่าน DynamicResource เพื่อให้ตามธีมสว่าง/มืดเองเหมือนทุกจุดในแอป -->
+            <Rectangle IsHitTestVisible="False">
+                <Rectangle.Fill>
+                    <!-- Viewbox ต้องระบุเอง ไม่งั้น WPF ใช้ขอบของวงกลม (2.4px) เป็น Viewbox แล้วยืดให้เต็ม
+                         Viewport ทั้งช่อง จุดจะใหญ่เท่าช่อง - ตรงกับ wireframe con-login: รัศมี 1.2px ห่าง 20px -->
+                    <DrawingBrush TileMode="Tile" Viewport="0,0,20,20" ViewportUnits="Absolute"
+                                  Viewbox="0,0,20,20" ViewboxUnits="Absolute">
+                        <DrawingBrush.Drawing>
+                            <GeometryDrawing>
+                                <GeometryDrawing.Brush>
+                                    <SolidColorBrush Color="{DynamicResource Color.Border.Default}"/>
+                                </GeometryDrawing.Brush>
+                                <GeometryDrawing.Geometry>
+                                    <EllipseGeometry Center="10,10" RadiusX="1.2" RadiusY="1.2"/>
+                                </GeometryDrawing.Geometry>
+                            </GeometryDrawing>
+                        </DrawingBrush.Drawing>
+                    </DrawingBrush>
+                </Rectangle.Fill>
+            </Rectangle>
 
-        <!-- ==================== การ์ดล็อกอิน: สองฝั่ง ภาพ + ฟอร์ม ==================== -->
-        <Border Width="860" Height="560" CornerRadius="18"
-                Background="{DynamicResource Brush.Background.Card}"
-                BorderBrush="{DynamicResource Brush.Border.Default}" BorderThickness="1">
-            <Border.Effect>
-                <DropShadowEffect BlurRadius="36" ShadowDepth="10" Direction="270" Opacity="0.22" Color="Black"/>
-            </Border.Effect>
-            <Grid>
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="340"/>
-                    <ColumnDefinition Width="*"/>
-                </Grid.ColumnDefinitions>
+            <!-- ==================== การ์ดล็อกอิน: สองฝั่ง ภาพ + ฟอร์ม ==================== -->
+            <Border Width="860" Height="560" CornerRadius="18"
+                    Background="{DynamicResource Brush.Background.Card}"
+                    BorderBrush="{DynamicResource Brush.Border.Default}" BorderThickness="1">
+                <Border.Effect>
+                    <DropShadowEffect BlurRadius="36" ShadowDepth="10" Direction="270" Opacity="0.22" Color="Black"/>
+                </Border.Effect>
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="340"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
 
-                <!-- ==================== ซ้าย: ภาพ ====================
-                     Border.Clip แบบเดียวกับที่โลโก้ในแถบขวาใช้ (fixed pixel RectangleGeometry ตรงกับ
-                     ขนาดจริงของคอลัมน์นี้ - 340x560) ปัดมุมซ้ายให้เท่ากับมุมของการ์ดนอก (18) ส่วนมุมขวา
-                     ของรูปเป็น 0 เพราะติดกับฝั่งฟอร์ม ไม่ใช่ขอบการ์ด -->
-                <Border Grid.Column="0" Background="{DynamicResource Brush.Sidebar.Background}">
-                    <Border.Clip>
-                        <RectangleGeometry RadiusX="18" RadiusY="18" Rect="0,0,340,560"/>
-                    </Border.Clip>
-                    <Image x:Name="HeroImage" Stretch="UniformToFill"/>
-                </Border>
+                    <!-- ==================== ซ้าย: ภาพ ====================
+                         Border.Clip แบบเดียวกับที่โลโก้ในแถบขวาใช้ (fixed pixel RectangleGeometry ตรงกับ
+                         ขนาดจริงของคอลัมน์นี้ - 340x560) ปัดมุมซ้ายให้เท่ากับมุมของการ์ดนอก (18) ส่วนมุมขวา
+                         ของรูปเป็น 0 เพราะติดกับฝั่งฟอร์ม ไม่ใช่ขอบการ์ด -->
+                    <Border Grid.Column="0" Background="{DynamicResource Brush.Sidebar.Background}">
+                        <Border.Clip>
+                            <RectangleGeometry RadiusX="18" RadiusY="18" Rect="0,0,340,560"/>
+                        </Border.Clip>
+                        <Image x:Name="HeroImage" Stretch="UniformToFill"/>
+                    </Border>
 
-                <!-- ==================== ขวา: ฟอร์มเดิม ==================== -->
-                <Grid Grid.Column="1" Margin="48,0,48,0">
-                    <StackPanel VerticalAlignment="Center">
-                        <StackPanel Orientation="Horizontal" Margin="0,0,0,24">
-                            <Border Width="40" Height="40" CornerRadius="10">
-                                <!-- ไม่มีพื้นสี่เหลี่ยมหลังโลโก้ (ผู้ใช้สั่ง 3 พ.ย. 2569) -->
-                                <Image Source="/Theme/logo-source.png" Stretch="Uniform"/>
-                            </Border>
-                            <StackPanel Margin="14,0,0,0" VerticalAlignment="Center">
-                                <TextBlock Text="Onion ProcOparetor" Style="{StaticResource Heading1}"/>
-                                <TextBlock Text="Server Console" Style="{StaticResource Caption}" Opacity="0.75"/>
+                    <!-- ==================== ขวา: ฟอร์มเดิม ==================== -->
+                    <Grid Grid.Column="1" Margin="48,0,48,0">
+                        <StackPanel VerticalAlignment="Center">
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,24">
+                                <Border Width="40" Height="40" CornerRadius="10">
+                                    <!-- ไม่มีพื้นสี่เหลี่ยมหลังโลโก้ (ผู้ใช้สั่ง 3 พ.ย. 2569) -->
+                                    <Image Source="/Theme/logo-source.png" Stretch="Uniform"/>
+                                </Border>
+                                <StackPanel Margin="14,0,0,0" VerticalAlignment="Center">
+                                    <TextBlock Text="Onion ProcOparetor" Style="{StaticResource Heading1}"/>
+                                    <TextBlock Text="Server Console" Style="{StaticResource Caption}" Opacity="0.75"/>
+                                </StackPanel>
                             </StackPanel>
-                        </StackPanel>
 
-                        <TextBlock Text="กรุณากรอก Server IP, Username และ Password เพื่อเชื่อมต่อ"
-                                   Style="{StaticResource Body}" TextWrapping="Wrap" Margin="0,0,0,20"/>
+                            <TextBlock Text="กรุณากรอก Server IP, Username และ Password เพื่อเชื่อมต่อ"
+                                       Style="{StaticResource Body}" TextWrapping="Wrap" Margin="0,0,0,20"/>
 
-                        <Grid Margin="0,0,0,16">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="16"/>
-                                <ColumnDefinition Width="120"/>
-                            </Grid.ColumnDefinitions>
-                            <StackPanel Grid.Column="0">
-                                <TextBlock Text="SERVER IP" Style="{StaticResource Label}" Margin="0,0,0,6"/>
-                                <TextBox x:Name="ServerIpBox" Style="{StaticResource RoundedTextBox}" TextChanged="ServerIpBox_TextChanged"/>
+                            <Grid Margin="0,0,0,16">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="16"/>
+                                    <ColumnDefinition Width="120"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0">
+                                    <TextBlock Text="SERVER IP" Style="{StaticResource Label}" Margin="0,0,0,6"/>
+                                    <TextBox x:Name="ServerIpBox" Style="{StaticResource RoundedTextBox}" TextChanged="ServerIpBox_TextChanged"/>
+                                </StackPanel>
+                                <StackPanel Grid.Column="2">
+                                    <TextBlock Text="PORT" Style="{StaticResource Label}" Margin="0,0,0,6"/>
+                                    <TextBox x:Name="PortBox" Style="{StaticResource RoundedTextBox}"/>
+                                </StackPanel>
+                            </Grid>
+
+                            <!--
+                                WP1b (2026-10-30): เลือกต่อ HTTP หรือ HTTPS - ค่าเริ่มต้นยังเป็น HTTP (unchecked)
+                                ตามที่ roadmap ระบุไว้ว่าช่วงย้ายระบบต้องมีตัวเลือก "ยอมรับ HTTP เดิม" จนกว่าทั้ง
+                                แล็บจะย้ายไป HTTPS จริง เลือก HTTPS ครั้งแรกกับ Server ที่ยังไม่รู้จัก cert จะเจอ
+                                หน้าต่าง "ไว้ใจ certificate นี้" ก่อนต่อจริงได้ (ดู ConnectButton_Click)
+                            -->
+                            <CheckBox x:Name="UseHttpsCheckBox" Content="เชื่อมต่อด้วย HTTPS"
+                                      Margin="0,0,0,16"/>
+
+                            <StackPanel Margin="0,0,0,16">
+                                <TextBlock Text="USERNAME" Style="{StaticResource Label}" Margin="0,0,0,6"/>
+                                <TextBox x:Name="UsernameBox" Style="{StaticResource RoundedTextBox}"/>
                             </StackPanel>
-                            <StackPanel Grid.Column="2">
-                                <TextBlock Text="PORT" Style="{StaticResource Label}" Margin="0,0,0,6"/>
-                                <TextBox x:Name="PortBox" Style="{StaticResource RoundedTextBox}"/>
+
+                            <StackPanel Margin="0,0,0,22">
+                                <TextBlock Text="PASSWORD" Style="{StaticResource Label}" Margin="0,0,0,6"/>
+                                <PasswordBox x:Name="PasswordBox" Style="{StaticResource RoundedPasswordBox}"/>
                             </StackPanel>
-                        </Grid>
 
-                        <!--
-                            WP1b (2026-10-30): เลือกต่อ HTTP หรือ HTTPS - ค่าเริ่มต้นยังเป็น HTTP (unchecked)
-                            ตามที่ roadmap ระบุไว้ว่าช่วงย้ายระบบต้องมีตัวเลือก "ยอมรับ HTTP เดิม" จนกว่าทั้ง
-                            แล็บจะย้ายไป HTTPS จริง เลือก HTTPS ครั้งแรกกับ Server ที่ยังไม่รู้จัก cert จะเจอ
-                            หน้าต่าง "ไว้ใจ certificate นี้" ก่อนต่อจริงได้ (ดู ConnectButton_Click)
-                        -->
-                        <CheckBox x:Name="UseHttpsCheckBox" Content="เชื่อมต่อด้วย HTTPS"
-                                  Margin="0,0,0,16"/>
+                            <Button x:Name="ConnectButton" Content="เชื่อมต่อ"
+                                    Style="{StaticResource ButtonPrimary}" Click="ConnectButton_Click"/>
 
-                        <StackPanel Margin="0,0,0,16">
-                            <TextBlock Text="USERNAME" Style="{StaticResource Label}" Margin="0,0,0,6"/>
-                            <TextBox x:Name="UsernameBox" Style="{StaticResource RoundedTextBox}"/>
+                            <TextBlock x:Name="StatusText" Margin="0,14,0,0" TextWrapping="Wrap" FontSize="12"/>
                         </StackPanel>
-
-                        <StackPanel Margin="0,0,0,22">
-                            <TextBlock Text="PASSWORD" Style="{StaticResource Label}" Margin="0,0,0,6"/>
-                            <PasswordBox x:Name="PasswordBox" Style="{StaticResource RoundedPasswordBox}"/>
-                        </StackPanel>
-
-                        <Button x:Name="ConnectButton" Content="เชื่อมต่อ"
-                                Style="{StaticResource ButtonPrimary}" Click="ConnectButton_Click"/>
-
-                        <TextBlock x:Name="StatusText" Margin="0,14,0,0" TextWrapping="Wrap" FontSize="12"/>
-                    </StackPanel>
+                    </Grid>
                 </Grid>
-            </Grid>
-        </Border>
+            </Border>
+        </Grid>
+
+        <!-- ==================== หน้าหลัก (DashboardWindow UserControl) ====================
+             UI-2 (2026-11-03): ว่างเปล่า/Collapsed จนกว่า login สำเร็จ - ShowDashboardAsync สร้าง
+             DashboardWindow ใหม่ทุกครั้งที่ login สำเร็จ (ตรงกับพฤติกรรมเดิมที่สร้าง DashboardWindow ใหม่
+             ทุกครั้งตอน login) แล้วเซ็ตเป็น Content ที่นี่ -->
+        <ContentControl x:Name="DashboardHost" Visibility="Collapsed" Opacity="0" Focusable="False"/>
+
+        <!-- ==================== ตัวหมุนโหลด (spinner) ====================
+             แสดงสั้นๆ ระหว่าง login เสร็จ -> เปิดหน้าหลัก (และตอนย้อนกลับ) ตามที่ roadmap WP UI-2 สั่ง
+             ("แสดงตัวหมุนโหลดสั้นๆ แล้ว fade เข้าหน้าหลัก") - อยู่บนสุดของ Grid เสมอ (ประกาศหลังสุด) -->
+        <Grid x:Name="LoadingOverlay" Visibility="Collapsed" Opacity="0"
+              Background="{DynamicResource Brush.Background.Primary}">
+            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                <Path Width="40" Height="40" Stretch="Fill"
+                      Stroke="{DynamicResource Brush.Accent.Default}" StrokeThickness="4"
+                      StrokeStartLineCap="Round" StrokeEndLineCap="Round"
+                      Data="M 20,2 A 18,18 0 0 1 38,20">
+                    <Path.RenderTransform>
+                        <RotateTransform x:Name="SpinnerRotate" CenterX="20" CenterY="20"/>
+                    </Path.RenderTransform>
+                </Path>
+                <TextBlock x:Name="LoadingOverlayText" Text="กำลังเข้าสู่ระบบ..." Style="{StaticResource Caption}"
+                           Margin="0,12,0,0" HorizontalAlignment="Center"/>
+            </StackPanel>
+        </Grid>
     </Grid>
 </Window>

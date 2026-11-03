@@ -1,11 +1,20 @@
 using System.IO;
 using System.Windows;
+using System.Windows.Media;
+using System.Windows.Media.Animation;
 using System.Windows.Media.Imaging;
 using OnionProcOparetor.Console.Models;
 using OnionProcOparetor.Console.Services;
 
 namespace OnionProcOparetor.Console;
 
+/// <summary>
+/// UI-2 (2026-11-03): MainWindow ไม่ใช่แค่หน้าล็อกอินอีกต่อไป - เป็น "เปลือกหน้าต่างเดียว" ตลอดอายุ
+/// โปรแกรม (host window) ที่สลับเนื้อหาระหว่างหน้าล็อกอิน (LoginRoot, เดิมทั้งหมด) กับหน้าหลัก
+/// (DashboardHost ที่ใส่ DashboardWindow UserControl เข้าไป) โดยไม่เปิดหน้าต่างใหม่เลย ตามที่ roadmap
+/// WP UI-2 สั่ง ("ล็อกอินเสร็จแสดงตัวหมุนโหลดสั้นๆ แล้ว fade เข้าหน้าหลักในหน้าต่างเดิม") - ดู
+/// ShowDashboardAsync/ReturnToLoginAsync ด้านล่างสำหรับลำดับขั้นเต็ม
+/// </summary>
 public partial class MainWindow : Window
 {
     // ไม่ใช่ readonly โดยเจตนา - สร้างใหม่ทุกครั้งที่กด Connect (ดู ConnectButton_Click) เพราะ HttpClient
@@ -14,6 +23,11 @@ public partial class MainWindow : Window
     // ทั้งโปรแกรมเสมอ เพราะ exception เกิดใน SetServer ก่อนเช็ค password ด้วยซ้ำ (ยืนยันจาก stack trace จริง
     // ใน Event Log ไม่ได้เดา) - instance ที่ login สำเร็จค่อยถูกส่งต่อให้ ForceChangePasswordWindow/DashboardWindow
     private ApiClient _apiClient = new();
+
+    /// <summary>UI-2 (2026-11-03): DashboardWindow ที่กำลังแสดงอยู่ (null = ยังอยู่หน้าล็อกอิน) - สร้างใหม่
+    /// ทุกครั้งที่ login สำเร็จ (เหมือนพฤติกรรมเดิมก่อน UI-2) ทิ้งตอน logout ดู ShowDashboardAsync/
+    /// ReturnToLoginAsync</summary>
+    private DashboardWindow? _dashboard;
 
     public MainWindow()
     {
@@ -28,6 +42,28 @@ public partial class MainWindow : Window
         UseHttpsCheckBox.IsChecked = connection.UseHttps;
 
         LoadHeroImage();
+
+        // UI-2 (2026-11-03): เดิม "กัน Alt+F4 ปิด Console ตอนอยู่ fullscreen live-view" อยู่ใน
+        // DashboardWindow.Closing ของตัวเอง (ตอนยังเป็น Window แยก) - ตอนนี้ MainWindow เป็น host
+        // window เดียวตลอด process จึงต้องรับ Closing ของตัวเองแทน แล้วถาม DashboardWindow (ถ้ากำลัง
+        // แสดงอยู่) ว่าปิดได้ไหม (ดู DashboardWindow.CanCloseHost)
+        Closing += (_, e) =>
+        {
+            if (_dashboard is not null && !_dashboard.CanCloseHost())
+            {
+                e.Cancel = true;
+            }
+        };
+
+        // ปิดโปรแกรมจริง (ไม่ใช่ logout) - cleanup timer/SignalR ของ Dashboard ถ้ายังเปิดอยู่ (เดิมอยู่ใน
+        // DashboardWindow.Closed ของตัวเอง)
+        Closed += async (_, _) =>
+        {
+            if (_dashboard is not null)
+            {
+                await _dashboard.ShutdownAsync();
+            }
+        };
     }
 
     /// <summary>
@@ -142,9 +178,26 @@ public partial class MainWindow : Window
                 StatusText.SetResourceReference(System.Windows.Controls.TextBlock.ForegroundProperty, "Brush.Status.Online");
                 StatusText.Text = "เชื่อมต่อสำเร็จ กรุณาเปลี่ยน password ก่อนใช้งาน...";
 
-                var forceChangeWindow = new ForceChangePasswordWindow(_apiClient);
-                forceChangeWindow.Show();
-                Close();
+                // UI-2 (2026-11-03): เดิมหน้านี้เปิดเป็นหน้าต่างของตัวเองแล้ว Close() MainWindow ทิ้ง
+                // (ตอนนั้น DashboardWindow/ForceChangePasswordWindow ต่างก็เป็น Window อิสระ) ตอนนี้
+                // MainWindow ต้องอยู่ต่อตลอด (host เดียว) จึงเปิดเป็น modal dialog แทน (Owner=this,
+                // ShowDialog) แล้วอ่านผลจาก DialogResult - เปลี่ยนสำเร็จ (true) ค่อยเปิดหน้าหลักต่อใน
+                // หน้าต่างเดิมนี้เอง ถ้าผู้ใช้ปิดหน้าต่างเปลี่ยนรหัสเอง (กดปุ่ม X) ก็แค่กลับมาที่ฟอร์ม
+                // ล็อกอินเดิม ยังไม่ login จริง (ตรงกับพฤติกรรมเดิมที่ต้องเปลี่ยนรหัสให้จบก่อนถึงจะเห็น
+                // Dashboard)
+                var forceChangeWindow = new ForceChangePasswordWindow(_apiClient) { Owner = this };
+                var passwordChanged = forceChangeWindow.ShowDialog() == true;
+                if (passwordChanged)
+                {
+                    ToastService.Success($"เข้าสู่ระบบสำเร็จ ({username})");
+                    await ShowDashboardAsync(_apiClient);
+                }
+                else
+                {
+                    StatusText.SetResourceReference(System.Windows.Controls.TextBlock.ForegroundProperty, "Brush.Danger.Default");
+                    StatusText.Text = "ยกเลิกการเปลี่ยน password - ยังไม่ได้เข้าสู่ระบบ";
+                    ConnectButton.IsEnabled = true;
+                }
             }
             else
             {
@@ -156,9 +209,7 @@ public partial class MainWindow : Window
                 // ของ Dashboard mount เสร็จ (ดู Services/ToastService.cs ส่วน "เรียกก่อนมี host")
                 ToastService.Success($"เข้าสู่ระบบสำเร็จ ({username})");
 
-                var dashboard = new DashboardWindow(_apiClient);
-                dashboard.Show();
-                Close();
+                await ShowDashboardAsync(_apiClient);
             }
         }
         else
@@ -206,5 +257,139 @@ public partial class MainWindow : Window
     private void ServerIpBox_TextChanged(object sender, System.Windows.Controls.TextChangedEventArgs e)
     {
 
+    }
+
+    /// <summary>
+    /// UI-2 (2026-11-03): login สำเร็จ -> ตัวหมุนโหลดสั้นๆ -> fade เข้าหน้าหลัก "ในหน้าต่างเดิม" ตามที่
+    /// roadmap WP UI-2 สั่งตรงๆ สร้าง DashboardWindow (UserControl) ใหม่ทุกครั้ง (เหมือนพฤติกรรมเดิมก่อน
+    /// UI-2 ที่ `new DashboardWindow(...)` ทุกครั้งที่ login สำเร็จ) แล้วฝังเข้า DashboardHost
+    ///
+    /// เรื่องขนาดหน้าต่าง: ขนาดล็อกอิน (1000x732, ตาย Width/Height ที่ตั้งไว้บน Window) กับขนาดเริ่มต้น
+    /// เดิมของ DashboardWindow ตอนยังเป็น Window ของตัวเอง (Height=732 Width=1000 เป๊ะ) เท่ากันอยู่แล้ว -
+    /// จึงไม่มีอะไรให้ "ขยายแบบนุ่มนวล" จริงๆ (animate Width/Height จะไม่เห็นผลต่าง) แค่เปิด resize
+    /// (ResizeMode=CanResize) และกำหนด MinWidth/MinHeight ให้ตรงกับที่ DashboardWindow เดิมเคยตั้งไว้บน
+    /// ตัวเอง (1000x560) หลัง fade เสร็จ
+    /// </summary>
+    private async Task ShowDashboardAsync(ApiClient apiClient)
+    {
+        LoadingOverlayText.Text = "กำลังเข้าสู่ระบบ...";
+        LoadingOverlay.Opacity = 0;
+        LoadingOverlay.Visibility = Visibility.Visible;
+        StartSpinner();
+        AnimateOpacity(LoadingOverlay, 1, 150);
+        await Task.Delay(500);
+
+        var dashboard = new DashboardWindow(apiClient);
+        // UI-2 (2026-11-03): ปุ่ม "ออกจากระบบ" ใน footer ของ Dashboard - สลับกลับหน้าล็อกอินในหน้าต่าง
+        // เดิม (ไม่ใช่ async void ตรงๆ ที่นี่เพราะ event handler ของ Button ไม่ await ได้ - ครอบด้วย _ =
+        // ตามแบบที่โค้ดเดิมในไฟล์นี้ใช้กับ async void pattern อยู่แล้ว)
+        dashboard.LogoutRequested += () => _ = ReturnToLoginAsync();
+        _dashboard = dashboard;
+
+        DashboardHost.Content = dashboard;
+        DashboardHost.Opacity = 0;
+        DashboardHost.Visibility = Visibility.Visible;
+
+        AnimateOpacity(DashboardHost, 1, 250);
+        AnimateOpacity(LoadingOverlay, 0, 250);
+        await Task.Delay(260);
+
+        LoadingOverlay.Visibility = Visibility.Collapsed;
+        StopSpinner();
+        LoginRoot.Visibility = Visibility.Collapsed;
+
+        ResizeMode = ResizeMode.CanResize;
+        MinWidth = 1000;
+        MinHeight = 560;
+        Title = "Onion ProcOparetor Console - Dashboard";
+    }
+
+    /// <summary>
+    /// UI-2 (2026-11-03): logout (หรือ token หมดอายุในอนาคต) -> fade กลับไปหน้าล็อกอิน "ในหน้าต่างเดิม"
+    /// ตามที่ roadmap WP UI-2 สั่ง - ไม่เรียก API ใดๆ (ยังไม่มี endpoint invalidate token ของ Server ฝั่งนี้
+    /// - ดู comment บน LogoutButton ใน DashboardWindow.xaml) แค่เคลียร์ ApiClient/Dashboard ฝั่ง client
+    /// </summary>
+    private async Task ReturnToLoginAsync()
+    {
+        if (_dashboard is null)
+        {
+            return;
+        }
+
+        LoadingOverlayText.Text = "กำลังออกจากระบบ...";
+        LoadingOverlay.Opacity = 0;
+        LoadingOverlay.Visibility = Visibility.Visible;
+        StartSpinner();
+        AnimateOpacity(LoadingOverlay, 1, 150);
+        await Task.Delay(200);
+
+        var dashboard = _dashboard;
+        _dashboard = null;
+        await dashboard.ShutdownAsync();
+
+        DashboardHost.Content = null;
+        DashboardHost.Visibility = Visibility.Collapsed;
+
+        // แก้ตามคำสั่ง orchestrator (2026-11-03): ครูอาจ maximize หรือลาก resize หน้าหลักไว้ก่อน logout
+        // (ResizeMode=CanResize ตอนนั้น) - ถ้าแค่สลับ ResizeMode กลับเป็น NoResize เฉยๆ โดยไม่รีเซ็ต
+        // WindowState/ขนาด การ์ดล็อกอินจะไปโผล่กลางหน้าต่างยักษ์ที่ resize ไม่ได้แล้ว ต้องคืนกลับเป็น
+        // Normal + ขนาดล็อกอินเดิม (1000x732) + จัดกลางจอใหม่เองทุกครั้ง (WindowStartupLocation=
+        // CenterScreen มีผลแค่ตอนสร้างหน้าต่างครั้งแรกเท่านั้น ไม่ทำงานซ้ำตอนนี้) - ทำตอนนี้ขณะที่
+        // LoadingOverlay ยังทึบเต็มจอพอดี (fade-in 150ms + รอ 200ms ข้างบนเสร็จแล้วแน่นอน) ผู้ใช้จึงไม่
+        // เห็นหน้าต่างกระตุกขนาด/ตำแหน่งระหว่างเปลี่ยน
+        //
+        // clamp ด้วย SystemParameters.WorkArea (บทเรียนจาก docs/handoff-2026-11-03.md) เผื่อจอเล็กกว่า
+        // 1000x732 จริงๆ (เช่น remote desktop ความละเอียดต่ำ) และคำนวณ Left/Top จาก WorkArea.Left/Top
+        // เสมอ ไม่ใช่ 0,0 ตรงๆ เพราะจอรองที่อยู่ทางซ้าย/บนจอหลักจะมีค่าติดลบได้
+        WindowState = WindowState.Normal;
+        var workArea = SystemParameters.WorkArea;
+        Width = Math.Min(1000, workArea.Width);
+        Height = Math.Min(732, workArea.Height);
+        Left = workArea.Left + Math.Max(0, (workArea.Width - Width) / 2);
+        Top = workArea.Top + Math.Max(0, (workArea.Height - Height) / 2);
+
+        ResizeMode = ResizeMode.NoResize;
+        MinWidth = 0;
+        MinHeight = 0;
+        Title = "Onion ProcOparetor Console";
+
+        // เคลียร์ฟอร์มล็อกอิน - ล้าง password เสมอ (ความปลอดภัย) แต่คง Server IP/Port/Username ไว้ให้
+        // กรอกรหัสใหม่ได้เร็ว ไม่ต้องพิมพ์ทุกช่องใหม่
+        PasswordBox.Clear();
+        StatusText.Text = string.Empty;
+        ConnectButton.IsEnabled = true;
+        _apiClient = new ApiClient();
+
+        LoginRoot.Opacity = 0;
+        LoginRoot.Visibility = Visibility.Visible;
+        AnimateOpacity(LoginRoot, 1, 250);
+        AnimateOpacity(LoadingOverlay, 0, 250);
+        await Task.Delay(260);
+
+        LoadingOverlay.Visibility = Visibility.Collapsed;
+        StopSpinner();
+    }
+
+    private void StartSpinner()
+    {
+        var animation = new DoubleAnimation(0, 360, TimeSpan.FromSeconds(0.9))
+        {
+            RepeatBehavior = RepeatBehavior.Forever
+        };
+        SpinnerRotate.BeginAnimation(RotateTransform.AngleProperty, animation);
+    }
+
+    private void StopSpinner()
+    {
+        SpinnerRotate.BeginAnimation(RotateTransform.AngleProperty, null);
+    }
+
+    private static void AnimateOpacity(UIElement element, double to, int durationMs)
+    {
+        var animation = new DoubleAnimation(to, TimeSpan.FromMilliseconds(durationMs))
+        {
+            EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseInOut }
+        };
+        element.BeginAnimation(UIElement.OpacityProperty, animation);
     }
 }

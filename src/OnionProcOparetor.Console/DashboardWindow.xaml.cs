@@ -12,7 +12,21 @@ using OnionProcOparetor.UI.Services;
 
 namespace OnionProcOparetor.Console;
 
-public partial class DashboardWindow : Window
+/// <summary>
+/// UI-2 (2026-11-03): เดิมเป็น Window แยกที่เปิดทับ MainWindow (login) ตอน login สำเร็จ - เปลี่ยนเป็น
+/// UserControl ฝังอยู่ใน MainWindow เดียวกันแทน เพื่อให้ "ล็อกอิน -> หน้าหลัก -> logout" เป็นหน้าต่าง
+/// เดียวกันทั้งหมด (HWND เดียวตลอด process) ตามที่ roadmap WP UI-2 สั่ง
+///
+/// ผลคือ 3 กลุ่มที่เคยพึ่ง "ตัวเองเป็น Window" ตรงๆ ต้องย้ายออกไปให้ host (MainWindow) จัดการแทน:
+/// 1. `Owner = Window.GetWindow(this)` ของ dialog ลูกทุกบาน (ActionPanelWindow ฯลฯ) -> `Owner = Window.GetWindow(this)`
+///    (หา Window บรรพบุรุษจริงใน visual tree ตอนนั้น คือ MainWindow เสมอ)
+/// 2. `Closing += ...` ที่กัน Alt+F4 ปิดโปรแกรมตอนยังอยู่ใน fullscreen live-view -> เปลี่ยนเป็น method
+///    `CanCloseHost()` ให้ MainWindow เรียกจาก Window.Closing ของตัวเองตอนแน่ใจว่า Dashboard view
+///    กำลังแสดงอยู่จริง (ดู MainWindow.xaml.cs)
+/// 3. `Closed += ...` ที่ cleanup timer/SignalR -> เปลี่ยนเป็น method async `ShutdownAsync()` เรียกจาก
+///    MainWindow ตอนจะปิดโปรแกรมจริง หรือตอน logout (สร้าง DashboardWindow ใหม่รอบถัดไปที่ login สำเร็จ)
+/// </summary>
+public partial class DashboardWindow : UserControl
 {
     private static readonly TimeSpan VncSessionReadyTimeout = TimeSpan.FromSeconds(15);
 
@@ -303,7 +317,8 @@ public partial class DashboardWindow : Window
         // ธีมเปลี่ยนได้จากทางอื่นด้วย (ผู้ใช้สลับธีมของ Windows ทั้งเครื่องขณะที่ตั้งไว้เป็น "ตามระบบ")
         // ไม่ใช่แค่จากปุ่มนี้ จึงต้องฟัง event แทนที่จะอัพเดตเฉพาะตอนกดปุ่ม
         ThemeService.ThemeChanged += UpdateThemeToggleButton;
-        Closed += (_, _) => ThemeService.ThemeChanged -= UpdateThemeToggleButton;
+        // UI-2 (2026-11-03): เดิมปลด subscribe ที่ Window.Closed ของตัวเอง - ย้ายไปปลดใน ShutdownAsync()
+        // แทน (ไม่มี Closed event แล้วตอนเป็น UserControl)
     }
 
     private void SetSidebarCollapsed(bool collapsed, bool persist)
@@ -471,29 +486,53 @@ public partial class DashboardWindow : Window
         // (SC_CLOSE) ที่อาจไปถึง window โดยไม่ผ่าน routed keyboard event pipeline ปกติเสมอไป วิธีที่
         // เชื่อถือได้จริงตามคำแนะนำที่ verify มาคือดักที่ Window.Closing (ครอบคลุมทุกทางที่ทำให้ Window
         // ปิดพร้อมกันหมด ไม่ใช่แค่ Alt+F4) แล้ว cancel ถ้ายังอยู่ใน fullscreen input capture
-        Closing += (_, e) =>
-        {
-            if (_liveViewFullscreenClientGuid is not null)
-            {
-                e.Cancel = true;
-                ToastService.Info("กด \"กลับไปจอรวม\" ก่อนปิดโปรแกรม (กำลังควบคุมเครื่อง target แบบเต็มจออยู่)");
-            }
-        };
-
-        Closed += async (_, _) =>
-        {
-            _autoRefreshTimer.Stop();
-            _auditLogFilterDebounceTimer.Stop();
-            SettingsService.Changed -= OnSettingsChanged;
-            TimeDisplay.ModeChanged -= OnTimeDisplayModeChanged;
-            _labHubClient.ConnectionStateChanged -= OnHubConnectionStateChanged;
-            DisconnectVncView();
-            await CloseAllLiveViewSessionsAsync();
-            _labHubClient.ClientStatusChanged -= OnClientStatusChangedFromHub;
-            _labHubClient.RaiseHandQueueChanged -= OnRaiseHandQueueChangedFromHub;
-            await _labHubClient.DisposeAsync();
-        };
+        // UI-2 (2026-11-03): ย้ายออกจาก Window.Closing/Closed ของตัวเอง (ตอนนี้เป็น UserControl ไม่มี
+        // event พวกนี้แล้ว) เป็น method สาธารณะ 2 ตัวที่ MainWindow (host window ตัวเดียวตลอด process)
+        // เรียกเองตอนที่เหมาะสม - ดู CanCloseHost()/ShutdownAsync() ด้านล่าง
     }
+
+    /// <summary>
+    /// UI-2 (2026-11-03): แทนที่ `Closing += ...` เดิม - MainWindow.xaml.cs เรียกจาก Window.Closing ของ
+    /// ตัวเองเฉพาะตอน Dashboard view กำลังแสดงอยู่จริง (ไม่เรียกตอนยังอยู่หน้าล็อกอิน) คืน false แปลว่า
+    /// ห้ามปิด (ครอบคลุม Alt+F4/ปุ่ม X เหมือน Window.Closing เดิมทุกประการ เพราะ host เดียวกันรับ
+    /// WM_SYSCOMMAND เดิมอยู่แล้ว)
+    /// </summary>
+    public bool CanCloseHost()
+    {
+        if (_liveViewFullscreenClientGuid is not null)
+        {
+            ToastService.Info("กด \"กลับไปจอรวม\" ก่อนปิดโปรแกรม (กำลังควบคุมเครื่อง target แบบเต็มจออยู่)");
+            return false;
+        }
+
+        return true;
+    }
+
+    /// <summary>
+    /// UI-2 (2026-11-03): แทนที่ `Closed += async ...` เดิม - MainWindow.xaml.cs เรียกตอนปิดโปรแกรมจริง
+    /// (Window.Closed ของตัวเอง) และตอน logout (ก่อนทิ้ง instance นี้แล้วสร้างใหม่รอบ login ถัดไป) ต้อง
+    /// idempotent ปลอดภัยถ้าเผลอเรียกซ้ำ (Stop()/-=  ของ .NET ทนเรียกซ้ำได้อยู่แล้วทุกตัว)
+    /// </summary>
+    public async Task ShutdownAsync()
+    {
+        _autoRefreshTimer.Stop();
+        _auditLogFilterDebounceTimer.Stop();
+        SettingsService.Changed -= OnSettingsChanged;
+        TimeDisplay.ModeChanged -= OnTimeDisplayModeChanged;
+        _labHubClient.ConnectionStateChanged -= OnHubConnectionStateChanged;
+        DisconnectVncView();
+        await CloseAllLiveViewSessionsAsync();
+        _labHubClient.ClientStatusChanged -= OnClientStatusChangedFromHub;
+        _labHubClient.RaiseHandQueueChanged -= OnRaiseHandQueueChangedFromHub;
+        ThemeService.ThemeChanged -= UpdateThemeToggleButton;
+        await _labHubClient.DisposeAsync();
+    }
+
+    /// <summary>UI-2 (2026-11-03): ปุ่ม "ออกจากระบบ" แถบสถานะล่าง - MainWindow.xaml.cs สมัครรับ event
+    /// นี้แล้วสลับกลับไปหน้าล็อกอินในหน้าต่างเดิม (ดู ReturnToLoginAsync)</summary>
+    public event Action? LogoutRequested;
+
+    private void LogoutButton_Click(object sender, RoutedEventArgs e) => LogoutRequested?.Invoke();
 
     /// <summary>
     /// เรียกจาก SignalR background thread ตอนคิวยกมือเปลี่ยน (ยกมือใหม่/ครูกด "ไปช่วยแล้ว"/ล้างคิว) -
@@ -769,7 +808,7 @@ public partial class DashboardWindow : Window
         if (!enabled && !ConfirmWindow.Show(
                 "กฎทั้งหมดจะหยุดทำงานบนทุกเครื่องในห้องแล็บพร้อมกัน จนกว่าจะเปิดกลับ - "
                     + "การเปิด/ปิด enforcement รายเครื่องจะไม่มีผลใดๆ ตลอดช่วงที่ปิดอยู่",
-                "ปิดการบังคับใช้ทั้งระบบ?", this, "ปิดทั้งระบบ"))
+                "ปิดการบังคับใช้ทั้งระบบ?", Window.GetWindow(this), "ปิดทั้งระบบ"))
         {
             return;
         }
@@ -873,7 +912,7 @@ public partial class DashboardWindow : Window
             return;
         }
 
-        var panel = new ActionPanelWindow(_apiClient, client) { Owner = this };
+        var panel = new ActionPanelWindow(_apiClient, client) { Owner = Window.GetWindow(this) };
         await RunActionPanelAsync(panel);
     }
 
@@ -893,7 +932,7 @@ public partial class DashboardWindow : Window
             // ส่ง LabHubClient ตัวเดิมของ Dashboard เข้าไปใช้ต่อ (join group "console" ไว้แล้ว)
             // ไม่เปิด connection ใหม่ให้เปลือง - หน้า report unsubscribe ตัวเองตอนปิด
             var request = panel.PendingReport;
-            var report = new ActionReportWindow(_apiClient, _labHubClient, request) { Owner = this };
+            var report = new ActionReportWindow(_apiClient, _labHubClient, request) { Owner = Window.GetWindow(this) };
             report.Show();
 
             // หน้ารายงานเปิดเองอยู่แล้ว (มันเป็นคนส่งคำสั่งจริง) toast นี้มีไว้เป็นทางกลับไปหามัน
@@ -932,13 +971,13 @@ public partial class DashboardWindow : Window
 
         if (panel.ViewProcessesRequested is not null)
         {
-            var processesWindow = new RunningProcessesWindow(_apiClient, _labHubClient, panel.ViewProcessesRequested) { Owner = this };
+            var processesWindow = new RunningProcessesWindow(_apiClient, _labHubClient, panel.ViewProcessesRequested) { Owner = Window.GetWindow(this) };
             processesWindow.Show();
         }
 
         if (panel.ViewPendingCommandsRequested is not null)
         {
-            var pendingCommandsWindow = new PendingCommandsWindow(_apiClient, panel.ViewPendingCommandsRequested) { Owner = this };
+            var pendingCommandsWindow = new PendingCommandsWindow(_apiClient, panel.ViewPendingCommandsRequested) { Owner = Window.GetWindow(this) };
             pendingCommandsWindow.Show();
         }
     }
@@ -973,10 +1012,10 @@ public partial class DashboardWindow : Window
             // ให้ต้องอ่านก่อนว่ากำลังลบตัวไหนอยู่ ไม่ใช่แค่กดผ่านกล่องยืนยันอีกกล่อง
             var ruleName = _allRules.FirstOrDefault(r => r.Id == ruleId)?.Name;
             var confirmed = string.IsNullOrWhiteSpace(ruleName)
-                ? ConfirmWindow.Show("ยืนยันการลบกฎนี้? การกระทำนี้ย้อนกลับไม่ได้", "ยืนยันการลบ", this)
+                ? ConfirmWindow.Show("ยืนยันการลบกฎนี้? การกระทำนี้ย้อนกลับไม่ได้", "ยืนยันการลบ", Window.GetWindow(this))
                 : ConfirmWindow.ShowWithTypeToConfirm(
                     $"กำลังจะลบกฎ \"{ruleName}\" ออกจากระบบถาวร การกระทำนี้ย้อนกลับไม่ได้",
-                    "ยืนยันการลบกฎ", ruleName, this, "ลบกฎนี้");
+                    "ยืนยันการลบกฎ", ruleName, Window.GetWindow(this), "ลบกฎนี้");
             if (!confirmed)
             {
                 return;
@@ -997,7 +1036,7 @@ public partial class DashboardWindow : Window
 
     private async void AddRuleButton_Click(object sender, RoutedEventArgs e)
     {
-        var dialog = new AddEditRuleWindow(_apiClient) { Owner = this };
+        var dialog = new AddEditRuleWindow(_apiClient) { Owner = Window.GetWindow(this) };
         if (dialog.ShowDialog() == true)
         {
             ToastService.Success("เพิ่มกฎแล้ว");
@@ -1009,7 +1048,7 @@ public partial class DashboardWindow : Window
     {
         if (sender is Button { Tag: RuleDto rule })
         {
-            var dialog = new AddEditRuleWindow(_apiClient, rule) { Owner = this };
+            var dialog = new AddEditRuleWindow(_apiClient, rule) { Owner = Window.GetWindow(this) };
             if (dialog.ShowDialog() == true)
             {
                 ToastService.Success($"แก้ไขกฎ \"{rule.Name}\" แล้ว");
@@ -1061,7 +1100,7 @@ public partial class DashboardWindow : Window
     {
         if (sender is Button { Tag: UserDto user })
         {
-            var editWindow = new EditDisplayNameWindow(user.Username, user.DisplayName) { Owner = this };
+            var editWindow = new EditDisplayNameWindow(user.Username, user.DisplayName) { Owner = Window.GetWindow(this) };
             var result = editWindow.ShowDialog();
 
             if (result == true && !string.IsNullOrEmpty(editWindow.NewDisplayName))
@@ -1079,7 +1118,7 @@ public partial class DashboardWindow : Window
     {
         if (sender is Button { Tag: UserDto user })
         {
-            var roleWindow = new ChangeUserRoleWindow(user.Username, user.Role) { Owner = this };
+            var roleWindow = new ChangeUserRoleWindow(user.Username, user.Role) { Owner = Window.GetWindow(this) };
             var result = roleWindow.ShowDialog();
 
             if (result == true)
@@ -1098,10 +1137,10 @@ public partial class DashboardWindow : Window
             // เหตุผลเดียวกับการลบกฎ - ชื่อผู้ใช้ที่ต้องพิมพ์ดึงมาจากแถวที่กด ไม่ใช่จากที่อื่น
             var userName = (UsersGrid.ItemsSource as IEnumerable<UserDto>)?.FirstOrDefault(u => u.Id == userId)?.Username;
             var confirmed = string.IsNullOrWhiteSpace(userName)
-                ? ConfirmWindow.Show("ยืนยันการลบ user นี้? การกระทำนี้ย้อนกลับไม่ได้", "ยืนยันการลบ", this)
+                ? ConfirmWindow.Show("ยืนยันการลบ user นี้? การกระทำนี้ย้อนกลับไม่ได้", "ยืนยันการลบ", Window.GetWindow(this))
                 : ConfirmWindow.ShowWithTypeToConfirm(
                     $"กำลังจะลบผู้ใช้ \"{userName}\" ออกจากระบบถาวร การกระทำนี้ย้อนกลับไม่ได้",
-                    "ยืนยันการลบผู้ใช้", userName, this, "ลบผู้ใช้นี้");
+                    "ยืนยันการลบผู้ใช้", userName, Window.GetWindow(this), "ลบผู้ใช้นี้");
             if (!confirmed)
             {
                 return;
@@ -1312,7 +1351,7 @@ public partial class DashboardWindow : Window
     {
         if (_inspectedClient is { } client)
         {
-            new RunningProcessesWindow(_apiClient, _labHubClient, client) { Owner = this }.Show();
+            new RunningProcessesWindow(_apiClient, _labHubClient, client) { Owner = Window.GetWindow(this) }.Show();
         }
     }
 
@@ -1320,7 +1359,7 @@ public partial class DashboardWindow : Window
     {
         if (_inspectedClient is { } client)
         {
-            new PendingCommandsWindow(_apiClient, client) { Owner = this }.Show();
+            new PendingCommandsWindow(_apiClient, client) { Owner = Window.GetWindow(this) }.Show();
         }
     }
 
@@ -1331,7 +1370,7 @@ public partial class DashboardWindow : Window
             return;
         }
 
-        new ClientSettingsWindow(_apiClient, client) { Owner = this }.ShowDialog();
+        new ClientSettingsWindow(_apiClient, client) { Owner = Window.GetWindow(this) }.ShowDialog();
         await LoadAllDataAsync();
     }
 
@@ -1349,7 +1388,7 @@ public partial class DashboardWindow : Window
 
         var confirmed = ConfirmWindow.Show(
             $"บังคับ logout นักเรียน \"{client.CurrentStudentName}\" ({client.CurrentStudentCode}) จากเครื่อง \"{client.MachineName}\"?",
-            "ยืนยันบังคับ logout", this);
+            "ยืนยันบังคับ logout", Window.GetWindow(this));
         if (!confirmed)
         {
             return;
@@ -1375,7 +1414,7 @@ public partial class DashboardWindow : Window
             return;
         }
 
-        new RuleOverridesWindow(_apiClient, client) { Owner = this }.ShowDialog();
+        new RuleOverridesWindow(_apiClient, client) { Owner = Window.GetWindow(this) }.ShowDialog();
         await LoadAllDataAsync();
     }
 
@@ -1383,7 +1422,7 @@ public partial class DashboardWindow : Window
     {
         if (_inspectedClient is { } client)
         {
-            await RunActionPanelAsync(new ActionPanelWindow(_apiClient, client) { Owner = this });
+            await RunActionPanelAsync(new ActionPanelWindow(_apiClient, client) { Owner = Window.GetWindow(this) });
         }
     }
 
@@ -1391,7 +1430,7 @@ public partial class DashboardWindow : Window
     {
         var selected = ClientsGrid.SelectedItems.Cast<ClientMachineDto>().ToList();
 
-        var dialog = new BroadcastMessageWindow(selected.Count) { Owner = this };
+        var dialog = new BroadcastMessageWindow(selected.Count) { Owner = Window.GetWindow(this) };
         var result = dialog.ShowDialog();
 
         if (result != true)
@@ -1439,7 +1478,7 @@ public partial class DashboardWindow : Window
     private async void BulkActionsButton_Click(object sender, RoutedEventArgs e)
     {
         var selected = ClientsGrid.SelectedItems.Cast<ClientMachineDto>().ToList();
-        var panel = new ActionPanelWindow(_apiClient, selected, _allClients, defaultToAll: false) { Owner = this };
+        var panel = new ActionPanelWindow(_apiClient, selected, _allClients, defaultToAll: false) { Owner = Window.GetWindow(this) };
         await RunActionPanelAsync(panel);
     }
 
@@ -1454,7 +1493,7 @@ public partial class DashboardWindow : Window
     private async void RoomActionsButton_Click(object sender, RoutedEventArgs e)
     {
         var selected = ClientsGrid.SelectedItems.Cast<ClientMachineDto>().ToList();
-        var panel = new ActionPanelWindow(_apiClient, selected, _allClients, defaultToAll: true) { Owner = this };
+        var panel = new ActionPanelWindow(_apiClient, selected, _allClients, defaultToAll: true) { Owner = Window.GetWindow(this) };
         await RunActionPanelAsync(panel);
     }
 
@@ -1470,7 +1509,7 @@ public partial class DashboardWindow : Window
         // sentinel 0 ("ยังไม่จัดห้อง") ไม่ใช่ Room.Id จริง - ไม่ส่งต่อให้ ExamModeWindow เข้าใจผิด
         var preselectRoomId = currentRoomFilterId is > 0 ? currentRoomFilterId : null;
 
-        var dialog = new ExamModeWindow(_apiClient, selected, _allRooms, preselectRoomId) { Owner = this };
+        var dialog = new ExamModeWindow(_apiClient, selected, _allRooms, preselectRoomId) { Owner = Window.GetWindow(this) };
         if (dialog.ShowDialog() == true && dialog.StartedSession is { } session)
         {
             ToastService.Success($"เริ่มโหมดสอบแล้ว ({session.TargetDescription}) ถึง {TimeDisplay.TextWithZone(session.ExpiresAt)}");
@@ -1493,7 +1532,7 @@ public partial class DashboardWindow : Window
         var currentRoomFilterId = (RoomFilterCombo.SelectedItem as RoomFilterOption)?.RoomIdOrSentinel;
         var preselectRoomId = currentRoomFilterId is > 0 ? currentRoomFilterId : null;
 
-        var dialog = new OpenUrlWindow(_apiClient, selected, _allClients, _allRooms, preselectRoomId) { Owner = this };
+        var dialog = new OpenUrlWindow(_apiClient, selected, _allClients, _allRooms, preselectRoomId) { Owner = Window.GetWindow(this) };
         dialog.ShowDialog();
 
         if (dialog.PendingReport is not { } request)
@@ -1501,7 +1540,7 @@ public partial class DashboardWindow : Window
             return;
         }
 
-        var report = new ActionReportWindow(_apiClient, _labHubClient, request) { Owner = this };
+        var report = new ActionReportWindow(_apiClient, _labHubClient, request) { Owner = Window.GetWindow(this) };
         report.Show();
 
         ToastService.Info(
@@ -1539,7 +1578,7 @@ public partial class DashboardWindow : Window
         var currentRoomFilterId = (RoomFilterCombo.SelectedItem as RoomFilterOption)?.RoomIdOrSentinel;
         var preselectRoomId = currentRoomFilterId is > 0 ? currentRoomFilterId : null;
 
-        var window = new FilesWindow(_apiClient, _labHubClient, selected, _allClients, _allRooms, preselectRoomId) { Owner = this };
+        var window = new FilesWindow(_apiClient, _labHubClient, selected, _allClients, _allRooms, preselectRoomId) { Owner = Window.GetWindow(this) };
         window.Show();
     }
 
@@ -1556,7 +1595,7 @@ public partial class DashboardWindow : Window
         var currentRoomFilterId = (RoomFilterCombo.SelectedItem as RoomFilterOption)?.RoomIdOrSentinel;
         var preselectRoomId = currentRoomFilterId is > 0 ? currentRoomFilterId : null;
 
-        var dialog = new ScreenBroadcastSetupWindow(_apiClient, selected, _allClients, _allRooms, preselectRoomId) { Owner = this };
+        var dialog = new ScreenBroadcastSetupWindow(_apiClient, selected, _allClients, _allRooms, preselectRoomId) { Owner = Window.GetWindow(this) };
         if (dialog.ShowDialog() != true || dialog.StartedSession is not { } session)
         {
             return;
@@ -2661,7 +2700,7 @@ public partial class DashboardWindow : Window
             return;
         }
 
-        var panel = new ActionPanelWindow(_apiClient, client, alreadyViewingScreen: true) { Owner = this };
+        var panel = new ActionPanelWindow(_apiClient, client, alreadyViewingScreen: true) { Owner = Window.GetWindow(this) };
         await RunActionPanelAsync(panel);
     }
 
@@ -2997,7 +3036,10 @@ public partial class DashboardWindow : Window
         // สิ่งที่ตั้งใจกันไว้แต่แรกคือ popup/ContextMenu **ภายในหน้าต่าง Dashboard เอง** ที่แวบมาแย่ง
         // focus ไม่ใช่หน้าต่างอื่นที่ผู้ใช้ตั้งใจเปิด - เช็ค IsActive จึงแยกสองกรณีนี้ออกจากกันได้ตรง ๆ
         // ถ้า Dashboard ไม่ได้เป็นหน้าต่างที่ active อยู่ แปลว่าผู้ใช้กำลังคุยกับหน้าต่างอื่น อย่าไปแย่ง
-        if (!IsActive)
+        //
+        // UI-2 (2026-11-03): Dashboard เป็น UserControl ไม่ใช่ Window แล้ว เลยต้องถาม Window บรรพบุรุษ
+        // (MainWindow) ว่า active อยู่ไหมแทนการเช็ค IsActive ของตัวเอง
+        if (Window.GetWindow(this) is not { IsActive: true })
         {
             return;
         }
