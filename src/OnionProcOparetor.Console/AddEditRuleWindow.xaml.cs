@@ -1,8 +1,11 @@
-﻿using System.Linq;
+﻿using System;
+using System.Linq;
+using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using OnionProcOparetor.Console.Models;
 using OnionProcOparetor.Console.Services;
+using OnionProcOparetor.UI.Controls;
 
 namespace OnionProcOparetor.Console;
 
@@ -16,8 +19,11 @@ namespace OnionProcOparetor.Console;
 /// - Create-from-process mode: prefill PublisherName/ProcessNameContains/RequireSignedMatch จาก
 ///   process ที่ครูเลือกจาก RunningProcessesWindow ให้รีวิว/แก้ก่อนกด SAVE เสมอ (Id = 0 เหมือน Add)
 /// </summary>
-public partial class AddEditRuleWindow : Window
+public partial class AddEditRuleWindow : UserControl
 {
+    /// <summary>UI-3b (2026-11-03): true = บันทึกสำเร็จ false = ยกเลิก</summary>
+    public event Action<bool>? ResultChosen;
+
     private readonly ApiClient _apiClient;
     private readonly int _ruleId;
 
@@ -130,8 +136,7 @@ public partial class AddEditRuleWindow : Window
 
         if (success)
         {
-            DialogResult = true;
-            Close();
+            ResultChosen?.Invoke(true);
         }
         else
         {
@@ -141,7 +146,37 @@ public partial class AddEditRuleWindow : Window
 
     private void CancelButton_Click(object sender, RoutedEventArgs e)
     {
-        DialogResult = false;
-        Close();
+        ResultChosen?.Invoke(false);
+    }
+
+    /// <summary>
+    /// UI-3b (2026-11-03): เปิดได้จาก 2 ที่ - DashboardWindow (owner = MainWindow มี DialogHost แล้ว)
+    /// และ RunningProcessesWindow (UI-3c ยังไม่ย้าย ยังเป็น Window ลอยไม่มี DialogHost ของตัวเอง) -
+    /// เลือกเส้นทางให้เองเหมือน ConfirmWindow.ShowViaHost ของ UI-3a: owner เป็น MainWindow ใช้
+    /// DialogHost จริง ไม่ใช่ fallback เปิดเป็น Window ลอยแบบเดิมก่อน UI-3b (ยังใช้ AppDialogWindow
+    /// style เดิม) - เมื่อ UI-3c ย้าย RunningProcessesWindow เป็น UserControl แล้ว ค่อยมาแก้เงื่อนไขนี้
+    /// ให้ครอบคลุม owner ใหม่ด้วย ไม่ต้องแก้ call site ของ RunningProcessesWindow อีก
+    /// </summary>
+    public static async Task<bool> ShowViaHost(Window? owner, AddEditRuleWindow content)
+    {
+        if (owner is MainWindow mainWindow)
+        {
+            content.ResultChosen += r => mainWindow.DialogHost.CloseTop(r);
+            return await mainWindow.DialogHost.ShowAsync<bool>(content);
+        }
+
+        var window = new Window
+        {
+            Owner = owner,
+            SizeToContent = SizeToContent.WidthAndHeight,
+            WindowStartupLocation = WindowStartupLocation.CenterOwner,
+            ResizeMode = ResizeMode.NoResize,
+            Style = (Style)Application.Current.FindResource("AppDialogWindow"),
+            Content = content,
+        };
+        var result = false;
+        content.ResultChosen += r => { result = r; window.Close(); };
+        window.ShowDialog();
+        return result;
     }
 }

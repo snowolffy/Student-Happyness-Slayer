@@ -41,8 +41,11 @@ public partial class WebsiteCatalogSourcesWindow : Window
 
     private async void AddSourceButton_Click(object sender, RoutedEventArgs e)
     {
-        var dialog = new AddEditWebsiteCatalogSourceWindow(_apiClient) { Owner = this };
-        if (dialog.ShowDialog() == true)
+        // UI-3b (2026-11-03): AddEditWebsiteCatalogSourceWindow กลายเป็น UserControl แล้ว - owner นี้
+        // (WebsiteCatalogSourcesWindow) ยังไม่มี DialogHost ของตัวเอง (รอ UI-3c ย้าย) ShowViaHost จึง
+        // เลือก fallback เปิดเป็น Window ลอยแบบเดิมเอง
+        var dialog = new AddEditWebsiteCatalogSourceWindow(_apiClient);
+        if (await AddEditWebsiteCatalogSourceWindow.ShowViaHost(this, dialog))
         {
             StatusText.Text = "เพิ่ม source สำเร็จ";
             await RefreshAsync();
@@ -53,8 +56,8 @@ public partial class WebsiteCatalogSourcesWindow : Window
     {
         if (sender is Button { Tag: WebsiteCatalogSourceDto source })
         {
-            var dialog = new AddEditWebsiteCatalogSourceWindow(_apiClient, source) { Owner = this };
-            if (dialog.ShowDialog() == true)
+            var dialog = new AddEditWebsiteCatalogSourceWindow(_apiClient, source);
+            if (await AddEditWebsiteCatalogSourceWindow.ShowViaHost(this, dialog))
             {
                 StatusText.Text = "แก้ไข source สำเร็จ";
                 await RefreshAsync();

@@ -54,7 +54,8 @@
             <Button Content="ยกเลิก" Style="{StaticResource ButtonSecondary}"
                     Padding="10,5" FontSize="11" HorizontalAlignment="Right" Margin="0,0,96,0" Click="CancelButton_Click"/>
             <Button Content="บันทึกกฎ" Style="{StaticResource ButtonPrimary}"
-                    HorizontalAlignment="Right" Click="SaveButton_Click"/>
+                    HorizontalAlignment="Right" Click="SaveButton_Click" controls:DialogHost.IsDefaultButton="True"/>
         </Grid>
     </StackPanel>
-</Window>
+    </Border>
+</UserControl>

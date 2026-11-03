@@ -186,8 +186,12 @@ public partial class WebsiteBlockTab : UserControl
     private async void AddRuleButton_Click(object sender, RoutedEventArgs e)
     {
         if (_apiClient is null) return;
-        var dialog = new AddEditWebsiteRuleWindow(_apiClient) { Owner = OwnerWindow };
-        if (dialog.ShowDialog() == true)
+        // UI-3b (2026-11-03): ฝังใน DialogHost ของ MainWindow - OwnerWindow เป็น MainWindow เสมอ
+        // เพราะแท็บนี้อยู่ใต้ DashboardWindow
+        var mainWindow = (MainWindow)OwnerWindow!;
+        var dialog = new AddEditWebsiteRuleWindow(_apiClient);
+        dialog.ResultChosen += r => mainWindow.DialogHost.CloseTop(r);
+        if (await mainWindow.DialogHost.ShowAsync<bool>(dialog))
         {
             ToastService.Success("เพิ่มกฎเว็บไซต์แล้ว");
             await RefreshAsync();
@@ -198,8 +202,10 @@ public partial class WebsiteBlockTab : UserControl
     {
         if (_apiClient is not null && sender is Button { Tag: WebsiteRuleDto rule })
         {
-            var dialog = new AddEditWebsiteRuleWindow(_apiClient, rule) { Owner = OwnerWindow };
-            if (dialog.ShowDialog() == true)
+            var mainWindow = (MainWindow)OwnerWindow!;
+            var dialog = new AddEditWebsiteRuleWindow(_apiClient, rule);
+            dialog.ResultChosen += r => mainWindow.DialogHost.CloseTop(r);
+            if (await mainWindow.DialogHost.ShowAsync<bool>(dialog))
             {
                 ToastService.Success($"แก้ไขกฎ \"{rule.Name}\" แล้ว");
                 await RefreshAsync();
@@ -259,8 +265,10 @@ public partial class WebsiteBlockTab : UserControl
     private async void BulkAddButton_Click(object sender, RoutedEventArgs e)
     {
         if (_apiClient is null) return;
-        var dialog = new BulkAddWebsiteRulesWindow(_apiClient) { Owner = OwnerWindow };
-        if (dialog.ShowDialog() == true)
+        var mainWindow = (MainWindow)OwnerWindow!;
+        var dialog = new BulkAddWebsiteRulesWindow(_apiClient);
+        dialog.ResultChosen += r => mainWindow.DialogHost.CloseTop(r);
+        if (await mainWindow.DialogHost.ShowAsync<bool>(dialog))
         {
             ToastService.Success(dialog.ResultText);
             await RefreshAsync();

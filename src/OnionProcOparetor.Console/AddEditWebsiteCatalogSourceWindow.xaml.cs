@@ -1,12 +1,18 @@
+using System;
+using System.Threading.Tasks;
 using System.Windows;
+using System.Windows.Controls;
 using OnionProcOparetor.Console.Models;
 using OnionProcOparetor.Console.Services;
 
 namespace OnionProcOparetor.Console;
 
 /// <summary>Add/Edit สำหรับ WebsiteCatalogSource (2026-09-12) - เดินตามโครง AddEditWebsiteRuleWindow เป๊ะ</summary>
-public partial class AddEditWebsiteCatalogSourceWindow : Window
+public partial class AddEditWebsiteCatalogSourceWindow : UserControl
 {
+    /// <summary>UI-3b (2026-11-03): true = บันทึกสำเร็จ false = ยกเลิก</summary>
+    public event Action<bool>? ResultChosen;
+
     private readonly ApiClient _apiClient;
     private readonly int _sourceId;
 
@@ -68,8 +74,7 @@ public partial class AddEditWebsiteCatalogSourceWindow : Window
 
         if (success)
         {
-            DialogResult = true;
-            Close();
+            ResultChosen?.Invoke(true);
         }
         else
         {
@@ -79,7 +84,32 @@ public partial class AddEditWebsiteCatalogSourceWindow : Window
 
     private void CancelButton_Click(object sender, RoutedEventArgs e)
     {
-        DialogResult = false;
-        Close();
+        ResultChosen?.Invoke(false);
+    }
+
+    /// <summary>UI-3b (2026-11-03): เหตุผลและ pattern เดียวกับ AddEditRuleWindow.ShowViaHost - owner
+    /// ที่เรียกจริง (WebsiteCatalogSourcesWindow) ยังไม่ถูกย้ายโดย UI-3c เลยเดินสาย fallback เสมอตอนนี้
+    /// แต่เขียนเช็ค MainWindow ไว้ล่วงหน้าให้ครบเหมือนกันเผื่ออนาคต</summary>
+    public static async Task<bool> ShowViaHost(Window? owner, AddEditWebsiteCatalogSourceWindow content)
+    {
+        if (owner is MainWindow mainWindow)
+        {
+            content.ResultChosen += r => mainWindow.DialogHost.CloseTop(r);
+            return await mainWindow.DialogHost.ShowAsync<bool>(content);
+        }
+
+        var window = new Window
+        {
+            Owner = owner,
+            SizeToContent = SizeToContent.WidthAndHeight,
+            WindowStartupLocation = WindowStartupLocation.CenterOwner,
+            ResizeMode = ResizeMode.NoResize,
+            Style = (Style)Application.Current.FindResource("AppDialogWindow"),
+            Content = content,
+        };
+        var result = false;
+        content.ResultChosen += r => { result = r; window.Close(); };
+        window.ShowDialog();
+        return result;
     }
 }

@@ -304,10 +304,13 @@ public partial class ActionPanelWindow : Window
     // SendShowLockScreenAsync ไม่มีช่องส่งข้อความไปด้วย ส่ง { message } ไปล่วงหน้าตรงนี้ไว้ก่อน
     // (forward-compatible) เพื่อให้ WP3-3 ไม่ต้องย้อนมาแก้ฝั่ง Console อีก - ห้ามแก้ Agent/AgentTray
     // ในงานนี้ (เป็นขอบเขตของ WP3-3) ดูรายงาน WP3-5 สำหรับรายละเอียด
-    private void LockButton_Click(object sender, RoutedEventArgs e)
+    private async void LockButton_Click(object sender, RoutedEventArgs e)
     {
-        var dialog = new LockScreenMessageWindow { Owner = this };
-        if (dialog.ShowDialog() == true)
+        // UI-3b (2026-11-03): LockScreenMessageWindow กลายเป็น UserControl แล้ว - owner นี้
+        // (ActionPanelWindow) ยังไม่มี DialogHost ของตัวเอง (รอ UI-3c ย้าย) ShowViaHost จึงเลือก
+        // fallback เปิดเป็น Window ลอยแบบเดิมเอง
+        var dialog = new LockScreenMessageWindow();
+        if (await LockScreenMessageWindow.ShowViaHost(this, dialog))
         {
             SendToTargets("LockWorkstation", new { message = dialog.Message }, "Lock Workstation");
         }

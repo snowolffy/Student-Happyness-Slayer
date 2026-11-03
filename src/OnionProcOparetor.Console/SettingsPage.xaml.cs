@@ -53,15 +53,18 @@ public partial class SettingsPage : UserControl
         UtcTimeRadio.IsChecked = settings.Ui.ShowTimesInUtc;
     }
 
-    private void ChangeMyPasswordButton_Click(object sender, RoutedEventArgs e)
+    private async void ChangeMyPasswordButton_Click(object sender, RoutedEventArgs e)
     {
         if (_apiClient is null)
         {
             return;
         }
 
-        var dialog = new ChangeMyPasswordWindow(_apiClient) { Owner = Window.GetWindow(this) };
-        if (dialog.ShowDialog() == true)
+        // UI-3b (2026-11-03): ฝังใน DialogHost ของ MainWindow
+        var mainWindow = (MainWindow)Window.GetWindow(this)!;
+        var dialog = new ChangeMyPasswordWindow(_apiClient);
+        dialog.ResultChosen += r => mainWindow.DialogHost.CloseTop(r);
+        if (await mainWindow.DialogHost.ShowAsync<bool>(dialog))
         {
             ToastService.Success("เปลี่ยนรหัสผ่านของคุณแล้ว");
         }
@@ -298,17 +301,24 @@ public partial class SettingsPage : UserControl
         }
 
         _emergencyCodeSettings = settings;
-        new EmergencyCodeQrWindow(_apiClient, settings) { Owner = Window.GetWindow(this) }.ShowDialog();
+        // UI-3b (2026-11-03): ฝังใน DialogHost ของ MainWindow - ไม่มีผลลัพธ์ให้อ่าน แค่รอให้ปิด
+        var mainWindow = (MainWindow)Window.GetWindow(this)!;
+        var qrDialog = new EmergencyCodeQrWindow(_apiClient, settings);
+        qrDialog.CloseRequested += () => mainWindow.DialogHost.CloseTop(null);
+        await mainWindow.DialogHost.ShowAsync<object>(qrDialog);
     }
 
-    private void ShowEmergencyCodeUsageButton_Click(object sender, RoutedEventArgs e)
+    private async void ShowEmergencyCodeUsageButton_Click(object sender, RoutedEventArgs e)
     {
         if (_apiClient is null)
         {
             return;
         }
 
-        new EmergencyCodeUsageWindow(_apiClient) { Owner = Window.GetWindow(this) }.ShowDialog();
+        var mainWindow = (MainWindow)Window.GetWindow(this)!;
+        var usageDialog = new EmergencyCodeUsageWindow(_apiClient);
+        usageDialog.CloseRequested += () => mainWindow.DialogHost.CloseTop(null);
+        await mainWindow.DialogHost.ShowAsync<object>(usageDialog);
     }
 
     private async void RotateEmergencyCodeButton_Click(object sender, RoutedEventArgs e)
@@ -337,7 +347,11 @@ public partial class SettingsPage : UserControl
             ToastService.Success(message);
             await LoadEmergencyCodeSettingsAsync();
             // เปิด QR ใหม่ให้ครูสแกนต่อทันที - ไม่งั้นต้องกด "แสดง QR..." แยกอีกรอบเพื่อเอา secret ใหม่ไปใส่ MSI/Apps Script
-            new EmergencyCodeQrWindow(_apiClient, settings) { Owner = Window.GetWindow(this) }.ShowDialog();
+            // UI-3b (2026-11-03): ฝังใน DialogHost ของ MainWindow
+            var mainWindow = (MainWindow)Window.GetWindow(this)!;
+            var qrDialog = new EmergencyCodeQrWindow(_apiClient, settings);
+            qrDialog.CloseRequested += () => mainWindow.DialogHost.CloseTop(null);
+            await mainWindow.DialogHost.ShowAsync<object>(qrDialog);
         }
         else
         {

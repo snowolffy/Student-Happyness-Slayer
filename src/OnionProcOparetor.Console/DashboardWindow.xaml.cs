@@ -1036,8 +1036,10 @@ public partial class DashboardWindow : UserControl
 
     private async void AddRuleButton_Click(object sender, RoutedEventArgs e)
     {
-        var dialog = new AddEditRuleWindow(_apiClient) { Owner = Window.GetWindow(this) };
-        if (dialog.ShowDialog() == true)
+        // UI-3b (2026-11-03): ฝังใน DialogHost ของ MainWindow ผ่าน AddEditRuleWindow.ShowViaHost แทน
+        // Window.ShowDialog() เดิม (AddEditRuleWindow กลายเป็น UserControl แล้ว)
+        var dialog = new AddEditRuleWindow(_apiClient);
+        if (await AddEditRuleWindow.ShowViaHost(Window.GetWindow(this), dialog))
         {
             ToastService.Success("เพิ่มกฎแล้ว");
             await LoadAllDataAsync();
@@ -1048,8 +1050,8 @@ public partial class DashboardWindow : UserControl
     {
         if (sender is Button { Tag: RuleDto rule })
         {
-            var dialog = new AddEditRuleWindow(_apiClient, rule) { Owner = Window.GetWindow(this) };
-            if (dialog.ShowDialog() == true)
+            var dialog = new AddEditRuleWindow(_apiClient, rule);
+            if (await AddEditRuleWindow.ShowViaHost(Window.GetWindow(this), dialog))
             {
                 ToastService.Success($"แก้ไขกฎ \"{rule.Name}\" แล้ว");
                 await LoadAllDataAsync();
@@ -1100,10 +1102,15 @@ public partial class DashboardWindow : UserControl
     {
         if (sender is Button { Tag: UserDto user })
         {
-            var editWindow = new EditDisplayNameWindow(user.Username, user.DisplayName) { Owner = Window.GetWindow(this) };
-            var result = editWindow.ShowDialog();
+            // UI-3b (2026-11-03): ฝังใน DialogHost ของ MainWindow - EditDisplayNameWindow กลายเป็น
+            // UserControl แล้ว เปิดได้จาก DashboardWindow เท่านั้น (ไม่มี owner อื่น) จึงไม่ต้องมี
+            // ShowViaHost fallback เหมือน AddEditRuleWindow
+            var mainWindow = (MainWindow)Window.GetWindow(this)!;
+            var editWindow = new EditDisplayNameWindow(user.Username, user.DisplayName);
+            editWindow.ResultChosen += r => mainWindow.DialogHost.CloseTop(r);
+            var result = await mainWindow.DialogHost.ShowAsync<bool>(editWindow);
 
-            if (result == true && !string.IsNullOrEmpty(editWindow.NewDisplayName))
+            if (result && !string.IsNullOrEmpty(editWindow.NewDisplayName))
             {
                 var (success, message) = await _apiClient.UpdateDisplayNameAsync(user.Id, editWindow.NewDisplayName);
                 ShowResultToast(success, message);
@@ -1118,10 +1125,13 @@ public partial class DashboardWindow : UserControl
     {
         if (sender is Button { Tag: UserDto user })
         {
-            var roleWindow = new ChangeUserRoleWindow(user.Username, user.Role) { Owner = Window.GetWindow(this) };
-            var result = roleWindow.ShowDialog();
+            // UI-3b (2026-11-03): ฝังใน DialogHost ของ MainWindow
+            var mainWindow = (MainWindow)Window.GetWindow(this)!;
+            var roleWindow = new ChangeUserRoleWindow(user.Username, user.Role);
+            roleWindow.ResultChosen += r => mainWindow.DialogHost.CloseTop(r);
+            var result = await mainWindow.DialogHost.ShowAsync<bool>(roleWindow);
 
-            if (result == true)
+            if (result)
             {
                 var (success, message) = await _apiClient.UpdateUserRoleAsync(user.Id, roleWindow.NewRole);
                 ShowResultToast(success, message);
@@ -1430,10 +1440,13 @@ public partial class DashboardWindow : UserControl
     {
         var selected = ClientsGrid.SelectedItems.Cast<ClientMachineDto>().ToList();
 
-        var dialog = new BroadcastMessageWindow(selected.Count) { Owner = Window.GetWindow(this) };
-        var result = dialog.ShowDialog();
+        // UI-3b (2026-11-03): ฝังใน DialogHost ของ MainWindow
+        var mainWindow = (MainWindow)Window.GetWindow(this)!;
+        var dialog = new BroadcastMessageWindow(selected.Count);
+        dialog.ResultChosen += r => mainWindow.DialogHost.CloseTop(r);
+        var result = await mainWindow.DialogHost.ShowAsync<bool>(dialog);
 
-        if (result != true)
+        if (!result)
         {
             return;
         }
@@ -1509,8 +1522,12 @@ public partial class DashboardWindow : UserControl
         // sentinel 0 ("ยังไม่จัดห้อง") ไม่ใช่ Room.Id จริง - ไม่ส่งต่อให้ ExamModeWindow เข้าใจผิด
         var preselectRoomId = currentRoomFilterId is > 0 ? currentRoomFilterId : null;
 
-        var dialog = new ExamModeWindow(_apiClient, selected, _allRooms, preselectRoomId) { Owner = Window.GetWindow(this) };
-        if (dialog.ShowDialog() == true && dialog.StartedSession is { } session)
+        // UI-3b (2026-11-03): ฝังใน DialogHost ของ MainWindow
+        var mainWindow = (MainWindow)Window.GetWindow(this)!;
+        var dialog = new ExamModeWindow(_apiClient, selected, _allRooms, preselectRoomId);
+        dialog.ResultChosen += r => mainWindow.DialogHost.CloseTop(r);
+        var started = await mainWindow.DialogHost.ShowAsync<bool>(dialog);
+        if (started && dialog.StartedSession is { } session)
         {
             ToastService.Success($"เริ่มโหมดสอบแล้ว ({session.TargetDescription}) ถึง {TimeDisplay.TextWithZone(session.ExpiresAt)}");
             await LoadAllDataAsync();
@@ -1532,8 +1549,11 @@ public partial class DashboardWindow : UserControl
         var currentRoomFilterId = (RoomFilterCombo.SelectedItem as RoomFilterOption)?.RoomIdOrSentinel;
         var preselectRoomId = currentRoomFilterId is > 0 ? currentRoomFilterId : null;
 
-        var dialog = new OpenUrlWindow(_apiClient, selected, _allClients, _allRooms, preselectRoomId) { Owner = Window.GetWindow(this) };
-        dialog.ShowDialog();
+        // UI-3b (2026-11-03): ฝังใน DialogHost ของ MainWindow
+        var mainWindow = (MainWindow)Window.GetWindow(this)!;
+        var dialog = new OpenUrlWindow(_apiClient, selected, _allClients, _allRooms, preselectRoomId);
+        dialog.ResultChosen += r => mainWindow.DialogHost.CloseTop(r);
+        await mainWindow.DialogHost.ShowAsync<bool>(dialog);
 
         if (dialog.PendingReport is not { } request)
         {
@@ -1589,14 +1609,18 @@ public partial class DashboardWindow : UserControl
     /// ExamModeWindow) แล้วคืน StartedSession กลับมา - ที่นี่แค่เปิด BroadcastWarningBarWindow ต่อ
     /// (เป็นเจ้าของ ScreenCaptureService ตัวจริง - ดู doc comment บนคลาสนั้น)
     /// </summary>
-    private void ScreenBroadcastButton_Click(object sender, RoutedEventArgs e)
+    private async void ScreenBroadcastButton_Click(object sender, RoutedEventArgs e)
     {
         var selected = ClientsGrid.SelectedItems.Cast<ClientMachineDto>().ToList();
         var currentRoomFilterId = (RoomFilterCombo.SelectedItem as RoomFilterOption)?.RoomIdOrSentinel;
         var preselectRoomId = currentRoomFilterId is > 0 ? currentRoomFilterId : null;
 
-        var dialog = new ScreenBroadcastSetupWindow(_apiClient, selected, _allClients, _allRooms, preselectRoomId) { Owner = Window.GetWindow(this) };
-        if (dialog.ShowDialog() != true || dialog.StartedSession is not { } session)
+        // UI-3b (2026-11-03): ฝังใน DialogHost ของ MainWindow
+        var mainWindow = (MainWindow)Window.GetWindow(this)!;
+        var dialog = new ScreenBroadcastSetupWindow(_apiClient, selected, _allClients, _allRooms, preselectRoomId);
+        dialog.ResultChosen += r => mainWindow.DialogHost.CloseTop(r);
+        var started = await mainWindow.DialogHost.ShowAsync<bool>(dialog);
+        if (!started || dialog.StartedSession is not { } session)
         {
             return;
         }
@@ -1619,10 +1643,13 @@ public partial class DashboardWindow : UserControl
                 return;
             }
 
+            // UI-3b (2026-11-03): ฝังใน DialogHost ของ MainWindow
+            var mainWindow = (MainWindow)Window.GetWindow(this)!;
             var resetWindow = new ResetPasswordWindow(user.Username);
-            var result = resetWindow.ShowDialog();
+            resetWindow.ResultChosen += r => mainWindow.DialogHost.CloseTop(r);
+            var result = await mainWindow.DialogHost.ShowAsync<bool>(resetWindow);
 
-            if (result == true && !string.IsNullOrEmpty(resetWindow.NewPassword))
+            if (result && !string.IsNullOrEmpty(resetWindow.NewPassword))
             {
                 var (success, message) = await _apiClient.ResetUserPasswordAsync(user.Id, resetWindow.NewPassword);
                 ShowResultToast(success, message);

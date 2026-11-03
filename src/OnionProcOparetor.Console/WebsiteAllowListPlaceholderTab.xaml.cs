@@ -107,8 +107,12 @@ public partial class WebsiteAllowListPlaceholderTab : UserControl
     {
         if (_apiClient is null) return;
 
-        var dialog = new AddAllowListPresetWindow { Owner = Window.GetWindow(this) };
-        if (dialog.ShowDialog() != true)
+        // UI-3b (2026-11-03): ฝังใน DialogHost ของ MainWindow
+        var mainWindow = (MainWindow)Window.GetWindow(this)!;
+        var dialog = new AddAllowListPresetWindow();
+        dialog.ResultChosen += r => mainWindow.DialogHost.CloseTop(r);
+        var created = await mainWindow.DialogHost.ShowAsync<bool>(dialog);
+        if (!created)
         {
             return;
         }
