@@ -43,6 +43,40 @@ public partial class MainWindow : Window
 
         LoadHeroImage();
 
+#if DEBUG
+        // --dialog=login --login-error[=long] (UI-6, 2026-11-03) - จำลองข้อความ error สีแดงใต้ปุ่ม
+        // เชื่อมต่อ (เหมือนตอนรหัสผ่านผิด/ต่อ Server ไม่ได้) เพื่อถ่ายภาพตรวจว่าการ์ดที่ย่อลง 75% แล้วไม่มี
+        // อะไรล้น/ถูกตัดตอนมีข้อความ error แสดงอยู่ (roadmap WP UI-6 สั่งให้ตรวจสถานะนี้ด้วย) =long ใช้
+        // ข้อความยาวจำลอง exception จริงของ cert/network (2 บรรทัด) ตามที่ orchestrator ขอให้ตรวจเพิ่ม
+        // อ่าน args เองตรงนี้แทนการแก้ App.xaml.cs เพราะไฟล์นั้นอยู่นอกขอบเขตไฟล์ที่ WP UI-6 แตะได้
+        var loginErrorArg = Environment.GetCommandLineArgs().FirstOrDefault(a => a.StartsWith("--login-error", StringComparison.Ordinal));
+        if (loginErrorArg is not null)
+        {
+            StatusText.SetResourceReference(System.Windows.Controls.TextBlock.ForegroundProperty, "Brush.Danger.Default");
+            StatusText.Text = loginErrorArg == "--login-error=long"
+                ? "เชื่อมต่อไม่สำเร็จ: certificate ของ Server (CN=192.168.17.249) ไม่ตรงกับที่เคยไว้ใจไว้ กรุณาตรวจสอบกับผู้ดูแลระบบก่อนลองใหม่อีกครั้ง"
+                : "เชื่อมต่อไม่สำเร็จ: Username หรือ Password ไม่ถูกต้อง";
+        }
+
+        // วัด overflow จริงด้วย TransformToAncestor แทนการเพ่งภาพ (ตามที่ orchestrator ขอ 2026-11-03) -
+        // รันทุกครั้งที่มี --shot= (ไม่ใช่แค่ตอน --login-error) เพื่อจับ regression ของทุกสถานะ เทียบขอบล่าง
+        // ของ StatusText (ธาตุที่อยู่ล่างสุดของฟอร์มเสมอ) กับความสูงจริงของ LoginCard แล้ว log ผลลง
+        // console.log (ConsoleDiagnostics.LogPath) ให้ตรวจสอบได้โดยไม่ต้องเพ่งภาพ
+        if (Environment.GetCommandLineArgs().Any(a => a.StartsWith("--shot=", StringComparison.Ordinal)))
+        {
+            Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.ApplicationIdle, () =>
+            {
+                var bottomOfStatusText = StatusText.TransformToAncestor(LoginCard)
+                    .Transform(new Point(0, StatusText.ActualHeight)).Y;
+                var overflow = bottomOfStatusText - LoginCard.ActualHeight;
+                ConsoleDiagnostics.WriteLine(
+                    $"UI6-OVERFLOW-CHECK LoginCard.ActualHeight={LoginCard.ActualHeight:F1} "
+                    + $"StatusText.bottom={bottomOfStatusText:F1} overflow={overflow:F1} "
+                    + (overflow > 0 ? "CLIPPED" : "OK"));
+            });
+        }
+#endif
+
         // UI-2 (2026-11-03): เดิม "กัน Alt+F4 ปิด Console ตอนอยู่ fullscreen live-view" อยู่ใน
         // DashboardWindow.Closing ของตัวเอง (ตอนยังเป็น Window แยก) - ตอนนี้ MainWindow เป็น host
         // window เดียวตลอด process จึงต้องรับ Closing ของตัวเองแทน แล้วถาม DashboardWindow (ถ้ากำลัง

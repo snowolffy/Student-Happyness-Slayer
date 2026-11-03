@@ -50,8 +50,12 @@
                 </Rectangle.Fill>
             </Rectangle>
 
-            <!-- ==================== การ์ดล็อกอิน: สองฝั่ง ภาพ + ฟอร์ม ==================== -->
-            <Border Width="860" Height="560" CornerRadius="18"
+            <!-- ==================== การ์ดล็อกอิน: สองฝั่ง ภาพ + ฟอร์ม ====================
+                 UI-6 (2026-11-03): การ์ดเหลือ 75% ของเดิมทั้งกว้างและสูง (860x560 -> 645x420) ตามที่
+                 roadmap สั่ง - ลดคอลัมน์ภาพ ระยะขอบ และช่องว่างระหว่างองค์ประกอบ (คูณ 0.75 ปัดเศษ) แต่
+                 ไม่แตะขนาดตัวอักษร (Heading1/Body/Caption/Label สไตล์เดิมทั้งหมด) และไม่ใช้ Viewbox ย่อ
+                 ทั้งก้อนตามที่สั่งห้ามไว้ -->
+            <Border x:Name="LoginCard" Width="645" Height="420" CornerRadius="18"
                     Background="{DynamicResource Brush.Background.Card}"
                     BorderBrush="{DynamicResource Brush.Border.Default}" BorderThickness="1">
                 <Border.Effect>
@@ -59,50 +63,53 @@
                 </Border.Effect>
                 <Grid>
                     <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="340"/>
+                        <ColumnDefinition Width="255"/>
                         <ColumnDefinition Width="*"/>
                     </Grid.ColumnDefinitions>
 
                     <!-- ==================== ซ้าย: ภาพ ====================
                          Border.Clip แบบเดียวกับที่โลโก้ในแถบขวาใช้ (fixed pixel RectangleGeometry ตรงกับ
-                         ขนาดจริงของคอลัมน์นี้ - 340x560) ปัดมุมซ้ายให้เท่ากับมุมของการ์ดนอก (18) ส่วนมุมขวา
-                         ของรูปเป็น 0 เพราะติดกับฝั่งฟอร์ม ไม่ใช่ขอบการ์ด -->
+                         ขนาดจริงของคอลัมน์นี้ - UI-6: 255x420 ตามคอลัมน์ภาพที่ย่อลง 75%) ปัดมุมซ้ายให้เท่ากับ
+                         มุมของการ์ดนอก (18) ส่วนมุมขวาของรูปเป็น 0 เพราะติดกับฝั่งฟอร์ม ไม่ใช่ขอบการ์ด -->
                     <Border Grid.Column="0" Background="{DynamicResource Brush.Sidebar.Background}">
                         <Border.Clip>
-                            <RectangleGeometry RadiusX="18" RadiusY="18" Rect="0,0,340,560"/>
+                            <RectangleGeometry RadiusX="18" RadiusY="18" Rect="0,0,255,420"/>
                         </Border.Clip>
                         <Image x:Name="HeroImage" Stretch="UniformToFill"/>
                     </Border>
 
-                    <!-- ==================== ขวา: ฟอร์มเดิม ==================== -->
-                    <Grid Grid.Column="1" Margin="48,0,48,0">
+                    <!-- ==================== ขวา: ฟอร์มเดิม (UI-6: ระยะขอบ/ช่องว่างย่อ 75%, ตัวอักษรเท่าเดิม) ====================
+                         Margin บนล่างของ Grid นี้ (20) กันไม่ให้เนื้อหาเบียดขอบโค้งของการ์ดตอนเนื้อหาสูง
+                         ใกล้เคียงความสูงการ์ด (พบจริงจากภาพตรวจ: โลโก้แถวบนชิดขอบการ์ดจนแทบล้น ก่อนเพิ่ม
+                         margin นี้) - StackPanel ข้างในยังคง VerticalAlignment="Center" เหมือนเดิม -->
+                    <Grid Grid.Column="1" Margin="36,16,36,16">
                         <StackPanel VerticalAlignment="Center">
-                            <StackPanel Orientation="Horizontal" Margin="0,0,0,24">
-                                <Border Width="40" Height="40" CornerRadius="10">
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+                                <Border Width="24" Height="24" CornerRadius="6">
                                     <!-- ไม่มีพื้นสี่เหลี่ยมหลังโลโก้ (ผู้ใช้สั่ง 3 พ.ย. 2569) -->
                                     <Image Source="/Theme/logo-source.png" Stretch="Uniform"/>
                                 </Border>
-                                <StackPanel Margin="14,0,0,0" VerticalAlignment="Center">
+                                <StackPanel Margin="8,0,0,0" VerticalAlignment="Center">
                                     <TextBlock Text="Onion ProcOparetor" Style="{StaticResource Heading1}"/>
                                     <TextBlock Text="Server Console" Style="{StaticResource Caption}" Opacity="0.75"/>
                                 </StackPanel>
                             </StackPanel>
 
                             <TextBlock Text="กรุณากรอก Server IP, Username และ Password เพื่อเชื่อมต่อ"
-                                       Style="{StaticResource Body}" TextWrapping="Wrap" Margin="0,0,0,20"/>
+                                       Style="{StaticResource Body}" TextWrapping="Wrap" Margin="0,0,0,8"/>
 
-                            <Grid Margin="0,0,0,16">
+                            <Grid Margin="0,0,0,6">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*"/>
-                                    <ColumnDefinition Width="16"/>
-                                    <ColumnDefinition Width="120"/>
+                                    <ColumnDefinition Width="12"/>
+                                    <ColumnDefinition Width="90"/>
                                 </Grid.ColumnDefinitions>
                                 <StackPanel Grid.Column="0">
-                                    <TextBlock Text="SERVER IP" Style="{StaticResource Label}" Margin="0,0,0,6"/>
+                                    <TextBlock Text="SERVER IP" Style="{StaticResource Label}" Margin="0,0,0,2"/>
                                     <TextBox x:Name="ServerIpBox" Style="{StaticResource RoundedTextBox}" TextChanged="ServerIpBox_TextChanged"/>
                                 </StackPanel>
                                 <StackPanel Grid.Column="2">
-                                    <TextBlock Text="PORT" Style="{StaticResource Label}" Margin="0,0,0,6"/>
+                                    <TextBlock Text="PORT" Style="{StaticResource Label}" Margin="0,0,0,2"/>
                                     <TextBox x:Name="PortBox" Style="{StaticResource RoundedTextBox}"/>
                                 </StackPanel>
                             </Grid>
@@ -114,22 +121,32 @@
                                 หน้าต่าง "ไว้ใจ certificate นี้" ก่อนต่อจริงได้ (ดู ConnectButton_Click)
                             -->
                             <CheckBox x:Name="UseHttpsCheckBox" Content="เชื่อมต่อด้วย HTTPS"
-                                      Margin="0,0,0,16"/>
+                                      Margin="0,0,0,6"/>
 
-                            <StackPanel Margin="0,0,0,16">
-                                <TextBlock Text="USERNAME" Style="{StaticResource Label}" Margin="0,0,0,6"/>
+                            <StackPanel Margin="0,0,0,6">
+                                <TextBlock Text="USERNAME" Style="{StaticResource Label}" Margin="0,0,0,2"/>
                                 <TextBox x:Name="UsernameBox" Style="{StaticResource RoundedTextBox}"/>
                             </StackPanel>
 
-                            <StackPanel Margin="0,0,0,22">
-                                <TextBlock Text="PASSWORD" Style="{StaticResource Label}" Margin="0,0,0,6"/>
+                            <StackPanel Margin="0,0,0,10">
+                                <TextBlock Text="PASSWORD" Style="{StaticResource Label}" Margin="0,0,0,2"/>
                                 <PasswordBox x:Name="PasswordBox" Style="{StaticResource RoundedPasswordBox}"/>
                             </StackPanel>
 
                             <Button x:Name="ConnectButton" Content="เชื่อมต่อ"
-                                    Style="{StaticResource ButtonPrimary}" Click="ConnectButton_Click"/>
+                                    Style="{StaticResource ButtonPrimary}" Padding="14,5" Click="ConnectButton_Click"/>
 
-                            <TextBlock x:Name="StatusText" Margin="0,14,0,0" TextWrapping="Wrap" FontSize="12"/>
+                            <!-- StatusText: MinHeight เผื่อพื้นที่ "ตลอดเวลา" (ไม่ว่าจะมีข้อความหรือไม่) ไว้
+                                 สำหรับข้อความ error/สถานะยาวสุด 2 บรรทัด (เช่น exception ของ cert/network
+                                 จริงที่ยาวกว่า "เชื่อมต่อไม่สำเร็จ: Username หรือ Password ไม่ถูกต้อง") - รอบ
+                                 แก้ก่อนหน้าเผื่อพื้นที่แค่ตอนมีข้อความ (TextBlock ว่างสูงบรรทัดเดียว) ทำให้
+                                 StackPanel ทั้งก้อน "โตขึ้น" ตอนข้อความยาวจนเกินงบที่เหลือ แล้วโดน Border
+                                 (CornerRadius) clip บรรทัดสุดท้ายทิ้งเงียบๆ (ยืนยันจากภาพตรวจจริงของ
+                                 orchestrator) MinHeight นี้ทำให้ความสูงของ StackPanel "คงที่" เสมอ ไม่ขยับ
+                                 ตามเนื้อหา - วัดจริงด้วย TransformToAncestor ใน .xaml.cs (ดู
+                                 LogLoginCardOverflowIfAny) ว่าไม่ล้นจริงทั้งตอนว่างและตอนมีข้อความยาว -->
+                            <TextBlock x:Name="StatusText" Margin="0,5,0,0" MinHeight="30" VerticalAlignment="Top"
+                                       TextWrapping="Wrap" FontSize="12"/>
                         </StackPanel>
                     </Grid>
                 </Grid>
