@@ -50,6 +50,13 @@
     <Resource Include="Theme\logo.png" />
     <Resource Include="Theme\icon.ico" />
 
+    <!-- tray icon 3 สถานะ (WP UI-7b, 2026-11-03) - ฝัง Resource เข้าตัว exe เอง (ไม่ใช่ loose file บน
+         disk) เพราะ disk freeze: ของที่เขียนลง disk ตอน runtime หายทุกรีบูต ไอคอนพวกนี้ต้องมาจาก
+         MSI/build เท่านั้น โหลดผ่าน pack URI (Application.GetResourceStream) ใน App.xaml.cs -->
+    <Resource Include="Theme\tray-connected.ico" />
+    <Resource Include="Theme\tray-disconnected.ico" />
+    <Resource Include="Theme\tray-error.ico" />
+
     <!-- จอล็อกอินนักเรียน (WP3-3, 2026-10-31) - ภาพฝั่งซ้ายของการ์ด ก๊อปมาจาก
          Console\Assets\LoginHero.png (placeholder เดียวกัน) สองรายการนี้ชี้ไฟล์เดียวกันโดยเจตนา
          คนละ item type แบบเดียวกับที่ Console/OnionProcOparetor.Console.csproj ทำกับไฟล์เดียวกันนี้:

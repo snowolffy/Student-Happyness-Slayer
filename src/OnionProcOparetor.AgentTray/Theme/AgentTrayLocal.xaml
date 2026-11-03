@@ -21,31 +21,33 @@
         <Setter Property="Margin" Value="0,0,0,4"/>
     </Style>
 
-    <!-- ==================== Brand header bar (logo strip) ==================== -->
+    <!-- ==================== Brand header bar (logo strip) ====================
+         เดิมพื้นหลังเป็นสีเน้นส้มตรงๆ (Brush.Accent.Default) - orchestrator ตรวจพบว่าโลโก้หัวหอมส้มบน
+         พื้นส้มแทบมองไม่เห็น (2026-11-03) ผู้ใช้ตัดสินให้เปลี่ยนเป็นพื้นเข้มแบบเดียวกับ sidebar ของ Console
+         (Brush.Sidebar.* - เข้มทั้งธีมสว่าง/มืดโดยเจตนาอยู่แล้ว ดู Controls.xaml comment) แทน -->
     <Style x:Key="BrandHeaderBar" TargetType="Border">
-        <Setter Property="Background" Value="{DynamicResource Brush.Accent.Default}"/>
+        <Setter Property="Background" Value="{DynamicResource Brush.Sidebar.Background}"/>
         <Setter Property="Padding" Value="14,10"/>
     </Style>
 
+    <!-- ไม่มีพื้นสี่เหลี่ยม/กรอบหลังโลโก้แล้ว (ผู้ใช้สั่ง 3 พ.ย. 2569 - ดู commit 6347d48 ของ Console/
+         RosterManager) เหลือแค่ขนาดกล่องไว้จัด layout เฉยๆ โลโก้หัวหอมใหม่มีรูปทรงโปร่งใสของตัวเองอยู่แล้ว -->
     <Style x:Key="LogoPlaceholder" TargetType="Border">
         <Setter Property="Width" Value="30"/>
         <Setter Property="Height" Value="30"/>
-        <Setter Property="Background" Value="{DynamicResource Brush.Background.Card}"/>
-        <Setter Property="BorderBrush" Value="{DynamicResource Brush.Accent.Dark}"/>
-        <Setter Property="BorderThickness" Value="1"/>
     </Style>
 
     <Style x:Key="BrandHeaderTitleText" TargetType="TextBlock">
-        <Setter Property="Foreground" Value="White"/>
+        <Setter Property="Foreground" Value="{DynamicResource Brush.Sidebar.Text}"/>
         <Setter Property="FontSize" Value="14"/>
         <Setter Property="FontWeight" Value="Bold"/>
         <Setter Property="VerticalAlignment" Value="Center"/>
     </Style>
 
-    <!-- สีนี้เป็นสีตกแต่งเฉพาะ (ไม่ใช่ token ของไลบรารี) - ทองอ่อนที่อ่านออกบนพื้นสีเน้นส้มทึบเท่านั้น
-         คงค่าเดิมจาก AppTheme.xaml เพราะ AgentTray ใช้สีเน้นส้มตายตัว ไม่ override เป็นสีอื่น -->
+    <!-- ย้ายมาใช้ Brush.Sidebar.TextSecondary แทนทองอ่อนเดิม (#F3E3D0 อ่านออกเฉพาะบนพื้นส้มทึบเท่านั้น)
+         ตามพื้นหลังเข้มชุดใหม่ของ BrandHeaderBar -->
     <Style x:Key="BrandHeaderSubText" TargetType="TextBlock">
-        <Setter Property="Foreground" Value="#F3E3D0"/>
+        <Setter Property="Foreground" Value="{DynamicResource Brush.Sidebar.TextSecondary}"/>
         <Setter Property="FontSize" Value="11"/>
         <Setter Property="VerticalAlignment" Value="Center"/>
     </Style>
