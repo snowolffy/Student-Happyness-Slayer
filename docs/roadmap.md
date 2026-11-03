@@ -408,7 +408,10 @@ orchestrator ส่ง WP0, WP5 และ WP6 ออกพร้อมกัน�
     - ไฟล์ที่แตะได้: `assets/icons/**` (ใหม่) และไฟล์ไอคอน/โลโก้ (`icon.ico`, `logo.png`, `logo-source.png`, `img/logo-*.png`) ของ Console, RosterManager, Agent, OnlineConsole, RemoteBridge, UninstallHelper, `installer/Assets/icon.ico`
     - แก้ csproj/XAML/razor ได้เฉพาะบรรทัดที่อ้างไฟล์เหล่านี้
     - ห้ามแตะ `src/OnionProcOparetor.AgentTray/**`, ภาพ `LoginHero.png` และภาพ banner/dialog ของ MSI (ถ้าคิดว่าควรเปลี่ยน ให้ระบุในรายงาน)
-  - **WP UI-7b AgentTray** (ทำหลัง UI-1b merge แล้ว): `icon.ico`/`logo.png` ของ AgentTray และไอคอน tray 3 สถานะตามความหมายข้างล่าง
+    - **แก้ตามคำสั่งผู้ใช้ 3 พ.ย.:** เอากล่องข้อความทับมุมภาพ LoginHero ของ RosterManager ออกแล้ว (`c1fbe22`) · **เอาพื้นสี่เหลี่ยมสีเน้นหลังโลโก้ออกทุกจุด** ทั้ง sidebar, การ์ดล็อกอิน และ About ของ Console กับการ์ดล็อกอินของ RosterManager (`6347d48`)
+  - **WP UI-7b AgentTray** (ทำหลัง UI-1b merge แล้ว)
+    - เปลี่ยน `icon.ico`/`logo.png` ของ AgentTray และทำไอคอน tray 3 สถานะตามความหมายข้างล่าง
+    - โลโก้ใน header ต้องไม่มีพื้นสี่เหลี่ยมหลังโลโก้ เหมือนกับ Console
   - ใช้ `.ico`/`.png` ที่ export แล้วฝังในแต่ละโปรแกรม ไม่ส่ง `icons.db` · เก็บต้นฉบับทั้งชุดใน repo ที่ `assets/icons/`
   - หัวหอมส้ม: Console, AgentTray, Agent, OnlineConsole (favicon), RemoteBridge, UninstallHelper, MSI ทั้งสอง (ARP) · หัวหอมฟ้า: RosterManager
   - tray: เชื่อมต่อ = Agent ติดต่อ Server ได้ · ไม่ได้เชื่อมต่อ = Agent ทำงานแต่ติดต่อ Server ไม่ได้ · ผิดพลาด = AgentTray คุยกับ Agent ไม่ได้
