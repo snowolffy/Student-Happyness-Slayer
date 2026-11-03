@@ -311,6 +311,11 @@
                                         Padding="12,6" FontSize="11" Margin="8,0,0,0"
                                         ToolTip="เปิดเว็บหรือโปรแกรมจากรายการที่ Admin ตั้งไว้ - เลือกได้ว่าทั้งห้องหรือเฉพาะที่เลือกไว้"
                                         Click="OpenUrlProgramButton_Click" VerticalAlignment="Center"/>
+                                <!-- "ส่งจอครู" (WP4-4, 2026-11-01) - ดู wireframe tc-broadcast.dc.html + ScreenBroadcastSetupWindow -->
+                                <Button Content="ส่งจอครู" Style="{StaticResource ButtonSecondary}"
+                                        Padding="12,6" FontSize="11" Margin="8,0,0,0"
+                                        ToolTip="ส่งจอของเครื่องนี้ให้นักเรียนดู - เลือกได้ว่าทั้งห้องหรือเฉพาะที่เลือกไว้"
+                                        Click="ScreenBroadcastButton_Click" VerticalAlignment="Center"/>
                             </StackPanel>
 
                             <Border Grid.Column="1" x:Name="ClientsSelectionBar" Style="{StaticResource SelectionBar}"

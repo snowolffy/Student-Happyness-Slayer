@@ -107,6 +107,19 @@ public class BroadcastPipeListener
     /// (RequireLogin, LoginScreenMessage) เรียกจาก background thread ไม่ใช่ UI thread</summary>
     public event Action<bool, string?>? SignInStatusChanged;
 
+    /// <summary>เรียกตอนครูกด "เริ่มส่งจอ" (WP4-4, 2026-11-01) - payload = (ViewerMode, TeacherDisplayName) เรียกจาก background thread ไม่ใช่ UI thread</summary>
+    public event Action<string, string?>? StartScreenViewRequested;
+
+    /// <summary>เรียกตอนครูกด "หยุดส่ง" (หรือ Agent หลุด SignalR กลางทาง) - เรียกจาก background thread ไม่ใช่ UI thread</summary>
+    public event Action? StopScreenViewRequested;
+
+    /// <summary>
+    /// เรียกทุกครั้งที่ได้เฟรมจอครูใหม่ (5-10 ครั้ง/วิ ระหว่างกำลังส่งจอ) - payload = JPEG bytes ที่ decode
+    /// จาก Base64 แล้ว เรียกจาก background thread ไม่ใช่ UI thread "ไม่" log ทุกครั้งที่เรียก (ต่างจาก
+    /// event อื่นในคลาสนี้ทั้งหมด) เพราะความถี่สูงเกินกว่าจะมีประโยชน์ใน diagnostic log
+    /// </summary>
+    public event Action<byte[]>? ScreenFrameReceived;
+
     /// <summary>เริ่มฟัง pipe แบบ fire-and-forget - มี retry loop ในตัว ไม่ throw ออกมาแม้เปิด pipe ไม่สำเร็จ</summary>
     public void Start(CancellationToken ct)
     {
@@ -351,6 +364,30 @@ public class BroadcastPipeListener
 
                 case "SignInStatus":
                     SignInStatusChanged?.Invoke(envelope.RequireLogin ?? false, envelope.Message);
+                    break;
+
+                case "StartScreenView":
+                    StartScreenViewRequested?.Invoke(
+                        envelope.ViewerMode ?? "FullscreenLocked", envelope.TeacherDisplayName);
+                    break;
+
+                case "StopScreenView":
+                    StopScreenViewRequested?.Invoke();
+                    break;
+
+                case "ScreenFrame":
+                    if (!string.IsNullOrEmpty(envelope.FrameBase64))
+                    {
+                        try
+                        {
+                            ScreenFrameReceived?.Invoke(Convert.FromBase64String(envelope.FrameBase64));
+                        }
+                        catch (FormatException)
+                        {
+                            // เฟรมเพี้ยน (ตัดครึ่งทาง/ไม่ใช่ base64 ที่ถูกต้อง) - ข้ามเฟรมนี้ไปเฉยๆ ไม่ log
+                            // (ความถี่สูงเกินกว่าจะมีประโยชน์ - เฟรมถัดไปจะมาเองใน <200ms)
+                        }
+                    }
                     break;
 
                 default:

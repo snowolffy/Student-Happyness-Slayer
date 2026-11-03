@@ -36,6 +36,9 @@ public partial class App : System.Windows.Application
     /// <summary>ป้ายมุมขวาล่าง "ยกมืออยู่" (WP4-2, 2026-11-01) - null = ไม่ได้ยกมืออยู่ตอนนี้</summary>
     private RaiseHandBadgeWindow? _raiseHandBadgeWindow;
 
+    /// <summary>หน้าต่างดูจอครู (WP4-4, 2026-11-01) - null = ครูไม่ได้ส่งจออยู่ตอนนี้</summary>
+    private TeacherScreenViewWindow? _teacherScreenViewWindow;
+
     // ---- Sign-in (WP3-3, 2026-10-31) ----
     private StudentLoginWindow? _studentLoginWindow;
     private StaffSessionBadgeWindow? _staffSessionBadgeWindow;
@@ -85,6 +88,11 @@ public partial class App : System.Windows.Application
                 // docs/wireframes/tc-raisehand.dc.html (renderVals: แถวที่สองคือ "คิวที่ 2")
                 "raise-hand" => new RaiseHandWindow(previewApiClient),
                 "raise-hand-badge" => new RaiseHandBadgeWindow(previewApiClient, queuePosition: 2),
+                // "ส่งจอครู" (WP4-4, 2026-11-01) - สองโหมด ดูตัวแปร args ไว้สลับ (ไม่มี argument เพิ่ม =
+                // fullscreen-locked ค่า default) ยังไม่มีเฟรมจริงให้แสดง (WaitingText ค้างไว้ - ต้อง
+                // แสดงตอน Agent จริงส่งเฟรมมาเท่านั้น ซึ่งรันบนเครื่อง dev นี้ไม่ได้)
+                "teacher-screen-view" => new TeacherScreenViewWindow(
+                    e.Args.Contains("--windowed") ? "Windowed" : "FullscreenLocked", "สมชาย ใจดี"),
                 _ => null
             };
 
@@ -136,6 +144,9 @@ public partial class App : System.Windows.Application
         _broadcastListener.GetRunningProcessesRequested += OnGetRunningProcessesRequested;
         _broadcastListener.ExamModeStatusChanged += OnExamModeStatusChanged;
         _broadcastListener.SignInStatusChanged += OnSignInStatusChanged;
+        _broadcastListener.StartScreenViewRequested += OnStartScreenViewRequested;
+        _broadcastListener.StopScreenViewRequested += OnStopScreenViewRequested;
+        _broadcastListener.ScreenFrameReceived += OnScreenFrameReceived;
         _broadcastListener.Start(_broadcastListenerCts.Token);
 
         // โหมดสอบ (WP2-2, 2026-10-31) - ดึงสถานะเริ่มต้นจาก Agent ทันทีตอน Tray เพิ่งเริ่มทำงาน (เช่น
@@ -293,6 +304,8 @@ public partial class App : System.Windows.Application
         _shutdownNotifyWindow = null;
         _examModeBadgeWindow?.ForceClose();
         _examModeBadgeWindow = null;
+        _teacherScreenViewWindow?.ForceClose(); // WP4-4 (2026-11-01) - ForceClose ของตัวเอง เหตุผลเดียวกับ LockScreenWindow/ShutdownNotifyWindow ด้านบน
+        _teacherScreenViewWindow = null;
         _jokeShutdownController.Cancel();
 
         // ToList ก่อนวนลูป เพราะ Windows collection เปลี่ยนระหว่างที่ปิดทีละอัน
@@ -565,6 +578,60 @@ public partial class App : System.Windows.Application
     }
 
     /// <summary>
+    /// "ส่งจอครู" (WP4-4, 2026-11-01) - เรียกจาก background thread ของ pipe listener ตอนครูกด "เริ่มส่งจอ"
+    /// idempotent-ish: ถ้ามีหน้าต่างเดิมค้างอยู่แล้ว (เช่น ครูกดเริ่มซ้ำโดยไม่ได้หยุดก่อน) ปิดตัวเก่าทิ้ง
+    /// ก่อนเปิดใหม่ตามโหมด/ชื่อครูล่าสุดเสมอ (เหมือน pattern ของ OnShutdownNotifyRequested)
+    ///
+    /// FullscreenLocked ใช้ _physicalInputBlocker instance เดียวกับที่ VNC full-screen ใช้ - ไม่ได้ตั้งใจ
+    /// ให้ VNC กับส่งจอครูทำงานพร้อมกันได้ (ไม่มี guard กันไว้ชัดเจนรอบนี้ - ดูรายงาน WP4-4 เป็นข้อจำกัดที่รู้)
+    /// </summary>
+    private void OnStartScreenViewRequested(string viewerMode, string? teacherDisplayName)
+    {
+        Dispatcher.BeginInvoke(() =>
+        {
+            _teacherScreenViewWindow?.ForceClose();
+
+            var window = new TeacherScreenViewWindow(viewerMode, teacherDisplayName);
+            window.Closed += (_, _) => _teacherScreenViewWindow = null;
+            _teacherScreenViewWindow = window;
+            window.Show();
+
+            if (viewerMode == "FullscreenLocked")
+            {
+                _physicalInputBlocker.AgentDiedWhileBlocked -= OnAgentDiedWhileBlocked;
+                _physicalInputBlocker.AgentDiedWhileBlocked += OnAgentDiedWhileBlocked;
+                _physicalInputBlocker.Block();
+            }
+
+            TrayDiagnostics.Log($"[teacher-screen] เริ่มดูจอครู (viewerMode: {viewerMode})");
+        });
+    }
+
+    /// <summary>เรียกจาก background thread ของ pipe listener ตอนครูกด "หยุดส่ง" - idempotent (เรียกซ้ำตอนไม่ได้เปิดอยู่ไม่มีผล)</summary>
+    private void OnStopScreenViewRequested()
+    {
+        Dispatcher.BeginInvoke(() =>
+        {
+            _teacherScreenViewWindow?.ForceClose();
+            _teacherScreenViewWindow = null;
+            _physicalInputBlocker.AgentDiedWhileBlocked -= OnAgentDiedWhileBlocked;
+            _physicalInputBlocker.Unblock();
+
+            TrayDiagnostics.Log("[teacher-screen] หยุดดูจอครู");
+        });
+    }
+
+    /// <summary>
+    /// เรียกจาก background thread ของ pipe message consumer ความถี่สูง (5-10 ครั้ง/วิ) - BeginInvoke
+    /// (ไม่ใช่ Invoke) เหตุผลเดียวกับ OnBroadcastMessageReceived ไม่ block consumer thread รอ UI
+    /// ไม่มีผลถ้าหน้าต่างถูกปิดไปแล้ว (เช่นเฟรมสุดท้ายมาถึงหลัง StopScreenView ไปแล้วเล็กน้อย - ข้ามเงียบๆ)
+    /// </summary>
+    private void OnScreenFrameReceived(byte[] jpegBytes)
+    {
+        Dispatcher.BeginInvoke(() => _teacherScreenViewWindow?.UpdateFrame(jpegBytes));
+    }
+
+    /// <summary>
     /// เรียกจาก StatusWindow ตอนกด toggle Bypass เป็น "เปิดใช้งาน" - ใช้ cleanup sequence เดียวกับ
     /// OnExit เป๊ะๆ (Stop VNC / ปิดหน้าจอล็อกทุกจอ / คืนสิทธิ์ physical input) เพราะ resource ทั้ง 3
     /// ตัวนี้อยู่ฝั่ง AgentTray ล้วนๆ (Agent เอง Session 0 แตะไม่ถึง) - ต้องเก็บกวาดที่นี่ก่อน ไม่ปล่อยค้าง
@@ -576,6 +643,11 @@ public partial class App : System.Windows.Application
         HideAllLockScreens();
         _physicalInputBlocker.Unblock();
         _vncProcessManager.Stop();
+
+        // WP4-4 (2026-11-01) - ปิดหน้าต่างดูจอครูด้วยถ้ามีค้างอยู่ (เหตุผลเดียวกับ VNC/lock screen -
+        // resource ของ AgentTray ที่ Staff session ไม่ควรเห็นค้างอยู่)
+        _teacherScreenViewWindow?.ForceClose();
+        _teacherScreenViewWindow = null;
     }
 
     /// <summary>
@@ -951,6 +1023,7 @@ public partial class App : System.Windows.Application
         _studentLoginWindow?.ForceClose();
         _staffSessionBadgeWindow?.ForceClose();
         _raiseHandBadgeWindow?.ForceClose();
+        _teacherScreenViewWindow?.ForceClose();
         _jokeShutdownController.Cancel();
         _trayIcon?.Dispose();
         _singleInstanceGuard.Dispose();

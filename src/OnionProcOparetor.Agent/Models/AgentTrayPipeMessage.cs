@@ -34,6 +34,12 @@ namespace OnionProcOparetor.Agent.Models;
 ///   ใช้ค่า const ของตัวเอง (LockScreenWindow.LockMessage) เป็น fail-safe สุดท้าย
 /// - "SignInStatus" (WP3-3, 2026-10-31) — แจ้งสถานะ "ต้องล็อกอินไหม" ให้ขึ้น/ลบจอล็อกอินนักเรียน (ใช้
 ///   RequireLogin + Message = ข้อความบนจอล็อกอิน) ส่งเฉพาะตอน "เปลี่ยนสถานะจริง" เหมือน ExamModeStatus
+/// - "StartScreenView" (WP4-4, 2026-11-01) — เปิดหน้าต่างดูจอครู (ใช้ ViewerMode: "FullscreenLocked"|
+///   "Windowed", TeacherDisplayName) - ส่งครั้งเดียวตอนเริ่ม ไม่ใช้ Message/Title
+/// - "StopScreenView" — ปิดหน้าต่างดูจอครู (ไม่ใช้ field อื่น)
+/// - "ScreenFrame" — เฟรมจอครูเฟรมถัดไป (ใช้ FrameBase64) - ส่งถี่ 5-10 ครั้ง/วิ ระหว่างกำลังส่งจอ ต่าง
+///   จาก message ชนิดอื่นที่ส่งน้อยและเรียกเป็นครั้งๆ (ดู AgentTrayNotifier.SendScreenFrameAsync เรื่อง
+///   ทำไมเลือก reconnect ต่อเฟรมแทนเปิด connection ค้างยาว)
 ///
 /// สำคัญ: ไฟล์นี้ถูก "ก๊อปมือ" ไว้ 2 ที่ (Agent/Models + AgentTray/Models) เพราะ solution นี้
 /// ไม่มี shared class library ระหว่างโปรเจกต์เลย (ดู LogEntryDto ที่ก๊อปแบบเดียวกัน) -
@@ -69,4 +75,13 @@ public class AgentTrayPipeMessage
 
     /// <summary>ใช้เฉพาะ Type = "SignInStatus" (WP3-3, 2026-10-31) - true = ต้อง login ก่อนใช้เครื่อง</summary>
     public bool? RequireLogin { get; set; }
+
+    /// <summary>ใช้เฉพาะ Type = "StartScreenView" (WP4-4, 2026-11-01) - "FullscreenLocked" หรือ "Windowed" (ดู ScreenBroadcastViewerMode)</summary>
+    public string? ViewerMode { get; set; }
+
+    /// <summary>ใช้เฉพาะ Type = "StartScreenView" - ชื่อที่แสดงของครูที่กำลังส่งจอ</summary>
+    public string? TeacherDisplayName { get; set; }
+
+    /// <summary>ใช้เฉพาะ Type = "ScreenFrame" - เฟรม JPEG เข้ารหัส Base64 เฟรมถัดไป</summary>
+    public string? FrameBase64 { get; set; }
 }

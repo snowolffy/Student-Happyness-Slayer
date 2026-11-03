@@ -188,6 +188,32 @@ public class LabHubClient : IAsyncDisposable
         }
     }
 
+    /// <summary>
+    /// "ส่งจอครู" (WP4-4, 2026-11-01) - ส่งเฟรม JPEG ที่ ScreenCaptureService capture+encode มาแล้วให้ Server
+    /// รีเลย์ต่อให้ Agent ที่ join อยู่ (ดู LabHub.PushScreenFrame) คืน false เงียบๆ ถ้า SignalR ไม่
+    /// connected อยู่ตอนนี้ (ไม่มี HTTP fallback สำหรับฟีเจอร์นี้ - ภาพสดต้องมาผ่าน SignalR เท่านั้น เหมือน
+    /// VNC) ผู้เรียก (BroadcastWarningBarWindow) แค่ข้ามเฟรมนี้ไปถ้า false ไม่ต้อง retry เอง (เฟรมถัดไป
+    /// จะมาเองใน &lt;200ms อยู่แล้วจาก ScreenCaptureService's timer)
+    /// </summary>
+    public async Task<bool> SendScreenFrameAsync(byte[] jpegBytes, CancellationToken ct = default)
+    {
+        if (_connection is null || _connection.State != HubConnectionState.Connected)
+        {
+            return false;
+        }
+
+        try
+        {
+            await _connection.InvokeAsync("PushScreenFrame", jpegBytes, ct);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            ConsoleDiagnostics.WriteLine($"[LabHubClient] PushScreenFrame failed: {ex.Message}");
+            return false;
+        }
+    }
+
     public async ValueTask DisposeAsync()
     {
         if (_connection is not null)

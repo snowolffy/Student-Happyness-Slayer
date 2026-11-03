@@ -1,0 +1,34 @@
+<Window x:Class="OnionProcOparetor.Console.BroadcastWarningBarWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="กำลังส่งจอครู"
+        WindowStyle="None"
+        Topmost="True"
+        ShowInTaskbar="False"
+        ResizeMode="NoResize"
+        SizeToContent="WidthAndHeight"
+        WindowStartupLocation="Manual"
+        Background="Transparent"
+        AllowsTransparency="True"
+        Icon="/Theme/icon.ico">
+    <!-- "ส่งจอครู" (WP4-4, 2026-11-01) - แถบแดงลอยบนจอครูตลอดเวลาที่ส่ง (ขั้นตอน 2 ของ wireframe
+         tc-broadcast.dc.html คอลัมน์ขวา) ตั้งใจแยกไฟล์จาก ScreenBroadcastSetupWindow เพราะหน้าต่างนั้น
+         ปิดตัวเองไปแล้วตั้งแต่ขั้นตอน 1 จบ (เหมือน ActionReportWindow แยกจาก OpenUrlWindow)
+
+         ของที่ไม่ได้ทำตาม wireframe รอบนี้: ตัวเลข "X/Y เครื่องรับได้" เป็นค่าตอนเริ่มเท่านั้น (จาก
+         ผลการส่ง command "StartScreenBroadcast") ไม่ใช่ตัวเลขสดที่อัปเดตตามจริงว่าเครื่องไหนกำลังแสดง
+         ภาพอยู่จริง (ต้องมี ack แยกต่อเฟรมซึ่งเกินขอบเขต design notes ของรอบนี้) และไม่มีปุ่ม
+         "หยุดชั่วคราว" -->
+    <Border Background="#B42318" CornerRadius="10" Padding="16,10">
+        <Border.Effect>
+            <DropShadowEffect BlurRadius="16" ShadowDepth="4" Opacity="0.3"/>
+        </Border.Effect>
+        <StackPanel Orientation="Horizontal">
+            <TextBlock x:Name="StatusText" Foreground="White" FontSize="13" FontWeight="SemiBold"
+                       VerticalAlignment="Center" Text="กำลังส่งจอ"/>
+            <Button x:Name="StopButton" Content="หยุดส่ง" Margin="14,0,0,0" Padding="12,4"
+                    Background="White" Foreground="#B42318" BorderThickness="0" FontSize="12"
+                    VerticalAlignment="Center" Click="StopButton_Click"/>
+        </StackPanel>
+    </Border>
+</Window>

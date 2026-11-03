@@ -172,6 +172,67 @@ public class AgentTrayNotifier
     }
 
     /// <summary>
+    /// สั่งให้ AgentTray เปิดหน้าต่างดูจอครู (WP4-4, 2026-11-01) - ต้องส่งผ่าน AgentTray เสมอ (Agent
+    /// เอง Session 0 ไม่มี desktop ให้แสดง window ได้เลย - เหตุผลเดียวกับ ShowLockScreen)
+    /// </summary>
+    public Task<bool> SendStartScreenViewAsync(string viewerMode, string? teacherDisplayName, CancellationToken ct)
+    {
+        var envelope = new AgentTrayPipeMessage
+        {
+            Type = "StartScreenView",
+            ViewerMode = viewerMode,
+            TeacherDisplayName = teacherDisplayName
+        };
+
+        return SendAsync(envelope, $"StartScreenView (viewerMode: {viewerMode})", ct);
+    }
+
+    /// <summary>สั่งให้ AgentTray ปิดหน้าต่างดูจอครู - ครูกด "หยุดส่ง" หรือ Agent หลุด SignalR กลางทาง</summary>
+    public Task<bool> SendStopScreenViewAsync(CancellationToken ct)
+    {
+        var envelope = new AgentTrayPipeMessage { Type = "StopScreenView" };
+        return SendAsync(envelope, "StopScreenView", ct);
+    }
+
+    /// <summary>
+    /// ส่งเฟรมจอครูเฟรมถัดไปให้ AgentTray (WP4-4, 2026-11-01) - "ไม่" ใช้ SendAsync/auto-recover ปกติ
+    /// โดยตั้งใจ: เฟรมมาถี่ 5-10 ครั้ง/วิ ถ้าเฟรมหนึ่งส่งไม่ถึง (เช่น AgentTray เพิ่งถูก kill ไปพอดี)
+    /// การไปพยายาม auto-recover (สตาร์ท AgentTray ใหม่ + รอ 2.5 วิ) จะไปหน่วงเฟรมถัดไปทั้งคิวรวมกันนาน
+    /// เกินไป - ปล่อยเฟรมนั้นข้ามไปเฉยๆ (ครูเห็น "X/Y เครื่องรับได้" น้อยลงชั่วคราวเท่านั้น) เฟรมถัดไป
+    /// (อีกไม่ถึง 200ms) จะลองใหม่เองตามปกติ ไม่มีผลเสียสะสม เพราะไม่มี state อะไรต้องรักษาข้ามเฟรม
+    ///
+    /// ส่งเป็น message เดี่ยว (reconnect pipe ใหม่ทุกเฟรม) เหมือน message ชนิดอื่นในคลาสนี้ทั้งหมด ไม่ใช้
+    /// connection ค้างยาว - เหตุผล: ก) ง่ายกว่ามาก ไม่ต้องจัดการ connection lifecycle แยกจากที่มีอยู่แล้ว
+    /// ข) วัดจริงแล้ว (ดู WP4-4 test harness) connect+ส่ง 1 เฟรมบน local named pipe ใช้เวลาต่ำกว่า 5ms
+    /// ซึ่งเหลือเฟือสำหรับ 8 fps (ต้องการแค่ &lt;125ms/เฟรม) ค) ขนาดเฟรมที่เลือก (JPEG คุณภาพต่ำ ย่อ
+    /// ความละเอียด) อยู่ในหลักสิบ KB - ไม่มี hard limit ของ NamedPipeServerStream/StreamReader.ReadLineAsync
+    /// ที่จะชนในขนาดนี้ (ปัญหาจริงของ pipe นี้คือ "ค้างถ้าไม่มีคนอ่าน" ไม่ใช่ "message ใหญ่เกินไป" - ดู
+    /// BroadcastPipeListener.ReadTimeout - ซึ่ง timeout 10 วิเหลือเฟือสำหรับเฟรมขนาดนี้)
+    /// </summary>
+    public async Task<bool> SendScreenFrameAsync(byte[] jpegBytes, CancellationToken ct)
+    {
+        var envelope = new AgentTrayPipeMessage
+        {
+            Type = "ScreenFrame",
+            FrameBase64 = Convert.ToBase64String(jpegBytes),
+            Secret = _loopbackSecret.Value
+        };
+
+        try
+        {
+            await SendOnceAsync(envelope, ct);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            // debug เท่านั้น (ไม่ใช่ warning) - ตั้งใจ: ข้ามเฟรมเดี่ยวๆ เป็นเรื่องปกติที่ยอมรับได้ตาม
+            // doc comment ด้านบน ไม่ใช่ความผิดพลาดที่ต้องสนใจทุกครั้ง (จะรัว log ที่ 5-10 ครั้ง/วิ)
+            _logger.LogDebug(ex, "ส่งเฟรมจอครูให้ AgentTray ไม่สำเร็จ (ข้ามเฟรมนี้ไป - เฟรมถัดไปจะลองใหม่เอง)");
+            return false;
+        }
+    }
+
+    /// <summary>
     /// คืน true ถ้าส่งถึง AgentTray สำเร็จจริง, false ถ้าไม่สำเร็จ (ยังคง fail-secure เหมือนเดิม -
     /// ไม่ throw ออกไป เพื่อไม่ให้ command processing ทั้งสายพัง) ผู้เรียกใช้ค่านี้ไปรายงาน
     /// "ผลจริง" กลับ Server ได้ (ดู CommandProcessor) - เดิม method นี้คืน void เลยไม่มีใคร

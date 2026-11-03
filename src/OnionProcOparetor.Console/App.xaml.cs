@@ -204,6 +204,24 @@ public partial class App : Application
                 // ตัวเลือก "เครื่องที่เลือกไว้ (0 เครื่อง)" ถูกปิด และ "ทุกเครื่อง" ถูกเลือกไว้ให้แล้ว
                 "action-panel-room" => new ActionPanelWindow(
                     api, [], [sampleClient, sampleClient, sampleClient], defaultToAll: true),
+                // "ส่งจอครู" (WP4-4, 2026-11-01) - เหมือน open-url/exam-mode: เรียก API จริงไม่สำเร็จ
+                // เพราะ ApiClient ยังไม่ login แต่ไม่พัง (ไม่มี async load ตอนเปิดหน้าต่างเหมือนสองอันนั้น
+                // อยู่แล้ว - โหลดแค่ room/client ที่ส่งเข้ามาตรงๆ)
+                "screen-broadcast-setup" => new ScreenBroadcastSetupWindow(
+                    api, [sampleClient], [sampleClient], [new Models.RoomDto { Id = 1, Name = "ห้องคอม 1", ClientCount = 40 }], currentRoomFilterId: 1),
+                // แถบแดง (ขั้นตอน 2) - session ปลอมไม่มีเครื่องจริงให้ส่ง StopScreenBroadcast ถึง (ไม่
+                // เป็นไร - clientGuid ปลอมแค่ได้ 404/timeout จาก Server ปลอม ไม่ throw) Loaded จะเริ่ม
+                // capture จอจริงของเครื่อง dev ตามปกติ แต่ไม่กระทบภาพที่ถ่าย (ถ่ายแค่ chrome ของแถบแดงเอง)
+                "broadcast-warning-bar" => new BroadcastWarningBarWindow(
+                    api, new Services.LabHubClient(),
+                    new ScreenBroadcastSession
+                    {
+                        Targets = Enumerable.Repeat(sampleClient, 36).ToList(), // 34 สำเร็จ + 2 ไม่สำเร็จ ตามตัวอย่างใน wireframe tc-broadcast.dc.html
+                        ViewerMode = "FullscreenLocked",
+                        TeacherDisplayName = "สมชาย ใจดี",
+                        SuccessCount = 34,
+                        FailCount = 2
+                    }),
                 _ => null
             };
 

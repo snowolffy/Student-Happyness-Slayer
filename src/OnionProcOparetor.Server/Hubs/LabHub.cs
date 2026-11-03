@@ -22,17 +22,20 @@ public class LabHub : Hub
     private readonly AgentConnectionRegistry _connectionRegistry;
     private readonly IActivityLogService _activityLog;
     private readonly AgentAuthenticator _agentAuth;
+    private readonly ScreenBroadcastRelay _screenBroadcastRelay;
 
     public LabHub(
         AppDbContext db,
         AgentConnectionRegistry connectionRegistry,
         IActivityLogService activityLog,
-        AgentAuthenticator agentAuth)
+        AgentAuthenticator agentAuth,
+        ScreenBroadcastRelay screenBroadcastRelay)
     {
         _db = db;
         _connectionRegistry = connectionRegistry;
         _activityLog = activityLog;
         _agentAuth = agentAuth;
+        _screenBroadcastRelay = screenBroadcastRelay;
     }
 
     /// <summary>
@@ -110,6 +113,11 @@ public class LabHub : Hub
     /// </summary>
     public override async Task OnDisconnectedAsync(Exception? exception)
     {
+        // "ส่งจอครู" (WP4-4) - เครื่องที่กำลังดูจอครูอยู่แล้วหลุด SignalR (ปิดเครื่อง/เน็ตขาด) ต้องเลิก
+        // เป็น viewer ด้วย ไม่งั้น ScreenBroadcastRelay จะพยายามส่งเฟรมเข้า connectionId ที่ตายไปแล้วไป
+        // เรื่อยๆ (SendAsync จะ throw เงียบๆ ทุกครั้งซึ่งไม่เสียหายอะไร แต่เสียทรัพยากรเปล่าๆ)
+        _screenBroadcastRelay.RemoveViewer(Context.ConnectionId);
+
         var (clientGuid, isFullyDisconnected) = _connectionRegistry.Unregister(Context.ConnectionId);
 
         if (clientGuid is not null && isFullyDisconnected)
@@ -210,6 +218,40 @@ public class LabHub : Hub
         {
             await Clients.Group(ConsoleGroupName).SendAsync("CommandResultChanged", CommandResultDto.From(updated));
         }
+    }
+
+    // ==================== "ส่งจอครู" (WP4-4, 2026-11-01) ====================
+    // Console ครูเป็นคน capture+encode เฟรมเอง แล้วยิงเข้ามาที่ PushScreenFrame - Server ไม่รู้จัก/ไม่
+    // ตรวจสอบเนื้อหาของเฟรมเลย (opaque byte[] ผ่านมือ เหมือน ProcessListReady) แค่รีเลย์ต่อให้ Agent ที่
+    // join ไว้ (ScreenBroadcastRelay เป็นคนจัดการ drop stale frame ต่อ connection ช้า)
+    //
+    // ตั้งใจไม่ตรวจ auth เพิ่มที่นี่ (ต่างจาก RegisterAgent ที่ตรวจ secret): PushScreenFrame เรียกได้
+    // จาก connection ที่ login Console สำเร็จแล้วเท่านั้นในทางปฏิบัติ (ครูเป็นคนกด "เริ่มส่งจอ" เอง) ส่วน
+    // JoinScreenBroadcast/LeaveScreenBroadcast ผูกกับ connection ของ Agent โดยตรง (ไม่รับ guid จาก
+    // argument ที่ปลอมได้ - ใช้ Context.ConnectionId ของ connection ที่เรียกเองเท่านั้น)
+
+    /// <summary>Agent เรียกหลังได้รับ command "StartScreenBroadcast" - join เป็น viewer เพื่อรับ "ScreenFrame" ที่ครูส่งเข้ามา</summary>
+    public Task JoinScreenBroadcast()
+    {
+        _screenBroadcastRelay.AddViewer(Context.ConnectionId);
+        return Task.CompletedTask;
+    }
+
+    /// <summary>Agent เรียกหลังได้รับ command "StopScreenBroadcast" (หรือครูหยุดส่ง) - เลิกรับเฟรม</summary>
+    public Task LeaveScreenBroadcast()
+    {
+        _screenBroadcastRelay.RemoveViewer(Context.ConnectionId);
+        return Task.CompletedTask;
+    }
+
+    /// <summary>
+    /// Console (ครู) เรียกทุกครั้งที่ capture+encode เฟรมใหม่เสร็จ (5-10 ครั้ง/วิ) - รีเลย์ให้ Agent ที่
+    /// join ไว้ทุกตัวทันที ไม่ await ให้ทุก connection ส่งจบก่อนจะ return (ดู ScreenBroadcastRelay.BroadcastFrame)
+    /// </summary>
+    public Task PushScreenFrame(byte[] jpegBytes)
+    {
+        _screenBroadcastRelay.BroadcastFrame(Clients, jpegBytes);
+        return Task.CompletedTask;
     }
 }
 

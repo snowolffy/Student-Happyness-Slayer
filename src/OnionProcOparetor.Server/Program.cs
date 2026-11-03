@@ -153,6 +153,10 @@ builder.Services.AddSingleton<AgentConnectionRegistry>();
 // ---- คิวยกมือ (WP4-2, 2026-11-01) - เก็บในหน่วยความจำล้วนๆ ไม่มี migration (ดู RaiseHandQueue) ----
 builder.Services.AddSingleton<RaiseHandQueue>();
 
+// ---- "ส่งจอครู" (WP4-4, 2026-11-01) - รีเลย์เฟรมจอครู เก็บแค่ connectionId + เฟรมล่าสุดในหน่วยความจำ
+// ล้วนๆ ไม่มี migration เหมือน RaiseHandQueue (ดู ScreenBroadcastRelay) ----
+builder.Services.AddSingleton<ScreenBroadcastRelay>();
+
 // ---- Background scan หาเครื่องที่เปลี่ยนสถานะ online/offline (ดู
 // ClientOnlineStatusMonitorService) - ชั้นเสริมสำหรับเครื่องที่ไม่เคย connect SignalR เลย ----
 builder.Services.AddHostedService<ClientOnlineStatusMonitorService>();

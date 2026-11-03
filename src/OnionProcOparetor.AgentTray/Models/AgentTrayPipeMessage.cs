@@ -20,6 +20,10 @@ namespace OnionProcOparetor.AgentTray.Models;
 ///   LockScreenWindow.LockMessage (const เดิม) เป็น fail-safe สุดท้าย
 /// - "SignInStatus" (WP3-3, 2026-10-31) — ขึ้น/ลบจอล็อกอินนักเรียน (StudentLoginWindow) (ใช้
 ///   RequireLogin + Message = ข้อความบนจอล็อกอิน) ดู App.xaml.cs OnSignInStatusChanged
+/// - "StartScreenView" (WP4-4, 2026-11-01) — เปิดหน้าต่างดูจอครู (TeacherScreenViewWindow) (ใช้
+///   ViewerMode: "FullscreenLocked"|"Windowed", TeacherDisplayName)
+/// - "StopScreenView" — ปิดหน้าต่างดูจอครู (ไม่ใช้ field อื่น)
+/// - "ScreenFrame" — เฟรมจอครูเฟรมถัดไป (ใช้ FrameBase64) - ส่งถี่ 5-10 ครั้ง/วิ
 ///
 /// ต้อง "ตรงกัน" กับ OnionProcOparetor.Agent/Models/AgentTrayPipeMessage.cs เป๊ะๆ เสมอ เพราะ
 /// solution นี้ไม่มี shared class library ระหว่างโปรเจกต์ (ก๊อปมือแบบเดียวกับ LogEntryDto) -
@@ -51,4 +55,13 @@ public class AgentTrayPipeMessage
 
     /// <summary>ใช้เฉพาะ Type = "SignInStatus" (WP3-3, 2026-10-31) - true = ต้อง login ก่อนใช้เครื่อง</summary>
     public bool? RequireLogin { get; set; }
+
+    /// <summary>ใช้เฉพาะ Type = "StartScreenView" (WP4-4, 2026-11-01) - "FullscreenLocked" หรือ "Windowed"</summary>
+    public string? ViewerMode { get; set; }
+
+    /// <summary>ใช้เฉพาะ Type = "StartScreenView" - ชื่อที่แสดงของครูที่กำลังส่งจอ</summary>
+    public string? TeacherDisplayName { get; set; }
+
+    /// <summary>ใช้เฉพาะ Type = "ScreenFrame" - เฟรม JPEG เข้ารหัส Base64 เฟรมถัดไป</summary>
+    public string? FrameBase64 { get; set; }
 }
