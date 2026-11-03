@@ -52,6 +52,9 @@ public partial class TeacherDrawToolbarWindow : Window
         {
             var excluded = TeacherOnlyWindowHelper.ExcludeFromCapture(this);
             ConsoleDiagnostics.WriteLine($"[teacher-draw-toolbar] SetWindowDisplayAffinity(WDA_EXCLUDEFROMCAPTURE) = {excluded}");
+
+            // มุมโค้งจาก window region แทนความโปร่งใส - ดู TeacherOnlyWindowHelper.ApplyRoundedRegion
+            SizeChanged += (_, _) => TeacherOnlyWindowHelper.ApplyRoundedRegion(this, 10);
         };
     }
 

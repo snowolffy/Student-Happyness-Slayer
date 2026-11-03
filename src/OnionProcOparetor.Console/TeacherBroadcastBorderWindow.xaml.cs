@@ -14,35 +14,78 @@ namespace OnionProcOparetor.Console;
 /// </summary>
 public partial class TeacherBroadcastBorderWindow : Window
 {
+    /// <summary>ความหนากรอบ (DIP) - ตัดสินแล้ว 3 พ.ย.: 3-4px</summary>
+    private const double Thickness = 4;
+
+    private readonly List<TeacherBroadcastBorderWindow> _otherEdges = new();
     private bool _allowClose;
 
+    /// <summary>
+    /// สร้างกรอบทั้งชุด: หน้าต่างนี้เป็นแถบบน แล้วสร้างแถบล่าง/ซ้าย/ขวาเป็นหน้าต่างพี่น้องอีก 3 อัน
+    /// (แสดงพร้อมกันตอน Loaded ปิดพร้อมกันตอน ForceClose) - ผู้เรียกยังใช้ new + Show() + ForceClose()
+    /// เหมือนตอนเป็นหน้าต่างเดียว ดูเหตุผลที่ต้องแยก 4 หน้าต่างใน .xaml
+    /// </summary>
     public TeacherBroadcastBorderWindow()
+        : this(GetEdges()[0])
+    {
+        foreach (var edge in GetEdges().Skip(1))
+        {
+            _otherEdges.Add(new TeacherBroadcastBorderWindow(edge));
+        }
+
+        Loaded += (_, _) =>
+        {
+            foreach (var edge in _otherEdges)
+            {
+                edge.Show();
+            }
+        };
+    }
+
+    private TeacherBroadcastBorderWindow(Rect bounds)
     {
         InitializeComponent();
 
-        // ครอบแค่จอหลัก (จอเดียวกับที่ ScreenCaptureService capture) - ไม่รองรับหลายจอรอบนี้
-        // เหมือน TeacherScreenViewWindow ฝั่งนักเรียน (ดู comment ที่นั่น)
-        Left = 0;
-        Top = 0;
-        Width = SystemParameters.PrimaryScreenWidth;
-        Height = SystemParameters.PrimaryScreenHeight;
+        Left = bounds.Left;
+        Top = bounds.Top;
+        Width = bounds.Width;
+        Height = bounds.Height;
 
         SourceInitialized += (_, _) =>
         {
             // ต้องมี HWND จริงแล้วก่อนเรียก Win32 call นี้ - ดู TeacherOnlyWindowHelper
             TeacherOnlyWindowHelper.SetClickThrough(this, clickThrough: true);
-        };
-
-        Loaded += (_, _) =>
-        {
             var excluded = TeacherOnlyWindowHelper.ExcludeFromCapture(this);
             ConsoleDiagnostics.WriteLine(
                 $"[teacher-broadcast-border] SetWindowDisplayAffinity(WDA_EXCLUDEFROMCAPTURE) = {excluded}");
         };
     }
 
+    /// <summary>
+    /// แถบ 4 เส้นชิดขอบจอหลัก (จอเดียวกับที่ ScreenCaptureService จับ - ยังไม่รองรับหลายจอ เหมือน
+    /// TeacherScreenViewWindow ฝั่งนักเรียน) ลำดับ: บน, ล่าง, ซ้าย, ขวา
+    /// </summary>
+    private static Rect[] GetEdges()
+    {
+        var width = SystemParameters.PrimaryScreenWidth;
+        var height = SystemParameters.PrimaryScreenHeight;
+        return
+        [
+            new Rect(0, 0, width, Thickness),
+            new Rect(0, height - Thickness, width, Thickness),
+            new Rect(0, Thickness, Thickness, height - 2 * Thickness),
+            new Rect(width - Thickness, Thickness, Thickness, height - 2 * Thickness)
+        ];
+    }
+
     public void ForceClose()
     {
+        foreach (var edge in _otherEdges)
+        {
+            edge.ForceClose();
+        }
+        _otherEdges.Clear();
+
         _allowClose = true;
         Close();
     }
@@ -51,8 +94,7 @@ public partial class TeacherBroadcastBorderWindow : Window
     {
         if (!_allowClose)
         {
-            // กรอบนี้เป็นของ BroadcastWarningBarWindow เท่านั้น - ไม่มีทางที่ user กด Alt-F4/ปิดกรอบ
-            // เองได้ (ไม่มี chrome ให้กด X อยู่แล้ว แต่กัน Alt-F4 ไว้เผื่อ user รู้ทริค)
+            // กรอบนี้เป็นของ BroadcastWarningBarWindow เท่านั้น - กัน Alt-F4 ไว้เผื่อ user รู้ทริค
             e.Cancel = true;
             return;
         }

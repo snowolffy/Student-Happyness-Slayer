@@ -72,6 +72,11 @@ public partial class BroadcastWarningBarWindow : Window
             var excluded = TeacherOnlyWindowHelper.ExcludeFromCapture(this);
             ConsoleDiagnostics.WriteLine($"[broadcast-warning-bar] SetWindowDisplayAffinity(WDA_EXCLUDEFROMCAPTURE) = {excluded}");
 
+            // หน้าต่างทึบ (ไม่ใช้ AllowsTransparency เพราะทำให้ exclude ล้ม) มุมโค้งจึงมาจาก window region:
+            // ปุ่มกลมตอนหุบ = วงกลม (48x48 รัศมี 24) แถบเต็ม = มุมโค้ง 10 ตาม CornerRadius ใน .xaml
+            SizeChanged += (_, _) => TeacherOnlyWindowHelper.ApplyRoundedRegion(
+                this, FullBar.Visibility == Visibility.Visible ? 10 : 24);
+
             _hwndSource = (HwndSource)PresentationSource.FromVisual(this)!;
             _hwndSource.AddHook(WndProc);
             RegisterHotKey(_hwndSource.Handle, HotkeyId, MOD_CONTROL | MOD_SHIFT, VK_D);

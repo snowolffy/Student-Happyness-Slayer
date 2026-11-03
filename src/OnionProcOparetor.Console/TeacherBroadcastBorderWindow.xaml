@@ -7,17 +7,16 @@
         ShowInTaskbar="False"
         ResizeMode="NoResize"
         WindowStartupLocation="Manual"
-        Background="Transparent"
-        AllowsTransparency="True"
+        Background="#E53935"
         Focusable="False"
         ShowActivated="False"
         Icon="/Theme/icon.ico">
-    <!-- คำขอเพิ่ม 3 พ.ย. 2569 - กรอบแดงรอบจอครูตลอดเวลาที่ส่ง หนา 4px ไม่กะพริบ กดทะลุได้ (ตั้งค่า
-         WS_EX_TRANSPARENT ใน code-behind ตอน SourceInitialized) และตัดตัวเองออกจากภาพที่ส่งให้นักเรียน
-         ด้วย SetWindowDisplayAffinity(WDA_EXCLUDEFROMCAPTURE) (ดู TeacherOnlyWindowHelper)
+    <!-- คำขอเพิ่ม 3 พ.ย. 2569 - กรอบแดงรอบจอครูตลอดเวลาที่ส่ง หนา 4px ไม่กะพริบ กดทะลุได้ และไม่ติดไปในภาพ
+         ที่ส่งให้นักเรียน
 
-         วาดเป็นกรอบกลวง (Border ขอบหนาไม่มีพื้นด้านใน) เต็มจอหลัก - ใช้ Border เดียวทาบทั้งจอแทนสี่เหลี่ยม
-         4 แถบ เพราะง่ายกว่ามากและ WS_EX_TRANSPARENT ทำให้พื้นที่ "ใน" กรอบที่เป็น Transparent ทะลุคลิกได้
-         อยู่แล้วไม่ต้องกังวลเรื่องบังคลิกตรงกลางจอ -->
-    <Border BorderBrush="#E53935" BorderThickness="4"/>
+         หน้าต่างนี้คือ "แถบทึบสีแดง 1 เส้น" กรอบจริงประกอบจาก 4 หน้าต่าง (บน/ล่าง/ซ้าย/ขวา - ดู .xaml.cs)
+         ห้ามกลับไปใช้ AllowsTransparency="True" แบบกรอบกลวงหน้าต่างเดียว: ทดสอบจริง 3 พ.ย. แล้วว่า
+         SetWindowDisplayAffinity(WDA_EXCLUDEFROMCAPTURE) ล้มทุกครั้งกับหน้าต่างโปร่งใสของ WPF
+         (UpdateLayeredWindow, GetLastError=8) แต่ใช้ได้กับหน้าต่างทึบ แม้จะเติม WS_EX_LAYERED|WS_EX_TRANSPARENT
+         เองเพื่อให้คลิกทะลุ -->
 </Window>

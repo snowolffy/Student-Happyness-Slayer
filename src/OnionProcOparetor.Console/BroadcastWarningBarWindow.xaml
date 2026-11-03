@@ -8,8 +8,7 @@
         ResizeMode="NoResize"
         SizeToContent="WidthAndHeight"
         WindowStartupLocation="Manual"
-        Background="Transparent"
-        AllowsTransparency="True"
+        Background="#B42318"
         Icon="/Theme/icon.ico">
     <!-- "ส่งจอครู" (WP4-4, 2026-11-01 / แก้ตามคำขอเพิ่ม 3 พ.ย. 2569) - แถบแดงลอยบนจอครูตลอดเวลาที่ส่ง
          (ขั้นตอน 2 ของ wireframe tc-broadcast.dc.html คอลัมน์ขวา) ตอนนี้หุบเหลือแค่ปุ่มกลมได้ (ตัดสินแล้ว
@@ -23,18 +22,12 @@
         <!-- สถานะหุบ: ปุ่มกลมแดงเล็ก ลากย้ายตำแหน่งได้ (DragMove ใน code-behind) -->
         <Border x:Name="CollapsedPill" Width="48" Height="48" CornerRadius="24" Background="#B42318"
                 MouseLeftButtonDown="CollapsedPill_MouseLeftButtonDown" Cursor="Hand">
-            <Border.Effect>
-                <DropShadowEffect BlurRadius="12" ShadowDepth="3" Opacity="0.4"/>
-            </Border.Effect>
             <TextBlock Text="REC" Foreground="White" FontSize="11" FontWeight="Bold"
                        HorizontalAlignment="Center" VerticalAlignment="Center"/>
         </Border>
 
         <!-- สถานะเต็ม: แถบสถานะ + ปุ่มหุบ/เครื่องมือเขียน/ซูม/หยุดส่ง -->
         <Border x:Name="FullBar" Background="#B42318" CornerRadius="10" Padding="16,10" Visibility="Collapsed">
-            <Border.Effect>
-                <DropShadowEffect BlurRadius="16" ShadowDepth="4" Opacity="0.3"/>
-            </Border.Effect>
             <StackPanel Orientation="Horizontal">
                 <TextBlock x:Name="StatusText" Foreground="White" FontSize="13" FontWeight="SemiBold"
                            VerticalAlignment="Center" Text="กำลังส่งจอ"/>

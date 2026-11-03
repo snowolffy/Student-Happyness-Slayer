@@ -26,6 +26,12 @@ internal static class TeacherOnlyWindowHelper
     [DllImport("user32.dll", SetLastError = true)]
     private static extern bool SetWindowDisplayAffinity(IntPtr hwnd, uint dwAffinity);
 
+    [DllImport("gdi32.dll")]
+    private static extern IntPtr CreateRoundRectRgn(int left, int top, int right, int bottom, int widthEllipse, int heightEllipse);
+
+    [DllImport("user32.dll")]
+    private static extern int SetWindowRgn(IntPtr hWnd, IntPtr hRgn, bool redraw);
+
     [DllImport("user32.dll", EntryPoint = "GetWindowLong")]
     private static extern int GetWindowLong32(IntPtr hWnd, int nIndex);
 
@@ -102,5 +108,30 @@ internal static class TeacherOnlyWindowHelper
         var withLayered = extendedStyle | WS_EX_LAYERED;
         var newStyle = clickThrough ? (withLayered | WS_EX_TRANSPARENT) : (withLayered & ~WS_EX_TRANSPARENT);
         SetWindowLongPtr(hwnd, GWL_EXSTYLE, new IntPtr(newStyle));
+    }
+
+    /// <summary>
+    /// ตัดมุมหน้าต่างให้โค้งด้วย window region (SetWindowRgn) - ใช้แทน AllowsTransparency="True" + CornerRadius
+    /// กับหน้าต่างกลุ่ม "ครูเห็นอย่างเดียว" เพราะหน้าต่างโปร่งใสของ WPF ทำให้ ExcludeFromCapture ล้มเสมอ
+    /// (ทดสอบจริง 3 พ.ย. 2569: GetLastError=8) เรียกซ้ำทุกครั้งที่ขนาดเปลี่ยน (SizeChanged) radius เป็น DIP
+    /// ถ้า radius มากกว่าครึ่งด้านสั้นจะได้วงกลม/แคปซูล (ใช้กับปุ่มกลมตอนหุบ)
+    /// </summary>
+    public static void ApplyRoundedRegion(Window window, double radius)
+    {
+        var hwnd = new WindowInteropHelper(window).Handle;
+        var source = PresentationSource.FromVisual(window);
+        if (hwnd == IntPtr.Zero || source?.CompositionTarget is null)
+        {
+            return;
+        }
+
+        var toDevice = source.CompositionTarget.TransformToDevice;
+        var width = (int)Math.Ceiling(window.ActualWidth * toDevice.M11);
+        var height = (int)Math.Ceiling(window.ActualHeight * toDevice.M22);
+        var diameter = (int)Math.Ceiling(radius * 2 * toDevice.M11);
+
+        // SetWindowRgn รับความเป็นเจ้าของ region ไปเอง ห้าม DeleteObject เองหลังเรียกสำเร็จ
+        var region = CreateRoundRectRgn(0, 0, width + 1, height + 1, diameter, diameter);
+        SetWindowRgn(hwnd, region, true);
     }
 }
