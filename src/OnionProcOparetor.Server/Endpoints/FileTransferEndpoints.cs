@@ -313,7 +313,13 @@ public static class FileTransferEndpoints
                 return Results.NotFound(new { error = $"ยังไม่มีไฟล์ให้ดาวน์โหลดสำหรับงาน '{job.Name}' (ยังไม่มีใครส่งไฟล์มาเลย)" });
             }
 
-            using var zipStream = new System.IO.MemoryStream();
+            // เขียน zip ลงไฟล์ชั่วคราวแทน MemoryStream: ทั้งห้อง 40 เครื่อง x ไฟล์ละสูงสุด MaxFileSizeMb อาจเป็น
+            // หลาย GB ถ้าเก็บใน RAM (+ ToArray อีกเท่าตัว) Server พังได้ - DeleteOnClose ลบไฟล์เองหลัง
+            // Results.File ส่งจบและปิด stream (รวมกรณี client ตัดกลางทาง)
+            var zipStream = new System.IO.FileStream(
+                System.IO.Path.Combine(System.IO.Path.GetTempPath(), $"collect-{id}-{Guid.NewGuid():N}.zip"),
+                System.IO.FileMode.CreateNew, System.IO.FileAccess.ReadWrite, System.IO.FileShare.None,
+                81920, System.IO.FileOptions.DeleteOnClose);
             using (var zip = new System.IO.Compression.ZipArchive(zipStream, System.IO.Compression.ZipArchiveMode.Create, leaveOpen: true))
             {
                 foreach (var filePath in System.IO.Directory.EnumerateFiles(jobDir, "*", System.IO.SearchOption.AllDirectories))
@@ -327,7 +333,7 @@ public static class FileTransferEndpoints
             zipStream.Position = 0;
 
             var zipFileName = FileTransferPaths.SanitizeFileName(job.Name, "collected-files") + ".zip";
-            return Results.File(zipStream.ToArray(), "application/zip", zipFileName);
+            return Results.File(zipStream, "application/zip", zipFileName);
         });
 
         // ---- Agent อัปโหลดไฟล์ที่นักเรียนเลือกส่ง (ส่งต่อมาจาก AgentTray ผ่าน Agent loopback) - agent-auth ----
