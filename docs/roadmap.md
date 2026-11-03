@@ -363,7 +363,12 @@ orchestrator ส่ง WP0, WP5 และ WP6 ออกพร้อมกัน�
   - **ทำต่อจาก `feat/p4-wp4` (`0ae0ec7`):** ปรับ BroadcastWarningBarWindow ให้เล็ก/หุบได้ + เพิ่มหน้าต่างกรอบแดง + แผ่นใสเขียน + แว่นขยาย
 - **UI-1 AgentTray/Agent ใช้แนวทางเดียวกับ Console:** ใช้ theme token, style, ไอคอน และ control ชุดเดียวกับ Console ทุกหน้าต่างของ AgentTray (จอล็อกอิน, จอล็อก, ยกมือ, staff session, รหัสฉุกเฉิน, ป้ายต่างๆ) · แนวทางที่เสนอ: แยก theme/control ของ Console ออกเป็นโปรเจกต์ไลบรารีร่วม (เช่น `OnionProcOparetor.UI`) ให้ Console, AgentTray และ RosterManager อ้างอิงร่วมกัน
   - **สีเน้นต้องเป็นชุด token ครบ (ผู้ใช้สั่ง 3 พ.ย.):** แต่ละแอปต้อง override ได้ทั้งชุด ทั้งในธีมสว่างและมืด ได้แก่ Default/Light/Dark/Text, พื้นอ่อนหรือ badge ที่มี alpha, hover/pressed, focus ring, selection และ OnAccent ห้ามมีสีส้มหลุดเข้า RosterManager แม้แต่จุดเดียว เพราะฟ้าปนส้มจะดูแปลก
-  - **WP UI-1a ไลบรารีร่วม + Console + RosterManager** (branch `feat/p1-ui1a`)
+  - **WP UI-1a ไลบรารีร่วม + Console + RosterManager** (branch `feat/p1-ui1a`) · **✅ merge แล้ว 3 พ.ย. (`aa5d540`)**
+    - ผลตรวจ: ภาพ Console ก่อน/หลังแก้ 8 ภาพ (ธีมสว่างและมืด) ต่างกัน 0 พิกเซล · RosterManager เป็นฟ้าทั้งหน้าล็อกอินและหน้าหลัก
+    - ยังไม่ได้ทดสอบ: hover/focus ของ RosterManager ด้วย input จริง (ใช้ template เดียวกับ Console) · ส่วนที่ยังเป็นสีส้มคือโลโก้กับไอคอน ซึ่งเป็นงานของ UI-7
+    - สีเน้นแยกเป็น `UI/Theme/Accent.{Light,Dark}.xaml` แอปส่ง URI ของตัวเองให้ `ThemeService.Initialize(..., accentLightUri, accentDarkUri)`
+    - ฟ้าของ RosterManager: hover `#4A89E8`, pressed `#1F56AD`, Text `#1C4C96` (สว่าง) / `#8FB7F0` (มืด)
+    - Server ทดสอบ: `PUT /api/settings/backup` ตอบ 400 เพราะ body ไม่ตรงกับ API ปัจจุบัน ทำให้ Server ยัง backup ลงโฟลเดอร์จริง 1 ครั้ง (worker ลบไฟล์ที่เกิดแล้ว) · **ต้องหารูปแบบ body ที่ถูกต้องก่อนใช้ Server ทดสอบรอบหน้า**
     - สร้างโปรเจกต์ `src/OnionProcOparetor.UI` (WPF class library) และเพิ่มเข้า sln
     - ย้าย `Colors.Light/Dark`, `Icons`, `Typography`, `Controls` และ control ร่วมจาก Console เข้าไลบรารี โดยแยกกลุ่มสีเน้นเป็น dictionary ของตัวเอง
     - ThemeService ที่ซ้ำกันใน Console และ RosterManager ให้ใช้ตัวเดียวในไลบรารี ซึ่งต้องสลับทั้ง palette และสีเน้นของแอปพร้อมกัน
