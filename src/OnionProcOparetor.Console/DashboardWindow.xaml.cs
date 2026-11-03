@@ -928,7 +928,7 @@ public partial class DashboardWindow : UserControl
         // "ไม่ผูกกับการสลับเครื่องของ inspector" (reopen เป็น no-op) ต่างจาก InspectorActionsButton_Click
         var panel = new ActionPanelWindow(_apiClient, client);
         panel.Closed += () => OnActionPanelClosed(panel);
-        ShowInSidePanel(panel, _ => { });
+        ShowInSidePanel(panel, _ => { }, panelWidth: 380);
     }
 
     /// <summary>
@@ -1197,7 +1197,7 @@ public partial class DashboardWindow : UserControl
     /// ชั่วคราว (ซ่อน ClientInspector ไว้ก่อน คืนกลับตอนแผงปิด) - <paramref name="reopen"/> ใช้ตอน
     /// สลับเครื่องขณะแผงเปิดอยู่ (เรียกซ้ำด้วยเครื่องใหม่ แทนการปิดแผงแล้วกลับไปโชว์ inspector เฉยๆ)
     /// </summary>
-    private void ShowInSidePanel(FrameworkElement content, System.Action<ClientMachineDto> reopen)
+    private void ShowInSidePanel(FrameworkElement content, System.Action<ClientMachineDto> reopen, double panelWidth = 360)
     {
         if (Window.GetWindow(this) is not MainWindow mainWindow)
         {
@@ -1206,7 +1206,11 @@ public partial class DashboardWindow : UserControl
 
         _activeSidePanelReopen = reopen;
         ClientInspector.Visibility = Visibility.Collapsed;
-        mainWindow.SidePanel.PanelWidth = Math.Max(InspectorExpandedWidth, 320);
+        // UI3C-FIX (ตรวจด้วย input จริงแล้วพบจริง 2026-11-03): ความกว้างของ content (Border
+        // Style="Card" Width=... ในแต่ละ XAML) ต้องตรงกับ PanelWidth ของ SidePanelHost เป๊ะ ไม่งั้น
+        // content ที่กว้างกว่า (เช่น RunningProcesses 520) จะล้นออกนอกแผง/นอกหน้าต่างไปเลย เพราะ
+        // SidePanelHost เลื่อน slot ความกว้าง PanelWidth เข้ามาเท่านั้น ไม่ได้ auto-fit ตาม content
+        mainWindow.SidePanel.PanelWidth = panelWidth;
         mainWindow.SidePanel.Show(content);
     }
 
@@ -1216,6 +1220,37 @@ public partial class DashboardWindow : UserControl
     {
         _activeSidePanelReopen = null;
         UpdateClientInspector();
+    }
+
+    /// <summary>UI3C-FIX (2026-11-03): ดู comment ใน UpdateClientInspector - เรียกจาก Dispatcher queue
+    /// หลังจาก selection "นิ่ง" แล้วเท่านั้น (ApplyClientsFilter เคลียร์แล้ว reselect เสร็จหมดก่อน
+    /// callback นี้จะได้รัน) ถ้ายังมี 1 เครื่องถูกเลือกอยู่จริง (แค่ transient ตอน reload ไม่ใช่ครูเลิก
+    /// เลือกจริง) ก็เปิด sub-view เดิมต่อด้วยเครื่องนั้น ไม่ปิดอะไรทั้งนั้น</summary>
+    private void ReconcileSidePanelAfterSelectionSettled()
+    {
+        if (_activeSidePanelReopen is not { } reopen)
+        {
+            return; // ปิดไปแล้วจากทางอื่น (เช่น Esc) ระหว่างที่ callback นี้รอคิวอยู่ - ไม่ต้องทำอะไรต่อ
+        }
+
+        var selected = ClientsGrid.SelectedItems.Cast<ClientMachineDto>().ToList();
+        if (selected.Count == 1)
+        {
+            _inspectedClient = selected[0];
+            reopen(selected[0]);
+            return;
+        }
+
+        // ยังไม่ใช่ 1 เครื่องจริงๆ หลังรอแล้ว (ครูเลิกเลือก/เลือกหลายเครื่องจริง) - ปิด sub-view
+        _activeSidePanelReopen = null;
+        if (Window.GetWindow(this) is MainWindow mw)
+        {
+            mw.SidePanel.Close();
+        }
+
+        _inspectedClient = null;
+        ClientInspector.Visibility = Visibility.Collapsed;
+        UpdateToastOffset();
     }
 
     /// <summary>
@@ -1230,18 +1265,23 @@ public partial class DashboardWindow : UserControl
         var selected = ClientsGrid.SelectedItems.Cast<ClientMachineDto>().ToList();
         if (selected.Count != 1)
         {
-            _inspectedClient = null;
-            ClientInspector.Visibility = Visibility.Collapsed;
-
-            // UI-3c (2026-11-03): เลิกเลือกเครื่อง/เลือกหลายเครื่องขณะ sub-view (RunningProcesses ฯลฯ)
-            // เปิดอยู่ใน SidePanel - ไม่มี "เครื่องเดียว" ให้แสดงต่อแล้ว ปิดแผงนั้นไปด้วย (เคลียร์ตัวแปร
-            // ก่อนเรียก Close() กัน OnSidePanelClosed เรียก UpdateClientInspector ย้อนกลับมาซ้ำ)
-            if (_activeSidePanelReopen is not null && Window.GetWindow(this) is MainWindow mw)
+            // UI3C-FIX (ตรวจด้วย input จริงแล้วพบจริง 2026-11-03): ApplyClientsFilter (auto-refresh
+            // ทุก ~10 วิ) ตั้ง ClientsGrid.ItemsSource ใหม่ทั้งก้อนแล้วค่อย SelectedItems.Add กลับตาม Id
+            // เดิม - ทั้งสองขั้นยิง SelectionChanged แยกกัน "0 เลือก" ตามด้วย "1 เลือก" แบบ synchronous
+            // ในช่วงสั้น ๆ ถ้าปิด SidePanel ทันทีตอนเห็น "0 เลือก" (เหมือนโค้ดเดิมที่เขียนไว้ก่อนตรวจ)
+            // sub-view ที่ครูกำลังเปิดดูอยู่จะถูกปิดไปเองกลางอากาศทุกรอบ auto-refresh โดยไม่มีใครแตะอะไร
+            // เลย - ต้องรอให้ selection "นิ่ง" ก่อน (เข้าคิว Dispatcher ให้ ApplyClientsFilter ทำขั้น
+            // reselect ให้เสร็จก่อน ซึ่งเป็น synchronous call เดียวกัน จึงจบก่อนคิวนี้จะได้รันเสมอ) ถึงจะ
+            // ตัดสินใจปิดจริง - การเลือก/ยกเลิกเลือกที่ครูทำเองด้วยมือไม่มี "1 แล้วกลับไป 0" ภายในเฟรม
+            // เดียวกันแบบนี้ จึงไม่กระทบพฤติกรรมปกติ
+            if (_activeSidePanelReopen is not null)
             {
-                _activeSidePanelReopen = null;
-                mw.SidePanel.Close();
+                Dispatcher.BeginInvoke(DispatcherPriority.Background, new Action(ReconcileSidePanelAfterSelectionSettled));
+                return;
             }
 
+            _inspectedClient = null;
+            ClientInspector.Visibility = Visibility.Collapsed;
             UpdateToastOffset();
             return;
         }
@@ -1413,7 +1453,7 @@ public partial class DashboardWindow : UserControl
     {
         var content = new RunningProcessesWindow(_apiClient, _labHubClient, client);
         content.CloseRequested += () => (Window.GetWindow(this) as MainWindow)?.SidePanel.Close();
-        ShowInSidePanel(content, OpenRunningProcessesInSidePanel);
+        ShowInSidePanel(content, OpenRunningProcessesInSidePanel, panelWidth: 520);
     }
 
     private void InspectorPendingCommandsButton_Click(object sender, RoutedEventArgs e)
@@ -1428,7 +1468,7 @@ public partial class DashboardWindow : UserControl
     {
         var content = new PendingCommandsWindow(_apiClient, client);
         content.CloseRequested += () => (Window.GetWindow(this) as MainWindow)?.SidePanel.Close();
-        ShowInSidePanel(content, OpenPendingCommandsInSidePanel);
+        ShowInSidePanel(content, OpenPendingCommandsInSidePanel, panelWidth: 420);
     }
 
     private void InspectorClientSettingsButton_Click(object sender, RoutedEventArgs e)
@@ -1450,7 +1490,7 @@ public partial class DashboardWindow : UserControl
                 await LoadAllDataAsync();
             }
         };
-        ShowInSidePanel(content, OpenClientSettingsInSidePanel);
+        ShowInSidePanel(content, OpenClientSettingsInSidePanel, panelWidth: 320);
     }
 
     /// <summary>
@@ -1502,7 +1542,7 @@ public partial class DashboardWindow : UserControl
             (Window.GetWindow(this) as MainWindow)?.SidePanel.Close();
             await LoadAllDataAsync();
         };
-        ShowInSidePanel(content, OpenRuleOverridesInSidePanel);
+        ShowInSidePanel(content, OpenRuleOverridesInSidePanel, panelWidth: 420);
     }
 
     private void InspectorActionsButton_Click(object sender, RoutedEventArgs e)
@@ -1517,7 +1557,7 @@ public partial class DashboardWindow : UserControl
     {
         var panel = new ActionPanelWindow(_apiClient, client);
         panel.Closed += () => OnActionPanelClosed(panel);
-        ShowInSidePanel(panel, OpenActionPanelInSidePanel);
+        ShowInSidePanel(panel, OpenActionPanelInSidePanel, panelWidth: 380);
     }
 
     private async void BroadcastMessageButton_Click(object sender, RoutedEventArgs e)
@@ -1574,7 +1614,7 @@ public partial class DashboardWindow : UserControl
         var selected = ClientsGrid.SelectedItems.Cast<ClientMachineDto>().ToList();
         var panel = new ActionPanelWindow(_apiClient, selected, _allClients, defaultToAll: false);
         panel.Closed += () => OnActionPanelClosed(panel);
-        ShowInSidePanel(panel, _ => { });
+        ShowInSidePanel(panel, _ => { }, panelWidth: 380);
     }
 
     /// <summary>
@@ -1590,7 +1630,7 @@ public partial class DashboardWindow : UserControl
         var selected = ClientsGrid.SelectedItems.Cast<ClientMachineDto>().ToList();
         var panel = new ActionPanelWindow(_apiClient, selected, _allClients, defaultToAll: true);
         panel.Closed += () => OnActionPanelClosed(panel);
-        ShowInSidePanel(panel, _ => { });
+        ShowInSidePanel(panel, _ => { }, panelWidth: 380);
     }
 
     /// <summary>
@@ -2790,7 +2830,7 @@ public partial class DashboardWindow : UserControl
 
         var panel = new ActionPanelWindow(_apiClient, client, alreadyViewingScreen: true);
         panel.Closed += () => OnActionPanelClosed(panel);
-        ShowInSidePanel(panel, _ => { });
+        ShowInSidePanel(panel, _ => { }, panelWidth: 380);
     }
 
     private void SetToggleTargetInputButtonVisual(bool blocked)
