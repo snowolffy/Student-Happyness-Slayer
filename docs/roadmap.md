@@ -405,6 +405,20 @@ orchestrator ส่ง WP0, WP5 และ WP6 ออกพร้อมกัน�
   - **คงหน้าต่างแยก:** Screen View/remote (ลากไปจออื่นได้) และไว้ใจใบรับรอง (ขึ้นก่อนล็อกอิน)
   - ทำต่อจาก UI-2
   - **รวมงาน "เด้งกลับหน้าล็อกอินเองเมื่อ token หมดอายุ (401)" ไว้ใน UI-3 (ผู้ใช้สั่ง 3 พ.ย.)** ใช้ `ReturnToLoginAsync` ที่ UI-2 ทำไว้ และดักจุดเดียวที่ ApiClient ไม่ต้องแก้ทีละ method
+  - **แบ่ง WP (3 พ.ย.)** อ้างอิง wireframe `con-dialogs` / `con-actionpanel` / `con-clients`
+    - **UI-3a โครงสร้าง** (branch `feat/p1-ui3a`, ทำก่อน)
+      - สร้าง `DialogHost` สำหรับ dialog ลอยในหน้าต่างหลัก: พื้นมืดทับ, Esc = ยกเลิก, Enter = ปุ่มหลัก, โฟกัสไม่หลุดออกนอก dialog, คืนผลแบบ `Task<T?>`
+      - สร้าง `SidePanelHost` สำหรับแผงสไลด์ขวา โดยต่อยอดจาก inspector เดิม
+      - ใช้ได้ทั้งใน MainWindow (ก่อนล็อกอิน) และ Dashboard
+      - ย้าย `ConfirmWindow` (ใช้ทั่วโปรแกรม) และ `ForceChangePasswordWindow` มาใช้ DialogHost
+      - ทำงาน 401 → `ReturnToLoginAsync` พร้อมข้อความ "เซสชันหมดอายุ"
+      - วางแบบแผนที่ UI-3b/3c ทำตามได้ทันที: แปลง Window เป็น UserControl แต่คง logic เดิม
+    - **UI-3b dialog ลอย (ฟอร์มสั้น)** (ทำหลัง 3a)
+      - หน้าต่างที่ย้าย: BroadcastMessage, OpenUrl, ExamMode, LockScreenMessage, AddEditRule, ResetPassword, ChangeUserRole, EditDisplayName, ChangeMyPassword, AddEditWebsiteRule, BulkAddWebsiteRules, AddAllowListPreset, AddEditWebsiteCatalogSource, ScreenBroadcastSetup, EmergencyCodeQr, EmergencyCodeUsage
+    - **UI-3c แผงขวา + dialog ใหญ่** (ทำหลัง 3a ขนานกับ 3b ได้ แต่แตะคนละไฟล์)
+      - แผงขวาของเครื่องเดียว: ClientSettings, RunningProcesses, PendingCommands, RuleOverrides, ActionPanel
+      - dialog ใหญ่: ActionReport, Files, LaunchablePrograms, WebsiteCatalogSources
+    - **คงหน้าต่างแยก:** Screen View/VNC, TrustCertificate, TailscaleLogin, About, BroadcastWarningBar และหน้าต่างวาด/กรอบของการส่งจอครู (ต้องลอยบนจอ)
 - **UI-4 หน้า Dashboard (หน้าแรกหลังล็อกอิน):** จำนวนเครื่องออนไลน์/ออฟไลน์ + นักเรียนที่ล็อกอิน · คิวยกมือ · โหมดสอบที่ทำงานอยู่ · เหตุการณ์ล่าสุด (ปิดโปรแกรม, บล็อกเว็บ, เครื่องหลุด) · ปุ่มลัด (ล็อกทั้งห้อง, ส่งข้อความ, โหมดสอบ) · ใช้ API ที่มีอยู่เป็นหลัก
 - **UI-5 Live View ใหม่:**
   - เลือกห้องแล้วเห็นทุกเครื่องทันที เรียงตามผังที่นั่งถ้ามี · ปรับขนาดภาพย่อได้
