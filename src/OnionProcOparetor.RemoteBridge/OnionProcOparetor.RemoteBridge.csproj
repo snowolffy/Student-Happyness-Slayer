@@ -7,6 +7,8 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <AssemblyName>OnionProcOparetor.RemoteBridge</AssemblyName>
     <RootNamespace>OnionProcOparetor.RemoteBridge</RootNamespace>
+    <!-- ไอคอนหัวหอมส้มชุดใหม่ (UI-7a) - Theme\icon.ico มีแล้ว -->
+    <ApplicationIcon>Theme\icon.ico</ApplicationIcon>
   </PropertyGroup>
 
   <ItemGroup>

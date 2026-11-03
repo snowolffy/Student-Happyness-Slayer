@@ -1,0 +1,23 @@
+{
+  "key": "tray.disconnected",
+  "name": "Disconnected",
+  "name_th": "ไม่ได้เชื่อมต่อ",
+  "category": "status",
+  "description": "Not connected / connection lost.",
+  "ico_sizes": [
+    16,
+    20,
+    24,
+    32,
+    48,
+    64
+  ],
+  "png_sizes": [
+    16,
+    20,
+    24,
+    32,
+    48,
+    64
+  ]
+}
