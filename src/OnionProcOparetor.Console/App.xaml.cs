@@ -184,7 +184,19 @@ public partial class App : Application
                 "broadcast" => new BroadcastMessageWindow(3),
                 "add-rule" => new AddEditRuleWindow(api),
                 "change-password" => new ChangeMyPasswordWindow(api),
-                "force-password" => new ForceChangePasswordWindow(api),
+                // UI-3a (2026-11-03): ForceChangePasswordWindow กลายเป็น UserControl แล้ว (ฝังใน
+                // DialogHost จริงของ MainWindow) - harness นี้แค่ต้องการถ่ายภาพ chrome เฉยๆ เลยห่อด้วย
+                // Window เปล่าแบบเดียวกับที่ ConfirmWindow.xaml ทำกับ ConfirmDialogContent ไม่ต้องพึ่ง
+                // DialogHost จริงสำหรับภาพนิ่งแบบนี้
+                "force-password" => new Window
+                {
+                    Title = "Onion ProcOparetor Console - เปลี่ยน Password",
+                    SizeToContent = SizeToContent.WidthAndHeight,
+                    WindowStartupLocation = WindowStartupLocation.CenterScreen,
+                    ResizeMode = ResizeMode.NoResize,
+                    Style = (Style)Current.FindResource("AppDialogWindow"),
+                    Content = new ForceChangePasswordWindow(api) { Margin = new Thickness(24) },
+                },
                 "reset-password" => new ResetPasswordWindow("teacher01"),
                 // WP4b (2026-10-30)
                 "edit-display-name" => new EditDisplayNameWindow("teacher01", "ครูสมชาย"),

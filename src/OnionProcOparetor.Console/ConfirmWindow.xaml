@@ -1,55 +1,16 @@
-﻿<Window x:Class="OnionProcOparetor.Console.ConfirmWindow"
+<Window x:Class="OnionProcOparetor.Console.ConfirmWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Confirm"
-        Width="420"
-        SizeToContent="Height"
-        MinHeight="180"
+        SizeToContent="WidthAndHeight"
         WindowStartupLocation="CenterOwner"
         ResizeMode="NoResize"
         Icon="/Theme/icon.ico"
         Style="{StaticResource AppDialogWindow}">
-    <!-- WindowStartupLocation="CenterOwner" (กลับมาใช้ของ WPF เอง 2026-09-10 ตามที่ผู้ใช้ขอ)
-         เดิมเคยคำนวณตำแหน่งเองใน Loaded ผ่าน WindowCenteringHelper เพราะเชื่อว่า CenterOwner เพี้ยน
-         เมื่อใช้กับ SizeToContent แต่พอใช้จริงแล้วรู้สึกว่าตัวคำนวณเองมีอาการแปลกกว่า จึงกลับมาใช้
-         ของมาตรฐาน - ถ้าเจอว่าเยื้องอีก วัดด้วยสวิตช์ center-test ได้ (ดู docs/console-ui-notes.md §6) -->
-    <!-- Themed แทน MessageBox.Show เดิม (native OS dialog ที่ดูไม่เข้าธีมของแอพเลย) - drop-in
-         replacement ผ่าน static ConfirmWindow.Show(message, title, owner) ดู ConfirmWindow.xaml.cs
-
-         Grid + SizeToContent="Height" แทน Canvas เดิม: message มีความยาวไม่แน่นอนมาก ตั้งแต่ข้อความ
-         บรรทัดเดียวสั้นๆ ไปจนถึงคำเตือน Shutdown/Restart 2 บรรทัดที่มี delaySeconds แทรก - Canvas เดิม
-         ตรึงปุ่ม YES/NO ไว้ที่ Canvas.Top="139" คงที่ พอข้อความยาว wrap เกินพื้นที่นั้นจะไปทับปุ่มเลย
-         ให้ Grid วัดความสูงข้อความจริงแล้วโต window ตามเสมอ ไม่มีทางทับกันได้อีก -->
-    <Grid Margin="20">
-        <Grid.RowDefinitions>
-            <RowDefinition Height="Auto"/>
-            <RowDefinition Height="20"/>
-            <RowDefinition Height="Auto"/>
-        </Grid.RowDefinitions>
-
-        <StackPanel Grid.Row="0">
-            <TextBlock x:Name="MessageText" Width="380"
-                       Style="{StaticResource Caption}" FontSize="13" TextWrapping="Wrap" HorizontalAlignment="Left"/>
-
-            <!-- ยืนยันด้วยการพิมพ์ชื่อ - ซ่อนไว้เสมอ นอกจากจะเรียกผ่าน ShowWithTypeToConfirm
-                 ใช้เฉพาะปุ่มลบ ซึ่งเป็นอย่างเดียวในแอปนี้ที่กดแล้วเอาคืนไม่ได้ -->
-            <StackPanel x:Name="TypeToConfirmPanel" Visibility="Collapsed" Margin="0,14,0,0">
-                <TextBlock x:Name="TypeToConfirmPrompt" Style="{StaticResource Label}" Margin="0,0,0,6"/>
-                <TextBox x:Name="TypeToConfirmBox" Width="380" HorizontalAlignment="Left"
-                         Style="{StaticResource RoundedTextBox}"
-                         TextChanged="TypeToConfirmBox_TextChanged"/>
-            </StackPanel>
-        </StackPanel>
-
-        <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right">
-            <!-- ปุ่มยืนยันบอก "การกระทำ" ไม่ใช่คำว่า YES - ตอนกำลังจะสั่งปิด 40 เครื่อง ปุ่มที่เขียนว่า
-                 YES บังคับให้ต้องย้อนกลับไปอ่านข้อความอีกรอบเพื่อรู้ว่ากำลังตอบตกลงกับอะไร
-                 ความกว้างเป็น MinWidth ไม่ใช่ Width ตายตัว เพราะข้อความยาวไม่เท่ากันในแต่ละที่ -->
-            <Button x:Name="CancelButton" MinWidth="90" Content="ยกเลิก" Style="{StaticResource ButtonSecondary}"
-                    Padding="14,5" FontSize="12" Height="35" Click="CancelButton_Click" Margin="0,0,10,0"/>
-            <Button x:Name="ConfirmButton" MinWidth="90" Content="ยืนยัน"
-                    Padding="14,5" FontSize="12" Height="35"
-                    Style="{StaticResource ButtonDanger}" Click="ConfirmButton_Click"/>
-        </StackPanel>
-    </Grid>
+    <!-- UI-3a (2026-11-03): หน้าต่างนี้เหลือไว้เป็น "chrome เปล่า" สำหรับ owner ที่ยังไม่มี DialogHost
+         ของตัวเอง (ActionPanelWindow/LaunchableProgramsWindow/RunningProcessesWindow/
+         WebsiteCatalogSourcesWindow - จะถูกย้ายเป็น UserControl ใน UI-3c) และสำหรับ debug preview
+         harness (สวิตช์ dialog=confirm) เท่านั้น - เนื้อหาจริงอยู่ใน ConfirmDialogContent.xaml ทั้งหมดแล้ว
+         (ย้ายออกจากที่นี่ เพื่อใช้ร่วมกับเส้นทาง DialogHost ใหม่ได้โดยไม่ต้องเขียน XAML ซ้ำสองชุด - ดู
+         ConfirmWindow.xaml.cs) -->
 </Window>

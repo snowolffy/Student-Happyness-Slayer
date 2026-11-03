@@ -5,6 +5,7 @@ using System.Windows.Media.Animation;
 using System.Windows.Media.Imaging;
 using OnionProcOparetor.Console.Models;
 using OnionProcOparetor.Console.Services;
+using OnionProcOparetor.UI.Controls;
 
 namespace OnionProcOparetor.Console;
 
@@ -28,6 +29,16 @@ public partial class MainWindow : Window
     /// ทุกครั้งที่ login สำเร็จ (เหมือนพฤติกรรมเดิมก่อน UI-2) ทิ้งตอน logout ดู ShowDashboardAsync/
     /// ReturnToLoginAsync</summary>
     private DashboardWindow? _dashboard;
+
+    /// <summary>UI-3a (2026-11-03): DialogHost ที่ใช้ร่วมกันของทั้งหน้าล็อกอินและ Dashboard (ดู
+    /// MainWindow.xaml - AppDialogHost เป็นลูกตัวสุดท้ายของ root Grid เสมอ) ให้ DashboardWindow (และ
+    /// static facade อย่าง ConfirmWindow.Show) เข้าถึงผ่าน property นี้แทนการเดินหา visual tree เอง -
+    /// ดู docs/architecture.md หัวข้อ "UI-3a: DialogHost/SidePanelHost" สำหรับลายแผนที่ UI-3b/3c ใช้ต่อ</summary>
+    public DialogHost DialogHost => AppDialogHost;
+
+    /// <summary>UI-3a (2026-11-03): SidePanelHost เดียวกัน สำหรับแผงสไลด์ขวาที่ UI-3c จะย้ายเข้ามา (ดู
+    /// comment บน DialogHost ข้างบน)</summary>
+    public SidePanelHost SidePanel => AppSidePanel;
 
     public MainWindow()
     {
@@ -212,15 +223,15 @@ public partial class MainWindow : Window
                 StatusText.SetResourceReference(System.Windows.Controls.TextBlock.ForegroundProperty, "Brush.Status.Online");
                 StatusText.Text = "เชื่อมต่อสำเร็จ กรุณาเปลี่ยน password ก่อนใช้งาน...";
 
-                // UI-2 (2026-11-03): เดิมหน้านี้เปิดเป็นหน้าต่างของตัวเองแล้ว Close() MainWindow ทิ้ง
-                // (ตอนนั้น DashboardWindow/ForceChangePasswordWindow ต่างก็เป็น Window อิสระ) ตอนนี้
-                // MainWindow ต้องอยู่ต่อตลอด (host เดียว) จึงเปิดเป็น modal dialog แทน (Owner=this,
-                // ShowDialog) แล้วอ่านผลจาก DialogResult - เปลี่ยนสำเร็จ (true) ค่อยเปิดหน้าหลักต่อใน
-                // หน้าต่างเดิมนี้เอง ถ้าผู้ใช้ปิดหน้าต่างเปลี่ยนรหัสเอง (กดปุ่ม X) ก็แค่กลับมาที่ฟอร์ม
-                // ล็อกอินเดิม ยังไม่ login จริง (ตรงกับพฤติกรรมเดิมที่ต้องเปลี่ยนรหัสให้จบก่อนถึงจะเห็น
-                // Dashboard)
-                var forceChangeWindow = new ForceChangePasswordWindow(_apiClient) { Owner = this };
-                var passwordChanged = forceChangeWindow.ShowDialog() == true;
+                // UI-3a (2026-11-03): เดิม (UI-2) เปิดเป็นหน้าต่างลูกแยก (Owner=this, ShowDialog) แล้ว
+                // อ่านผลจาก DialogResult - ตอนนี้ย้ายเข้า DialogHost แทน (ดู ForceChangePasswordWindow
+                // ที่แปลงเป็น UserControl แล้ว) ผลลัพธ์มาจาก event ResultChosen ที่ subscribe ไว้ก่อน
+                // แล้วให้ DialogHost ปิด dialog เองผ่าน CloseTop - เปลี่ยนสำเร็จ (true) ค่อยเปิดหน้าหลัก
+                // ต่อ ถ้าผู้ใช้กด Esc (ไม่ raise ResultChosen เลย) DialogHost ปิดด้วยผล default = false
+                // ซึ่งตรงกับ "ยกเลิก" พอดีอยู่แล้ว
+                var forceChangeContent = new ForceChangePasswordWindow(_apiClient);
+                forceChangeContent.ResultChosen += result => AppDialogHost.CloseTop(result);
+                var passwordChanged = await AppDialogHost.ShowAsync<bool>(forceChangeContent);
                 if (passwordChanged)
                 {
                     ToastService.Success($"เข้าสู่ระบบสำเร็จ ({username})");
@@ -318,6 +329,15 @@ public partial class MainWindow : Window
         // เดิม (ไม่ใช่ async void ตรงๆ ที่นี่เพราะ event handler ของ Button ไม่ await ได้ - ครอบด้วย _ =
         // ตามแบบที่โค้ดเดิมในไฟล์นี้ใช้กับ async void pattern อยู่แล้ว)
         dashboard.LogoutRequested += () => _ = ReturnToLoginAsync();
+
+        // UI-3a (2026-11-03): "เด้งกลับหน้าล็อกอินเองเมื่อ token หมดอายุ (401)" ตามที่ roadmap UI-3
+        // สั่งรวมไว้ - ApiClient ดัก 401 ของทุก request ไว้จุดเดียว (ดู ApiClient.SessionExpired) ที่นี่
+        // แค่ subscribe แล้วพาไปหน้าล็อกอินพร้อมข้อความ เหมือน logout ปกติทุกอย่าง ต่างกันแค่ข้อความที่
+        // StatusText (ดู ReturnToLoginAsync) - ต้อง BeginInvoke กลับ UI thread เพราะ SessionExpired ถูก
+        // ยิงจาก DelegatingHandler.SendAsync ซึ่งอาจไม่ใช่ UI thread เสมอไป (ขึ้นกับ async context ของ
+        // request ที่ชน 401 ตัวแรก)
+        apiClient.SessionExpired += () => Dispatcher.BeginInvoke(() =>
+            _ = ReturnToLoginAsync("เซสชันหมดอายุ กรุณาเข้าสู่ระบบใหม่"));
         _dashboard = dashboard;
 
         DashboardHost.Content = dashboard;
@@ -339,11 +359,16 @@ public partial class MainWindow : Window
     }
 
     /// <summary>
-    /// UI-2 (2026-11-03): logout (หรือ token หมดอายุในอนาคต) -> fade กลับไปหน้าล็อกอิน "ในหน้าต่างเดิม"
-    /// ตามที่ roadmap WP UI-2 สั่ง - ไม่เรียก API ใดๆ (ยังไม่มี endpoint invalidate token ของ Server ฝั่งนี้
-    /// - ดู comment บน LogoutButton ใน DashboardWindow.xaml) แค่เคลียร์ ApiClient/Dashboard ฝั่ง client
+    /// UI-2 (2026-11-03): logout -> fade กลับไปหน้าล็อกอิน "ในหน้าต่างเดิม" ตามที่ roadmap WP UI-2 สั่ง
+    /// - ไม่เรียก API ใดๆ (ยังไม่มี endpoint invalidate token ของ Server ฝั่งนี้ - ดู comment บน
+    /// LogoutButton ใน DashboardWindow.xaml) แค่เคลียร์ ApiClient/Dashboard ฝั่ง client
+    ///
+    /// UI-3a (2026-11-03): รับ <paramref name="message"/> เพิ่ม เพื่อใช้ซ้ำเส้นทางเดียวกันนี้กับตอน
+    /// token หมดอายุ (401) ที่ ApiClient.SessionExpired ยิงมา (ดู ShowDashboardAsync) - null = พฤติกรรม
+    /// เดิมของ logout ปกติ (เคลียร์ StatusText เปล่าๆ) ไม่ null = โชว์ข้อความนั้นเป็นสีแดงใต้ปุ่มเชื่อมต่อ
+    /// ทันทีที่กลับมาหน้าล็อกอิน (เช่น "เซสชันหมดอายุ กรุณาเข้าสู่ระบบใหม่")
     /// </summary>
-    private async Task ReturnToLoginAsync()
+    private async Task ReturnToLoginAsync(string? message = null)
     {
         if (_dashboard is null)
         {
@@ -390,7 +415,15 @@ public partial class MainWindow : Window
         // เคลียร์ฟอร์มล็อกอิน - ล้าง password เสมอ (ความปลอดภัย) แต่คง Server IP/Port/Username ไว้ให้
         // กรอกรหัสใหม่ได้เร็ว ไม่ต้องพิมพ์ทุกช่องใหม่
         PasswordBox.Clear();
-        StatusText.Text = string.Empty;
+        if (message is null)
+        {
+            StatusText.Text = string.Empty;
+        }
+        else
+        {
+            StatusText.SetResourceReference(System.Windows.Controls.TextBlock.ForegroundProperty, "Brush.Danger.Default");
+            StatusText.Text = message;
+        }
         ConnectButton.IsEnabled = true;
         _apiClient = new ApiClient();
 

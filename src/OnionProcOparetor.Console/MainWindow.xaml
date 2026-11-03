@@ -1,6 +1,7 @@
 ﻿<Window x:Class="OnionProcOparetor.Console.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:controls="clr-namespace:OnionProcOparetor.UI.Controls;assembly=OnionProcOparetor.UI"
         Title="Onion ProcOparetor Console"
         Width="1000" Height="732"
         WindowStartupLocation="CenterScreen"
@@ -179,5 +180,12 @@
                            Margin="0,12,0,0" HorizontalAlignment="Center"/>
             </StackPanel>
         </Grid>
+
+        <!-- ==================== UI-3a (2026-11-03): แผงสไลด์ขวา + dialog ลอย ====================
+             ประกาศหลังสุดทั้งคู่ (z-order สูงสุด) - SidePanelHost ก่อน DialogHost เสมอ เพื่อให้ dialog
+             ลอย (เช่น ยืนยันลบ ที่เปิดจากในแผงสไลด์ขวาของ UI-3c) ทับแผงสไลด์ได้ ไม่ใช่กลับกัน ดูลายแผน
+             เต็มใน docs/architecture.md หัวข้อ "UI-3a: DialogHost/SidePanelHost" -->
+        <controls:SidePanelHost x:Name="AppSidePanel"/>
+        <controls:DialogHost x:Name="AppDialogHost"/>
     </Grid>
 </Window>

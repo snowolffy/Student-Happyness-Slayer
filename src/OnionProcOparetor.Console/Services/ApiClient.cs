@@ -1,4 +1,5 @@
 ﻿using System.IO;
+using System.Net;
 using System.Net.Http;
 using System.Net.Http.Json;
 using OnionProcOparetor.Console.Models;
@@ -34,16 +35,78 @@ public class ApiClient
     /// <summary>ชื่อที่แสดงของบัญชีที่ login อยู่ตอนนี้ (WP4b, 2026-10-30) - ใช้แทน Username ในแถบล่าง Console</summary>
     public string DisplayName { get; private set; } = string.Empty;
 
+    /// <summary>
+    /// UI-3a (2026-11-03): token หมดอายุ/ไม่ถูกต้อง (401 จาก request ที่ไม่ใช่ /api/auth/login เอง -
+    /// ดู SessionAwareHandler ด้านล่าง) - ยิงครั้งเดียวต่อตอนที่หลุด (ดู _sessionExpiredRaised) ไม่ว่า
+    /// จะมีกี่ request พร้อมกันที่โดน 401 รอบเดียวกัน ผู้ subscribe (MainWindow.ShowDashboardAsync) พา
+    /// กลับหน้าล็อกอินพร้อมข้อความ "เซสชันหมดอายุ" เป็นจุดดักจุดเดียวของทั้ง ApiClient ไม่ต้องเช็ค
+    /// response.StatusCode ซ้ำในทุก method ข้างบน/ล่างนี้
+    ///
+    /// หมายเหตุ thread: ถูกยิงจาก SessionAwareHandler.SendAsync ซึ่งรันบน thread ของ request ที่โดน 401
+    /// (ไม่จำเป็นต้องเป็น UI thread) - ผู้ subscribe ต้อง BeginInvoke กลับ UI thread เอง
+    /// </summary>
+    public event Action? SessionExpired;
+
+    private bool _sessionExpiredRaised;
+
     public ApiClient()
     {
         // WP1 (2026-10-30): ผูก ServerCertificatePinning ไว้ตั้งแต่สร้าง HttpClient เสมอ (ไม่ใช่แค่ตอน
         // BaseUrl เป็น https://) - ไม่มีผลถ้าต่อ http:// (callback ไม่ถูกเรียกเลยเพราะไม่มี TLS handshake)
         // และถ้าไม่ได้ pin thumbprint ไว้ที่เครื่องนี้ มันจะ fallback ไปใช้ default validation ของ .NET
         // เองอยู่แล้ว (ดู comment เต็มใน ServerCertificatePinning)
-        _httpClient = new HttpClient(ServerCertificatePinning.CreateHandler())
+        //
+        // UI-3a (2026-11-03): ครอบ handler เดิมอีกชั้นด้วย SessionAwareHandler เพื่อดัก 401 ของทุก
+        // request ที่วิ่งผ่าน _httpClient นี้ ณ จุดเดียว (ไม่ต้องแก้ GetFromJsonAsync/PostAsJsonAsync
+        // ทีละ method ในไฟล์นี้ทั้งหมด - DelegatingHandler คือชั้นกลางของ HttpClient ที่ WPF/​.NET ตั้งใจ
+        // ออกแบบมาให้ทำแบบนี้)
+        _httpClient = new HttpClient(new SessionAwareHandler(ServerCertificatePinning.CreateHandler(), this))
         {
             Timeout = TimeSpan.FromSeconds(10)
         };
+    }
+
+    /// <summary>ดัก 401 ของทุก response ที่วิ่งผ่าน _httpClient ยกเว้น /api/auth/login เอง (endpoint
+    /// นั้นตอบ 401 ปกติเวลา username/password ผิด - ไม่ใช่ "เซสชันหมดอายุ" ดู AuthEndpoints.cs ฝั่ง
+    /// Server) และยกเว้นตอนที่ยังไม่ login สำเร็จ (ApiClient.IsLoggedIn เช็คจาก _token - กันพลาดซ้ำถ้า
+    /// มี request อื่นที่เผื่อเรียกก่อน login เสร็จ)</summary>
+    private sealed class SessionAwareHandler : DelegatingHandler
+    {
+        private readonly ApiClient _owner;
+
+        public SessionAwareHandler(HttpMessageHandler innerHandler, ApiClient owner) : base(innerHandler)
+        {
+            _owner = owner;
+        }
+
+        protected override async Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            var response = await base.SendAsync(request, cancellationToken);
+
+            if (response.StatusCode == HttpStatusCode.Unauthorized
+                && _owner.IsLoggedIn
+                && request.RequestUri?.AbsolutePath != "/api/auth/login")
+            {
+                _owner.RaiseSessionExpiredOnce();
+            }
+
+            return response;
+        }
+    }
+
+    private void RaiseSessionExpiredOnce()
+    {
+        if (_sessionExpiredRaised)
+        {
+            return;
+        }
+
+        _sessionExpiredRaised = true;
+        // เคลียร์ token ทันที กัน request อื่นที่กำลังทำงานค้างอยู่ตอนนั้นยิง SessionExpired ซ้ำด้วย
+        // token เดิมที่หมดอายุไปแล้ว (IsLoggedIn จะเป็น false ตั้งแต่บรรทัดนี้ไป)
+        _token = null;
+        SessionExpired?.Invoke();
     }
 
     /// <summary>
