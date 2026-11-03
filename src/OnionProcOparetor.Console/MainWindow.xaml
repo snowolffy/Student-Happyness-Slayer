@@ -85,11 +85,11 @@
                     <Grid Grid.Column="1" Margin="36,16,36,16">
                         <StackPanel VerticalAlignment="Center">
                             <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
-                                <Border Width="24" Height="24" CornerRadius="6">
+                                <Border Width="36" Height="36" CornerRadius="6">
                                     <!-- ไม่มีพื้นสี่เหลี่ยมหลังโลโก้ (ผู้ใช้สั่ง 3 พ.ย. 2569)
-                                         โลโก้เวกเตอร์ (WP UI-7c) - "small" เพราะแสดงจริงแค่ 24px (≤32px ตาม
+                                         โลโก้เวกเตอร์ (WP UI-7c) - ขนาด 36px ให้สมดุลกับหัวข้อ (ผู้ใช้ 3 พ.ย.) จึงใช้รุ่น full (>32px ตาม
                                          assets/icons/README.md) แทน logo-source.png 256px ที่ย่อแล้วเบลอ -->
-                                    <Image Source="{StaticResource Logo.App.Small}" Stretch="Uniform"/>
+                                    <Image Source="{StaticResource Logo.App}" Stretch="Uniform"/>
                                 </Border>
                                 <StackPanel Margin="8,0,0,0" VerticalAlignment="Center">
                                     <TextBlock Text="Onion ProcOparetor" Style="{StaticResource Heading1}"/>
