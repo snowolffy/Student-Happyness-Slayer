@@ -1679,7 +1679,7 @@ public partial class DashboardWindow : UserControl
     /// ActionPanelWindow - คัดลอกบล็อกเปิดหน้า report มาเฉพาะส่วนที่ต้องใช้ ไม่แก้ RunActionPanelAsync
     /// เดิมเพื่อลดความเสี่ยงชนกับ WP4-2 ที่แก้ไฟล์นี้พร้อมกัน)
     /// </summary>
-    private void OpenUrlProgramButton_Click(object sender, RoutedEventArgs e)
+    private async void OpenUrlProgramButton_Click(object sender, RoutedEventArgs e)
     {
         var selected = ClientsGrid.SelectedItems.Cast<ClientMachineDto>().ToList();
         var currentRoomFilterId = (RoomFilterCombo.SelectedItem as RoomFilterOption)?.RoomIdOrSentinel;
@@ -1691,13 +1691,15 @@ public partial class DashboardWindow : UserControl
         dialog.ResultChosen += r => mainWindow.DialogHost.CloseTop(r);
         await mainWindow.DialogHost.ShowAsync<bool>(dialog);
 
-        if (dialog.PendingReport is not { } request || Window.GetWindow(this) is not MainWindow mainWindow)
+        if (dialog.PendingReport is not { } request)
         {
             return;
         }
 
         // UI-3c (2026-11-03): ActionReportWindow ย้ายไป DialogHost (dialog ใหญ่) แล้ว - ลอยทับหน้าหลัก
         // ได้ตลอด (modal) จึงไม่มี "ซ่อนอยู่หลัง Dashboard" ให้ toast พาไปหาอีกต่อไป (ดู OnActionPanelClosed)
+        // Push ตรงๆ (ไม่ผ่าน ShowAsync) เพราะต้องการให้ dialog นี้ลอยอยู่ต่อแบบ non-blocking (ครู
+        // ปิด toast/ทำงานอื่นต่อได้ทันทีโดยไม่ต้อง await การปิด report)
         var report = new ActionReportWindow(_apiClient, _labHubClient, request);
         report.CloseRequested += () => mainWindow.DialogHost.CloseTop(null);
         mainWindow.DialogHost.Push(report, _ => { });
