@@ -362,6 +362,23 @@ orchestrator ส่ง WP0, WP5 และ WP6 ออกพร้อมกัน�
   - **แถบตอนหุบ (ตัดสินแล้ว):** เหลือปุ่มกลมแดงเล็กลากย้ายได้ กดแล้วกางกลับเป็นแถบเต็ม (หยุดส่ง, เครื่องมือเขียน, zoom)
   - **ทำต่อจาก `feat/p4-wp4` (`0ae0ec7`):** ปรับ BroadcastWarningBarWindow ให้เล็ก/หุบได้ + เพิ่มหน้าต่างกรอบแดง + แผ่นใสเขียน + แว่นขยาย
 - **UI-1 AgentTray/Agent ใช้แนวทางเดียวกับ Console:** ใช้ theme token, style, ไอคอน และ control ชุดเดียวกับ Console ทุกหน้าต่างของ AgentTray (จอล็อกอิน, จอล็อก, ยกมือ, staff session, รหัสฉุกเฉิน, ป้ายต่างๆ) · แนวทางที่เสนอ: แยก theme/control ของ Console ออกเป็นโปรเจกต์ไลบรารีร่วม (เช่น `OnionProcOparetor.UI`) ให้ Console, AgentTray และ RosterManager อ้างอิงร่วมกัน
+  - **สีเน้นต้องเป็นชุด token ครบ (ผู้ใช้สั่ง 3 พ.ย.):** แต่ละแอปต้อง override ได้ทั้งชุด ทั้งในธีมสว่างและมืด ได้แก่ Default/Light/Dark/Text, พื้นอ่อนหรือ badge ที่มี alpha, hover/pressed, focus ring, selection และ OnAccent ห้ามมีสีส้มหลุดเข้า RosterManager แม้แต่จุดเดียว เพราะฟ้าปนส้มจะดูแปลก
+  - **WP UI-1a ไลบรารีร่วม + Console + RosterManager** (branch `feat/p1-ui1a`)
+    - สร้างโปรเจกต์ `src/OnionProcOparetor.UI` (WPF class library) และเพิ่มเข้า sln
+    - ย้าย `Colors.Light/Dark`, `Icons`, `Typography`, `Controls` และ control ร่วมจาก Console เข้าไลบรารี โดยแยกกลุ่มสีเน้นเป็น dictionary ของตัวเอง
+    - ThemeService ที่ซ้ำกันใน Console และ RosterManager ให้ใช้ตัวเดียวในไลบรารี ซึ่งต้องสลับทั้ง palette และสีเน้นของแอปพร้อมกัน
+    - Console ใช้สีส้มเดิม และ**หน้าตาต้องไม่เปลี่ยนเลย** · RosterManager ใช้ฟ้า `#2A6FD6` ครบทั้งชุด แล้วลบ Theme ที่ copy ไว้
+    - ไฟล์ที่แตะได้: `src/OnionProcOparetor.UI/**`, `OnionProcOparetor.sln`, csproj/App.xaml/Theme/Services/ThemeService และ XAML ที่ต้องเปลี่ยน path อ้างอิงใน Console และ RosterManager
+    - ห้ามแตะ AgentTray, installer และภาพ LoginHero
+  - **WP UI-1b AgentTray ใช้ไลบรารีร่วม** (ทำหลัง UI-1a merge แล้ว, branch `feat/p1-ui1b`)
+    - เลิกใช้ `Theme/AppTheme.xaml` แล้วเปลี่ยนทุกหน้าต่างของ AgentTray มาใช้ token/style ของไลบรารี (ธีมสว่าง สีส้ม)
+    - **คงข้อห้ามเรื่องหน้าต่างโปร่งใส/จับภาพในหัวข้อ WP4-4 ไว้ตามเดิม** และพื้นหลังจอล็อกต้องเป็นสีดำ
+    - ไฟล์ที่แตะได้: `src/OnionProcOparetor.AgentTray/**` ยกเว้นภาพ LoginHero
+    - Server/Agent ไม่ต้องเปลี่ยน · MSI ใช้ `Files Include **` อยู่แล้ว จึงไม่ต้องแก้ wxs
+  - **เกณฑ์เสร็จ (ทั้งสอง WP):**
+    - build ทั้ง solution ได้ 0 error
+    - จับภาพหน้าจอจริงของหน้าต่างหลักทั้งก่อนและหลังแก้ ทั้งธีมสว่างและมืด (AgentTray ใช้แค่ธีมสว่าง)
+    - RosterManager ต้องไม่มีสีส้มเลย ทั้งตอน hover, focus และ selection
 - **UI-2 ล็อกอิน Console เป็นหน้าต่างเดียวกับโปรแกรม:** ล็อกอินเสร็จแสดงตัวหมุนโหลดสั้นๆ แล้ว fade เข้าหน้าหลักในหน้าต่างเดิม (ไม่เปิดหน้าต่างใหม่)
 - **UI-3 หน้าย่อยอยู่ในหน้าต่างหลัก (ผู้ใช้เห็นด้วย 3 พ.ย.):** แบ่ง 30 หน้าต่างของ Console เป็น 3 กลุ่ม
   - **แผงสไลด์ขวา (inspector เดิม):** ของเครื่องเดียว เช่น ตั้งค่าเครื่อง, โปรแกรมที่เปิดอยู่, คำสั่งค้าง, ยกเว้นกฎ
@@ -376,7 +393,7 @@ orchestrator ส่ง WP0, WP5 และ WP6 ออกพร้อมกัน�
   - ตัวกรอง: ยกมือ / ออนไลน์ / มีเหตุการณ์
   - ภาพย่อความละเอียดต่ำรีเฟรช 2–5 วินาที ภาพที่ขยายใช้ความละเอียดสูง หยุดดึงภาพเมื่อไม่ได้อยู่หน้านี้
 - **UI-6 ขนาดการ์ดล็อกอิน 75% ทั้ง Console และจอนักเรียน:** คงขนาดตัวอักษร ลดคอลัมน์ภาพ ระยะขอบ และช่องว่างแทน สัดส่วนกว้างต่อสูงเท่าเดิม (ไม่ใช้ Viewbox ย่อทั้งก้อน)
-- **UI-7 ไอคอนชุดใหม่ + ธีม RosterManager (ข้อเสนอ รอผู้ใช้ยืนยัน 3 พ.ย.):** ชุดไอคอนอยู่ที่ `C:\Users\kitsada\Downloads\onion-icon-pack` (หัวหอมส้ม `app`, tray 3 สถานะ, หัวหอมฟ้า `roster.app`)
+- **UI-7 ไอคอนชุดใหม่ + ธีม RosterManager (ผู้ใช้ยืนยันครบ 5 ข้อแล้ว 3 พ.ย. ทำหลัง UI-1a):** ชุดไอคอนอยู่ที่ `C:\Users\kitsada\Downloads\onion-icon-pack` (หัวหอมส้ม `app`, tray 3 สถานะ, หัวหอมฟ้า `roster.app`)
   - ใช้ `.ico`/`.png` ที่ export แล้วฝังในแต่ละโปรแกรม ไม่ส่ง `icons.db` · เก็บต้นฉบับทั้งชุดใน repo ที่ `assets/icons/`
   - หัวหอมส้ม: Console, AgentTray, Agent, OnlineConsole (favicon), RemoteBridge, UninstallHelper, MSI ทั้งสอง (ARP) · หัวหอมฟ้า: RosterManager
   - tray: เชื่อมต่อ = Agent ติดต่อ Server ได้ · ไม่ได้เชื่อมต่อ = Agent ทำงานแต่ติดต่อ Server ไม่ได้ · ผิดพลาด = AgentTray คุยกับ Agent ไม่ได้
