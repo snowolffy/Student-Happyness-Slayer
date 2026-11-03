@@ -399,6 +399,11 @@ orchestrator ส่ง WP0, WP5 และ WP6 ออกพร้อมกัน�
   - ภาพย่อความละเอียดต่ำรีเฟรช 2–5 วินาที ภาพที่ขยายใช้ความละเอียดสูง หยุดดึงภาพเมื่อไม่ได้อยู่หน้านี้
 - **UI-6 ขนาดการ์ดล็อกอิน 75% ทั้ง Console และจอนักเรียน:** คงขนาดตัวอักษร ลดคอลัมน์ภาพ ระยะขอบ และช่องว่างแทน สัดส่วนกว้างต่อสูงเท่าเดิม (ไม่ใช้ Viewbox ย่อทั้งก้อน)
 - **UI-7 ไอคอนชุดใหม่ + ธีม RosterManager (ผู้ใช้ยืนยันครบ 5 ข้อแล้ว 3 พ.ย. ทำหลัง UI-1a):** ชุดไอคอนอยู่ที่ `C:\Users\kitsada\Downloads\onion-icon-pack` (หัวหอมส้ม `app`, tray 3 สถานะ, หัวหอมฟ้า `roster.app`)
+  - **WP UI-7a ทุกแอปยกเว้น AgentTray** (branch `feat/p1-ui7a`, ทำขนานกับ UI-1b ได้)
+    - ไฟล์ที่แตะได้: `assets/icons/**` (ใหม่) และไฟล์ไอคอน/โลโก้ (`icon.ico`, `logo.png`, `logo-source.png`, `img/logo-*.png`) ของ Console, RosterManager, Agent, OnlineConsole, RemoteBridge, UninstallHelper, `installer/Assets/icon.ico`
+    - แก้ csproj/XAML/razor ได้เฉพาะบรรทัดที่อ้างไฟล์เหล่านี้
+    - ห้ามแตะ `src/OnionProcOparetor.AgentTray/**`, ภาพ `LoginHero.png` และภาพ banner/dialog ของ MSI (ถ้าคิดว่าควรเปลี่ยน ให้ระบุในรายงาน)
+  - **WP UI-7b AgentTray** (ทำหลัง UI-1b merge แล้ว): `icon.ico`/`logo.png` ของ AgentTray และไอคอน tray 3 สถานะตามความหมายข้างล่าง
   - ใช้ `.ico`/`.png` ที่ export แล้วฝังในแต่ละโปรแกรม ไม่ส่ง `icons.db` · เก็บต้นฉบับทั้งชุดใน repo ที่ `assets/icons/`
   - หัวหอมส้ม: Console, AgentTray, Agent, OnlineConsole (favicon), RemoteBridge, UninstallHelper, MSI ทั้งสอง (ARP) · หัวหอมฟ้า: RosterManager
   - tray: เชื่อมต่อ = Agent ติดต่อ Server ได้ · ไม่ได้เชื่อมต่อ = Agent ทำงานแต่ติดต่อ Server ไม่ได้ · ผิดพลาด = AgentTray คุยกับ Agent ไม่ได้
