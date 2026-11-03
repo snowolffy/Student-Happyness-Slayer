@@ -1,0 +1,44 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                     xmlns:sys="clr-namespace:System;assembly=System.Runtime">
+
+    <!-- ====================================================================================
+         ACCENT (LIGHT) ของ Roster Manager - สีเน้นฟ้า #2A6FD6 ตามที่ผู้ใช้สั่ง 3 พ.ย. 2569 แทนค่า
+         default ของไลบรารี (ส้ม) ดู OnionProcOparetor.UI/Theme/Accent.Light.xaml สำหรับคำอธิบาย
+         ชุด token เต็ม/เหตุผลที่แยกจาก Colors.Light.xaml - x:Key ที่นี่ต้องตรงกับไลบรารีเป๊ะ
+         (ThemeService.VerifyKeyParity ตรวจคู่นี้กับ Accent.Dark.xaml)
+
+         ชุดสีฟ้าคำนวณ contrast จริง (ไม่ใช่เดา - สูตร WCAG relative luminance):
+           - Default #2A6FD6: ขาวบนพื้นนี้ = 4.84:1 (ผ่าน AA ตัวหนังสือปกติ)
+           - Text   #1C4C96: บนการ์ดขาว = 8.32:1 (ผ่านเกณฑ์ ~4.5:1 ที่ผู้ใช้ขอ สบายๆ)
+         Light/Dark (hover/pressed) ปรับความสว่างในสัดส่วนเดียวกับที่ Console ทำกับส้ม
+         (Light สว่างกว่า Default, Dark เข้มกว่า Default) -->
+
+    <sys:String x:Key="Theme.AccentName">Light</sys:String>
+
+    <!-- ==================== Accent (ฟ้า) ==================== -->
+    <Color x:Key="Color.Accent.Default">#2A6FD6</Color>
+    <Color x:Key="Color.Accent.Light">#4A89E8</Color>
+    <Color x:Key="Color.Accent.Dark">#1F56AD</Color>
+    <Color x:Key="Color.Accent.Text">#1C4C96</Color>
+    <Color x:Key="Color.Accent.OnAccent">#FFFFFF</Color>
+
+    <SolidColorBrush x:Key="Brush.Accent.Default" Color="{StaticResource Color.Accent.Default}"/>
+    <SolidColorBrush x:Key="Brush.Accent.Light" Color="{StaticResource Color.Accent.Light}"/>
+    <SolidColorBrush x:Key="Brush.Accent.Dark" Color="{StaticResource Color.Accent.Dark}"/>
+    <SolidColorBrush x:Key="Brush.Accent.Text" Color="{StaticResource Color.Accent.Text}"/>
+    <SolidColorBrush x:Key="Brush.Accent.OnAccent" Color="{StaticResource Color.Accent.OnAccent}"/>
+
+    <!-- ==================== Badge/selection tint (16% alpha ของ Default) ==================== -->
+    <Color x:Key="Color.Badge.Accent.Background">#292A6FD6</Color>
+    <SolidColorBrush x:Key="Brush.Badge.Accent.Background" Color="{StaticResource Color.Badge.Accent.Background}"/>
+
+    <!-- ==================== Sidebar active row (selection) ==================== -->
+    <Color x:Key="Color.Sidebar.ActiveBackground">#292A6FD6</Color>
+    <SolidColorBrush x:Key="Brush.Sidebar.ActiveBackground" Color="{StaticResource Color.Sidebar.ActiveBackground}"/>
+
+    <!-- ==================== Row hover (15% alpha ของ Light) ==================== -->
+    <Color x:Key="Color.Row.Hover">#264A89E8</Color>
+    <SolidColorBrush x:Key="Brush.Row.Hover" Color="{StaticResource Color.Row.Hover}"/>
+
+</ResourceDictionary>

@@ -1,36 +1,49 @@
 <Application x:Class="OnionProcOparetor.Console.App"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:controls="clr-namespace:OnionProcOparetor.Console.Controls"
              ThemeMode="Light"
              StartupUri="MainWindow.xaml">
     <!-- ThemeMode ตรงนี้เป็นแค่ "ค่าเริ่มต้นตอน parse" เท่านั้น - ค่าจริงถูกตั้งทับทันทีโดย
-         ThemeService.Initialize() ใน App.OnStartup ตามที่ผู้ใช้เลือกไว้ใน console-settings.json
-         (Light / Dark / System) ที่ยังต้องมีค่าไว้ตรงนี้เพราะ XAML ถูก parse ก่อน OnStartup จะทำงาน
+         OnionProcOparetor.UI.Services.ThemeService.Initialize() ใน App.OnStartup ตามที่ผู้ใช้เลือกไว้ใน
+         console-settings.json (Light / Dark / System) ที่ยังต้องมีค่าไว้ตรงนี้เพราะ XAML ถูก parse ก่อน
+         OnStartup จะทำงาน
 
          ประวัติที่ยังใช้ได้อยู่: ปี 2026-09-03 เคยลองถอด ControlTemplate ของ Button/TextBox/PasswordBox
          ออกเพื่อให้ Fluent เรนเดอร์เอง แล้วพบจากการสุ่มพิกเซลจริง (ไม่ใช่เดา) ว่าทั้ง template ของ Fluent
          และ attached property Border.CornerRadius ต่างก็ไม่ทำให้มุมโค้งจริงใน build นี้ Theme/Controls.xaml
-         จึงกลับไปใช้ ControlTemplate ของตัวเองสำหรับสามคอนโทรลนั้น
+         (ย้ายเข้า OnionProcOparetor.UI แล้ว - WP UI-1a 2026-11-03) จึงกลับไปใช้ ControlTemplate ของตัวเอง
+         สำหรับสามคอนโทรลนั้น
 
          แต่ ThemeMode ยังจำเป็นอยู่ เพราะมันคุมคอนโทรลที่เรา *ไม่ได้* re-template เอง (ComboBox, CheckBox,
-         RadioButton, ScrollBar, DataGrid chrome, ขอบหน้าต่าง) เดิมตั้งเป็น "Light" ตายตัวเพราะ token ใน
-         Colors.xaml เป็นค่า light ตายตัว ถ้าปล่อยให้เป็น Dark จะได้โหมดมืดครึ่งใบ - ข้อจำกัดนั้นหมดไปแล้ว
-         ตั้งแต่ token ถูกแยกเป็น Colors.Light.xaml / Colors.Dark.xaml (2026-09-09) -->
+         RadioButton, ScrollBar, DataGrid chrome, ขอบหน้าต่าง) -->
     <Application.Resources>
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>
-                <!-- ตัวแรกคือ palette ที่ ThemeService สลับตอน runtime - หาเจอด้วย key "Theme.Name"
-                     ไม่ได้อิง index (WPF แทรก dictionary ของ Fluent เข้ามาเองเมื่อ ThemeMode ถูกตั้งค่า
-                     index จึงเลื่อนได้) ดู ThemeService.FindPaletteIndex -->
-                <ResourceDictionary Source="Theme/Colors.Light.xaml"/>
+                <!-- สี่ตัวแรกมาจาก OnionProcOparetor.UI (WP UI-1a) - ไลบรารีที่ Console, RosterManager
+                     (และต่อไป AgentTray ใน UI-1b) อ้างอิงร่วมกัน ข้ามแอสเซมบลีจึงต้องใช้ pack URI
+                     เต็มรูป ไม่ใช่ path สัมพัทธ์แบบตอนที่ไฟล์ยังอยู่ในแอสเซมบลีนี้เอง
+
+                     palette/accent ตัวแรกสองตัวคือของที่ ThemeService สลับตอน runtime - หาเจอด้วย key
+                     "Theme.Name"/"Theme.AccentName" ไม่ได้อิง index (WPF แทรก dictionary ของ Fluent
+                     เข้ามาเองเมื่อ ThemeMode ถูกตั้งค่า index จึงเลื่อนได้) Console ไม่ส่ง accent URI
+                     ของตัวเองให้ ThemeService.Initialize() จึงใช้สีส้ม default ของไลบรารี (หน้าตาต้อง
+                     ไม่เปลี่ยนเลยจากก่อน UI-1a) -->
+                <ResourceDictionary Source="pack://application:,,,/OnionProcOparetor.UI;component/Theme/Colors.Light.xaml"/>
+                <ResourceDictionary Source="pack://application:,,,/OnionProcOparetor.UI;component/Theme/Accent.Light.xaml"/>
                 <!-- ชุดไอคอนเส้น 31 ตัว port มาจาก Icon.razor ของ OnlineConsole - ต้อง merge ระดับ
                      Application เพราะ IconPresenter หา geometry ด้วย key จาก Application.Resources
-                     (ถ้าลืม merge ไอคอนจะหายเงียบ ๆ ทั้งแอป ไม่ throw - ดู Debug.WriteLine ใน
-                     IconPresenter.UpdateGeometry) geometry ไม่มีสี จึงไม่ผูกกับธีม -->
-                <ResourceDictionary Source="Theme/Icons.xaml"/>
-                <ResourceDictionary Source="Theme/Typography.xaml"/>
-                <ResourceDictionary Source="Theme/Controls.xaml"/>
+                     (ถ้าลืม merge ไอคอนจะหายเงียบ ๆ ทั้งแอป ไม่ throw) geometry ไม่มีสี จึงไม่ผูกกับธีม -->
+                <ResourceDictionary Source="pack://application:,,,/OnionProcOparetor.UI;component/Theme/Icons.xaml"/>
+                <ResourceDictionary Source="pack://application:,,,/OnionProcOparetor.UI;component/Theme/Typography.xaml"/>
+                <ResourceDictionary Source="pack://application:,,,/OnionProcOparetor.UI;component/Theme/Controls.xaml"/>
             </ResourceDictionary.MergedDictionaries>
+
+            <!-- key "DisplayTimeConverter" ที่ Controls.xaml ของไลบรารีต้องการ แต่ไม่ได้ประกาศไว้ใน
+                 ไลบรารีเอง เพราะ Console มีโหมดไทย/UTC ของตัวเอง (Services/TimeDisplay.cs) ส่วน
+                 RosterManager แปลงแบบง่ายกว่า - แอปใครประกาศ converter ของตัวเอง หลังจาก Controls.xaml
+                 ถูก merge ไปแล้ว -->
+            <controls:DisplayTimeConverter x:Key="DisplayTimeConverter"/>
         </ResourceDictionary>
     </Application.Resources>
 </Application>

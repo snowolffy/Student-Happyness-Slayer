@@ -8,7 +8,7 @@ using System.Windows.Shapes;
 
 using Path = System.Windows.Shapes.Path;
 
-namespace OnionProcOparetor.Console.Controls;
+namespace OnionProcOparetor.UI.Controls;
 
 /// <summary>
 /// วาดไอคอนเส้นหนึ่งตัวจากชุดใน Theme/Icons.xaml (ซึ่ง port มาจาก Icon.razor ของ OnlineConsole)

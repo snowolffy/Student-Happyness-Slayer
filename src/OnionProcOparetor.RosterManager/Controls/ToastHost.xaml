@@ -1,7 +1,7 @@
 <UserControl x:Class="OnionProcOparetor.RosterManager.Controls.ToastHost"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:controls="clr-namespace:OnionProcOparetor.RosterManager.Controls"
+             xmlns:controls="clr-namespace:OnionProcOparetor.UI.Controls;assembly=OnionProcOparetor.UI"
              xmlns:services="clr-namespace:OnionProcOparetor.RosterManager.Services">
     <!-- ตัวแสดง toast มุมขวาล่าง (WP6) - วางไว้ชั้นบนสุดของหน้าต่าง โดยไม่มี Background เลย
          พื้นที่รอบ ๆ toast จึงไม่รับคลิก (null background = ไม่ hit-test) คลิกทะลุไปถึงตารางข้างหลังได้

@@ -2,7 +2,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
 
-namespace OnionProcOparetor.RosterManager.Controls;
+namespace OnionProcOparetor.UI.Controls;
 
 /// <summary>
 /// ตัวช่วยเล็ก ๆ ของ AppDialogWindow (แถบหัวหน้าต่างที่เราวาดเอง)

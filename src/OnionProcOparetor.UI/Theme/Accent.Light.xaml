@@ -1,0 +1,68 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                     xmlns:sys="clr-namespace:System;assembly=System.Runtime">
+
+    <!-- ====================================================================================
+         ACCENT (LIGHT) - ค่า default ของไลบรารี คือ amber/orange เดิมของ Console (WP UI-1a,
+         2026-11-03) แยกออกจาก Colors.Light.xaml เพราะต้องเป็น dictionary ที่ "แต่ละแอป override
+         ได้ทั้งชุด" ตามที่ผู้ใช้สั่ง 3 พ.ย.: RosterManager มี Theme/Accent.Light.xaml และ
+         Accent.Dark.xaml ของตัวเอง (สีฟ้า #2A6FD6) ที่ ThemeService.Initialize(accentLightUri:,
+         accentDarkUri:) รับเข้ามาแทนคู่นี้ - ดู RosterManager/Theme/Accent.Light.xaml
+
+         ชุด token ที่ต้องครบ (ผู้ใช้สั่งไว้ชัดเจน): Default/Light/Dark/Text, พื้นอ่อน/badge ที่มี
+         alpha, hover/pressed, focus ring, selection, OnAccent - แมปกับ key จริงดังนี้:
+           - Default            = สีเน้นหลัก (ปุ่ม primary, badge/tab ที่เลือก, focus ring ของ
+                                   TextBox/PasswordBox)
+           - Light               = hover ของปุ่ม primary และ sidebar item ที่เลือก (ตัวหนังสือ)
+           - Dark                = pressed ของปุ่ม primary
+           - Text                = ตัวหนังสือ/ไอคอนสีเน้นบนพื้นการ์ด (ต้องผ่าน contrast)
+           - OnAccent            = ตัวหนังสือบนพื้นสีเน้นทึบ (ปุ่ม primary, pill ที่เลือก)
+           - Badge.Accent.Background   = พื้น badge/selection แบบโปร่งอิงสีเน้น (16% alpha)
+           - Sidebar.ActiveBackground  = พื้นแถว sidebar ที่เลือกอยู่ (16% alpha เหมือนกัน)
+           - Row.Hover                 = พื้น hover ของแถวตาราง/ปุ่มไอคอนโปร่ง (15% alpha ของ Light)
+         ทุก key ข้างบนเป็น {DynamicResource} ที่ Controls.xaml อ้างถึง - สลับ dictionary นี้ก้อน
+         เดียวเปลี่ยนสีเน้นทั้งแอปพร้อมกัน
+
+         HARD CONTRACT เดียวกับ Colors.Light/Dark: Accent.Light.xaml และ Accent.Dark.xaml (ของทุก
+         แอป) ต้องมี x:Key ชุดเดียวกันเป๊ะ ThemeService.VerifyKeyParity() ตรวจคู่นี้แยกจากคู่ Colors
+         ==================================================================================== -->
+
+    <sys:String x:Key="Theme.AccentName">Light</sys:String>
+
+    <!-- ==================== Accent (amber/orange) ====================
+         Accent.Text is NOT the same as Accent.Default: #F5A623 is legible as a fill behind white
+         text but fails contrast as small text on a white card, so link/label text gets its own
+         darker shade. -->
+    <Color x:Key="Color.Accent.Default">#F5A623</Color>          <!-- css:accent -->
+    <Color x:Key="Color.Accent.Light">#F7B84D</Color>            <!-- css:accent-light -->
+    <Color x:Key="Color.Accent.Dark">#D6890F</Color>             <!-- css:accent-dark -->
+    <Color x:Key="Color.Accent.Text">#B4740C</Color>             <!-- css:accent-text -->
+    <Color x:Key="Color.Accent.OnAccent">#FFFFFF</Color>         <!-- ตัวหนังสือบนพื้นสีเน้นทึบ -->
+
+    <SolidColorBrush x:Key="Brush.Accent.Default" Color="{StaticResource Color.Accent.Default}"/>
+    <SolidColorBrush x:Key="Brush.Accent.Light" Color="{StaticResource Color.Accent.Light}"/>
+    <SolidColorBrush x:Key="Brush.Accent.Dark" Color="{StaticResource Color.Accent.Dark}"/>
+    <SolidColorBrush x:Key="Brush.Accent.Text" Color="{StaticResource Color.Accent.Text}"/>
+    <SolidColorBrush x:Key="Brush.Accent.OnAccent" Color="{StaticResource Color.Accent.OnAccent}"/>
+
+    <!-- ==================== Badge/selection tint ====================
+         พื้น badge/selection = สีเน้นทับลงบนสีการ์ดด้วย alpha ต่ำ (16% ของ 255 = 41 = 0x29)
+         เก็บเป็น alpha ไม่ใช่สีทึบที่ผสมไว้แล้ว เพราะถ้าสีเน้นเปลี่ยน (แอปอื่น override) พื้นนี้ตามให้เอง -->
+    <Color x:Key="Color.Badge.Accent.Background">#29F5A623</Color>
+    <SolidColorBrush x:Key="Brush.Badge.Accent.Background" Color="{StaticResource Color.Badge.Accent.Background}"/>
+
+    <!-- ==================== Sidebar active row (selection) ====================
+         ย้ายมาจาก Colors.Light.xaml เดิม (เคยอยู่กลุ่ม Sidebar) เพราะเป็น alpha ของสีเน้นเหมือนกัน
+         ค่าเท่ากับ Badge.Accent.Background โดยเจตนา (สูตร 16% เดียวกัน) -->
+    <Color x:Key="Color.Sidebar.ActiveBackground">#29F5A623</Color>
+    <SolidColorBrush x:Key="Brush.Sidebar.ActiveBackground" Color="{StaticResource Color.Sidebar.ActiveBackground}"/>
+
+    <!-- ==================== Row hover (DataGrid / GhostIconButton) ====================
+         เดิมเขียนเป็น <SolidColorBrush Color="{StaticResource Color.Accent.Light}" Opacity="0.15"/>
+         แบบ inline อยู่ใน Setter.Value - ย้ายมาเป็น token เพราะ Freezable ที่ประกาศ inline ใน Style
+         setter จะถูก WPF freeze ทำให้ผูก DynamicResource เข้าไปไม่ได้ (ธีมจะค้าง) ค่า ARGB ตรงนี้ให้
+         ผลเหมือนเดิมทุกพิกเซลในโหมดสว่าง: 0.15 * 255 = 38 = 0x26 ของ Accent.Light -->
+    <Color x:Key="Color.Row.Hover">#26F7B84D</Color>
+    <SolidColorBrush x:Key="Brush.Row.Hover" Color="{StaticResource Color.Row.Hover}"/>
+
+</ResourceDictionary>

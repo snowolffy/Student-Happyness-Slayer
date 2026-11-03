@@ -1,6 +1,6 @@
 using System.Windows;
 
-namespace OnionProcOparetor.RosterManager.Controls;
+namespace OnionProcOparetor.UI.Controls;
 
 /// <summary>
 /// Attached property เล็ก ๆ สำหรับ sidebar ของ DashboardWindow

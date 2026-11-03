@@ -1,9 +1,8 @@
 using System.Diagnostics;
 using System.Windows;
 using Microsoft.Win32;
-using OnionProcOparetor.Console.Models;
 
-namespace OnionProcOparetor.Console.Services;
+namespace OnionProcOparetor.UI.Services;
 
 /// <summary>ธีมที่ผู้ใช้เลือกได้ - System = ตามที่ Windows ตั้งไว้ (ค่า default)</summary>
 public enum AppTheme
@@ -14,34 +13,48 @@ public enum AppTheme
 }
 
 /// <summary>
-/// สลับ palette ตอน runtime โดย "เปลี่ยนทั้ง ResourceDictionary" ไม่ใช่ไล่เปลี่ยนสีทีละตัว -
-/// Theme/Colors.Light.xaml กับ Theme/Colors.Dark.xaml ประกาศ x:Key ชุดเดียวกันเป๊ะ (ดู comment
-/// ในไฟล์นั้น) ตัวไหนถูก merge อยู่ก็ชนะ ทุก {DynamicResource} ในแอปจะอัพเดตตามเองทันที
+/// สลับ palette ตอน runtime โดย "เปลี่ยนทั้ง ResourceDictionary" ไม่ใช่ไล่เปลี่ยนสีทีละตัว - เดิมมี
+/// สอง instance ที่ซ้ำกันเกือบทั้งหมดใน Console/Services/ThemeService.cs และ
+/// RosterManager/Services/ThemeService.cs ย้ายมารวมเป็นตัวเดียวที่นี่ (WP UI-1a, 2026-11-03) ตามที่
+/// ผู้ใช้สั่ง เพราะทั้งสองแอปต้องการพฤติกรรมเดียวกันเป๊ะ ต่างกันแค่ "จะโหลด/บันทึกธีมที่ไหน" และ
+/// "สีเน้นชุดไหน" - สองอย่างนี้จึงกลายเป็นพารามิเตอร์ของ <see cref="Initialize"/> แทน
+///
+/// Theme/Colors.Light.xaml กับ Theme/Colors.Dark.xaml ของไลบรารีนี้ประกาศ x:Key ชุดเดียวกันเป๊ะ และ
+/// Theme/Accent.Light.xaml กับ Accent.Dark.xaml (ของไลบรารีเองหรือของแต่ละแอปที่ override เข้ามา) ก็
+/// ต้องประกาศ x:Key ชุดเดียวกันเป๊ะเช่นกัน - ดู comment เต็มในไฟล์เหล่านั้น ตัวไหนถูก merge อยู่ก็ชนะ
+/// ทุก {DynamicResource} ในแอปจะอัพเดตตามเองทันที
 ///
 /// ทำไมต้อง DynamicResource ทั้งแอป: {StaticResource} resolve ครั้งเดียวตอน parse XAML แล้วจบ -
 /// ถ้าใช้ StaticResource กับ Brush.* เอาไว้ ธีมจะค้างอยู่ที่ธีมแรกที่โหลดตลอดไป ไม่มีทางสลับได้เลย
-/// จึงต้องกวาดทั้ง 19 ไฟล์ XAML เป็น DynamicResource (ทำไปแล้ว 2026-09-09)
 ///
 /// ผลข้างเคียงที่ต้องระวัง และเป็นเหตุผลที่มี VerifyKeyParity(): DynamicResource ที่หา key ไม่เจอ
-/// **ไม่ throw** ต่างจาก StaticResource ที่ระเบิดทันที (บั๊ก "VIEW RUNNING PROCESSES" ปี 2026-08-25
-/// คือ StaticResource หา key ข้าม Window ไม่เจอแล้ว throw ทั้งหน้าต่าง) DynamicResource แค่เงียบแล้ว
-/// วาดเป็นค่าว่าง - ปลอดภัยกว่าตรงที่แอปไม่ตาย แต่แย่กว่าตรงที่ "จอมืดจุดเดียวในธีมเดียว" จะไม่มีใคร
-/// เห็นจนกว่าผู้ใช้จะบ่น ฉะนั้นต้องเช็ก key parity ตั้งแต่ตอน startup แทน
+/// **ไม่ throw** ต่างจาก StaticResource ที่ระเบิดทันที DynamicResource แค่เงียบแล้ววาดเป็นค่าว่าง -
+/// ปลอดภัยกว่าตรงที่แอปไม่ตาย แต่แย่กว่าตรงที่ "จอมืดจุดเดียวในธีมเดียว" จะไม่มีใครเห็นจนกว่าผู้ใช้
+/// จะบ่น ฉะนั้นต้องเช็ก key parity ตั้งแต่ตอน startup แทน
 /// </summary>
 public static class ThemeService
 {
-    private const string LightPaletteUri = "/Theme/Colors.Light.xaml";
-    private const string DarkPaletteUri = "/Theme/Colors.Dark.xaml";
+    private const string BaseLightUri = "pack://application:,,,/OnionProcOparetor.UI;component/Theme/Colors.Light.xaml";
+    private const string BaseDarkUri = "pack://application:,,,/OnionProcOparetor.UI;component/Theme/Colors.Dark.xaml";
+    private const string DefaultAccentLightUri = "pack://application:,,,/OnionProcOparetor.UI;component/Theme/Accent.Light.xaml";
+    private const string DefaultAccentDarkUri = "pack://application:,,,/OnionProcOparetor.UI;component/Theme/Accent.Dark.xaml";
 
     /// <summary>
-    /// key ที่มีอยู่เฉพาะในไฟล์ palette เท่านั้น ใช้เป็น "ป้ายชื่อ" หา dictionary ตัวเดิมเพื่อสลับ -
-    /// จงใจไม่ใช้ index คงที่ (เช่น MergedDictionaries[0]) เพราะพอ ThemeMode ถูกตั้งค่า WPF จะ
+    /// key ที่มีอยู่เฉพาะในไฟล์ palette หลัก/ไฟล์สีเน้นเท่านั้น (คนละ key กัน เพราะทั้งสอง dictionary
+    /// ถูก merge เข้า Application.Resources พร้อมกันและต้องสลับแยกจากกันได้) ใช้เป็น "ป้ายชื่อ" หา
+    /// dictionary ตัวเดิมเพื่อสลับ - จงใจไม่ใช้ index คงที่ เพราะพอ ThemeMode ถูกตั้งค่า WPF จะ
     /// **แทรก Fluent dictionary ของตัวเองเข้ามาใน Application.Resources.MergedDictionaries เอง**
     /// index ที่เคยถูกจึงเลื่อนได้โดยที่เราไม่รู้ตัว แล้วจะกลายเป็นไปทับ dictionary ของ Fluent แทน
     /// </summary>
-    private const string PaletteMarkerKey = "Theme.Name";
+    private const string BaseMarkerKey = "Theme.Name";
+    private const string AccentMarkerKey = "Theme.AccentName";
 
     private static AppTheme _current = AppTheme.System;
+    private static Func<string?> _loadSavedTheme = () => null;
+    private static Action<AppTheme> _saveTheme = _ => { };
+    private static Action<string> _log = _ => { };
+    private static string _accentLightUri = DefaultAccentLightUri;
+    private static string _accentDarkUri = DefaultAccentDarkUri;
 
     /// <summary>ค่าที่ผู้ใช้เลือก (อาจเป็น System) - ถ้าอยากรู้ว่า "ตอนนี้มืดอยู่ไหม" ให้ใช้ IsDarkActive</summary>
     public static AppTheme Current => _current;
@@ -53,20 +66,37 @@ public static class ThemeService
     public static event Action? ThemeChanged;
 
     /// <summary>
-    /// เรียกครั้งเดียวจาก App.OnStartup ก่อนเปิดหน้าต่างแรก - อ่านค่าที่ผู้ใช้เคยเลือกจาก
-    /// console-settings.json แล้ว apply ทันที ถ้ายังไม่เคยเลือกจะได้ System (ตาม Windows)
+    /// เรียกครั้งเดียวจาก App.OnStartup ก่อนเปิดหน้าต่างแรก - อ่านค่าที่ผู้ใช้เคยเลือกจาก settings
+    /// ของแอป (ผ่าน <paramref name="loadSavedTheme"/>) แล้ว apply ทันที ถ้ายังไม่เคยเลือกจะได้ System
+    /// (ตาม Windows)
     /// </summary>
-    public static void Initialize()
+    /// <param name="loadSavedTheme">อ่านค่าธีมที่บันทึกไว้ล่าสุด (เช่น console-settings.json) คืน null/ค่าที่ parse ไม่ได้ = System</param>
+    /// <param name="saveTheme">บันทึกธีมที่เลือกใหม่กลับลง settings ของแอป - เรียกจาก <see cref="Set"/> เท่านั้น ไม่เรียกจาก PreviewOverride</param>
+    /// <param name="log">ปลายทาง diagnostic log ของแอป (เช่น ConsoleDiagnostics.WriteLine/RosterDiagnostics.WriteLine)</param>
+    /// <param name="accentLightUri">URI ของ dictionary สีเน้นธีมสว่าง - ไม่ส่ง = ใช้ค่า default ของไลบรารี (ส้ม)</param>
+    /// <param name="accentDarkUri">URI ของ dictionary สีเน้นธีมมืด - ไม่ส่ง = ใช้ค่า default ของไลบรารี (ส้ม)</param>
+    public static void Initialize(
+        Func<string?> loadSavedTheme,
+        Action<AppTheme> saveTheme,
+        Action<string> log,
+        string? accentLightUri = null,
+        string? accentDarkUri = null)
     {
+        _loadSavedTheme = loadSavedTheme;
+        _saveTheme = saveTheme;
+        _log = log;
+        _accentLightUri = accentLightUri ?? DefaultAccentLightUri;
+        _accentDarkUri = accentDarkUri ?? DefaultAccentDarkUri;
+
         VerifyKeyParity();
 
-        _current = Parse(SettingsService.Current.Ui.Theme);
+        _current = Parse(_loadSavedTheme());
         ApplyToApplication(Resolve(_current));
 
         // Application.ThemeMode ไม่ไหลลงไปถึง "แถบหัวหน้าต่าง" ของ Windows เอง - ยืนยันจากภาพจริง
         // (โหมดมืดทั้งหน้า แต่ title bar ยังขาวโพลน) ตัวที่สั่ง DWM ให้ทำ title bar สีเข้มคือ
         // Window.ThemeMode ของแต่ละหน้าต่าง จึงต้องไล่ตั้งให้ทุกหน้าต่างเอง class handler ตรงนี้ทำงาน
-        // กับหน้าต่างทุกบานในแอปโดยไม่ต้องไปแก้ทีละไฟล์ (มี 19 บาน) และครอบคลุมหน้าต่างที่เปิดทีหลังด้วย
+        // กับหน้าต่างทุกบานในแอปโดยไม่ต้องไปแก้ทีละไฟล์ และครอบคลุมหน้าต่างที่เปิดทีหลังด้วย
         EventManager.RegisterClassHandler(
             typeof(Window),
             FrameworkElement.LoadedEvent,
@@ -75,21 +105,12 @@ public static class ThemeService
         SystemEvents.UserPreferenceChanged += OnUserPreferenceChanged;
     }
 
-    /// <summary>สลับธีมและจำค่าไว้ใน console-settings.json</summary>
+    /// <summary>สลับธีมและจำค่าไว้ใน settings ของแอป (ผ่าน saveTheme ที่ตั้งไว้ใน Initialize)</summary>
     public static void Set(AppTheme theme)
     {
         _current = theme;
         ApplyToApplication(Resolve(theme));
-
-        var settings = SettingsService.Current;
-        settings.Ui.Theme = theme.ToString();
-        var (success, error) = SettingsService.Save(settings);
-        if (!success)
-        {
-            // จำค่าไม่ได้ไม่ใช่เหตุให้ธีมที่เพิ่งสลับไปแล้วต้องเด้งกลับ - แค่บันทึกไว้ว่าครั้งหน้าจะไม่จำ
-            ConsoleDiagnostics.WriteLine($"ThemeService: บันทึกธีมลง settings ไม่สำเร็จ ({error}) - ธีมยังเปลี่ยนแล้วในรอบนี้");
-        }
-
+        _saveTheme(theme);
         ThemeChanged?.Invoke();
     }
 
@@ -103,8 +124,8 @@ public static class ThemeService
 #if DEBUG
     /// <summary>
     /// โหมดตรวจ UI เท่านั้น (--theme=light|dark ใน App.OnStartup): สลับธีม **โดยไม่บันทึก** ลง
-    /// console-settings.json - ไฟล์นั้นอยู่ใน ProgramData ใช้ร่วมกับ Console ตัวจริงบนเครื่องเดียวกัน
-    /// การถ่ายภาพตรวจทั้งสองธีมจึงต้องไม่ไปเปลี่ยนธีมที่ครูเลือกไว้
+    /// settings ของแอป - ไฟล์นั้นใช้ร่วมกับตัวจริงบนเครื่องเดียวกัน การถ่ายภาพตรวจทั้งสองธีมจึงต้อง
+    /// ไม่ไปเปลี่ยนธีมที่ผู้ใช้เลือกไว้
     /// </summary>
     public static void PreviewOverride(AppTheme theme)
     {
@@ -164,37 +185,26 @@ public static class ThemeService
             return;
         }
 
-        // ลำดับสำคัญ: ตั้ง ThemeMode **ก่อน** แล้วค่อยวาง palette ของเรา
-        //
-        // ThemeMode คุม chrome ของคอนโทรลที่เราไม่ได้ re-template เอง (ComboBox, CheckBox, ScrollBar,
-        // DataGrid chrome, แถบหัวหน้าต่างของ Windows เอง) ถ้าไม่สลับตัวนี้ด้วยจะได้ dark mode ครึ่งใบ -
-        // การ์ดมืดแต่ scrollbar/ComboBox ยังขาว ซึ่งเป็นเหตุผลที่ App.xaml เคยตั้ง ThemeMode="Light"
-        // ตายตัวไว้ (ดู comment ที่นั่น) จนกว่า token จะ theme-aware จริง - ตอนนี้เป็นแล้ว
-        //
-        // ที่ต้องมาก่อน: การ set ThemeMode ทำให้ WPF **จัดการ MergedDictionaries ของ Application เอง**
-        // (สลับ Fluent dictionary เข้า/ออก) ถ้าเราวาง palette ลงไปก่อนแล้ว WPF ค่อยมายุ่งกับ collection
-        // ทีหลัง ตำแหน่งที่เราวางไว้จะเลื่อน และ Fluent dictionary อาจไปอยู่ *หลัง* palette ของเรา
-        // ซึ่งแปลว่า brush ของ Fluent จะชนะ token ของเราในคีย์ที่ชนกัน วางทีหลังจึงชนะเสมอตามที่ต้องการ
+        // ลำดับสำคัญ: ตั้ง ThemeMode **ก่อน** แล้วค่อยวาง palette ของเรา - ดู comment เดิมที่
+        // Console/App.xaml (ย้ายเหตุผลเต็มมาพร้อมโค้ดนี้) การ set ThemeMode ทำให้ WPF **จัดการ
+        // MergedDictionaries ของ Application เอง** วางทีหลังจึงชนะเสมอตามที่ต้องการ
 #pragma warning disable WPF0001 // ThemeMode ยัง [Experimental] อยู่ใน .NET 10 - รับความเสี่ยงไว้ที่จุดนี้จุดเดียว
         app.ThemeMode = resolved == AppTheme.Dark ? ThemeMode.Dark : ThemeMode.Light;
         var appliedThemeMode = app.ThemeMode.ToString();
 #pragma warning restore WPF0001
 
-        var palette = new ResourceDictionary
+        var basePalette = new ResourceDictionary
         {
-            Source = new Uri(resolved == AppTheme.Dark ? DarkPaletteUri : LightPaletteUri, UriKind.Relative)
+            Source = new Uri(resolved == AppTheme.Dark ? BaseDarkUri : BaseLightUri, UriKind.Absolute)
+        };
+        var accentPalette = new ResourceDictionary
+        {
+            Source = new Uri(resolved == AppTheme.Dark ? _accentDarkUri : _accentLightUri, UriKind.RelativeOrAbsolute)
         };
 
         var merged = app.Resources.MergedDictionaries;
-        var existing = FindPaletteIndex(merged);
-        if (existing >= 0)
-        {
-            merged[existing] = palette;
-        }
-        else
-        {
-            merged.Add(palette);
-        }
+        ReplaceOrAdd(merged, basePalette, BaseMarkerKey);
+        ReplaceOrAdd(merged, accentPalette, AccentMarkerKey);
 
         // หน้าต่างที่เปิดค้างอยู่แล้วตอนผู้ใช้กดสลับธีม - หน้าต่างที่เปิดทีหลังได้จาก class handler ใน Initialize
         foreach (Window window in app.Windows)
@@ -202,7 +212,21 @@ public static class ThemeService
             ApplyToWindow(window, resolved);
         }
 
-        ConsoleDiagnostics.WriteLine($"ThemeService: ใช้ธีม {resolved} (ผู้ใช้เลือก {_current}), ThemeMode={appliedThemeMode}, palette index={FindPaletteIndex(merged)}/{merged.Count}");
+        _log($"ThemeService: ใช้ธีม {resolved} (ผู้ใช้เลือก {_current}), ThemeMode={appliedThemeMode}, "
+            + $"baseIndex={FindIndex(merged, BaseMarkerKey)}, accentIndex={FindIndex(merged, AccentMarkerKey)}/{merged.Count}");
+    }
+
+    private static void ReplaceOrAdd(IList<ResourceDictionary> merged, ResourceDictionary dict, string markerKey)
+    {
+        var existing = FindIndex(merged, markerKey);
+        if (existing >= 0)
+        {
+            merged[existing] = dict;
+        }
+        else
+        {
+            merged.Add(dict);
+        }
     }
 
     /// <summary>
@@ -232,8 +256,8 @@ public static class ThemeService
 #pragma warning restore WPF0001
 
         // Window.ThemeMode เพียงอย่างเดียว **ไม่ทำให้ title bar เป็นสีเข้ม** - ยืนยันด้วยภาพจริงแล้ว
-        // (เนื้อหาในหน้าต่างมืดครบ แต่แถบหัวยังขาวโพลนเหมือนเดิม) ต้องสั่ง DWM ตรง ๆ อีกทาง
-        // ไม่ throw ถ้าสั่งไม่สำเร็จ: title bar สีผิดน่าเกลียดแต่ไม่ใช่เหตุให้หน้าต่างเปิดไม่ขึ้น
+        // ต้องสั่ง DWM ตรง ๆ อีกทาง ไม่ throw ถ้าสั่งไม่สำเร็จ: title bar สีผิดน่าเกลียดแต่ไม่ใช่เหตุให้
+        // หน้าต่างเปิดไม่ขึ้น
         try
         {
             var handle = new System.Windows.Interop.WindowInteropHelper(window).Handle;
@@ -246,25 +270,24 @@ public static class ThemeService
             DwmSetWindowAttribute(handle, DwmwaUseImmersiveDarkMode, ref useDark, sizeof(int));
 
             // จำเป็น ไม่ใช่ของแถม: เราตั้ง attribute นี้ตอน Loaded ซึ่งเป็นเวลา *หลัง* Windows วาดกรอบ
-            // หน้าต่างไปแล้ว DWM จึงไม่วาดกรอบใหม่ให้เอง ผลที่เห็นจากภาพจริงคือแถบหัวครึ่งเก่าครึ่งใหม่
-            // (ข้อความมืดแต่พื้นยังขาว ปุ่มปิดหาย) SWP_FRAMECHANGED บังคับให้คำนวณและวาด non-client
-            // area ใหม่ทั้งหมด โดย NOMOVE/NOSIZE/NOZORDER/NOACTIVATE ทำให้ไม่มีอะไรอย่างอื่นขยับ
+            // หน้าต่างไปแล้ว DWM จึงไม่วาดกรอบใหม่ให้เอง SWP_FRAMECHANGED บังคับให้คำนวณและวาด
+            // non-client area ใหม่ทั้งหมด โดย NOMOVE/NOSIZE/NOZORDER/NOACTIVATE ทำให้ไม่มีอะไรขยับ
             SetWindowPos(handle, IntPtr.Zero, 0, 0, 0, 0,
                 SwpNoSize | SwpNoMove | SwpNoZOrder | SwpNoActivate | SwpFrameChanged);
         }
         catch (Exception ex)
         {
-            ConsoleDiagnostics.WriteLine($"ThemeService: ตั้งสี title bar ไม่สำเร็จ: {ex.Message}");
+            _log($"ThemeService: ตั้งสี title bar ไม่สำเร็จ: {ex.Message}");
         }
     }
 
-    private static int FindPaletteIndex(IList<ResourceDictionary> merged)
+    private static int FindIndex(IList<ResourceDictionary> merged, string markerKey)
     {
         for (var i = 0; i < merged.Count; i++)
         {
-            // Contains() ไม่ไล่ลงไปใน MergedDictionaries ลูก จึงเจอเฉพาะไฟล์ palette จริงๆ
+            // Contains() ไม่ไล่ลงไปใน MergedDictionaries ลูก จึงเจอเฉพาะไฟล์ palette/accent จริงๆ
             // ไม่ไปโดน Controls.xaml ที่ merge Typography.xaml ต่ออีกทอด
-            if (merged[i].Contains(PaletteMarkerKey))
+            if (merged[i].Contains(markerKey))
             {
                 return i;
             }
@@ -274,16 +297,22 @@ public static class ThemeService
     }
 
     /// <summary>
-    /// เช็กว่าไฟล์ palette สองไฟล์มี key ครบเท่ากันจริง - ทำตอน startup ทุกรอบ (ไม่ใช่เฉพาะ Debug)
-    /// เพราะราคาถูกมาก (โหลด dictionary สองตัวเทียบ HashSet) เทียบกับความเสียหายของการปล่อยให้
-    /// "ปุ่มหายไปทั้งปุ่มเฉพาะตอนโหมดมืด" หลุดไปถึงเครื่องครู - เขียนลง console.log ให้ไล่ย้อนได้
+    /// เช็กว่าไฟล์ palette หลักสองไฟล์ และไฟล์สีเน้นสองไฟล์ (ของแอปที่กำลังเรียก Initialize) มี key
+    /// ครบเท่ากันจริง - ทำตอน startup ทุกรอบ (ไม่ใช่เฉพาะ Debug) เพราะราคาถูกมาก เทียบกับความเสียหาย
+    /// ของการปล่อยให้ "ปุ่มหายไปทั้งปุ่มเฉพาะตอนโหมดมืด" หลุดไปถึงเครื่องครู
     /// </summary>
     private static void VerifyKeyParity()
     {
+        VerifyPairParity(BaseLightUri, BaseDarkUri, UriKind.Absolute, "palette หลัก (Colors)");
+        VerifyPairParity(_accentLightUri, _accentDarkUri, UriKind.RelativeOrAbsolute, "สีเน้น (Accent)");
+    }
+
+    private static void VerifyPairParity(string lightUri, string darkUri, UriKind kind, string label)
+    {
         try
         {
-            var light = new ResourceDictionary { Source = new Uri(LightPaletteUri, UriKind.Relative) };
-            var dark = new ResourceDictionary { Source = new Uri(DarkPaletteUri, UriKind.Relative) };
+            var light = new ResourceDictionary { Source = new Uri(lightUri, kind) };
+            var dark = new ResourceDictionary { Source = new Uri(darkUri, kind) };
 
             var lightKeys = light.Keys.Cast<object>().Select(k => k.ToString()!).ToHashSet(StringComparer.Ordinal);
             var darkKeys = dark.Keys.Cast<object>().Select(k => k.ToString()!).ToHashSet(StringComparer.Ordinal);
@@ -297,15 +326,15 @@ public static class ThemeService
             }
 
             var message =
-                $"ThemeService: palette สองไฟล์ key ไม่ตรงกัน - ธีมใดธีมหนึ่งจะมีจุดที่วาดไม่ออกแบบเงียบๆ. " +
+                $"ThemeService: ไฟล์ {label} สองไฟล์ key ไม่ตรงกัน - ธีมใดธีมหนึ่งจะมีจุดที่วาดไม่ออกแบบเงียบๆ. " +
                 $"ขาดใน Dark: [{string.Join(", ", missingInDark)}] ขาดใน Light: [{string.Join(", ", missingInLight)}]";
 
-            ConsoleDiagnostics.WriteLine(message);
+            _log(message);
             Debug.Fail(message);
         }
         catch (Exception ex)
         {
-            ConsoleDiagnostics.WriteLine($"ThemeService: ตรวจ key parity ไม่สำเร็จ: {ex.Message}");
+            _log($"ThemeService: ตรวจ key parity ของ {label} ไม่สำเร็จ: {ex.Message}");
         }
     }
 }
