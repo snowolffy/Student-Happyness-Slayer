@@ -1541,6 +1541,33 @@ public partial class DashboardWindow : Window
         window.Show();
     }
 
+    /// <summary>
+    /// ปุ่ม "ส่งจอครู" บนแถบคำสั่งของ Clients (WP4-4, 2026-11-01) - ส่งเครื่องที่เลือกไว้ + ห้องที่กรอง
+    /// อยู่ตอนนี้ (ถ้ามี) ให้ ScreenBroadcastSetupWindow เป็นค่าเริ่มต้น เหมือน OpenUrlProgramButton_Click
+    /// ข้างบน แต่ต่างกันที่ ScreenBroadcastSetupWindow เรียก API ส่ง command เองจบในตัว (เหมือน
+    /// ExamModeWindow) แล้วคืน StartedSession กลับมา - ที่นี่แค่เปิด BroadcastWarningBarWindow ต่อ
+    /// (เป็นเจ้าของ ScreenCaptureService ตัวจริง - ดู doc comment บนคลาสนั้น)
+    /// </summary>
+    private void ScreenBroadcastButton_Click(object sender, RoutedEventArgs e)
+    {
+        var selected = ClientsGrid.SelectedItems.Cast<ClientMachineDto>().ToList();
+        var currentRoomFilterId = (RoomFilterCombo.SelectedItem as RoomFilterOption)?.RoomIdOrSentinel;
+        var preselectRoomId = currentRoomFilterId is > 0 ? currentRoomFilterId : null;
+
+        var dialog = new ScreenBroadcastSetupWindow(_apiClient, selected, _allClients, _allRooms, preselectRoomId) { Owner = this };
+        if (dialog.ShowDialog() != true || dialog.StartedSession is not { } session)
+        {
+            return;
+        }
+
+        var warningBar = new BroadcastWarningBarWindow(_apiClient, _labHubClient, session);
+        warningBar.Show();
+
+        ToastService.Info(session.FailCount > 0
+            ? $"เริ่มส่งจอแล้ว {session.SuccessCount}/{session.Targets.Count} เครื่อง"
+            : $"เริ่มส่งจอแล้ว {session.SuccessCount} เครื่อง");
+    }
+
     private async void ResetUserPasswordButton_Click(object sender, RoutedEventArgs e)
     {
         if (sender is Button { Tag: UserDto user })

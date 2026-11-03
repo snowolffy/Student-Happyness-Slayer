@@ -23,6 +23,10 @@ namespace OnionProcOparetor.AgentTray.Models;
 /// - "CollectFile" (WP4-3, 2026-11-01) — โชว่ตัวเลือกไฟล์ให้นักเรียนเลือกส่ง (ใช้ CollectFileJobId/
 ///   CollectFileJobName/CollectFileNamePattern/CollectFileClosesAtUtc/CollectFileMaxSizeMb) ดู
 ///   CollectFileRequestWindow
+/// - "StartScreenView" (WP4-4, 2026-11-01) — เปิดหน้าต่างดูจอครู (TeacherScreenViewWindow) (ใช้
+///   ViewerMode: "FullscreenLocked"|"Windowed", TeacherDisplayName)
+/// - "StopScreenView" — ปิดหน้าต่างดูจอครู (ไม่ใช้ field อื่น)
+/// - "ScreenFrame" — เฟรมจอครูเฟรมถัดไป (ใช้ FrameBase64) - ส่งถี่ 5-10 ครั้ง/วิ
 ///
 /// ต้อง "ตรงกัน" กับ OnionProcOparetor.Agent/Models/AgentTrayPipeMessage.cs เป๊ะๆ เสมอ เพราะ
 /// solution นี้ไม่มี shared class library ระหว่างโปรเจกต์ (ก๊อปมือแบบเดียวกับ LogEntryDto) -
@@ -61,4 +65,13 @@ public class AgentTrayPipeMessage
     public string? CollectFileNamePattern { get; set; }
     public DateTime? CollectFileClosesAtUtc { get; set; }
     public int? CollectFileMaxSizeMb { get; set; }
+
+    /// <summary>ใช้เฉพาะ Type = "StartScreenView" (WP4-4, 2026-11-01) - "FullscreenLocked" หรือ "Windowed"</summary>
+    public string? ViewerMode { get; set; }
+
+    /// <summary>ใช้เฉพาะ Type = "StartScreenView" - ชื่อที่แสดงของครูที่กำลังส่งจอ</summary>
+    public string? TeacherDisplayName { get; set; }
+
+    /// <summary>ใช้เฉพาะ Type = "ScreenFrame" - เฟรม JPEG เข้ารหัส Base64 เฟรมถัดไป</summary>
+    public string? FrameBase64 { get; set; }
 }

@@ -1,0 +1,23 @@
+<Window x:Class="OnionProcOparetor.Console.TeacherDrawCanvasWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="เขียนบนจอ (ครู)"
+        WindowStyle="None"
+        Topmost="True"
+        ShowInTaskbar="False"
+        ResizeMode="NoResize"
+        WindowStartupLocation="Manual"
+        Background="Transparent"
+        AllowsTransparency="True"
+        ShowActivated="False"
+        Icon="/Theme/icon.ico">
+    <!-- คำขอเพิ่ม 3 พ.ย. 2569 - "เขียนบนจอ": แผ่นใสทับจอครูทั้งจอ ใช้ InkCanvas ของ WPF เอง (ไม่ต้องเพิ่ม
+         NuGet) เส้นที่เขียนตรงนี้ "ต้อง" ติดไปในภาพที่ส่งให้นักเรียนเห็น (ต่างจาก TeacherBroadcastBorderWindow/
+         BroadcastWarningBarWindow ที่ต้องห้ามติด) - จึงไม่เรียก TeacherOnlyWindowHelper.ExcludeFromCapture
+         ที่นี่เด็ดขาด ปล่อยให้ BitBlt จับภาพ composited ปกติ (DWM render หน้าต่าง Topmost/Layered นี้เข้า
+         ไปในภาพอยู่แล้วตามปกติ)
+
+         สลับโหมด "เขียน"/"เมาส์ปกติ" ด้วย TeacherOnlyWindowHelper.SetClickThrough: โหมดเมาส์ปกติ = คลิก
+         ทะลุไปโปรแกรมข้างใต้ได้เหมือนไม่มีหน้าต่างนี้อยู่ (เส้นที่เขียนไว้ก่อนหน้ายังอยู่ ไม่หาย) -->
+    <InkCanvas x:Name="Canvas" Background="Transparent"/>
+</Window>

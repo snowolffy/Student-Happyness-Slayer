@@ -208,6 +208,30 @@ public partial class App : Application
                 // ตัวเลือก "เครื่องที่เลือกไว้ (0 เครื่อง)" ถูกปิด และ "ทุกเครื่อง" ถูกเลือกไว้ให้แล้ว
                 "action-panel-room" => new ActionPanelWindow(
                     api, [], [sampleClient, sampleClient, sampleClient], defaultToAll: true),
+                // "ส่งจอครู" (WP4-4, 2026-11-01) - เหมือน open-url/exam-mode: เรียก API จริงไม่สำเร็จ
+                // เพราะ ApiClient ยังไม่ login แต่ไม่พัง (ไม่มี async load ตอนเปิดหน้าต่างเหมือนสองอันนั้น
+                // อยู่แล้ว - โหลดแค่ room/client ที่ส่งเข้ามาตรงๆ)
+                "screen-broadcast-setup" => new ScreenBroadcastSetupWindow(
+                    api, [sampleClient], [sampleClient], [new Models.RoomDto { Id = 1, Name = "ห้องคอม 1", ClientCount = 40 }], currentRoomFilterId: 1),
+                // แถบแดง (ขั้นตอน 2) - session ปลอมไม่มีเครื่องจริงให้ส่ง StopScreenBroadcast ถึง (ไม่
+                // เป็นไร - clientGuid ปลอมแค่ได้ 404/timeout จาก Server ปลอม ไม่ throw) Loaded จะเริ่ม
+                // capture จอจริงของเครื่อง dev ตามปกติ แต่ไม่กระทบภาพที่ถ่าย (ถ่ายแค่ chrome ของแถบแดงเอง)
+                "broadcast-warning-bar" or "broadcast-warning-bar-collapsed" => new BroadcastWarningBarWindow(
+                    api, new Services.LabHubClient(),
+                    new ScreenBroadcastSession
+                    {
+                        Targets = Enumerable.Repeat(sampleClient, 36).ToList(), // 34 สำเร็จ + 2 ไม่สำเร็จ ตามตัวอย่างใน wireframe tc-broadcast.dc.html
+                        ViewerMode = "FullscreenLocked",
+                        TeacherDisplayName = "สมชาย ใจดี",
+                        SuccessCount = 34,
+                        FailCount = 2
+                    }),
+                // คำขอเพิ่ม 3 พ.ย. 2569 - กรอบแดงรอบจอครู ถ่ายภาพได้ตรงๆ (ไม่ต้องมี session/API จริง
+                // เลย เพราะไม่พึ่ง ApiClient/LabHubClient อะไรทั้งนั้น)
+                "teacher-broadcast-border" => new TeacherBroadcastBorderWindow(),
+                // แผงเครื่องมือเขียน - สร้าง canvas เปล่าไว้ให้ toolbar อ้างถึง (ไม่โชว์ canvas เองในภาพนี้
+                // เพราะพื้นหลัง transparent ทั้งจอไม่มีอะไรให้ดูต่างจากพื้นหลัง - ถ่ายแค่ toolbar)
+                "teacher-draw-toolbar" => new TeacherDrawToolbarWindow(new TeacherDrawCanvasWindow()),
                 _ => null
             };
 
@@ -219,6 +243,12 @@ public partial class App : Application
                 ConsoleDiagnostics.WriteLine($"--dialog: ไม่รู้จักชื่อ '{dialogArg}' - ปิดโปรแกรม");
                 Shutdown(2);
                 return;
+            }
+
+            // คำขอเพิ่ม 3 พ.ย. 2569 - "broadcast-warning-bar-collapsed" ถ่ายภาพสถานะหุบ (ปุ่มกลม) แทนแถบเต็ม
+            if (dialog is BroadcastWarningBarWindow warningBar && dialogArg == "--dialog=broadcast-warning-bar-collapsed")
+            {
+                warningBar.PreviewStartCollapsed = true;
             }
 
             // ถ่ายภาพอย่างเดียว: อย่าแย่ง focus และอย่าโผล่กลางจอที่ผู้ใช้กำลังทำงานอยู่

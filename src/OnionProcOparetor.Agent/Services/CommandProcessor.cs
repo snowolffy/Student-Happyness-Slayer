@@ -183,6 +183,12 @@ public class CommandProcessor
             case "CollectFile":
                 return HandleCollectFileAsync(payloadJson, ct);
 
+            case "StartScreenBroadcast":
+                return HandleStartScreenBroadcastAsync(payloadJson, ct);
+
+            case "StopScreenBroadcast":
+                return HandleStopScreenBroadcastAsync(ct);
+
             // TODO Phase 3/4: ใส่ command อื่นๆ ตรงนี้เพิ่ม เช่น "Kill", "RunCommand"
             default:
                 _logger.LogWarning(
@@ -1037,6 +1043,65 @@ public class CommandProcessor
         return sentToTray
             ? CommandExecutionResult.Ok($"ส่งคำขอเก็บไฟล์งาน '{job.Name}' ให้ AgentTray แล้ว (รอนักเรียนเลือกไฟล์ส่งเอง)")
             : CommandExecutionResult.Fail(TrayUnreachableMessage("ขอไฟล์งาน"));
+    }
+
+    /// <summary>
+    /// "เริ่มส่งจอ" (WP4-4, 2026-11-01) - ครูกด "เริ่มส่งจอ" จาก Console ส่ง command นี้ไปทุกเครื่องเป้าหมาย
+    /// ดู wireframe tc-broadcast.dc.html/tc-broadcast-student.dc.html - สองขั้นตอน: (1) join SignalR
+    /// group รับ "ScreenFrame" ที่ครูจะทยอยส่งเข้ามา (ดู LabHubConnection.JoinScreenBroadcastGroupAsync)
+    /// (2) สั่ง AgentTray เปิดหน้าต่างดูจอครู (ต้องทำจาก AgentTray เสมอ - Session 0 ไม่มี desktop)
+    ///
+    /// ลำดับตั้งใจ: สั่ง AgentTray "ก่อน" join group เสมอ - ถ้า AgentTray ติดต่อไม่ได้ (ไม่มี user login
+    /// อยู่หน้าเครื่อง) ไม่มีประโยชน์ที่จะ join รับเฟรมที่ไม่มีใครแสดงอยู่ดี (เสียทรัพยากร Server +
+    /// Agent เปล่าๆ) - ล้มทั้งคู่ตั้งแต่ขั้นแรกเลย
+    /// </summary>
+    private async Task<CommandExecutionResult> HandleStartScreenBroadcastAsync(string? payloadJson, CancellationToken ct)
+    {
+        StartScreenBroadcastPayload? payload = null;
+        if (!string.IsNullOrWhiteSpace(payloadJson))
+        {
+            try
+            {
+                payload = JsonSerializer.Deserialize<StartScreenBroadcastPayload>(
+                    payloadJson, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "แปลง payload ของ StartScreenBroadcast ไม่สำเร็จ: {Payload} - ใช้ค่า default (FullscreenLocked) แทน", payloadJson);
+            }
+        }
+
+        var viewerMode = payload?.ViewerMode == ScreenBroadcastViewerMode.Windowed
+            ? ScreenBroadcastViewerMode.Windowed
+            : ScreenBroadcastViewerMode.FullscreenLocked; // default ปลอดภัยกว่า (ล็อก input กันนักเรียนทำอย่างอื่นระหว่างครูสอน)
+
+        _logger.LogInformation("ได้รับ StartScreenBroadcast command (viewerMode: {ViewerMode}) - ส่งต่อให้ AgentTray เปิดหน้าต่างดูจอครู", viewerMode);
+
+        var sentToTray = await _agentTrayNotifier.SendStartScreenViewAsync(viewerMode, payload?.TeacherDisplayName, ct);
+        if (!sentToTray)
+        {
+            return CommandExecutionResult.Fail(TrayUnreachableMessage("เปิดหน้าต่างดูจอครู"));
+        }
+
+        var labHubConnection = _serviceProvider.GetRequiredService<LabHubConnection>();
+        await labHubConnection.JoinScreenBroadcastGroupAsync(ct);
+
+        return CommandExecutionResult.Ok("เปิดหน้าต่างดูจอครูแล้ว กำลังรอรับภาพ");
+    }
+
+    /// <summary>"หยุดส่ง" (WP4-4) - เลิก join group (SignalR) แล้วสั่ง AgentTray ปิดหน้าต่างดูจอครู เรียงลำดับกลับทางจาก HandleStartScreenBroadcastAsync (leave ก่อนเสมอ กัน AgentTray ปิดช้ากว่าแล้วยังมีเฟรมเก่าโผล่มาอีกทีหลังปิดไปแล้ว)</summary>
+    private async Task<CommandExecutionResult> HandleStopScreenBroadcastAsync(CancellationToken ct)
+    {
+        _logger.LogInformation("ได้รับ StopScreenBroadcast command - เลิกรับภาพจอครูและปิดหน้าต่าง");
+
+        var labHubConnection = _serviceProvider.GetRequiredService<LabHubConnection>();
+        await labHubConnection.LeaveScreenBroadcastGroupAsync(ct);
+
+        var sentToTray = await _agentTrayNotifier.SendStopScreenViewAsync(ct);
+
+        return sentToTray
+            ? CommandExecutionResult.Ok()
+            : CommandExecutionResult.Fail(TrayUnreachableMessage("ปิดหน้าต่างดูจอครู (เลิกรับภาพแล้ว แต่ปิดหน้าต่างที่เปิดค้างไม่ได้)"));
     }
 
     /// <summary>

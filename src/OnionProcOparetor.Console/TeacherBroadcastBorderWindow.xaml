@@ -1,0 +1,23 @@
+<Window x:Class="OnionProcOparetor.Console.TeacherBroadcastBorderWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="กำลังส่งจอครู (กรอบแดง)"
+        WindowStyle="None"
+        Topmost="True"
+        ShowInTaskbar="False"
+        ResizeMode="NoResize"
+        WindowStartupLocation="Manual"
+        Background="Transparent"
+        AllowsTransparency="True"
+        Focusable="False"
+        ShowActivated="False"
+        Icon="/Theme/icon.ico">
+    <!-- คำขอเพิ่ม 3 พ.ย. 2569 - กรอบแดงรอบจอครูตลอดเวลาที่ส่ง หนา 4px ไม่กะพริบ กดทะลุได้ (ตั้งค่า
+         WS_EX_TRANSPARENT ใน code-behind ตอน SourceInitialized) และตัดตัวเองออกจากภาพที่ส่งให้นักเรียน
+         ด้วย SetWindowDisplayAffinity(WDA_EXCLUDEFROMCAPTURE) (ดู TeacherOnlyWindowHelper)
+
+         วาดเป็นกรอบกลวง (Border ขอบหนาไม่มีพื้นด้านใน) เต็มจอหลัก - ใช้ Border เดียวทาบทั้งจอแทนสี่เหลี่ยม
+         4 แถบ เพราะง่ายกว่ามากและ WS_EX_TRANSPARENT ทำให้พื้นที่ "ใน" กรอบที่เป็น Transparent ทะลุคลิกได้
+         อยู่แล้วไม่ต้องกังวลเรื่องบังคลิกตรงกลางจอ -->
+    <Border BorderBrush="#E53935" BorderThickness="4"/>
+</Window>

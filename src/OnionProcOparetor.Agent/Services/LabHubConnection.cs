@@ -15,21 +15,31 @@ public class LabHubConnection : IAsyncDisposable
     private readonly ServerSettings _settings;
     private readonly CommandProcessor _commandProcessor;
     private readonly CommandResultReporter _resultReporter;
+    private readonly AgentTrayNotifier _agentTrayNotifier;
     private HubConnection? _connection;
     private string _clientGuid = string.Empty;
     private string _activeBaseUrl = string.Empty;
     private readonly SemaphoreSlim _switchLock = new(1, 1);
 
+    /// <summary>
+    /// "ส่งจอครู" (WP4-4) - true ถ้าเครื่องนี้กำลังเป็น viewer อยู่ตอนนี้ (join ไปแล้วรอรับ ScreenFrame)
+    /// ใช้ตัดสินใจตอน Reconnected ว่าต้อง join กลุ่มซ้ำไหม (connection ใหม่ไม่รู้จัก group เดิมเลย -
+    /// เหมือนเหตุผลที่ RegisterAgentSafeAsync ต้องเรียกซ้ำทุกครั้งที่ reconnect)
+    /// </summary>
+    private volatile bool _isViewingScreenBroadcast;
+
     public LabHubConnection(
         ILogger<LabHubConnection> logger,
         IOptions<ServerSettings> settings,
         CommandProcessor commandProcessor,
-        CommandResultReporter resultReporter)
+        CommandResultReporter resultReporter,
+        AgentTrayNotifier agentTrayNotifier)
     {
         _logger = logger;
         _settings = settings.Value;
         _commandProcessor = commandProcessor;
         _resultReporter = resultReporter;
+        _agentTrayNotifier = agentTrayNotifier;
     }
 
     /// <summary>
@@ -153,6 +163,16 @@ public class LabHubConnection : IAsyncDisposable
             }
         });
 
+        // "ส่งจอครู" (WP4-4, 2026-11-01) - เฟรมจอครูที่ Server รีเลย์มาจาก Console ผ่าน ScreenBroadcastRelay
+        // ส่งต่อให้ AgentTray ทันที (ที่นี่เท่านั้นที่มี desktop ให้แสดงภาพได้ - Agent เอง Session 0 ไม่มี)
+        // fire-and-forget โดยตั้งใจ (ไม่ await SendScreenFrameAsync ให้จบก่อนรับเฟรมถัดไป) เพื่อไม่ให้
+        // เฟรมหนึ่งที่ส่งช้าไปหน่วงเฟรมถัดไปที่ SignalR รับเข้ามาเรื่อยๆ ไม่สนลำดับ (เฟรมคือ "ภาพล่าสุด"
+        // เท่านั้น ไม่มี state สะสม - สลับลำดับกันได้ไม่มีผลเสีย)
+        _connection.On<byte[]>("ScreenFrame", frameBytes =>
+        {
+            _ = _agentTrayNotifier.SendScreenFrameAsync(frameBytes, CancellationToken.None);
+        });
+
         _connection.Reconnecting += ex =>
         {
             _logger.LogWarning(ex, "SignalR reconnecting - ระหว่างนี้ Agent ยังทำงานผ่าน poll ตามปกติ (fail-secure)");
@@ -163,6 +183,13 @@ public class LabHubConnection : IAsyncDisposable
         {
             _logger.LogInformation("SignalR reconnected (ConnectionId: {ConnectionId}) - join group agent ใหม่อีกครั้ง", connectionId);
             await RegisterAgentSafeAsync();
+
+            // connection ใหม่ไม่รู้จัก viewer group เดิมเลย - join ใหม่ถ้ากำลังดูจอครูอยู่ตอนที่หลุด
+            // (ถ้าครูหยุดส่งไปแล้วพอดีระหว่างที่หลุด ก็ไม่เสียหายอะไร - แค่ join กลุ่มที่ไม่มีใครส่งอะไรเข้ามา)
+            if (_isViewingScreenBroadcast)
+            {
+                await JoinScreenBroadcastGroupAsync(CancellationToken.None);
+            }
         };
 
         _connection.Closed += ex =>
@@ -297,6 +324,53 @@ public class LabHubConnection : IAsyncDisposable
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "ส่ง ProcessListFailed กลับ Console ไม่สำเร็จ (ConsoleSessionId: {SessionId})", consoleSessionId);
+        }
+    }
+
+    /// <summary>
+    /// "ส่งจอครู" (WP4-4) - เรียกจาก CommandProcessor.HandleStartScreenBroadcastAsync ตอนได้รับ command
+    /// "StartScreenBroadcast" - join group รับ "ScreenFrame" จาก LabHub ถ้า SignalR ไม่ connected อยู่
+    /// ตอนนี้ (เช่นกำลัง fallback ไป poll) จะ "จำสถานะไว้" (_isViewingScreenBroadcast) แล้ว join ให้เอง
+    /// ทันทีที่ reconnect สำเร็จ - ไม่มี poll fallback สำหรับฟีเจอร์นี้ (ภาพสดต้องมาผ่าน SignalR เท่านั้น
+    /// เหมือน VNC - ถ้า SignalR ไม่ติดเลยทั้งคาบ เครื่องนั้นก็จะไม่เห็นภาพ ซึ่งยอมรับได้ตามดีไซน์)
+    /// </summary>
+    public async Task JoinScreenBroadcastGroupAsync(CancellationToken ct)
+    {
+        _isViewingScreenBroadcast = true;
+
+        if (_connection is null || _connection.State != HubConnectionState.Connected)
+        {
+            _logger.LogWarning("JoinScreenBroadcast: SignalR ไม่ connected อยู่ตอนนี้ - จะ join ให้เองตอน reconnect สำเร็จ");
+            return;
+        }
+
+        try
+        {
+            await _connection.InvokeAsync("JoinScreenBroadcast", ct);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "JoinScreenBroadcast ผ่าน SignalR ไม่สำเร็จ");
+        }
+    }
+
+    /// <summary>เรียกตอนได้รับ command "StopScreenBroadcast" หรือ CommandProcessor ตัดสินใจเลิกดูด้วยเหตุผลอื่น - เลิกจำสถานะไว้ด้วย (ไม่ join ซ้ำตอน reconnect อีก)</summary>
+    public async Task LeaveScreenBroadcastGroupAsync(CancellationToken ct)
+    {
+        _isViewingScreenBroadcast = false;
+
+        if (_connection is null || _connection.State != HubConnectionState.Connected)
+        {
+            return;
+        }
+
+        try
+        {
+            await _connection.InvokeAsync("LeaveScreenBroadcast", ct);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "LeaveScreenBroadcast ผ่าน SignalR ไม่สำเร็จ (ไม่ critical - connection อาจหลุดไปเองพอดี)");
         }
     }
 

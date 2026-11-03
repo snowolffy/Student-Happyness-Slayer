@@ -37,6 +37,12 @@ namespace OnionProcOparetor.Agent.Models;
 /// - "CollectFile" (WP4-3, 2026-11-01) — สั่งให้ AgentTray โชว่ตัวเลือกไฟล์ให้นักเรียนเลือกส่ง (ใช้
 ///   CollectFileJobId/CollectFileJobName/CollectFileNamePattern/CollectFileClosesAtUtc/CollectFileMaxSizeMb -
 ///   ทุกตัวมาจาก Server สดๆ ผ่าน GetCollectionJobForAgentAsync ไม่ใช่ค่าที่ติดมากับ command payload เดิม)
+/// - "StartScreenView" (WP4-4, 2026-11-01) — เปิดหน้าต่างดูจอครู (ใช้ ViewerMode: "FullscreenLocked"|
+///   "Windowed", TeacherDisplayName) - ส่งครั้งเดียวตอนเริ่ม ไม่ใช้ Message/Title
+/// - "StopScreenView" — ปิดหน้าต่างดูจอครู (ไม่ใช้ field อื่น)
+/// - "ScreenFrame" — เฟรมจอครูเฟรมถัดไป (ใช้ FrameBase64) - ส่งถี่ 5-10 ครั้ง/วิ ระหว่างกำลังส่งจอ ต่าง
+///   จาก message ชนิดอื่นที่ส่งน้อยและเรียกเป็นครั้งๆ (ดู AgentTrayNotifier.SendScreenFrameAsync เรื่อง
+///   ทำไมเลือก reconnect ต่อเฟรมแทนเปิด connection ค้างยาว)
 ///
 /// สำคัญ: ไฟล์นี้ถูก "ก๊อปมือ" ไว้ 2 ที่ (Agent/Models + AgentTray/Models) เพราะ solution นี้
 /// ไม่มี shared class library ระหว่างโปรเจกต์เลย (ดู LogEntryDto ที่ก๊อปแบบเดียวกัน) -
@@ -79,4 +85,13 @@ public class AgentTrayPipeMessage
     public string? CollectFileNamePattern { get; set; }
     public DateTime? CollectFileClosesAtUtc { get; set; }
     public int? CollectFileMaxSizeMb { get; set; }
+
+    /// <summary>ใช้เฉพาะ Type = "StartScreenView" (WP4-4, 2026-11-01) - "FullscreenLocked" หรือ "Windowed" (ดู ScreenBroadcastViewerMode)</summary>
+    public string? ViewerMode { get; set; }
+
+    /// <summary>ใช้เฉพาะ Type = "StartScreenView" - ชื่อที่แสดงของครูที่กำลังส่งจอ</summary>
+    public string? TeacherDisplayName { get; set; }
+
+    /// <summary>ใช้เฉพาะ Type = "ScreenFrame" - เฟรม JPEG เข้ารหัส Base64 เฟรมถัดไป</summary>
+    public string? FrameBase64 { get; set; }
 }
