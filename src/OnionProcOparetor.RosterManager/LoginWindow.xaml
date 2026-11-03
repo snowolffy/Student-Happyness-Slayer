@@ -55,16 +55,8 @@
                     </Border.Clip>
                     <Grid>
                         <Image x:Name="HeroImage" Stretch="UniformToFill"/>
-                        <StackPanel VerticalAlignment="Bottom" Margin="20">
-                            <Border Background="#CC241E1A" CornerRadius="6" Padding="12,10">
-                                <StackPanel>
-                                    <TextBlock Text="Roster Manager" FontSize="18" FontWeight="Bold"
-                                               Foreground="{DynamicResource Brush.Sidebar.Text}"/>
-                                    <TextBlock Text="จัดการรายชื่อและบัญชีนักเรียน" FontSize="12" Margin="0,4,0,0"
-                                               Foreground="{DynamicResource Brush.Sidebar.TextSecondary}"/>
-                                </StackPanel>
-                            </Border>
-                        </StackPanel>
+                        <!-- ไม่มีกล่องข้อความทับมุมภาพ: ภาพ LoginHero ที่ผู้ใช้เลือกมีชื่อโปรแกรมอยู่ในภาพแล้ว
+                             ถ้าวางข้อความ XAML ทับจะซ้อนกันอ่านไม่ออก (ผู้ใช้สั่งเอาออก 3 พ.ย. 2569) -->
                     </Grid>
                 </Border>
 
