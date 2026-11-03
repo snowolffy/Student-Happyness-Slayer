@@ -447,7 +447,9 @@ orchestrator ส่ง WP0, WP5 และ WP6 ออกพร้อมกัน�
     - แก้ csproj/XAML/razor ได้เฉพาะบรรทัดที่อ้างไฟล์เหล่านี้
     - ห้ามแตะ `src/OnionProcOparetor.AgentTray/**`, ภาพ `LoginHero.png` และภาพ banner/dialog ของ MSI (ถ้าคิดว่าควรเปลี่ยน ให้ระบุในรายงาน)
     - **แก้ตามคำสั่งผู้ใช้ 3 พ.ย.:** เอากล่องข้อความทับมุมภาพ LoginHero ของ RosterManager ออกแล้ว (`c1fbe22`) · **เอาพื้นสี่เหลี่ยมสีเน้นหลังโลโก้ออกทุกจุด** ทั้ง sidebar, การ์ดล็อกอิน และ About ของ Console กับการ์ดล็อกอินของ RosterManager (`6347d48`)
-  - **WP UI-7c โลโก้แบบเวกเตอร์ (ผู้ใช้สั่ง 3 พ.ย.)** (branch `feat/p1-ui7c`)
+  - **WP UI-7c โลโก้แบบเวกเตอร์ (ผู้ใช้สั่ง 3 พ.ย.)** (branch `feat/p1-ui7c`) · **✅ merge แล้ว 3 พ.ย. (`57bb51d`)**
+    - `assets/icons/svg_to_drawingimage.py` สร้าง `UI/Theme/Logos.xaml` (`Logo.App`, `Logo.App.Small`) และ `RosterManager/Theme/Logos.xaml` (`Logo.RosterApp*`) · ภาพเทียบที่ 3 เท่าตรงกับ SVG ต้นฉบับ
+    - โลโก้ในการ์ดล็อกอิน Console ขยายเป็น 36px รุ่น full (`4fdfed9`) ให้สมดุลกับหัวข้อ ตรวจแล้วไม่ล้นการ์ด
     - โลโก้ในหน้าล็อกอิน, sidebar, About และแถบหัวของ AgentTray ตอนนี้เป็น PNG 256px ที่ WPF ย่อลงเหลือราว 30–36px จึงไม่คม
     - ให้แปลง `assets/icons/export/app/app.svg` และ `roster-app/roster-app.svg` เป็น `DrawingImage` ของ WPF (path/circle/transform/stroke ตามต้นฉบับ) แล้วใช้แทน PNG ในทุกจุดที่แสดงโลโก้
     - ใช้เวอร์ชัน `small` ของ SVG กับจุดที่แสดงขนาด ≤32px ตาม README ของชุดไอคอน
