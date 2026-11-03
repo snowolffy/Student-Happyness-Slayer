@@ -43,6 +43,18 @@ public partial class MainWindow : Window
 
         LoadHeroImage();
 
+#if DEBUG
+        // --dialog=login --login-error (UI-6, 2026-11-03) - จำลองข้อความ error สีแดงใต้ปุ่มเชื่อมต่อ
+        // (เหมือนตอนรหัสผ่านผิด/ต่อ Server ไม่ได้) เพื่อถ่ายภาพตรวจว่าการ์ดที่ย่อลง 75% แล้วไม่มีอะไรล้น/
+        // ถูกตัดตอนมีข้อความ error แสดงอยู่ (roadmap WP UI-6 สั่งให้ตรวจสถานะนี้ด้วย) อ่าน args เองตรงนี้
+        // แทนการแก้ App.xaml.cs เพราะไฟล์นั้นอยู่นอกขอบเขตไฟล์ที่ WP UI-6 แตะได้
+        if (Environment.GetCommandLineArgs().Contains("--login-error"))
+        {
+            StatusText.SetResourceReference(System.Windows.Controls.TextBlock.ForegroundProperty, "Brush.Danger.Default");
+            StatusText.Text = "เชื่อมต่อไม่สำเร็จ: Username หรือ Password ไม่ถูกต้อง";
+        }
+#endif
+
         // UI-2 (2026-11-03): เดิม "กัน Alt+F4 ปิด Console ตอนอยู่ fullscreen live-view" อยู่ใน
         // DashboardWindow.Closing ของตัวเอง (ตอนยังเป็น Window แยก) - ตอนนี้ MainWindow เป็น host
         // window เดียวตลอด process จึงต้องรับ Closing ของตัวเองแทน แล้วถาม DashboardWindow (ถ้ากำลัง

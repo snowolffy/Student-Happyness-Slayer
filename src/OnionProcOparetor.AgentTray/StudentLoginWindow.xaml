@@ -105,47 +105,56 @@
                     </Grid>
                 </Border>
 
-                <!-- ==================== ขวา: ฟอร์ม (สลับตาม FormState) ==================== -->
-                <Grid Grid.Column="1" Margin="30,0">
+                <!-- ==================== ขวา: ฟอร์ม (สลับตาม FormState) ====================
+                     Margin บนล่าง (16) กันเนื้อหาเบียดขอบโค้งของการ์ด เหมือนที่แก้ใน Console/MainWindow.xaml -
+                     พบจริงจากภาพตรวจว่าแบนเนอร์ "ติดต่อ Server ไม่ได้" ชิดขอบบนการ์ดจนแทบล้นถ้าไม่มี margin นี้ -->
+                <Grid Grid.Column="1" Margin="30,16,30,16">
                     <!-- state: Login (ปกติ/ผิด/ล็อก) -->
                     <StackPanel x:Name="LoginPanel" VerticalAlignment="Center">
                         <!-- WP3-4b (2026-10-31) - โชว์เฉพาะตอนติดต่อ Server ไม่ได้ "และ" เครื่องนี้ตั้งค่ารหัสฉุกเฉินไว้แล้วเท่านั้น
                              (ดู RefreshEmergencyAndConnectivityStateAsync ใน .xaml.cs) ตรงตามที่ roadmap ระบุ "โชว์เด่นตอน Server ล่ม" -->
                         <Border x:Name="ServerUnreachableBanner" Background="#FDECEA" BorderBrush="{DynamicResource Brush.Danger.Default}"
-                                BorderThickness="1.5" CornerRadius="6" Padding="8" Margin="0,0,0,10" Visibility="Collapsed">
+                                BorderThickness="1.5" CornerRadius="6" Padding="7" Margin="0,0,0,8" Visibility="Collapsed">
                             <StackPanel>
                                 <TextBlock Text="ติดต่อ Server ไม่ได้" FontWeight="Bold" FontSize="13.5"
                                            Foreground="{DynamicResource Brush.Danger.Default}"/>
                                 <TextBlock Text="ล็อกอินนักเรียนใช้ไม่ได้ชั่วคราว - ครูปลดเครื่องนี้ด้วยรหัสฉุกเฉินได้"
-                                           FontSize="12" TextWrapping="Wrap" Margin="0,2,0,6"/>
-                                <Button x:Name="OpenEmergencyFromBannerButton" Content="ปลดด้วยรหัสฉุกเฉิน..." Height="24"
-                                        Padding="12,0" HorizontalAlignment="Left" Style="{StaticResource ButtonSecondary}"
+                                           FontSize="12" TextWrapping="Wrap" Margin="0,2,0,5"/>
+                                <!-- Height ไม่ตั้งตรงๆ โดยเจตนา (UI-6 รอบแก้ไข) - เดิมตั้ง Height คงที่ไว้
+                                     แล้วเจอข้อความปุ่มถูกตัดจริงจากภาพตรวจ เพราะ ButtonSecondary ห่อ
+                                     ContentPresenter ด้วย Border CornerRadius ที่ clip เนื้อหาเกิน Height
+                                     ที่ตั้งเอง - ปล่อยให้สูงตามเนื้อหา (padding แนวตั้งคุมความสูงแทน) ปลอดภัย
+                                     กับทุกฟอนต์/ทุกสระบน-ล่างของไทยเสมอ -->
+                                <Button x:Name="OpenEmergencyFromBannerButton" Content="ปลดด้วยรหัสฉุกเฉิน..."
+                                        Padding="12,4" HorizontalAlignment="Left" Style="{StaticResource ButtonSecondary}"
                                         Click="OpenEmergencyFromBannerButton_Click"/>
                             </StackPanel>
                         </Border>
 
-                        <TextBlock Text="เข้าสู่ระบบเพื่อใช้งานเครื่อง" FontSize="20" FontWeight="Bold" Margin="0,0,0,8"/>
+                        <TextBlock Text="เข้าสู่ระบบเพื่อใช้งานเครื่อง" FontSize="20" FontWeight="Bold" Margin="0,0,0,6"/>
 
                         <Border x:Name="LoginErrorBanner" Background="#FDECEA" BorderBrush="{DynamicResource Brush.Danger.Default}"
-                                BorderThickness="1.5" CornerRadius="6" Padding="7" Margin="0,0,0,7" Visibility="Collapsed">
+                                BorderThickness="1.5" CornerRadius="6" Padding="7" Margin="0,0,0,6" Visibility="Collapsed">
                             <TextBlock x:Name="LoginErrorText" TextWrapping="Wrap" FontSize="12.5"
                                        Foreground="{DynamicResource Brush.Danger.Default}"/>
                         </Border>
 
                         <TextBlock Text="เมลโรงเรียน หรือ รหัสนักเรียน" Style="{StaticResource LabelText}"/>
-                        <TextBox x:Name="IdentifierBox" Margin="0,0,0,7" FontSize="14" Padding="5,4"/>
+                        <TextBox x:Name="IdentifierBox" Margin="0,0,0,5" FontSize="14" Padding="5,4"/>
 
                         <TextBlock Text="รหัสผ่าน" Style="{StaticResource LabelText}"/>
-                        <PasswordBox x:Name="PasswordBox" Margin="0,0,0,9" FontSize="14" Padding="5,4"
+                        <PasswordBox x:Name="PasswordBox" Margin="0,0,0,6" FontSize="14" Padding="5,4"
                                      KeyDown="PasswordBox_KeyDown"/>
 
-                        <Button x:Name="LoginButton" Content="เข้าสู่ระบบ" Height="28"
+                        <!-- ปุ่ม "เข้าสู่ระบบ"/"ใช้ที่เครื่องนี้แทน"/"บันทึกแล้วเข้าใช้งาน" ด้านล่างนี้ไม่ตั้ง Height
+                             ตรงๆ ด้วยเหตุผลเดียวกับปุ่มรหัสฉุกเฉินข้างบน - คุมความสูงด้วย Padding แนวตั้งแทน -->
+                        <Button x:Name="LoginButton" Content="เข้าสู่ระบบ" Padding="14,6"
                                 Style="{StaticResource ButtonPrimary}" Click="LoginButton_Click"/>
 
                         <TextBlock Text="ลืมรหัสผ่าน กรุณาติดต่อครูผู้สอน" FontSize="12"
-                                   Foreground="{DynamicResource Brush.Text.Secondary}" Margin="0,6,0,0"/>
+                                   Foreground="{DynamicResource Brush.Text.Secondary}" Margin="0,4,0,0"/>
 
-                        <Border BorderBrush="{DynamicResource Brush.Border.Default}" BorderThickness="0,1,0,0" Margin="0,8,0,0" Padding="0,7,0,0">
+                        <Border BorderBrush="{DynamicResource Brush.Border.Default}" BorderThickness="0,1,0,0" Margin="0,6,0,0" Padding="0,5,0,0">
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock Text="สำหรับครู: Staff session" FontSize="12.5" Foreground="{DynamicResource Brush.Accent.Dark}"
                                            Cursor="Hand" MouseLeftButtonUp="StaffSessionLink_Click" TextDecorations="Underline"/>
@@ -161,26 +170,26 @@
 
                     <!-- state: บัญชีใช้อยู่ที่เครื่องอื่น -->
                     <StackPanel x:Name="LoggedInElsewherePanel" VerticalAlignment="Center" Visibility="Collapsed">
-                        <Border Background="#FDF3E7" BorderBrush="#B45309" BorderThickness="1.5" CornerRadius="6" Padding="8" Margin="0,0,0,10">
+                        <Border Background="#FDF3E7" BorderBrush="#B45309" BorderThickness="1.5" CornerRadius="6" Padding="8" Margin="0,0,0,8">
                             <TextBlock x:Name="LoggedInElsewhereText" TextWrapping="Wrap" FontSize="13"/>
                         </Border>
-                        <Button x:Name="ForceLoginButton" Content="ใช้ที่เครื่องนี้แทน" Height="28"
-                                Style="{StaticResource ButtonPrimary}" Margin="0,0,0,7" Click="ForceLoginButton_Click"/>
-                        <Button x:Name="CancelForceLoginButton" Content="ยกเลิก" Height="26"
+                        <Button x:Name="ForceLoginButton" Content="ใช้ที่เครื่องนี้แทน" Padding="14,6"
+                                Style="{StaticResource ButtonPrimary}" Margin="0,0,0,6" Click="ForceLoginButton_Click"/>
+                        <Button x:Name="CancelForceLoginButton" Content="ยกเลิก" Padding="14,5"
                                 Style="{StaticResource ButtonSecondary}" Click="CancelForceLoginButton_Click"/>
                     </StackPanel>
 
                     <!-- state: บังคับตั้งรหัสใหม่ -->
                     <StackPanel x:Name="MustChangePasswordPanel" VerticalAlignment="Center" Visibility="Collapsed">
                         <TextBlock x:Name="MustChangePasswordGreeting" Text="กรุณาตั้งรหัสผ่านใหม่ก่อนใช้งาน"
-                                   FontSize="16" FontWeight="Bold" TextWrapping="Wrap" Margin="0,0,0,10"/>
+                                   FontSize="16" FontWeight="Bold" TextWrapping="Wrap" Margin="0,0,0,8"/>
                         <TextBlock Text="รหัสผ่านใหม่" Style="{StaticResource LabelText}"/>
-                        <PasswordBox x:Name="NewPasswordBox" Margin="0,0,0,7" FontSize="14" Padding="5,4"/>
+                        <PasswordBox x:Name="NewPasswordBox" Margin="0,0,0,5" FontSize="14" Padding="5,4"/>
                         <TextBlock Text="ยืนยันรหัสผ่านใหม่" Style="{StaticResource LabelText}"/>
-                        <PasswordBox x:Name="ConfirmPasswordBox" Margin="0,0,0,5" FontSize="14" Padding="5,4"/>
+                        <PasswordBox x:Name="ConfirmPasswordBox" Margin="0,0,0,4" FontSize="14" Padding="5,4"/>
                         <TextBlock x:Name="ChangePasswordErrorText" TextWrapping="Wrap" FontSize="12"
-                                   Foreground="{DynamicResource Brush.Danger.Default}" Margin="0,0,0,5" Visibility="Collapsed"/>
-                        <Button x:Name="SavePasswordButton" Content="บันทึกแล้วเข้าใช้งาน" Height="28"
+                                   Foreground="{DynamicResource Brush.Danger.Default}" Margin="0,0,0,4" Visibility="Collapsed"/>
+                        <Button x:Name="SavePasswordButton" Content="บันทึกแล้วเข้าใช้งาน" Padding="14,6"
                                 Style="{StaticResource ButtonPrimary}" Click="SavePasswordButton_Click"/>
                     </StackPanel>
                 </Grid>
