@@ -1,0 +1,23 @@
+{
+  "key": "tray.connected",
+  "name": "Connected",
+  "name_th": "เชื่อมต่อแล้ว",
+  "category": "status",
+  "description": "Agent/client is connected to the server.",
+  "ico_sizes": [
+    16,
+    20,
+    24,
+    32,
+    48,
+    64
+  ],
+  "png_sizes": [
+    16,
+    20,
+    24,
+    32,
+    48,
+    64
+  ]
+}

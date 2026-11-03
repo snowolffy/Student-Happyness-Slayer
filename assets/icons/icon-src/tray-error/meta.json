@@ -1,0 +1,23 @@
+{
+  "key": "tray.error",
+  "name": "Error",
+  "name_th": "ผิดพลาด",
+  "category": "status",
+  "description": "Something is wrong (generic error state).",
+  "ico_sizes": [
+    16,
+    20,
+    24,
+    32,
+    48,
+    64
+  ],
+  "png_sizes": [
+    16,
+    20,
+    24,
+    32,
+    48,
+    64
+  ]
+}
