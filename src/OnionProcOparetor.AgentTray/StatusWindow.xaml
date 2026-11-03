@@ -46,7 +46,7 @@
                     <StackPanel Grid.Column="0">
                         <TextBlock Text="ENFORCEMENT" Style="{StaticResource LabelText}"/>
                         <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
-                            <Ellipse x:Name="EnabledDot" Width="10" Height="10" Fill="{StaticResource AccentGreenBrush}"
+                            <Ellipse x:Name="EnabledDot" Width="10" Height="10" Fill="{DynamicResource Brush.Status.Online}"
                                      VerticalAlignment="Center"/>
                             <TextBlock x:Name="EnabledText" Text="Enabled" Margin="6,0,0,0"
                                        FontWeight="SemiBold" VerticalAlignment="Center"/>
@@ -76,7 +76,7 @@
                     <StackPanel Grid.Column="0">
                         <TextBlock Text="CONNECTION" Style="{StaticResource LabelText}"/>
                         <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
-                            <Ellipse x:Name="ConnectionDot" Width="10" Height="10" Fill="{StaticResource AccentGreenBrush}"
+                            <Ellipse x:Name="ConnectionDot" Width="10" Height="10" Fill="{DynamicResource Brush.Status.Online}"
                                      VerticalAlignment="Center"/>
                             <TextBlock x:Name="ConnectionText" Text="Connected" Margin="6,0,0,0"
                                        FontWeight="SemiBold" VerticalAlignment="Center"/>
@@ -84,7 +84,7 @@
                     </StackPanel>
 
                     <Button Grid.Column="1" x:Name="ToggleBypassButton" Content="BYPASS" VerticalAlignment="Center"
-                            Style="{StaticResource SecondaryButton}" Click="ToggleBypassButton_Click"/>
+                            Style="{StaticResource ButtonSecondary}" Click="ToggleBypassButton_Click"/>
                 </Grid>
             </Border>
 
@@ -101,9 +101,9 @@
                         <TextBlock Text="RECENT ACTIVITY" Style="{StaticResource LabelText}"
                                 VerticalAlignment="Center" Margin="0"/>
                         <Button x:Name="RefreshButton" Content="REFRESH" Margin="12,0,0,0"
-                                Style="{StaticResource SecondaryButton}" Click="RefreshButton_Click"/>
+                                Style="{StaticResource ButtonSecondary}" Click="RefreshButton_Click"/>
                         <Button x:Name="OpenTerminalButton" Content="OPEN LOG TERMINAL" Margin="8,0,0,0"
-                                Style="{StaticResource SecondaryButton}" Click="OpenTerminalButton_Click"/>
+                                Style="{StaticResource ButtonSecondary}" Click="OpenTerminalButton_Click"/>
                     </StackPanel>
 
                     <ListView Grid.Row="2" x:Name="LogsListView" BorderThickness="1">

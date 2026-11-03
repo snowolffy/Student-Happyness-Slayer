@@ -34,7 +34,7 @@
                     <DrawingBrush.Drawing>
                         <GeometryDrawing>
                             <GeometryDrawing.Brush>
-                                <SolidColorBrush Color="{StaticResource CardBorderColor}"/>
+                                <SolidColorBrush Color="{DynamicResource Color.Border.Default}"/>
                             </GeometryDrawing.Brush>
                             <GeometryDrawing.Geometry>
                                 <EllipseGeometry Center="10,10" RadiusX="1.2" RadiusY="1.2"/>
@@ -58,8 +58,8 @@
         <!-- ==================== การ์ดล็อกอิน ==================== -->
         <Border Grid.Row="1" Width="860" Height="480" CornerRadius="14"
                 HorizontalAlignment="Center" VerticalAlignment="Center"
-                Background="{StaticResource CardBrush}"
-                BorderBrush="{StaticResource CardBorderBrush}" BorderThickness="1">
+                Background="{DynamicResource Brush.Background.Card}"
+                BorderBrush="{DynamicResource Brush.Border.Default}" BorderThickness="1">
             <Border.Effect>
                 <DropShadowEffect BlurRadius="36" ShadowDepth="10" Direction="270" Opacity="0.24" Color="Black"/>
             </Border.Effect>
@@ -70,7 +70,7 @@
                 </Grid.ColumnDefinitions>
 
                 <!-- ==================== ซ้าย: ภาพ + ข้อความจากหน้าตั้งค่า ==================== -->
-                <Border Grid.Column="0" Background="{StaticResource BrandBrush}">
+                <Border Grid.Column="0" Background="{DynamicResource Brush.Accent.Default}">
                     <Border.Clip>
                         <RectangleGeometry RadiusX="14" RadiusY="14" Rect="0,0,340,480"/>
                     </Border.Clip>
@@ -107,25 +107,25 @@
                     <StackPanel x:Name="LoginPanel" VerticalAlignment="Center">
                         <!-- WP3-4b (2026-10-31) - โชว์เฉพาะตอนติดต่อ Server ไม่ได้ "และ" เครื่องนี้ตั้งค่ารหัสฉุกเฉินไว้แล้วเท่านั้น
                              (ดู RefreshEmergencyAndConnectivityStateAsync ใน .xaml.cs) ตรงตามที่ roadmap ระบุ "โชว์เด่นตอน Server ล่ม" -->
-                        <Border x:Name="ServerUnreachableBanner" Background="#FDECEA" BorderBrush="{StaticResource AccentRedBrush}"
+                        <Border x:Name="ServerUnreachableBanner" Background="#FDECEA" BorderBrush="{DynamicResource Brush.Danger.Default}"
                                 BorderThickness="1.5" CornerRadius="6" Padding="12" Margin="0,0,0,16" Visibility="Collapsed">
                             <StackPanel>
                                 <TextBlock Text="ติดต่อ Server ไม่ได้" FontWeight="Bold" FontSize="13.5"
-                                           Foreground="{StaticResource AccentRedBrush}"/>
+                                           Foreground="{DynamicResource Brush.Danger.Default}"/>
                                 <TextBlock Text="ล็อกอินนักเรียนใช้ไม่ได้ชั่วคราว - ครูปลดเครื่องนี้ด้วยรหัสฉุกเฉินได้"
                                            FontSize="12" TextWrapping="Wrap" Margin="0,4,0,10"/>
                                 <Button x:Name="OpenEmergencyFromBannerButton" Content="ปลดด้วยรหัสฉุกเฉิน..." Height="34"
-                                        Padding="14,0" HorizontalAlignment="Left" Style="{StaticResource SecondaryButton}"
+                                        Padding="14,0" HorizontalAlignment="Left" Style="{StaticResource ButtonSecondary}"
                                         Click="OpenEmergencyFromBannerButton_Click"/>
                             </StackPanel>
                         </Border>
 
                         <TextBlock Text="เข้าสู่ระบบเพื่อใช้งานเครื่อง" FontSize="20" FontWeight="Bold" Margin="0,0,0,14"/>
 
-                        <Border x:Name="LoginErrorBanner" Background="#FDECEA" BorderBrush="{StaticResource AccentRedBrush}"
+                        <Border x:Name="LoginErrorBanner" Background="#FDECEA" BorderBrush="{DynamicResource Brush.Danger.Default}"
                                 BorderThickness="1.5" CornerRadius="6" Padding="10" Margin="0,0,0,12" Visibility="Collapsed">
                             <TextBlock x:Name="LoginErrorText" TextWrapping="Wrap" FontSize="12.5"
-                                       Foreground="{StaticResource AccentRedBrush}"/>
+                                       Foreground="{DynamicResource Brush.Danger.Default}"/>
                         </Border>
 
                         <TextBlock Text="เมลโรงเรียน หรือ รหัสนักเรียน" Style="{StaticResource LabelText}"/>
@@ -136,20 +136,20 @@
                                      KeyDown="PasswordBox_KeyDown"/>
 
                         <Button x:Name="LoginButton" Content="เข้าสู่ระบบ" Height="40"
-                                Style="{StaticResource PrimaryButton}" Click="LoginButton_Click"/>
+                                Style="{StaticResource ButtonPrimary}" Click="LoginButton_Click"/>
 
                         <TextBlock Text="ลืมรหัสผ่าน กรุณาติดต่อครูผู้สอน" FontSize="12"
-                                   Foreground="{StaticResource TextSecondaryBrush}" Margin="0,10,0,0"/>
+                                   Foreground="{DynamicResource Brush.Text.Secondary}" Margin="0,10,0,0"/>
 
-                        <Border BorderBrush="{StaticResource CardBorderBrush}" BorderThickness="0,1,0,0" Margin="0,14,0,0" Padding="0,12,0,0">
+                        <Border BorderBrush="{DynamicResource Brush.Border.Default}" BorderThickness="0,1,0,0" Margin="0,14,0,0" Padding="0,12,0,0">
                             <StackPanel Orientation="Horizontal">
-                                <TextBlock Text="สำหรับครู: Staff session" FontSize="12.5" Foreground="{StaticResource BrandDarkBrush}"
+                                <TextBlock Text="สำหรับครู: Staff session" FontSize="12.5" Foreground="{DynamicResource Brush.Accent.Dark}"
                                            Cursor="Hand" MouseLeftButtonUp="StaffSessionLink_Click" TextDecorations="Underline"/>
                                 <!-- WP3-4b (2026-10-31) - เดิมเป็น TextBlock เฉยๆ เขียน "(ยังไม่พร้อมใช้งาน)" ตายตัว
                                      (WP3-4 ยังไม่ได้ต่อสาย) ตอนนี้สลับข้อความ/คลิกได้ตาม EmergencyCodeConfigured
                                      จริงจาก Agent /status (ดู ApplyEmergencyCodeAvailability ใน .xaml.cs) -->
                                 <TextBlock x:Name="EmergencyCodeLinkText" Text="   รหัสฉุกเฉิน (ยังไม่พร้อมใช้งาน)" FontSize="12.5"
-                                           Foreground="{StaticResource TextSecondaryBrush}" Margin="18,0,0,0"
+                                           Foreground="{DynamicResource Brush.Text.Secondary}" Margin="18,0,0,0"
                                            MouseLeftButtonUp="EmergencyCodeLink_Click"/>
                             </StackPanel>
                         </Border>
@@ -161,9 +161,9 @@
                             <TextBlock x:Name="LoggedInElsewhereText" TextWrapping="Wrap" FontSize="13"/>
                         </Border>
                         <Button x:Name="ForceLoginButton" Content="ใช้ที่เครื่องนี้แทน" Height="40"
-                                Style="{StaticResource PrimaryButton}" Margin="0,0,0,10" Click="ForceLoginButton_Click"/>
+                                Style="{StaticResource ButtonPrimary}" Margin="0,0,0,10" Click="ForceLoginButton_Click"/>
                         <Button x:Name="CancelForceLoginButton" Content="ยกเลิก" Height="36"
-                                Style="{StaticResource SecondaryButton}" Click="CancelForceLoginButton_Click"/>
+                                Style="{StaticResource ButtonSecondary}" Click="CancelForceLoginButton_Click"/>
                     </StackPanel>
 
                     <!-- state: บังคับตั้งรหัสใหม่ -->
@@ -175,9 +175,9 @@
                         <TextBlock Text="ยืนยันรหัสผ่านใหม่" Style="{StaticResource LabelText}"/>
                         <PasswordBox x:Name="ConfirmPasswordBox" Margin="0,0,0,8" FontSize="14" Padding="8,7"/>
                         <TextBlock x:Name="ChangePasswordErrorText" TextWrapping="Wrap" FontSize="12"
-                                   Foreground="{StaticResource AccentRedBrush}" Margin="0,0,0,8" Visibility="Collapsed"/>
+                                   Foreground="{DynamicResource Brush.Danger.Default}" Margin="0,0,0,8" Visibility="Collapsed"/>
                         <Button x:Name="SavePasswordButton" Content="บันทึกแล้วเข้าใช้งาน" Height="40"
-                                Style="{StaticResource PrimaryButton}" Click="SavePasswordButton_Click"/>
+                                Style="{StaticResource ButtonPrimary}" Click="SavePasswordButton_Click"/>
                     </StackPanel>
                 </Grid>
             </Grid>
@@ -187,9 +187,9 @@
         <Grid Grid.Row="2" Margin="28,0,28,14">
             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
                 <Button x:Name="ShutdownButton" Content="ปิดเครื่อง" Height="38" Padding="14,0"
-                        Style="{StaticResource SecondaryButton}" Margin="0,0,8,0" Click="ShutdownButton_Click"/>
+                        Style="{StaticResource ButtonSecondary}" Margin="0,0,8,0" Click="ShutdownButton_Click"/>
                 <Button x:Name="RestartButton" Content="รีสตาร์ท" Height="38" Padding="14,0"
-                        Style="{StaticResource SecondaryButton}" Click="RestartButton_Click"/>
+                        Style="{StaticResource ButtonSecondary}" Click="RestartButton_Click"/>
             </StackPanel>
         </Grid>
     </Grid>

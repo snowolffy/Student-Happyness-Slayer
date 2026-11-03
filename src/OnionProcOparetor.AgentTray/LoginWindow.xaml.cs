@@ -39,7 +39,7 @@ public partial class LoginWindow : Window
         }
 
         LoginButton.IsEnabled = false;
-        StatusText.Foreground = (System.Windows.Media.Brush)FindResource("AccentNeutralBrush");
+        StatusText.Foreground = (System.Windows.Media.Brush)FindResource("Brush.Status.Offline");
         StatusText.Text = "กำลังตรวจสอบ...";
 
         // ใช้ username คงที่ "admin" ไปก่อน (ตรงกับ default admin ที่ตั้งไว้ฝั่ง Server)
@@ -58,7 +58,7 @@ public partial class LoginWindow : Window
         }
         else
         {
-            StatusText.Foreground = (System.Windows.Media.Brush)FindResource("AccentRedBrush");
+            StatusText.Foreground = (System.Windows.Media.Brush)FindResource("Brush.Danger.Default");
             StatusText.Text = message;
             LoginButton.IsEnabled = true;
         }

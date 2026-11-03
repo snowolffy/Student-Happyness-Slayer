@@ -11,7 +11,20 @@
     <Application.Resources>
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>
-                <ResourceDictionary Source="Theme/AppTheme.xaml"/>
+                <!-- เลิกใช้ Theme/AppTheme.xaml ของตัวเอง (WP UI-1b, 2026-11-03) เปลี่ยนมาใช้ไลบรารี
+                     OnionProcOparetor.UI ชุดเดียวกับ Console/RosterManager (WP UI-1a) แทน - AgentTray
+                     ใช้แค่ธีมสว่าง สีส้ม (ค่า default ของไลบรารี) ตายตัว ไม่มีสลับมืด/สว่างแบบ Console
+                     จึง merge Colors.Light.xaml/Accent.Light.xaml ตรงๆ ไม่ผ่าน ThemeService.Initialize()
+                     (ไม่มีเหตุต้องสลับ runtime เลย) ข้ามแอสเซมบลีจึงต้องใช้ pack URI เต็มรูปเหมือนที่
+                     Console/App.xaml ทำ -->
+                <ResourceDictionary Source="pack://application:,,,/OnionProcOparetor.UI;component/Theme/Colors.Light.xaml"/>
+                <ResourceDictionary Source="pack://application:,,,/OnionProcOparetor.UI;component/Theme/Accent.Light.xaml"/>
+                <ResourceDictionary Source="pack://application:,,,/OnionProcOparetor.UI;component/Theme/Icons.xaml"/>
+                <ResourceDictionary Source="pack://application:,,,/OnionProcOparetor.UI;component/Theme/Typography.xaml"/>
+                <ResourceDictionary Source="pack://application:,,,/OnionProcOparetor.UI;component/Theme/Controls.xaml"/>
+                <!-- สไตล์เฉพาะของ AgentTray ที่ไม่มีในไลบรารี (แถบหัวแบรนด์, LabelText ฯลฯ) - merge
+                     หลังสุดเสมอ ดู comment เต็มในไฟล์นั้น -->
+                <ResourceDictionary Source="Theme/AgentTrayLocal.xaml"/>
             </ResourceDictionary.MergedDictionaries>
         </ResourceDictionary>
     </Application.Resources>

@@ -1,0 +1,53 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!-- ====================================================================================
+         สไตล์เฉพาะของ AgentTray ที่ไม่มีอยู่ใน OnionProcOparetor.UI (WP UI-1b, 2026-11-03) - เดิมอยู่
+         ใน Theme/AppTheme.xaml ของตัวเอง ตอนนี้ AppTheme.xaml ถูกลบแล้ว palette/accent/control หลักทั้งหมด
+         มาจากไลบรารี (ดู App.xaml) เหลือแค่สไตล์หน้าเฉพาะของ AgentTray ที่ Console/RosterManager ไม่มี
+         (แถบหัวแบรนด์แบบ "โลโก้ซ้าย + ชื่อแอป/คำอธิบายขวา" ที่จอนักเรียน/จอล็อกอินเครื่องใช้) ไฟล์นี้ต้อง
+         merge *หลัง* Controls.xaml ของไลบรารีเสมอ (ดู App.xaml) เพื่อให้ key ชื่อเดียวกัน (ถ้ามี) จากไฟล์นี้
+         ชนะ - แต่ตอนนี้ไม่มีชนกันเลย เพราะไลบรารีไม่มี key ชุดนี้
+
+         ใช้ {DynamicResource} ชี้ไปที่ token ของไลบรารี (Brush.Accent.*, Brush.Background.Card ฯลฯ) แม้
+         AgentTray จะใช้ธีมสว่าง/สีส้มตายตัวเสมอ (ไม่มีสลับมืด/สว่างแบบ Console) เพราะ DynamicResource คือ
+         สิ่งที่ทุก control ในไลบรารีคาดหวังอยู่แล้ว (ดู comment ของ Controls.xaml) และทำให้ไฟล์นี้ยังทำงาน
+         ถูกต้องเผื่ออนาคตอยากเปิดสลับธีมให้ AgentTray ด้วย -->
+
+    <!-- ==================== TextBlock label (หัวข้อเล็กสีรอง) ==================== -->
+    <Style x:Key="LabelText" TargetType="TextBlock">
+        <Setter Property="Foreground" Value="{DynamicResource Brush.Text.Secondary}"/>
+        <Setter Property="FontSize" Value="11"/>
+        <Setter Property="Margin" Value="0,0,0,4"/>
+    </Style>
+
+    <!-- ==================== Brand header bar (logo strip) ==================== -->
+    <Style x:Key="BrandHeaderBar" TargetType="Border">
+        <Setter Property="Background" Value="{DynamicResource Brush.Accent.Default}"/>
+        <Setter Property="Padding" Value="14,10"/>
+    </Style>
+
+    <Style x:Key="LogoPlaceholder" TargetType="Border">
+        <Setter Property="Width" Value="30"/>
+        <Setter Property="Height" Value="30"/>
+        <Setter Property="Background" Value="{DynamicResource Brush.Background.Card}"/>
+        <Setter Property="BorderBrush" Value="{DynamicResource Brush.Accent.Dark}"/>
+        <Setter Property="BorderThickness" Value="1"/>
+    </Style>
+
+    <Style x:Key="BrandHeaderTitleText" TargetType="TextBlock">
+        <Setter Property="Foreground" Value="White"/>
+        <Setter Property="FontSize" Value="14"/>
+        <Setter Property="FontWeight" Value="Bold"/>
+        <Setter Property="VerticalAlignment" Value="Center"/>
+    </Style>
+
+    <!-- สีนี้เป็นสีตกแต่งเฉพาะ (ไม่ใช่ token ของไลบรารี) - ทองอ่อนที่อ่านออกบนพื้นสีเน้นส้มทึบเท่านั้น
+         คงค่าเดิมจาก AppTheme.xaml เพราะ AgentTray ใช้สีเน้นส้มตายตัว ไม่ override เป็นสีอื่น -->
+    <Style x:Key="BrandHeaderSubText" TargetType="TextBlock">
+        <Setter Property="Foreground" Value="#F3E3D0"/>
+        <Setter Property="FontSize" Value="11"/>
+        <Setter Property="VerticalAlignment" Value="Center"/>
+    </Style>
+
+</ResourceDictionary>

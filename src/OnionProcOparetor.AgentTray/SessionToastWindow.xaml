@@ -12,7 +12,7 @@
         Background="Transparent">
     <!-- เด้งแจ้งชื่อ 5 วิแล้วหาย (WP3-3, 2026-10-31) - ตาม wireframe st-session.dc.html แถวที่ 1
          "ปกติ: เด้งแจ้ง 5 วิแล้วหาย + เมนูที่ไอคอน tray" ไม่มีปุ่มปิด (หายเองอัตโนมัติเท่านั้น) -->
-    <Border Background="{StaticResource CardBrush}" BorderBrush="{StaticResource CardBorderBrush}"
+    <Border Background="{DynamicResource Brush.Background.Card}" BorderBrush="{DynamicResource Brush.Border.Default}"
             BorderThickness="1.5" CornerRadius="8" Padding="12,10" Margin="12">
         <Border.Effect>
             <DropShadowEffect BlurRadius="14" ShadowDepth="2" Opacity="0.22" Color="#000000"/>

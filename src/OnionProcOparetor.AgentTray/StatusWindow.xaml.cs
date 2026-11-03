@@ -31,9 +31,9 @@ public partial class StatusWindow : Window
         if (status is null)
         {
             MachineNameText.Text = "ไม่สามารถเชื่อมต่อ Onion ProcOparetor Agent Service ได้";
-            EnabledDot.Fill = (Brush)FindResource("AccentNeutralBrush");
+            EnabledDot.Fill = (Brush)FindResource("Brush.Status.Offline");
             EnabledText.Text = "Unknown";
-            ConnectionDot.Fill = (Brush)FindResource("AccentNeutralBrush");
+            ConnectionDot.Fill = (Brush)FindResource("Brush.Status.Offline");
             ConnectionText.Text = "Unknown";
             ToggleBypassButton.IsEnabled = false;
             return;
@@ -47,12 +47,12 @@ public partial class StatusWindow : Window
 
         if (status.IsEnabled)
         {
-            EnabledDot.Fill = (Brush)FindResource("AccentGreenBrush");
+            EnabledDot.Fill = (Brush)FindResource("Brush.Status.Online");
             EnabledText.Text = "Enabled";
         }
         else
         {
-            EnabledDot.Fill = (Brush)FindResource("AccentRedBrush");
+            EnabledDot.Fill = (Brush)FindResource("Brush.Danger.Default");
             EnabledText.Text = "Disabled";
         }
 
@@ -70,13 +70,13 @@ public partial class StatusWindow : Window
 
         if (bypassed)
         {
-            ConnectionDot.Fill = (Brush)FindResource("AccentRedBrush");
+            ConnectionDot.Fill = (Brush)FindResource("Brush.Danger.Default");
             ConnectionText.Text = "Bypassed";
             ToggleBypassButton.Content = "RECONNECT";
         }
         else
         {
-            ConnectionDot.Fill = (Brush)FindResource("AccentGreenBrush");
+            ConnectionDot.Fill = (Brush)FindResource("Brush.Status.Online");
             ConnectionText.Text = "Connected";
             ToggleBypassButton.Content = "BYPASS";
         }
@@ -135,7 +135,7 @@ public partial class StatusWindow : Window
 
         if (confirmed is null)
         {
-            ConnectionDot.Fill = (Brush)FindResource("AccentNeutralBrush");
+            ConnectionDot.Fill = (Brush)FindResource("Brush.Status.Offline");
             ConnectionText.Text = agentReachable
                 ? "เปลี่ยนไม่สำเร็จ - ต้อง login ใหม่ก่อนใช้ Bypass (token ไม่มีหรือหมดอายุ)"
                 : "เปลี่ยนไม่สำเร็จ - ติดต่อ Agent Service ไม่ได้";

@@ -43,7 +43,7 @@
             </StackPanel>
 
             <TextBlock x:Name="StatusText" TextWrapping="Wrap" FontSize="12" Margin="0,0,0,12"
-                       Foreground="{StaticResource AccentRedBrush}"/>
+                       Foreground="{DynamicResource Brush.Danger.Default}"/>
 
             <Grid>
                 <Grid.ColumnDefinitions>
@@ -51,9 +51,9 @@
                     <ColumnDefinition Width="10"/>
                     <ColumnDefinition Width="2*"/>
                 </Grid.ColumnDefinitions>
-                <Button Grid.Column="0" Content="ยกเลิก" Height="38" Style="{StaticResource SecondaryButton}" Click="CancelButton_Click"/>
+                <Button Grid.Column="0" Content="ยกเลิก" Height="38" Style="{StaticResource ButtonSecondary}" Click="CancelButton_Click"/>
                 <Button Grid.Column="2" x:Name="StartButton" Content="เริ่ม Staff session" Height="38"
-                        Style="{StaticResource PrimaryButton}" Click="StartButton_Click"/>
+                        Style="{StaticResource ButtonPrimary}" Click="StartButton_Click"/>
             </Grid>
         </StackPanel>
     </Grid>

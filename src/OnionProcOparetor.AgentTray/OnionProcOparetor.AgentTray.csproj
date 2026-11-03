@@ -24,6 +24,11 @@
     <Using Remove="System.Drawing" />
   </ItemGroup>
 
+  <!-- ไลบรารีธีม/สไตล์ร่วมกับ Console และ RosterManager (WP UI-1a) - AgentTray เข้าร่วมใน WP UI-1b -->
+  <ItemGroup>
+    <ProjectReference Include="..\OnionProcOparetor.UI\OnionProcOparetor.UI.csproj" />
+  </ItemGroup>
+
   <ItemGroup>
     <!--
         ใช้ Hardcodet.NotifyIcon.Wpf (ไม่ใช่ .NetCore) - ตัว .NetCore เจอ
