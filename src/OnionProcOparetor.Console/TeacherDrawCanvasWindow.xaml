@@ -7,7 +7,7 @@
         ShowInTaskbar="False"
         ResizeMode="NoResize"
         WindowStartupLocation="Manual"
-        Background="Transparent"
+        Background="#01000000"
         AllowsTransparency="True"
         ShowActivated="False"
         Icon="/Theme/icon.ico">
@@ -17,7 +17,13 @@
          ที่นี่เด็ดขาด ปล่อยให้ BitBlt จับภาพ composited ปกติ (DWM render หน้าต่าง Topmost/Layered นี้เข้า
          ไปในภาพอยู่แล้วตามปกติ)
 
-         สลับโหมด "เขียน"/"เมาส์ปกติ" ด้วย TeacherOnlyWindowHelper.SetClickThrough: โหมดเมาส์ปกติ = คลิก
-         ทะลุไปโปรแกรมข้างใต้ได้เหมือนไม่มีหน้าต่างนี้อยู่ (เส้นที่เขียนไว้ก่อนหน้ายังอยู่ ไม่หาย) -->
-    <InkCanvas x:Name="Canvas" Background="Transparent"/>
+         Background="#01000000" (ไม่ใช่ "Transparent"/alpha 0) - บั๊กจริงที่เจอ 3 พ.ย.: หน้าต่าง
+         AllowsTransparency ของ WPF เป็น layered window (UpdateLayeredWindow) ซึ่ง Windows ตัดสินใจ hit-test
+         ว่าคลิก "โดน" หน้าต่างนี้หรือ "ทะลุ" ไปโปรแกรมข้างใต้จาก alpha ของพิกเซลตรงนั้นเป็นหลัก (ไม่ใช่แค่
+         WS_EX_TRANSPARENT) ถ้าพื้นหลังเป็น alpha=0 ล้วน (ก่อนเขียนเส้นแรก พื้นที่ทั้งแผ่นว่างหมด) คลิก/ลากเมาส์
+         จะทะลุหน้าต่างนี้ไปเลยแม้ไม่ได้เปิด click-through (SetClickThrough) ไว้ - InkCanvas เลยไม่เคยได้รับ
+         MouseDown ให้เริ่มวาดเส้นสักที (ทดสอบจริงด้วย harness จับภาพ+จำลองลากเมาส์ 3 พ.ย.: alpha=0 ไม่มีเส้น
+         ติดเลย, alpha=1 วาดได้ปกติ) alpha=1/255 เตี้ยพอที่ตาเปล่า/JPEG มองไม่เห็นความต่างจากโปร่งใสจริง
+         แต่สูงพอให้ Windows นับเป็น "มีเนื้อ" รับ mouse hit-test ได้เสมอตอนไม่ได้ตั้ง click-through -->
+    <InkCanvas x:Name="Canvas" Background="#01000000"/>
 </Window>
