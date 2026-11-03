@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
+using System.IO.Compression;
 using OnionProcOparetor.Server.Data;
 using OnionProcOparetor.Server.Models;
 using OnionProcOparetor.Server.Services;
@@ -288,6 +289,47 @@ public static class FileTransferEndpoints
             });
         });
 
+        // ---- ดาวน์โหลดไฟล์ทั้งงานเป็น .zip (2026-11-03 - แก้ตามที่ผู้ใช้แจ้ง: Console ของครูไม่ได้รันอยู่
+        // บนเครื่อง Server เลย (Server จริงอยู่ที่ 192.168.17.249 ส่วน Console รันบนเครื่องครูแต่ละคน) ปุ่ม
+        // "เปิดโฟลเดอร์ที่เก็บ" ที่ชี้ path บนเครื่อง Server ใช้งานจริงไม่ได้เกือบทุกกรณี - endpoint นี้ให้
+        // Console ดาวน์โหลดทั้งโฟลเดอร์ผ่าน HTTP แทน) auth เดียวกับ .../status (Admin/Teacher ดูได้ทั้งคู่
+        // ไม่ใช่ Admin อย่างเดียว) โครงสร้างโฟลเดอร์ย่อยต่อนักเรียน/เครื่องยังคงอยู่ใน zip เหมือนบนดิสก์จริง
+        // (ไม่ flatten) - ชื่อไฟล์/โฟลเดอร์ที่มีอักษรไทยใช้ได้ปกติ เพราะ System.IO.Compression.ZipArchive
+        // ตั้ง UTF-8 entry name flag ให้เองอัตโนมัติเมื่อชื่อไม่ใช่ ASCII ล้วน (ไม่ต้องตั้งค่าเพิ่ม)
+        app.MapGet("/api/files/collection-jobs/{id:int}/download-zip", async (int id, HttpRequest request, AppDbContext db, IOptions<FileTransferOptions> options) =>
+        {
+            var admin = await GetAuthorizedAdmin(request, db);
+            if (admin is null)
+                return Results.Unauthorized();
+
+            var job = await db.FileCollectionJobs.FindAsync(id);
+            if (job is null)
+                return Results.NotFound(new { error = "ไม่พบงานเก็บไฟล์นี้ (อาจถูกลบไปแล้ว)" });
+
+            var jobDir = System.IO.Path.Combine(FileTransferPaths.ResolveStorageRoot(options.Value), "collected", $"{job.Id}_{FileTransferPaths.SanitizeFolderSegment(job.Name)}");
+            if (!System.IO.Directory.Exists(jobDir) || !System.IO.Directory.EnumerateFiles(jobDir, "*", System.IO.SearchOption.AllDirectories).Any())
+            {
+                // งานว่าง (ยังไม่มีใครส่งไฟล์มาเลย) - 404 พร้อมข้อความชัดเจน แทนที่จะส่ง zip เปล่ากลับไป
+                return Results.NotFound(new { error = $"ยังไม่มีไฟล์ให้ดาวน์โหลดสำหรับงาน '{job.Name}' (ยังไม่มีใครส่งไฟล์มาเลย)" });
+            }
+
+            using var zipStream = new System.IO.MemoryStream();
+            using (var zip = new System.IO.Compression.ZipArchive(zipStream, System.IO.Compression.ZipArchiveMode.Create, leaveOpen: true))
+            {
+                foreach (var filePath in System.IO.Directory.EnumerateFiles(jobDir, "*", System.IO.SearchOption.AllDirectories))
+                {
+                    // entry name ใช้ path สัมพัทธ์จาก jobDir เก็บโครงสร้างโฟลเดอร์ย่อย (ชื่อนักเรียน/เครื่อง)
+                    // ไว้เหมือนเดิม - แปลง backslash เป็น forward slash เพราะ zip spec กำหนด "/" เป็น separator
+                    var entryName = System.IO.Path.GetRelativePath(jobDir, filePath).Replace('\\', '/');
+                    zip.CreateEntryFromFile(filePath, entryName, System.IO.Compression.CompressionLevel.Fastest);
+                }
+            }
+            zipStream.Position = 0;
+
+            var zipFileName = FileTransferPaths.SanitizeFileName(job.Name, "collected-files") + ".zip";
+            return Results.File(zipStream.ToArray(), "application/zip", zipFileName);
+        });
+
         // ---- Agent อัปโหลดไฟล์ที่นักเรียนเลือกส่ง (ส่งต่อมาจาก AgentTray ผ่าน Agent loopback) - agent-auth ----
         app.MapPost("/api/files/collection-jobs/{id:int}/upload", async (
             int id, HttpRequest httpRequest, AppDbContext db, IOptions<FileTransferOptions> options, AgentAuthenticator agentAuth, IActivityLogService activityLog) =>
@@ -363,6 +405,31 @@ public static class FileTransferEndpoints
             var existing = await db.CollectedFiles.FirstOrDefaultAsync(f => f.JobId == job.Id && f.ClientGuid == client.ClientGuid);
             if (existing is not null)
             {
+                // บั๊กที่พบจากการทดสอบจริง (WP4-3 fix, 2026-11-03): ถ้านักเรียนส่งไฟล์ใหม่มาด้วยชื่อไฟล์
+                // คนละชื่อ (เช่น เลือกไฟล์ผิดตอนแรกแล้วเลือกใหม่) โค้ดเดิมจะ "เขียนทับแถว DB" ด้วยชื่อใหม่
+                // แต่ "ไม่ลบไฟล์เก่า" ออกจากดิสก์เลย - ครูเปิดโฟลเดอร์ไปเจอทั้งไฟล์เก่าและไฟล์ใหม่ค้างอยู่
+                // คู่กัน ทั้งที่ DB บอกว่ามีไฟล์เดียว (ดู CollectedFile doc comment: "มีได้แค่ 1 แถวต่อ
+                // (JobId, ClientGuid)" - ตั้งใจให้สื่อว่ามีไฟล์ล่าสุดแค่ไฟล์เดียวบนดิสก์ด้วย) ลบไฟล์เก่าก่อน
+                // เขียนทับแถว DB เสมอถ้า path เปลี่ยน (ชื่อไฟล์เดิมเขียนทับตัวเองอยู่แล้วที่ File.Create
+                // ด้านบน ไม่ต้องลบ) ไม่ throw ถ้าลบไม่สำเร็จ (เช่นไฟล์ถูกลบมือไปแล้ว) เพราะไม่ใช่ความ
+                // ล้มเหลวของการอัปโหลดครั้งนี้
+                if (!string.Equals(existing.StoredRelativePath, relativePath, StringComparison.OrdinalIgnoreCase))
+                {
+                    var oldFullPath = System.IO.Path.Combine(FileTransferPaths.ResolveStorageRoot(options.Value), "collected", existing.StoredRelativePath);
+                    try
+                    {
+                        if (System.IO.File.Exists(oldFullPath))
+                        {
+                            System.IO.File.Delete(oldFullPath);
+                        }
+                    }
+                    catch
+                    {
+                        // ลบไฟล์เก่าไม่สำเร็จ (เช่นถูกลบมือไปแล้ว/ครูเปิดไฟล์ค้างอยู่) - ไม่ถือเป็นความ
+                        // ล้มเหลวของการอัปโหลดครั้งนี้ (ไฟล์ใหม่เขียนสำเร็จแล้ว ครูแค่ต้องลบไฟล์เก่าเองทีหลัง)
+                    }
+                }
+
                 existing.StudentName = studentName;
                 existing.MachineName = client.MachineName;
                 existing.OriginalFileName = sanitizedFileName;

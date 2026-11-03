@@ -227,7 +227,8 @@ public partial class FilesWindow : Window
 
         _currentJobId = job.Id;
         RefreshStatusButton.IsEnabled = true;
-        OpenFolderButton.IsEnabled = true;
+        CloseJobButton.IsEnabled = true;
+        DownloadZipButton.IsEnabled = true;
         SetCollectSummary($"สร้างงาน '{job.Name}' แล้ว - กำลังส่งคำขอให้ {targets.Count} เครื่อง", isError: false);
 
         var batchId = Guid.NewGuid().ToString("N");
@@ -259,6 +260,31 @@ public partial class FilesWindow : Window
 
     private async void RefreshStatusButton_Click(object sender, RoutedEventArgs e) => await RefreshCollectionStatusAsync();
 
+    /// <summary>
+    /// ครูกด "ปิดงาน" เอง (WP4-3 fix, 2026-11-03 - บั๊กที่พบจากการทดสอบจริง: endpoint
+    /// POST /api/files/collection-jobs/{id}/close และ ApiClient.CloseCollectionJobAsync มีอยู่แล้วตั้งแต่
+    /// ตอนสร้าง WP4-3 แต่ไม่มีปุ่มไหนในหน้านี้เรียกมันเลย - ครูเลยปิดรับไฟล์ก่อนเวลาไม่ได้จริงถ้าไม่ได้
+    /// ตั้ง "ปิดรับใน (นาที)" ไว้ล่วงหน้าตอนสร้างงาน) ปิดแล้วรีเฟรชสถานะทันทีให้เห็น "ปิดงานแล้ว"
+    /// </summary>
+    private async void CloseJobButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_currentJobId is not { } jobId)
+        {
+            return;
+        }
+
+        CloseJobButton.IsEnabled = false;
+        var success = await _apiClient.CloseCollectionJobAsync(jobId);
+        if (!success)
+        {
+            SetCollectSummary("ปิดงานไม่สำเร็จ", isError: true);
+            CloseJobButton.IsEnabled = true;
+            return;
+        }
+
+        await RefreshCollectionStatusAsync();
+    }
+
     private async Task RefreshCollectionStatusAsync()
     {
         if (_currentJobId is not { } jobId)
@@ -279,6 +305,14 @@ public partial class FilesWindow : Window
             $"ได้ {status.CollectedCount}/{status.TotalCount}" + (missing > 0 ? $" · ไม่มีไฟล์ {missing} คน" : "") +
             (status.IsOpen ? "" : " · ปิดงานแล้ว"),
             isError: false);
+
+        // "เปิดโฟลเดอร์ที่เก็บ" ใช้งานได้จริงเฉพาะตอนที่โฟลเดอร์นี้มองเห็นจากเครื่อง Console เอง (ตอน dev ที่
+        // Server ทดลองรันในเครื่องเดียวกัน) - ส่วนใหญ่ไม่ใช่ (Server จริงอยู่ที่ 192.168.17.249 ส่วน Console
+        // รันบนเครื่องครูแต่ละคน ดู CLAUDE.md) ซ่อนปุ่มไปเลยแทนที่จะโชว่ปุ่มที่กดแล้วพังเกือบทุกครั้ง (2026-11-03
+        // แก้ตามที่ผู้ใช้แจ้ง) - "ดาวน์โหลดทั้งหมด (.zip)" ด้านล่างคือทางที่ใช้ได้จริงในแล็บแทน
+        OpenFolderButton.Visibility = !string.IsNullOrWhiteSpace(status.FolderPath) && Directory.Exists(status.FolderPath)
+            ? Visibility.Visible
+            : Visibility.Collapsed;
     }
 
     private void OpenFolderButton_Click(object sender, RoutedEventArgs e)
@@ -301,27 +335,76 @@ public partial class FilesWindow : Window
         var status = await _apiClient.GetCollectionJobStatusAsync(jobId);
         if (status is null || string.IsNullOrWhiteSpace(status.FolderPath))
         {
-            SetCollectSummary("ไม่พบ path โฟลเดอร์ที่เก็บ (ยังไม่มีใครส่งไฟล์มาเลย)", isError: true);
+            SetCollectSummary("ดึงสถานะงานเก็บไฟล์ไม่สำเร็จ", isError: true);
             return;
         }
 
         try
         {
-            // Console อาจรันอยู่คนละเครื่องกับ Server จริง (ดู CLAUDE.md "Server จริงอยู่ที่ 192.168.17.249")
-            // เปิด Explorer ได้จริงเฉพาะตอนที่โฟลเดอร์นี้มองเห็นจากเครื่อง Console เอง (เช่นตอน dev ที่ Server
-            // ทดลองรันในเครื่องเดียวกัน) ถ้าไม่เจอให้โชว่ path ไว้ให้ครูไปเปิดเองที่เครื่อง Server/ผ่าน UNC share
+            // ปุ่มนี้โชว่เฉพาะตอน RefreshCollectionStatusAsync เจอว่าโฟลเดอร์มองเห็นได้จากเครื่องนี้แล้ว (ดู
+            // comment ที่นั่น) แต่เช็คซ้ำอีกชั้นเพราะอาจมีคนลบโฟลเดอร์ไปเองระหว่างนั้น (race เล็กน้อย)
             if (Directory.Exists(status.FolderPath))
             {
                 System.Diagnostics.Process.Start("explorer.exe", $"\"{status.FolderPath}\"");
             }
             else
             {
-                SetCollectSummary($"เปิดจากเครื่องนี้ไม่ได้ (path อยู่บนเครื่อง Server) - path: {status.FolderPath}", isError: true);
+                SetCollectSummary("โฟลเดอร์นี้หายไปแล้ว (อาจถูกลบระหว่างนั้น) - กดรีเฟรชอีกครั้ง", isError: true);
+                OpenFolderButton.Visibility = Visibility.Collapsed;
             }
         }
         catch (Exception ex)
         {
             SetCollectSummary($"เปิดโฟลเดอร์ไม่สำเร็จ: {ex.Message}", isError: true);
+        }
+    }
+
+    /// <summary>
+    /// "ดาวน์โหลดทั้งหมด (.zip)" (2026-11-03 - แก้ตามที่ผู้ใช้แจ้ง: Console ของครูไม่ได้รันอยู่บนเครื่อง
+    /// Server เลยในทางปฏิบัติ ปุ่ม "เปิดโฟลเดอร์ที่เก็บ" ใช้งานจริงไม่ได้เกือบทุกกรณี) ให้ครูเลือกที่เก็บ
+    /// ไฟล์ .zip เองผ่าน SaveFileDialog ธรรมดา แล้วเขียน byte[] ที่ได้จาก Server ลงไฟล์ตรงๆ
+    /// </summary>
+    private async void DownloadZipButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_currentJobId is not { } jobId)
+        {
+            return;
+        }
+
+        DownloadZipButton.IsEnabled = false;
+        SetCollectSummary("กำลังดาวน์โหลด .zip จาก Server...", isError: false);
+
+        var (bytes, fileName, error) = await _apiClient.DownloadCollectionZipAsync(jobId);
+        DownloadZipButton.IsEnabled = true;
+
+        if (bytes is null)
+        {
+            SetCollectSummary(error ?? "ดาวน์โหลดไม่สำเร็จ", isError: true);
+            return;
+        }
+
+        var dialog = new SaveFileDialog
+        {
+            Title = "บันทึกไฟล์ที่เก็บได้",
+            FileName = fileName ?? "collected-files.zip",
+            Filter = "Zip files (*.zip)|*.zip|ทุกไฟล์ (*.*)|*.*",
+            DefaultExt = ".zip"
+        };
+
+        if (dialog.ShowDialog() != true)
+        {
+            SetCollectSummary(string.Empty, isError: false);
+            return;
+        }
+
+        try
+        {
+            await File.WriteAllBytesAsync(dialog.FileName, bytes);
+            SetCollectSummary($"บันทึก '{Path.GetFileName(dialog.FileName)}' แล้ว ({bytes.Length / 1024} KB)", isError: false);
+        }
+        catch (Exception ex)
+        {
+            SetCollectSummary($"บันทึกไฟล์ไม่สำเร็จ: {ex.Message}", isError: true);
         }
     }
 
