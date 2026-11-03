@@ -196,6 +196,10 @@ public partial class App : Application
                 // ไว้แล้ว ไม่พัง (ดู OpenUrlWindow.xaml.cs)
                 "open-url" => new OpenUrlWindow(
                     api, [sampleClient], [sampleClient], [new Models.RoomDto { Id = 1, Name = "ห้องคอม 1", ClientCount = 40 }], currentRoomFilterId: 1),
+                // WP4-3 (2026-11-01) - เหมือน open-url เป๊ะๆ (ดู comment ด้านบน): ApiClient ยังไม่ login
+                // แต่ GetFileTransferSettingsAsync จับ exception ไว้แล้ว ไม่พัง (คืน default 100 MB)
+                "files" => new FilesWindow(
+                    api, labHubClient: null, [sampleClient], [sampleClient], [new Models.RoomDto { Id = 1, Name = "ห้องคอม 1", ClientCount = 40 }], currentRoomFilterId: 1),
                 "launchable-programs" => new LaunchableProgramsWindow(api),
                 "pending-commands" => new PendingCommandsWindow(api, sampleClient),
                 "running-processes" => new RunningProcessesWindow(api, new Services.LabHubClient(), sampleClient),

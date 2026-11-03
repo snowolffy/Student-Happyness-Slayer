@@ -1,3 +1,4 @@
+using System.IO;
 using System.Net.Http;
 using System.Net.Http.Json;
 using OnionProcOparetor.AgentTray.Models;
@@ -291,6 +292,45 @@ public class ClientApiClient
     }
 
     private sealed record RaiseHandCancelResponseDto(bool Success);
+
+    /// <summary>
+    /// ส่งไฟล์ที่นักเรียนเลือกส่งให้ Agent (WP4-3, 2026-11-01) - Agent เป็นคน relay ต่อขึ้น Server จริง
+    /// (ดู ServerClient.UploadCollectedFileAsync ฝั่ง Agent) ใช้ HttpClient แยกตัวใหม่ timeout ยาวกว่า
+    /// _httpClient ปกติ (5 วิ - พอสำหรับ /status ธรรมดา แต่ไฟล์ขนาดหลักสิบ MB ผ่าน loopback อาจใช้เวลา
+    /// นานกว่านั้น แม้ loopback จะเร็วมากก็ตาม เผื่อเครื่องที่ดิสก์ช้า/CPU ตันพอดี) คืนข้อความ error จาก
+    /// Agent/Server ตรงๆ ให้ CollectFileRequestWindow โชว่ให้นักเรียนเห็นสาเหตุจริง
+    /// </summary>
+    public async Task<(bool Success, string? Error)> UploadCollectedFileAsync(int jobId, string filePath, CancellationToken ct)
+    {
+        try
+        {
+            using var uploadClient = new HttpClient { BaseAddress = new Uri("http://localhost:8788"), Timeout = TimeSpan.FromMinutes(5) };
+            using var content = new MultipartFormDataContent();
+            content.Add(new StringContent(jobId.ToString()), "jobId");
+            content.Add(new StringContent(LoopbackSecretStore.Current ?? string.Empty), "secret");
+
+            await using var fileStream = File.OpenRead(filePath);
+            using var fileContent = new StreamContent(fileStream);
+            fileContent.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("application/octet-stream");
+            content.Add(fileContent, "file", Path.GetFileName(filePath));
+
+            var response = await uploadClient.PostAsync("/files/collect-result", content, ct);
+            var body = await response.Content.ReadFromJsonAsync<CollectFileUploadResponseDto>(cancellationToken: ct);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                return (false, body?.Error ?? $"Agent ปฏิเสธ (HTTP {(int)response.StatusCode})");
+            }
+
+            return (body?.Success ?? false, body?.Error);
+        }
+        catch (Exception ex)
+        {
+            return (false, $"ส่งไฟล์ไม่สำเร็จ: {ex.Message}");
+        }
+    }
+
+    private sealed record CollectFileUploadResponseDto(bool Success, string? Error);
 
     /// <summary>ปิด staff session info ที่เก็บไว้ (เรียกตอนกด "จบ" หรือ session หมดอายุไปแล้ว) - ไม่กระทบ bypass จริงฝั่ง Agent (SetBypassAsync(false) เป็นคนจัดการนั้น)</summary>
     public void ClearStaffSessionInfo()

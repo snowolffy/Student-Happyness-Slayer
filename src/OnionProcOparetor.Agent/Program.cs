@@ -346,6 +346,56 @@ app.MapPost("/raisehand/cancel", async (ServerClient serverClient, CancellationT
     return Results.Ok(new { success });
 });
 
+// ---- AgentTray อัปโหลดไฟล์ที่นักเรียนเลือกส่ง (WP4-3, 2026-11-01) - "เก็บไฟล์" ตาม
+// docs/wireframes/tc-files.dc.html ต้องทำจาก AgentTray เพราะมีแต่ user session เท่านั้นที่เปิด
+// OpenFileDialog ให้นักเรียนเลือกไฟล์ได้ (Agent เอง Session 0 ไม่มี desktop) - Agent แค่ relay bytes
+// ต่อขึ้น Server ตรงๆ ผ่าน ServerClient ที่แนบ agent secret ของเครื่องนี้ให้เองอยู่แล้วทุก request
+// (ดู ServerClient constructor) ตรวจ LoopbackSecret ก่อนเหมือน /vnc/session-result ด้านบน (WP2b) ----
+app.MapPost("/files/collect-result", async (HttpRequest request, ServerClient serverClient, LoopbackSecret loopbackSecret, CancellationToken ct) =>
+{
+    // อนุญาต request body ใหญ่กว่า default เท่าที่ loopback นี้ต้องรับไหว - การบังคับ cap จริง (ตัง
+    // ค่าได้ผ่าน FileTransferOptions) อยู่ที่ Server เท่านั้น (ดู FileTransferEndpoints POST .../upload)
+    // Agent เป็นแค่ตัวกลาง relay เฉยๆ ไม่ต้องรู้ค่า cap จริงเลย
+    var sizeFeature = request.HttpContext.Features.Get<Microsoft.AspNetCore.Http.Features.IHttpMaxRequestBodySizeFeature>();
+    if (sizeFeature is not null && !sizeFeature.IsReadOnly)
+    {
+        sizeFeature.MaxRequestBodySize = 200L * 1024 * 1024;
+    }
+
+    if (!request.HasFormContentType)
+    {
+        return Results.BadRequest(new { success = false, error = "ต้องส่งเป็น multipart/form-data" });
+    }
+
+    var form = await request.ReadFormAsync(ct);
+
+    if (!loopbackSecret.Matches(form["secret"]))
+    {
+        return Results.Unauthorized();
+    }
+
+    if (!int.TryParse(form["jobId"], out var jobId) || jobId <= 0)
+    {
+        return Results.BadRequest(new { success = false, error = "ไม่มี jobId ที่ถูกต้อง" });
+    }
+
+    var file = form.Files["file"];
+    if (file is null || file.Length == 0)
+    {
+        return Results.BadRequest(new { success = false, error = "ไม่มีไฟล์แนบมา" });
+    }
+
+    byte[] bytes;
+    using (var ms = new MemoryStream())
+    {
+        await file.CopyToAsync(ms, ct);
+        bytes = ms.ToArray();
+    }
+
+    var (success, error) = await serverClient.UploadCollectedFileAsync(jobId, file.FileName, bytes, ct);
+    return Results.Ok(new { success, error });
+});
+
 app.Run();
 
 internal sealed record VncSessionResultRequest(string RequestingConsoleSessionId, bool Success, int Pid, string? Password, string? FailureReason, string? Secret);
