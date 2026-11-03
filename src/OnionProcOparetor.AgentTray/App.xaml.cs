@@ -56,11 +56,63 @@ public partial class App : System.Windows.Application
     private int? _currentSessionId;
     private StudentApiClient? _studentApiClient;
 
+    // ---- Tray icon 3 สถานะ (WP UI-7b, 2026-11-03 - ดู TrayConnectionMonitor ว่าแต่ละสถานะหมายถึงอะไร) ----
+    private TrayConnectionMonitor? _trayConnectionMonitor;
+    private System.Drawing.Icon? _trayIconConnected;
+    private System.Drawing.Icon? _trayIconDisconnected;
+    private System.Drawing.Icon? _trayIconError;
+
     protected override void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
 
 #if DEBUG
+        // --tray-icon-check=<โฟลเดอร์ปลายทาง> (WP UI-7b, 2026-11-03) - โหมดตรวจไอคอน tray เท่านั้น
+        // extract ไอคอนฝัง 3 สถานะออกมาเป็น PNG ให้ดูด้วยตา + log การแมป state -> ชื่อไฟล์ icon แบบ
+        // unit-style เพื่อยืนยัน logic ของ TrayConnectionMonitor/OnTrayConnectionStateChanged โดยไม่ต้อง
+        // สร้าง TaskbarIcon จริงหรือมี Agent รันอยู่เลย (ต่างจาก --ui-preview ที่เรนเดอร์หน้าต่าง WPF)
+        var trayIconCheckArg = e.Args.FirstOrDefault(a => a.StartsWith("--tray-icon-check=", StringComparison.Ordinal));
+        if (trayIconCheckArg is not null)
+        {
+            var outDir = trayIconCheckArg["--tray-icon-check=".Length..];
+            Directory.CreateDirectory(outDir);
+
+            foreach (var (stateName, resourcePath) in new[]
+            {
+                ("connected", "/Theme/tray-connected.ico"),
+                ("disconnected", "/Theme/tray-disconnected.ico"),
+                ("error", "/Theme/tray-error.ico")
+            })
+            {
+                using var icon = LoadEmbeddedIcon(resourcePath);
+                if (icon is null)
+                {
+                    TrayDiagnostics.Log($"--tray-icon-check: โหลด '{resourcePath}' ไม่สำเร็จ");
+                    continue;
+                }
+
+                using var bitmap = icon.ToBitmap();
+                bitmap.Save(Path.Combine(outDir, $"tray-{stateName}.png"), System.Drawing.Imaging.ImageFormat.Png);
+            }
+
+            // ยืนยัน state -> icon mapping ด้วย log (เหมือน OnTrayConnectionStateChanged จริง) -
+            // พิสูจน์ด้วย text ว่าตรรกะ switch ตรงกับไฟล์ที่ extract ไปข้างบน
+            foreach (var state in Enum.GetValues<TrayConnectionState>())
+            {
+                var iconFile = state switch
+                {
+                    TrayConnectionState.Connected => "tray-connected.ico",
+                    TrayConnectionState.Disconnected => "tray-disconnected.ico",
+                    TrayConnectionState.Error => "tray-error.ico",
+                    _ => "?"
+                };
+                TrayDiagnostics.Log($"--tray-icon-check: state={state} -> {iconFile}");
+            }
+
+            Shutdown();
+            return;
+        }
+
         // --ui-preview=<ชื่อหน้าต่าง> --shot=<path> (WP3-3, 2026-10-31) - โหมดตรวจ UI เท่านั้น
         // (DEBUG build เท่านั้น เหมือน pattern ของ Console/App.xaml.cs) เรนเดอร์หน้าต่างใหม่ที่ทำใน
         // WP นี้เป็น PNG ด้วย RenderTargetBitmap แล้วปิดโปรแกรม - ไม่ต้องมี Agent/Server จริงรันอยู่
@@ -239,6 +291,36 @@ public partial class App : System.Windows.Application
 
             // double-click ที่ icon ก็เปิดหน้า login เหมือนกัน
             _trayIcon.TrayMouseDoubleClick += (_, _) => OpenLoginWindow();
+
+            // tray icon 3 สถานะ (WP UI-7b, 2026-11-03) - โหลดไอคอนทั้ง 3 ตัวครั้งเดียวตอน startup
+            // (ไม่โหลดซ้ำทุกครั้งที่สถานะเปลี่ยน) แล้วให้ TrayConnectionMonitor คอย poll Agent เปลี่ยน
+            // _trayIcon.Icon เฉพาะตอนสถานะเปลี่ยนจริง (ดู OnTrayConnectionStateChanged) - ถ้าโหลดไอคอนไหน
+            // ไม่สำเร็จ (เช่น resource หาย) ปล่อยให้ icon นั้นเป็น null แล้ว OnTrayConnectionStateChanged
+            // จะข้าม ไม่ทับ icon เดิมที่กำลังโชว์อยู่ด้วย (ดีกว่าสลับไปเป็น icon ว่าง)
+            _trayIconConnected = LoadEmbeddedIcon("/Theme/tray-connected.ico");
+            _trayIconDisconnected = LoadEmbeddedIcon("/Theme/tray-disconnected.ico");
+            _trayIconError = LoadEmbeddedIcon("/Theme/tray-error.ico");
+
+#if DEBUG
+            // --force-tray-state=<connected|disconnected|error> (WP UI-7b, 2026-11-03) - บังคับสถานะ
+            // tray icon ตรงๆ โดยไม่ต้องมี Agent จริงรันอยู่ (เครื่อง dev นี้รัน Agent ไม่ได้ - ต้องเป็น
+            // LocalSystem/HKLM) ใช้ตรวจว่า state -> icon mapping ถูกต้องด้วยตาจริงบน tray จริง ข้าม
+            // การสร้าง TrayConnectionMonitor ไปเลยกันไม่ให้ poll จริง (ซึ่งจะคืน Error เสมอเพราะไม่มี
+            // Agent) มาทับค่าที่บังคับไว้
+            var forceTrayStateArg = e.Args.FirstOrDefault(a => a.StartsWith("--force-tray-state=", StringComparison.Ordinal));
+            if (forceTrayStateArg is not null && Enum.TryParse<TrayConnectionState>(
+                    forceTrayStateArg["--force-tray-state=".Length..], ignoreCase: true, out var forcedState))
+            {
+                OnTrayConnectionStateChanged(forcedState);
+                TrayDiagnostics.Log($"[tray-icon] DEBUG --force-tray-state={forcedState} (ไม่เริ่ม TrayConnectionMonitor จริง)");
+            }
+            else
+#endif
+            {
+                _trayConnectionMonitor = new TrayConnectionMonitor(_apiClient);
+                _trayConnectionMonitor.StateChanged += OnTrayConnectionStateChanged;
+                _trayConnectionMonitor.Start();
+            }
 
             TrayDiagnostics.Log("[app] AgentTray เริ่มทำงาน - tray icon พร้อมใช้งาน");
         }
@@ -989,6 +1071,65 @@ public partial class App : System.Windows.Application
         return _studentApiClient;
     }
 
+    // ==================== Tray icon 3 สถานะ (WP UI-7b, 2026-11-03) ====================
+
+    /// <summary>
+    /// สลับ _trayIcon.Icon/ToolTipText ตามสถานะที่ TrayConnectionMonitor รายงาน (หรือ debug force) -
+    /// เรียกจาก DispatcherTimer.Tick ของ monitor ซึ่งอยู่บน UI thread อยู่แล้ว ไม่ต้อง Dispatcher.Invoke
+    /// ซ้ำ (เหมือน OnAgentDiedWhileLocked/OnAgentDiedWhileBlocked)
+    /// </summary>
+    private void OnTrayConnectionStateChanged(TrayConnectionState state)
+    {
+        if (_trayIcon is null)
+        {
+            return;
+        }
+
+        var (icon, tooltip) = state switch
+        {
+            TrayConnectionState.Connected => (_trayIconConnected, "Onion ProcOparetor - เชื่อมต่อ Server ได้"),
+            TrayConnectionState.Disconnected => (_trayIconDisconnected, "Onion ProcOparetor - Agent ทำงานอยู่ แต่ติดต่อ Server ไม่ได้"),
+            TrayConnectionState.Error => (_trayIconError, "Onion ProcOparetor - ติดต่อ Agent Service ไม่ได้"),
+            _ => (null, "Onion ProcOparetor")
+        };
+
+        // ไอคอนโหลดไม่สำเร็จ (resource หาย) - ไม่ทับ icon เดิมที่กำลังโชว์อยู่ด้วย icon ว่าง แค่ไม่เปลี่ยน
+        if (icon is not null)
+        {
+            _trayIcon.Icon = icon;
+        }
+
+        _trayIcon.ToolTipText = tooltip;
+        TrayDiagnostics.Log($"[tray-icon] สถานะเปลี่ยนเป็น {state}");
+    }
+
+    /// <summary>
+    /// โหลดไอคอน .ico ที่ฝังเป็น WPF Resource (ดู csproj - Resource Include="Theme\tray-*.ico") ผ่าน
+    /// pack URI แทนการอ่านจากไฟล์บน disk ตรงๆ - ไม่มีไฟล์ loose ให้หายตอนรีบูต (disk freeze) ใช้
+    /// path รูปแบบเดียวกับ Image Source ที่ XAML ใช้กับ /Theme/logo.png อยู่แล้ว (relative pack URI)
+    /// คืน null เงียบๆ ถ้าหาไม่เจอ/parse ไม่ได้ - caller ต้องรับมือเอง (ดู OnTrayConnectionStateChanged)
+    /// </summary>
+    private static System.Drawing.Icon? LoadEmbeddedIcon(string packRelativePath)
+    {
+        try
+        {
+            var resourceInfo = GetResourceStream(new Uri(packRelativePath, UriKind.Relative));
+            if (resourceInfo is null)
+            {
+                TrayDiagnostics.Log($"[tray-icon] ไม่พบ resource '{packRelativePath}'");
+                return null;
+            }
+
+            using var stream = resourceInfo.Stream;
+            return new System.Drawing.Icon(stream);
+        }
+        catch (Exception ex)
+        {
+            TrayDiagnostics.Log($"[tray-icon] โหลด '{packRelativePath}' ไม่สำเร็จ: {ex.Message}");
+            return null;
+        }
+    }
+
     /// <summary>เพิ่ม/ลบรายการ "ไม่ใช่ฉัน"/"ออกจากระบบ" ใน tray context menu ตามว่ามีนักเรียน login อยู่ไหม (WP3-3, 2026-10-31)</summary>
     private void RebuildTrayContextMenu()
     {
@@ -1063,6 +1204,10 @@ public partial class App : System.Windows.Application
         _raiseHandBadgeWindow?.ForceClose();
         _teacherScreenViewWindow?.ForceClose();
         _jokeShutdownController.Cancel();
+        _trayConnectionMonitor?.Stop();
+        _trayIconConnected?.Dispose();
+        _trayIconDisconnected?.Dispose();
+        _trayIconError?.Dispose();
         _trayIcon?.Dispose();
         _singleInstanceGuard.Dispose();
         base.OnExit(e);

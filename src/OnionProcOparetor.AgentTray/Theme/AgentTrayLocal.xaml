@@ -27,12 +27,11 @@
         <Setter Property="Padding" Value="14,10"/>
     </Style>
 
+    <!-- ไม่มีพื้นสี่เหลี่ยม/กรอบหลังโลโก้แล้ว (ผู้ใช้สั่ง 3 พ.ย. 2569 - ดู commit 6347d48 ของ Console/
+         RosterManager) เหลือแค่ขนาดกล่องไว้จัด layout เฉยๆ โลโก้หัวหอมใหม่มีรูปทรงโปร่งใสของตัวเองอยู่แล้ว -->
     <Style x:Key="LogoPlaceholder" TargetType="Border">
         <Setter Property="Width" Value="30"/>
         <Setter Property="Height" Value="30"/>
-        <Setter Property="Background" Value="{DynamicResource Brush.Background.Card}"/>
-        <Setter Property="BorderBrush" Value="{DynamicResource Brush.Accent.Dark}"/>
-        <Setter Property="BorderThickness" Value="1"/>
     </Style>
 
     <Style x:Key="BrandHeaderTitleText" TargetType="TextBlock">

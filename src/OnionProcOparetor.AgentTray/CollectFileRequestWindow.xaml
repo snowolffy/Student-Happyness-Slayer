@@ -20,7 +20,7 @@
         <Border Grid.Row="0" Style="{StaticResource BrandHeaderBar}" Background="#2563EB">
             <StackPanel Orientation="Horizontal">
                 <Border Style="{StaticResource LogoPlaceholder}">
-                    <Image Source="/Theme/logo.png" Stretch="UniformToFill"/>
+                    <Image Source="/Theme/logo.png" Stretch="Uniform"/>
                 </Border>
                 <StackPanel Margin="10,0,0,0" VerticalAlignment="Center">
                     <TextBlock Text="ครูขอเก็บไฟล์งาน" Style="{StaticResource BrandHeaderTitleText}"/>
