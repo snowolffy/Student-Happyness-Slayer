@@ -31,6 +31,9 @@ public partial class DashboardWindow : UserControl
     private static readonly TimeSpan VncSessionReadyTimeout = TimeSpan.FromSeconds(15);
 
     private readonly ApiClient _apiClient;
+
+    /// <summary>UI-5 (2026-11-04): host window จริง (MainWindow) - เก็บไว้เฉพาะเพื่อ subscribe/unsubscribe StateChanged (ดู OnHostWindowStateChanged) ไม่ได้ใช้แทน Window.GetWindow(this) ที่จุดอื่น</summary>
+    private MainWindow? _hostWindow;
     private readonly DispatcherTimer _autoRefreshTimer;
     private readonly LabHubClient _labHubClient = new();
 
@@ -91,11 +94,38 @@ public partial class DashboardWindow : UserControl
         public required Border Border { get; init; }
         public required Image Image { get; init; }
         public required TextBlock StatusOverlayText { get; init; }
-        public required ClientMachineDto Client { get; init; }
+        public required ClientMachineDto Client { get; set; }
         public WriteableBitmap? Bitmap { get; set; }
         public VncViewMode? BitmapMode { get; set; }
         public VncSessionHandle? Handle { get; set; }
+
+        // ==================== UI-5 (2026-11-04): ป้าย/ปุ่ม/overlay เพิ่มเติมของแต่ละ cell ====================
+        public required TextBlock TitleText { get; init; }
+        public required Border HandBadge { get; init; }
+        public required Border ExamBadge { get; init; }
+        public required Border OfflineOverlay { get; init; }
+        public required Border SelectionOverlay { get; init; }
+        public required StackPanel HoverPanel { get; init; }
     }
+
+    // ==================== UI-5 (2026-11-04): Live View ใหม่ - เลือกห้องแล้วเห็นทุกเครื่องทันที ====================
+    // null = "ทุกห้อง", UnassignedRoomSentinel = "ยังไม่จัดห้อง", อื่นๆ = Room.Id - ใช้ sentinel เดียวกับ
+    // ตัวกรองห้องของแท็บ Clients (ดู RoomFilterOption/UnassignedRoomSentinel) เพื่อไม่มีความหมายคนละแบบ
+    private int? _liveViewRoomFilter;
+    private bool _liveViewFilterHand;
+    private bool _liveViewFilterOnline;
+    private bool _liveViewFilterEvent;
+    private bool _suppressLiveViewRoomFilterEvent;
+
+    /// <summary>เครื่องที่ครูเลือกไว้ด้วย Ctrl+คลิกใน grid (ไม่เกี่ยวกับ _liveViewFullscreenClientGuid เลย) - ใช้สั่งพร้อมกันผ่าน ActionPanelWindow bulk mode เดิม</summary>
+    private readonly HashSet<string> _liveViewSelectedGuids = new();
+
+    /// <summary>เวลาล่าสุดที่ "มีเหตุการณ์" ต่อเครื่อง (คีย์ = MachineName ตัวพิมพ์ไม่สน) - รวมจาก 3 แหล่งเดียวกับ DashboardHomePage.BuildRecentEventsAsync (ดู RefreshLiveViewRecentEventsAsync) ใช้ตัดสินขอบแดง/ตัวกรอง "มีเหตุการณ์"</summary>
+    private readonly Dictionary<string, DateTime> _liveViewRecentEventAt = new(StringComparer.OrdinalIgnoreCase);
+    private static readonly TimeSpan LiveViewRecentEventWindow = TimeSpan.FromMinutes(5);
+
+    /// <summary>RoomId ที่มีโหมดสอบทำงานอยู่ตอนนี้ - เติมจาก LoadAllDataAsync (ดู _liveViewActiveExamRoomIds ที่ตั้งคู่กับ ApplyExamModeAnnouncement) ใช้โชว์ badge "สอบ" บน cell</summary>
+    private HashSet<int> _liveViewActiveExamRoomIds = new();
 
 #if DEBUG
     /// <summary>
@@ -168,6 +198,27 @@ public partial class DashboardWindow : UserControl
     public bool PreviewRaiseHand { get; set; }
 
     /// <summary>
+    /// UI-5 (2026-11-04, --liveview-sample): เครื่อง dev ไม่มี VNC ของนักเรียนจริงเลย - ธงนี้แทนที่
+    /// _allClients ด้วยเครื่องสมมติ ~24 เครื่อง (2 ห้อง ผสมสถานะออนไลน์/ออฟไลน์/ยกมือ/โหมดสอบ/มีเหตุการณ์)
+    /// แล้วให้ AddCellToGrid ใช้ CreateLiveViewPreviewBitmap แทนการต่อ VncSessionPool จริง (ดู
+    /// comment ที่ AddCellToGrid) opt-in แยกเหมือน PreviewRaiseHand/PreviewUsers เพื่อไม่กระทบการตรวจ
+    /// empty state ของแท็บ Live View ปกติ (5 เครื่องเดิมจาก _allClients ด้านล่าง)
+    /// </summary>
+    public bool PreviewLiveView { get; set; }
+
+    /// <summary>บังคับ hover panel (ปุ่มล็อก/ข้อความ) ของ cell แรกให้โชว์ค้างไว้ (--liveview-hover) เพราะ --shot ไม่ได้ขยับเมาส์จริง</summary>
+    public bool PreviewLiveViewHover { get; set; }
+
+    /// <summary>บังคับเลือก cell แรก 2 ช่องแบบ multi-select (--liveview-select) จำลองผล Ctrl+คลิก โดยไม่ต้องขับเมาส์จริง</summary>
+    public bool PreviewLiveViewSelect { get; set; }
+
+    /// <summary>ตั้งค่าตัวกรองเริ่มต้นของแท็บ Live View ตรงๆ (--liveview-filter=hand|online|event) สำหรับถ่ายภาพแต่ละตัวกรองแยกกัน</summary>
+    public string? PreviewLiveViewFilter { get; set; }
+
+    /// <summary>ตั้งขนาดภาพย่อเริ่มต้นตรงๆ (--liveview-size=NNN) สำหรับถ่ายภาพปลายสไลเดอร์ (ต่ำสุด/สูงสุด) โดยไม่ต้องลากสไลเดอร์จริง</summary>
+    public int? PreviewLiveViewSize { get; set; }
+
+    /// <summary>
     /// ใส่ข้อมูลปลอมลงตารางเพื่อให้เห็น badge / การ์ดตัวเลข / แถบเลือก ตอนตรวจงาน UI โดยไม่ต้อง
     /// login เข้า Server ตัวจริงที่รันอยู่บนเครื่อง dev เครื่องนี้ - ค่าถูกเลือกให้ครบทุกสถานะที่
     /// UI ต้องรับมือ (ออนไลน์/ออฟไลน์, กฎทำงาน/ไม่ทำงาน, ต่อผ่าน LAN/Tailscale) ไม่ใช่แค่แถวสวย ๆ
@@ -203,11 +254,27 @@ public partial class DashboardWindow : UserControl
             new() { Id = 1, Name = "ห้อง 1", ClientCount = 2 },
             new() { Id = 2, Name = "ห้อง 2", ClientCount = 2 },
         ];
+
+        // UI-5 (2026-11-04, --liveview-sample): ห้อง dev ไม่มี VNC จริง ต้องมีเครื่องสมมติมากพอ (~24
+        // เครื่อง) ให้เห็นผังที่นั่ง/ตัวกรอง/ป้ายครบทุกสถานะในภาพเดียว - แทนที่ _allClients/_allRooms ชุด
+        // เล็ก 5 เครื่องด้านบนทั้งหมด (opt-in เพื่อให้ยังทดสอบ empty state 5 เครื่องเดิมของ Clients ได้
+        // ถ้าไม่ใส่ธงนี้) ดู SeedLiveViewPreviewClients สำหรับการกระจายสถานะ
+        if (PreviewLiveView)
+        {
+            (_allClients, _allRooms, var raiseHandSample, var examRoomIds, var eventSample) = SeedLiveViewPreviewClients(now);
+            _raiseHandQueue = raiseHandSample;
+            _liveViewActiveExamRoomIds = examRoomIds;
+            foreach (var (machineName, at) in eventSample)
+            {
+                _liveViewRecentEventAt[machineName] = at;
+            }
+        }
+
         PopulateRoomFilterCombo();
+        PopulateLiveViewRoomCombo();
 
         RefreshGlobalStateUi();
         ApplyClientsFilter();
-        ApplyLiveViewClientList();
 
         // แท็บอื่นตั้งใจปล่อยว่าง เพื่อให้เห็น empty state ของจริงตอนไล่ตรวจ
         RulesEmptyText.Visibility = Visibility.Visible;
@@ -216,8 +283,9 @@ public partial class DashboardWindow : UserControl
 
         // WP4-2 (2026-11-01): --raisehand-sample ใส่คิวตัวอย่าง 3 แถวตรงกับ renderVals ของ
         // docs/wireframes/tc-raisehand.dc.html (COM-26/โปรแกรมค้าง/2 นาที ฯลฯ) ผูกกับเครื่อง LAB-PC-01..03
-        // ที่มีอยู่แล้วด้านบน เพื่อให้เห็นแถวไฮไลต์สีส้มใน ClientsGrid พร้อมกันในภาพเดียว
-        if (PreviewRaiseHand)
+        // ที่มีอยู่แล้วด้านบน เพื่อให้เห็นแถวไฮไลต์สีส้มใน ClientsGrid พร้อมกันในภาพเดียว - ข้ามถ้า
+        // --liveview-sample ใส่คิวของตัวเองไปแล้ว (กันเขียนทับกัน)
+        if (PreviewRaiseHand && !PreviewLiveView)
         {
             _raiseHandQueue =
             [
@@ -227,7 +295,55 @@ public partial class DashboardWindow : UserControl
             ];
             ApplyClientsFilter(); // rebind ClientsGrid ใหม่ให้ HasRaisedHand ที่เพิ่งเติมมีผล (ดู ApplyClientsFilter)
         }
+        else if (PreviewLiveView)
+        {
+            ApplyClientsFilter(); // เช่นกัน - ให้ HasRaisedHand ของชุดข้อมูล Live View มีผลกับ ClientsGrid ด้วย
+        }
         ApplyRaiseHandQueueUi();
+
+        if (PreviewLiveView)
+        {
+            if (!string.IsNullOrEmpty(PreviewLiveViewFilter))
+            {
+                switch (PreviewLiveViewFilter.ToLowerInvariant())
+                {
+                    case "hand": LiveViewFilterHandButton.IsChecked = true; _liveViewFilterHand = true; break;
+                    case "online": LiveViewFilterOnlineButton.IsChecked = true; _liveViewFilterOnline = true; break;
+                    case "event": LiveViewFilterEventButton.IsChecked = true; _liveViewFilterEvent = true; break;
+                }
+            }
+
+            if (PreviewLiveViewSize is { } size)
+            {
+                LiveViewSizeSlider.Value = size;
+            }
+
+            MainTabControl.SelectedItem = LiveViewTabItem;
+            SyncLiveViewGrid();
+
+            // --liveview-hover/--liveview-select จำลองผลเมาส์ hover/Ctrl+คลิกตรงๆ เพราะ --shot ไม่ได้
+            // ขับเมาส์จริง (ดู PreviewLiveViewHover/PreviewLiveViewSelect)
+            var orderedCells = ComputeLiveViewTargets()
+                .Select(c => _liveViewCells.TryGetValue(c.ClientGuid, out var cell) ? cell : null)
+                .Where(cell => cell is not null)
+                .Cast<LiveViewCell>()
+                .ToList();
+
+            if (PreviewLiveViewHover && orderedCells.Count > 0)
+            {
+                orderedCells[0].HoverPanel.Visibility = Visibility.Visible;
+            }
+
+            if (PreviewLiveViewSelect)
+            {
+                foreach (var cell in orderedCells.Take(2))
+                {
+                    _liveViewSelectedGuids.Add(cell.Client.ClientGuid);
+                    cell.SelectionOverlay.Visibility = Visibility.Visible;
+                }
+                UpdateLiveViewBulkActionsButton();
+            }
+        }
 
         // WP4b (2026-10-30): --users-sample ใส่แถวตัวอย่างแทน empty state (ดู PreviewUsers) - ผสม
         // built-in/Admin/Teacher ให้เห็นทุกปุ่มที่ disable ตามเงื่อนไข (DELETE/เปลี่ยน Role ของ built-in)
@@ -323,6 +439,87 @@ public partial class DashboardWindow : UserControl
         }
 
         StatusText.Text = "โหมดตรวจ UI (ข้อมูลปลอม)";
+    }
+
+    /// <summary>
+    /// UI-5 (2026-11-04, --liveview-sample): สร้างเครื่องสมมติ 24 เครื่อง 2 ห้อง ผสมสถานะให้ครบตามที่
+    /// orchestrator ขอ (ออนไลน์/ออฟไลน์/ยกมือ/โหมดสอบ/มีเหตุการณ์) เพื่อตรวจ layout/ตัวกรอง/ป้าย/การเลือก/
+    /// ปรับขนาดในภาพเดียว โดยไม่ต้องมี VNC server จริง (ดู CreateLiveViewPreviewBitmap/AddCellToGrid)
+    ///
+    /// ห้อง 1 (16 เครื่อง, ผังที่นั่ง 4x4): กำลังมีโหมดสอบทำงานอยู่ - ห้อง 2 (8 เครื่อง, 2x4): ไม่มี
+    /// เพื่อให้สลับ RoomCombo แล้วเห็น badge "สอบ" หายไป/โผล่มาจริง
+    /// </summary>
+    private static (List<ClientMachineDto> Clients, List<RoomDto> Rooms, List<RaiseHandQueueEntryDto> RaiseHand,
+        HashSet<int> ExamRoomIds, List<(string MachineName, DateTime At)> Events) SeedLiveViewPreviewClients(DateTime now)
+    {
+        var clients = new List<ClientMachineDto>();
+        var id = 1;
+
+        void AddRoom(int roomId, int rows, int cols, int offlineCount, string namePrefix, string[] studentNames)
+        {
+            var seat = 0;
+            for (var r = 1; r <= rows; r++)
+            {
+                for (var c = 1; c <= cols; c++)
+                {
+                    seat++;
+                    var guid = $"liveview-{roomId}-{seat}";
+                    var isOnline = seat > offlineCount; // เครื่องแรกๆ ของห้อง = ออฟไลน์ ให้เห็นผสมกันทั้งผัง ไม่กระจุกท้ายแถว
+                    var studentName = isOnline && seat - offlineCount <= studentNames.Length
+                        ? studentNames[seat - offlineCount - 1]
+                        : null;
+
+                    clients.Add(new ClientMachineDto
+                    {
+                        Id = id++,
+                        ClientGuid = guid,
+                        MachineName = $"{namePrefix}-{seat:D2}",
+                        LastKnownIp = isOnline ? $"192.168.{roomId}.{10 + seat}" : null,
+                        IsOnline = isOnline,
+                        IsEnabled = true,
+                        LastSeenAt = isOnline ? now : now.AddHours(-2),
+                        RoomId = roomId,
+                        SeatRow = r,
+                        SeatCol = c,
+                        CurrentStudentId = studentName is null ? null : seat,
+                        CurrentStudentName = studentName,
+                        CurrentStudentCode = studentName is null ? null : $"S{seat:D3}"
+                    });
+                }
+            }
+        }
+
+        AddRoom(1, 4, 4, offlineCount: 3, "LAB-PC",
+            ["สมชาย ใจดี", "มานี มีนา", "วิชัย แสนดี", "สุดา ใจงาม", "ประเสริฐ มั่งมี", "กนกวรรณ สุขใจ"]);
+        AddRoom(2, 2, 4, offlineCount: 2, "LAB2-PC",
+            ["อนันต์ ชัยชนะ", "พิมพ์ชนก แก้วตา"]);
+
+        var rooms = new List<RoomDto>
+        {
+            new() { Id = 1, Name = "ห้องคอม 1", ClientCount = clients.Count(c => c.RoomId == 1) },
+            new() { Id = 2, Name = "ห้องคอม 2", ClientCount = clients.Count(c => c.RoomId == 2) }
+        };
+
+        // ยกมือ 3 เครื่อง (2 ห้อง 1, 1 ห้อง 2) - ต้องตรงกับ ClientGuid จริงใน clients ข้างบน
+        var raiseHand = new List<RaiseHandQueueEntryDto>
+        {
+            new() { Id = 1, ClientGuid = "liveview-1-5", MachineName = "LAB-PC-05", StudentName = "สมชาย ใจดี", Reason = "โปรแกรมค้าง", RaisedAt = now.AddMinutes(-2), QueuePosition = 1 },
+            new() { Id = 2, ClientGuid = "liveview-1-9", MachineName = "LAB-PC-09", StudentName = null, Reason = "ทำไม่เป็น", RaisedAt = now.AddMinutes(-1), QueuePosition = 2 },
+            new() { Id = 3, ClientGuid = "liveview-2-3", MachineName = "LAB2-PC-03", StudentName = "อนันต์ ชัยชนะ", Reason = "เว็บเข้าไม่ได้", RaisedAt = now.AddSeconds(-20), QueuePosition = 3 }
+        };
+
+        var examRoomIds = new HashSet<int> { 1 };
+
+        // มีเหตุการณ์ 4 เครื่อง (ภายใน 5 นาทีที่แล้ว) - ต้องเป็น online เพราะออฟไลน์ไม่มีทางส่ง log ได้
+        var events = new List<(string MachineName, DateTime At)>
+        {
+            ("LAB-PC-06", now.AddMinutes(-1)),
+            ("LAB-PC-10", now.AddSeconds(-30)),
+            ("LAB-PC-14", now.AddMinutes(-3)),
+            ("LAB2-PC-05", now.AddMinutes(-2))
+        };
+
+        return (clients, rooms, raiseHand, examRoomIds, events);
     }
 #endif
 
@@ -464,6 +661,13 @@ public partial class DashboardWindow : UserControl
             if (Window.GetWindow(this) is MainWindow mw)
             {
                 mw.SidePanel.Closed += OnSidePanelClosed;
+
+                // UI-5 (2026-11-04): "หยุดดึงภาพทั้งหมดเมื่อออกจากแท็บหรือ minimize" - ออกจากแท็บคุมไว้
+                // แล้วที่ MainTabControl_SelectionChanged ส่วน minimize ต้องดักที่ระดับ host window
+                // (DashboardWindow เป็น UserControl เอง ไม่มี WindowState ของตัวเอง) เก็บ reference ไว้
+                // ปลด subscribe คู่กันใน ShutdownAsync
+                _hostWindow = mw;
+                mw.StateChanged += OnHostWindowStateChanged;
             }
 #if DEBUG
             if (PreviewMode)
@@ -571,6 +775,11 @@ public partial class DashboardWindow : UserControl
         {
             mw.SidePanel.Closed -= OnSidePanelClosed;
         }
+        if (_hostWindow is not null)
+        {
+            _hostWindow.StateChanged -= OnHostWindowStateChanged;
+            _hostWindow = null;
+        }
         _autoRefreshTimer.Stop();
         _auditLogFilterDebounceTimer.Stop();
         SettingsService.Changed -= OnSettingsChanged;
@@ -608,6 +817,7 @@ public partial class DashboardWindow : UserControl
             _raiseHandQueue = queue;
             ApplyRaiseHandQueueUi();
             ApplyClientsFilter();
+            SyncLiveViewGrid(); // UI-5 (2026-11-04): ป้าย/ตัวกรอง "ยกมือ" ของแท็บ Live View ต้องอัปเดตทันที ไม่ต้องรอรอบ auto-refresh ถัดไป
         });
     }
 
@@ -709,6 +919,7 @@ public partial class DashboardWindow : UserControl
 
             _allRooms = await _apiClient.GetRoomsAsync();
             PopulateRoomFilterCombo();
+            PopulateLiveViewRoomCombo();
 
             // ก่อน _allClients เสมอ - ApplyClientsFilter ต้องใช้คิวนี้เติม ClientMachineDto.HasRaisedHand
             // (WP4-2, 2026-11-01) เหมือนที่ _globalState ต้องโหลดก่อนเพื่อเติม GlobalEnforcementEnabled
@@ -717,7 +928,6 @@ public partial class DashboardWindow : UserControl
 
             _allClients = await _apiClient.GetClientsAsync();
             ApplyClientsFilter();
-            ApplyLiveViewClientList();
 
             _allRules = await _apiClient.GetRulesAsync();
             // WP2-3: เติมคอลัมน์ "ใช้กับ" - _allRooms โหลดมาแล้วข้างบนเสมอในลำดับนี้
@@ -746,7 +956,23 @@ public partial class DashboardWindow : UserControl
             // โหมดสอบ (WP2-2, 2026-10-31) - ไม่ให้ exception ของ endpoint นี้ (เช่น Server รุ่นเก่า) พา
             // LoadAllDataAsync ทั้งก้อนเข้า catch ด้านล่าง ทั้งที่ clients/rules/logs โหลดสำเร็จไปแล้ว -
             // GetActiveExamSessionsAsync จับ exception ของตัวเองคืน empty list อยู่แล้ว (ดู ApiClient)
-            await RefreshExamModeAnnouncementAsync();
+            //
+            // UI-5 (2026-11-04): ดึง list ครั้งเดียวแล้วแบ่งสองทาง - ApplyExamModeAnnouncement (เดิม) +
+            // _liveViewActiveExamRoomIds (badge "สอบ" บน cell ของแท็บ Live View) ไม่ยิง endpoint ซ้ำสองครั้ง
+            var activeExamSessions = await _apiClient.GetActiveExamSessionsAsync();
+            ApplyExamModeAnnouncement(activeExamSessions);
+            _liveViewActiveExamRoomIds = activeExamSessions
+                .Where(s => s.RoomId is not null)
+                .Select(s => s.RoomId!.Value)
+                .ToHashSet();
+
+            // UI-5 (2026-11-04): sync grid ของแท็บ Live View ด้วยทุกรอบ auto-refresh เฉพาะตอนแท็บนี้
+            // กำลังแสดงอยู่จริง (SyncLiveViewGrid เองก็เช็คซ้ำอีกชั้น - เช็คที่นี่ก่อนเพื่อข้าม
+            // RefreshLiveViewRecentEventsAsync ที่ยิง 3 endpoint เพิ่มถ้าไม่มีใครดูแท็บนี้อยู่)
+            if (MainTabControl.SelectedItem == LiveViewTabItem)
+            {
+                await RefreshLiveViewAsync();
+            }
 
             StatusText.Text = $"อัพเดตล่าสุด: {DateTime.Now:HH:mm:ss}";
             _announcements.Clear(ServerUnreachableKey);
@@ -777,10 +1003,13 @@ public partial class DashboardWindow : UserControl
     /// รวมหลายเซสชันที่ทำงานพร้อมกันเป็นประกาศเดียว (ไม่ใช่หนึ่งประกาศต่อเซสชัน) ตาม pattern เดิมของ
     /// AnnouncementCenter ที่ไม่รองรับหลายประกาศ key เดียวกันซ้อนกันอยู่แล้ว - ปุ่ม "ยกเลิก" ยกเลิก
     /// ทุกเซสชันที่กำลังทำงานพร้อมกันทีเดียว (ปกติมีแค่เซสชันเดียวในเวลาเดียวกัน)
+    ///
+    /// UI-5 (2026-11-04): เดิมชื่อ RefreshExamModeAnnouncementAsync และยิง GetActiveExamSessionsAsync เอง -
+    /// แยก fetch ออกไปให้ LoadAllDataAsync เรียกครั้งเดียวแล้วส่ง list เข้ามา เพราะ Live View (badge "สอบ")
+    /// ต้องใช้ข้อมูลเดียวกันนี้ด้วย ไม่อยากยิง endpoint ซ้ำสองครั้งทุกรอบ auto-refresh
     /// </summary>
-    private async Task RefreshExamModeAnnouncementAsync()
+    private void ApplyExamModeAnnouncement(List<ExamSessionDto> activeSessions)
     {
-        var activeSessions = await _apiClient.GetActiveExamSessionsAsync();
         if (activeSessions.Count == 0)
         {
             _announcements.Clear(ExamModeActiveKey);
@@ -2130,6 +2359,22 @@ public partial class DashboardWindow : UserControl
     /// ตั้ง _suppressRoomFilterEvent ครอบไว้เพราะเขียน ItemsSource/SelectedItem ใหม่ยิง SelectionChanged
     /// ขึ้นมาด้วยเสมอ ซึ่งไม่ควรไปกรองซ้ำ/เขียน settings ทับตัวเองทุกรอบ auto-refresh (ทุก 10 วิ)
     /// </summary>
+    /// <summary>UI-5 (2026-11-04): ดึงออกมาจาก PopulateRoomFilterCombo เดิม เพื่อให้ LiveViewRoomCombo ใช้รายการห้องชุดเดียวกัน ("ทุกห้อง"/"ยังไม่จัดห้อง"/ห้องจริงแต่ละห้อง) โดยไม่ต้อง copy-paste</summary>
+    private List<RoomFilterOption> BuildRoomFilterOptions()
+    {
+        var options = new List<RoomFilterOption>
+        {
+            new() { RoomIdOrSentinel = null, Label = "ทุกห้อง" },
+            new() { RoomIdOrSentinel = UnassignedRoomSentinel, Label = "ยังไม่จัดห้อง" }
+        };
+        options.AddRange(_allRooms.Select(r => new RoomFilterOption
+        {
+            RoomIdOrSentinel = r.Id,
+            Label = $"{r.Name} ({r.ClientCount})"
+        }));
+        return options;
+    }
+
     private void PopulateRoomFilterCombo()
     {
         _suppressRoomFilterEvent = true;
@@ -2138,16 +2383,7 @@ public partial class DashboardWindow : UserControl
             var previousSelection = (RoomFilterCombo.SelectedItem as RoomFilterOption)?.RoomIdOrSentinel
                 ?? SettingsService.Current.Ui.SelectedClientsRoomFilter;
 
-            var options = new List<RoomFilterOption>
-            {
-                new() { RoomIdOrSentinel = null, Label = "ทุกห้อง" },
-                new() { RoomIdOrSentinel = UnassignedRoomSentinel, Label = "ยังไม่จัดห้อง" }
-            };
-            options.AddRange(_allRooms.Select(r => new RoomFilterOption
-            {
-                RoomIdOrSentinel = r.Id,
-                Label = $"{r.Name} ({r.ClientCount})"
-            }));
+            var options = BuildRoomFilterOptions();
 
             RoomFilterCombo.ItemsSource = options;
             RoomFilterCombo.SelectedItem = options.FirstOrDefault(o => o.RoomIdOrSentinel == previousSelection) ?? options[0];
@@ -2177,6 +2413,82 @@ public partial class DashboardWindow : UserControl
         }
 
         ApplyClientsFilter();
+    }
+
+    // ==================== UI-5 (2026-11-04): ตัวเลือกห้องของแท็บ Live View ====================
+    // ใช้ RoomFilterOption/UnassignedRoomSentinel ชุดเดียวกับแท็บ Clients ข้างบน (ความหมายต้องตรงกันเป๊ะ)
+    // แต่เป็น ComboBox คนละตัว เพราะ "ห้องที่กำลังดูอยู่ในแท็บ Clients" กับ "ห้องที่กำลังเปิดจอรวมอยู่" ไม่
+    // จำเป็นต้องเป็นห้องเดียวกันเสมอไป (ครูอาจกรองตาราง Clients ไว้ห้องหนึ่ง แต่เปิดจอรวมดูอีกห้องก็ได้)
+
+    private void PopulateLiveViewRoomCombo()
+    {
+        _suppressLiveViewRoomFilterEvent = true;
+        try
+        {
+            var previousSelection = (LiveViewRoomCombo.SelectedItem as RoomFilterOption)?.RoomIdOrSentinel
+                ?? _liveViewRoomFilter;
+
+            var options = BuildRoomFilterOptions();
+
+            LiveViewRoomCombo.ItemsSource = options;
+            LiveViewRoomCombo.SelectedItem = options.FirstOrDefault(o => o.RoomIdOrSentinel == previousSelection) ?? options[0];
+            _liveViewRoomFilter = (LiveViewRoomCombo.SelectedItem as RoomFilterOption)?.RoomIdOrSentinel;
+        }
+        finally
+        {
+            _suppressLiveViewRoomFilterEvent = false;
+        }
+    }
+
+    private void LiveViewRoomCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_suppressLiveViewRoomFilterEvent)
+        {
+            return;
+        }
+
+        _liveViewRoomFilter = (LiveViewRoomCombo.SelectedItem as RoomFilterOption)?.RoomIdOrSentinel;
+        SyncLiveViewGrid();
+    }
+
+    private void LiveViewFilterButton_Click(object sender, RoutedEventArgs e)
+    {
+        _liveViewFilterHand = LiveViewFilterHandButton.IsChecked == true;
+        _liveViewFilterOnline = LiveViewFilterOnlineButton.IsChecked == true;
+        _liveViewFilterEvent = LiveViewFilterEventButton.IsChecked == true;
+        SyncLiveViewGrid();
+    }
+
+    /// <summary>ปรับขนาด cell ทุกช่องที่เปิดอยู่ตอนนี้ตรงๆ (ไม่ต้อง sync ใหม่ทั้งกริด - ขนาดไม่กระทบว่าเครื่องไหนควรแสดง)</summary>
+    private void LiveViewSizeSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+    {
+        var width = e.NewValue;
+        var height = Math.Round(width * 0.68); // ~16:10 รวมพื้นที่ป้ายชื่อด้านล่าง
+
+        foreach (var cell in _liveViewCells.Values)
+        {
+            cell.Border.Width = width;
+            cell.Border.Height = height;
+        }
+    }
+
+    /// <summary>ปุ่ม "คำสั่ง... (N)" บนแถบตัวกรอง - เปิดเฉพาะเครื่องที่ Ctrl+คลิกเลือกไว้ใน grid ผ่าน ActionPanelWindow เดิม (bulk mode เดียวกับปุ่ม ACTIONS ของแท็บ Clients)</summary>
+    private void LiveViewBulkActionsButton_Click(object sender, RoutedEventArgs e)
+    {
+        var selected = _liveViewSelectedGuids
+            .Select(guid => _allClients.FirstOrDefault(c => c.ClientGuid == guid))
+            .Where(c => c is not null)
+            .Cast<ClientMachineDto>()
+            .ToList();
+
+        if (selected.Count == 0)
+        {
+            return;
+        }
+
+        var panel = new ActionPanelWindow(_apiClient, selected, _allClients, defaultToAll: false);
+        panel.Closed += () => OnActionPanelClosed(panel);
+        ShowInSidePanel(panel, _ => { }, panelWidth: 380);
     }
 
     private void ClientStatFilter_Checked(object sender, RoutedEventArgs e)
@@ -2551,6 +2863,14 @@ public partial class DashboardWindow : UserControl
             await CloseAllLiveViewSessionsAsync();
         }
 
+        // UI-5 (2026-11-04): sync ทันทีตอนเข้าแท็บนี้ (ไม่ต้องรอรอบ auto-refresh 10 วิถัดไป) - ครอบคลุม
+        // ทั้งกรณี KeepLiveViewOpenOnTabLeave=true (grid ยังมี cell ค้างอยู่ แค่ต้องรีเฟรชข้อมูล/เหตุการณ์
+        // ล่าสุด) และกรณีปกติที่เพิ่ง CloseAllLiveViewSessionsAsync ไปหมาดๆ (grid ว่าง ต้องเติมใหม่ทั้งหมด)
+        if (e.AddedItems.Contains(LiveViewTabItem))
+        {
+            await RefreshLiveViewAsync();
+        }
+
         // Logs/Audit ถูกรวมเป็น LogsTabItem เดียว (WP3-5) - โหลด Audit ใหม่ตอนสลับเข้ามาที่แท็บนี้ถ้า
         // sub-tab ที่เหลือค้างไว้คือ Audit (เช่นสลับออกไปแท็บอื่นแล้วย้อนกลับมา)
         if (e.AddedItems.Contains(LogsTabItem) && _auditSubTabSelected)
@@ -2561,6 +2881,30 @@ public partial class DashboardWindow : UserControl
         if (e.AddedItems.Contains(AttendanceTabItem))
         {
             await LoadAttendanceAsync();
+        }
+    }
+
+    /// <summary>
+    /// UI-5 (2026-11-04): "หยุดดึงภาพทั้งหมดเมื่อออกจากแท็บหรือ minimize" ส่วน minimize - MainTabControl_
+    /// SelectionChanged ดักแค่ "ออกจากแท็บ" ไม่ครอบคลุม minimize ทั้งหน้าต่าง (ยังอยู่แท็บ Live View เดิม
+    /// แค่ไม่เห็นหน้าต่างเลย) ย่อ = ปิดทุก session เหมือนออกจากแท็บ (ไม่สน KeepLiveViewOpenOnTabLeave -
+    /// ย่อหน้าต่างคือ "ไม่มีใครดูอยู่แน่ๆ" ต่างจากสลับแท็บที่ครูอาจแค่เหลือบไปดูแท็บอื่นแวบเดียว) คืนสภาพ
+    /// (sync grid ใหม่) เองตอนขยายกลับมาถ้ายังอยู่แท็บนี้ - ไม่ต้องรอ auto-refresh รอบถัดไป
+    /// </summary>
+    private async void OnHostWindowStateChanged(object? sender, EventArgs e)
+    {
+        if (_hostWindow is null || MainTabControl.SelectedItem != LiveViewTabItem)
+        {
+            return;
+        }
+
+        if (_hostWindow.WindowState == WindowState.Minimized)
+        {
+            await CloseAllLiveViewSessionsAsync();
+        }
+        else
+        {
+            await RefreshLiveViewAsync();
         }
     }
 
@@ -2674,65 +3018,243 @@ public partial class DashboardWindow : UserControl
         }
     }
 
-    // ==================== Step 4f: Live View grid (CCTV wall) ====================
+    // ==================== UI-5 (2026-11-04): Live View grid - เลือกห้องแล้วเห็นทุกเครื่องทันที ====================
 
-    /// <summary>เรียกจาก LoadAllDataAsync ทุกครั้งที่ _allClients เปลี่ยน (poll 10 วิ/SignalR/REFRESH) - จำ selection เดิมไว้ก่อนเปลี่ยน ItemsSource เหมือน ApplyClientsFilter กันเลือกหลุดกลางคันตอนกำลังจะกด ADD</summary>
-    private void ApplyLiveViewClientList()
+    /// <summary>เครื่องในห้อง(+ตัวกรอง)ที่เลือกไว้ตอนนี้ เรียงตามผังที่นั่งถ้ามี (SeatRow/SeatCol) ไม่มีให้เรียงชื่อเครื่อง - ดู roadmap WP UI-5</summary>
+    private List<ClientMachineDto> ComputeLiveViewTargets()
     {
-        var selectedIds = LiveViewClientListBox.SelectedItems.Cast<ClientMachineDto>().Select(c => c.Id).ToHashSet();
-
-        LiveViewClientListBox.ItemsSource = _allClients;
-
-        foreach (var client in _allClients.Where(c => selectedIds.Contains(c.Id)))
+        IEnumerable<ClientMachineDto> source = _liveViewRoomFilter switch
         {
-            LiveViewClientListBox.SelectedItems.Add(client);
-        }
+            null => _allClients,
+            UnassignedRoomSentinel => _allClients.Where(c => c.RoomId is null),
+            _ => _allClients.Where(c => c.RoomId == _liveViewRoomFilter)
+        };
+
+        if (_liveViewFilterHand) source = source.Where(c => c.HasRaisedHand);
+        if (_liveViewFilterOnline) source = source.Where(c => c.IsOnline);
+        if (_liveViewFilterEvent) source = source.Where(HasRecentLiveViewEvent);
+
+        return source
+            .OrderBy(c => c.SeatRow ?? int.MaxValue)
+            .ThenBy(c => c.SeatCol ?? int.MaxValue)
+            .ThenBy(c => c.MachineName, StringComparer.OrdinalIgnoreCase)
+            .ToList();
     }
 
+    private bool HasRecentLiveViewEvent(ClientMachineDto client) =>
+        _liveViewRecentEventAt.TryGetValue(client.MachineName, out var at) && DateTime.UtcNow - at < LiveViewRecentEventWindow;
+
+    private bool IsLiveViewClientInActiveExam(ClientMachineDto client) =>
+        client.RoomId is { } roomId && _liveViewActiveExamRoomIds.Contains(roomId);
+
     /// <summary>
-    /// เปิด session แบบ Thumbnail mode เฉพาะเครื่องที่เลือกไว้ (lazy - ไม่ auto-connect ทั้งหมดตั้งแต่เปิด
-    /// หน้า ตามที่ตกลง) ข้ามเครื่องที่เปิดอยู่ใน grid แล้ว เช็ค MaxConcurrentSessions ก่อนเสมอ (single
-    /// source - ดู VncSessionPool.MaxConcurrentSessions) ไม่ปล่อยให้เงียบๆ ล้มเหลวถ้าเกิน limit
+    /// เติม/ลด cell ให้ตรงกับ ComputeLiveViewTargets ปัจจุบัน - เรียกทุกครั้งที่ห้อง/ตัวกรอง/_allClients
+    /// เปลี่ยน แต่ทำงานจริงเฉพาะตอนแท็บ Live View กำลังแสดงอยู่ (กันเปิด VNC เบื้องหลังเครื่องที่ไม่มีใครดู -
+    /// ดู roadmap "หยุดดึงภาพทั้งหมดเมื่อออกจากแท็บ") MaxConcurrentSessions จำกัดแค่เครื่อง "ออนไลน์" เท่านั้น
+    /// (เครื่องออฟไลน์แค่โชว์ป้าย ไม่เปิด VNC session เลยไม่ควรไปแย่งโควตานี้)
     /// </summary>
-    private void AddSelectedToGridButton_Click(object sender, RoutedEventArgs e)
+    private void SyncLiveViewGrid()
     {
-        var selected = LiveViewClientListBox.SelectedItems.Cast<ClientMachineDto>()
-            .Where(c => !_liveViewCells.ContainsKey(c.ClientGuid))
-            .ToList();
-
-        if (selected.Count == 0)
+        if (MainTabControl.SelectedItem != LiveViewTabItem)
         {
-            ToastService.Info(_liveViewCells.Count == 0
-                ? "เลือกเครื่องจากรายการทางซ้ายอย่างน้อย 1 เครื่องก่อน"
-                : "เครื่องที่เลือกเปิดอยู่ในจอรวมแล้วทั้งหมด");
             return;
         }
 
-        var remaining = VncSessionPool.MaxConcurrentSessions - _liveViewCells.Count;
-        if (selected.Count > remaining)
+        var targets = ComputeLiveViewTargets();
+        var targetGuids = targets.Select(c => c.ClientGuid).ToHashSet();
+
+        foreach (var guid in _liveViewCells.Keys.Except(targetGuids).ToList())
         {
-            ToastService.Error(remaining <= 0
-                ? $"จอรวมเต็มแล้ว (สูงสุด {VncSessionPool.MaxConcurrentSessions} เครื่อง) - เอาเครื่องออกก่อนเพิ่มใหม่"
-                : $"เลือกเกินจำนวนที่เพิ่มได้ (เหลือที่ว่างอีก {remaining} เครื่อง จากทั้งหมด {VncSessionPool.MaxConcurrentSessions}) - เลือกน้อยลง");
-            return;
+            RemoveLiveViewCellInternal(guid);
         }
 
-        foreach (var client in selected)
+        var cap = VncSessionPool.MaxConcurrentSessions;
+        var onlineOpenCount = _liveViewCells.Values.Count(c => c.Client.IsOnline);
+        var truncated = false;
+
+        foreach (var client in targets)
         {
+            if (_liveViewCells.TryGetValue(client.ClientGuid, out var existingCell))
+            {
+                UpdateLiveViewCellAppearance(existingCell, client);
+                continue;
+            }
+
+            if (client.IsOnline && onlineOpenCount >= cap)
+            {
+                truncated = true;
+                continue;
+            }
+
             AddCellToGrid(client);
+            if (client.IsOnline) onlineOpenCount++;
         }
 
+        if (truncated)
+        {
+            ToastService.Info($"แสดงได้สูงสุด {cap} เครื่องพร้อมกัน - เครื่องออนไลน์ที่เหลือไม่แสดง (ปรับตัวกรอง/เลือกห้องให้แคบลง)");
+        }
+
+        LiveViewEmptyText.Visibility = _liveViewCells.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
         UpdateLiveViewStatusAndButtonState();
     }
 
+    /// <summary>เอา cell ออกจาก grid + ปิด VNC session ของมัน (ถ้ามี) + เคลียร์ selection/fullscreen ที่อาจผูกอยู่กับเครื่องนี้</summary>
+    private void RemoveLiveViewCellInternal(string clientGuid)
+    {
+        if (_liveViewFullscreenClientGuid == clientGuid)
+        {
+            BackToGridButton_Click(this, new RoutedEventArgs());
+        }
+
+        _liveViewSelectedGuids.Remove(clientGuid);
+
+        if (_liveViewCells.Remove(clientGuid, out var cell))
+        {
+            LiveViewGrid.Children.Remove(cell.Border);
+        }
+
+#if DEBUG
+        if (PreviewMode)
+        {
+            return; // โหมดตรวจ UI ไม่เคยเปิด session จริงเลย (ดู AddCellToGrid) ไม่มีอะไรให้ปิด
+        }
+#endif
+        _ = _liveViewPool.CloseAsync(clientGuid);
+    }
+
+    /// <summary>
+    /// อัปเดต cell ที่เปิดอยู่แล้วให้ตรงกับข้อมูลล่าสุด (ชื่อนักเรียน/ยกมือ/สอบ/มีเหตุการณ์/ออนไลน์-ออฟไลน์) -
+    /// เรียกทุกครั้งที่ SyncLiveViewGrid เจอว่า cell นี้ยังอยู่ในรายการเป้าหมาย ไม่สร้างใหม่ (กัน VNC
+    /// session หลุดโดยไม่จำเป็นแค่เพราะข้อมูลอื่นเปลี่ยน)
+    /// </summary>
+    private void UpdateLiveViewCellAppearance(LiveViewCell cell, ClientMachineDto client)
+    {
+        var wasOnline = cell.Client.IsOnline;
+        cell.Client = client;
+
+        cell.TitleText.Text = client.HasActiveStudent
+            ? $"{client.CurrentStudentName} · {client.MachineName}"
+            : client.MachineName;
+
+        cell.HandBadge.Visibility = client.HasRaisedHand ? Visibility.Visible : Visibility.Collapsed;
+        cell.ExamBadge.Visibility = IsLiveViewClientInActiveExam(client) ? Visibility.Visible : Visibility.Collapsed;
+
+        if (HasRecentLiveViewEvent(client))
+        {
+            // สีแดงตายตัวโดยเจตนา ไม่ผูกธีม - สัญญาณเตือน "มีเหตุการณ์" ต้องเด่นเท่ากันทั้งสองธีม
+            cell.Border.BorderBrush = Brushes.Red;
+            cell.Border.BorderThickness = new Thickness(3);
+        }
+        else
+        {
+            cell.Border.ClearValue(Border.BorderBrushProperty);
+            cell.Border.SetResourceReference(Border.BorderBrushProperty, "Brush.Border.Default");
+            cell.Border.BorderThickness = new Thickness(2);
+        }
+
+#if DEBUG
+        if (PreviewMode)
+        {
+            return; // โหมดตรวจ UI ใช้ CreateLiveViewPreviewBitmap ตั้งค่าตอนสร้าง cell เท่านั้น ไม่เปิด/ปิด session จริง
+        }
+#endif
+
+        if (client.IsOnline && !wasOnline)
+        {
+            cell.OfflineOverlay.Visibility = Visibility.Collapsed;
+            _ = OpenLiveViewSessionAsync(client, cell);
+        }
+        else if (!client.IsOnline && wasOnline)
+        {
+            cell.OfflineOverlay.Visibility = Visibility.Visible;
+            cell.StatusOverlayText.Visibility = Visibility.Collapsed;
+            cell.Image.Source = null;
+            cell.Bitmap = null;
+            cell.Handle = null;
+            _ = _liveViewPool.CloseAsync(client.ClientGuid);
+        }
+    }
+
+    /// <summary>สร้าง cell ใหม่ลง grid - เครื่องออฟไลน์แสดงป้าย "ออฟไลน์" เฉยๆ ไม่เปิด VNC session (ไม่มีอะไรให้ต่อ และไม่ควรไปแย่งโควตา MaxConcurrentSessions ของเครื่องที่ดูได้จริง)</summary>
     private void AddCellToGrid(ClientMachineDto client)
     {
         var cell = CreateLiveViewCell(client);
+        cell.Border.Width = LiveViewSizeSlider.Value;
+        cell.Border.Height = Math.Round(LiveViewSizeSlider.Value * 0.68);
         LiveViewGrid.Children.Add(cell.Border);
         _liveViewCells[client.ClientGuid] = cell;
 
+        if (!client.IsOnline)
+        {
+            cell.OfflineOverlay.Visibility = Visibility.Visible;
+            cell.StatusOverlayText.Visibility = Visibility.Collapsed;
+            return;
+        }
+
+        cell.HandBadge.Visibility = client.HasRaisedHand ? Visibility.Visible : Visibility.Collapsed;
+        cell.ExamBadge.Visibility = IsLiveViewClientInActiveExam(client) ? Visibility.Visible : Visibility.Collapsed;
+        if (HasRecentLiveViewEvent(client))
+        {
+            cell.Border.BorderBrush = Brushes.Red;
+            cell.Border.BorderThickness = new Thickness(3);
+        }
+
+#if DEBUG
+        // UI-5 (2026-11-04, --liveview-sample): เครื่อง dev ไม่มี VNC ของนักเรียนจริง - ต่อ
+        // VncSessionPool จริงไปก็ต่อไม่ติด (IP/port ปลอม) ได้แต่ "Connecting..." ค้าง ไม่เห็นภาพตัวอย่าง
+        // เลย ใช้ bitmap สร้างในโค้ดแทนตามที่ orchestrator ขอ ไม่แตะ VncSessionPool จริงเลยในโหมดนี้
+        if (PreviewMode)
+        {
+            cell.Image.Source = CreateLiveViewPreviewBitmap(client.MachineName);
+            cell.StatusOverlayText.Visibility = Visibility.Collapsed;
+            return;
+        }
+#endif
+
         _ = OpenLiveViewSessionAsync(client, cell);
     }
+
+#if DEBUG
+    /// <summary>UI-5 (2026-11-04): ภาพตัวอย่างสำหรับ --liveview-sample - วาดเป็น RenderTargetBitmap ธรรมดา (ไม่ใช่ WriteableBitmap เพราะไม่มี VNC rect เขียนทับทีละส่วนในโหมดนี้) สีขึ้นกับ hash ชื่อเครื่องเพื่อให้ cell แต่ละอันแยกแยะง่ายในภาพ</summary>
+    private static ImageSource CreateLiveViewPreviewBitmap(string machineName)
+    {
+        var hue = (Math.Abs(machineName.GetHashCode()) % 360);
+        var baseColor = HsvToColor(hue, 0.35, 0.55);
+
+        var visual = new DrawingVisual();
+        using (var dc = visual.RenderOpen())
+        {
+            dc.DrawRectangle(new SolidColorBrush(baseColor), null, new Rect(0, 0, 320, 200));
+            var text = new FormattedText("ภาพหน้าจอ", System.Globalization.CultureInfo.CurrentCulture,
+                FlowDirection.LeftToRight, new Typeface("Segoe UI"), 16,
+                new SolidColorBrush(Color.FromArgb(220, 255, 255, 255)), 1.0);
+            dc.DrawText(text, new Point(110, 92));
+        }
+
+        var bitmap = new RenderTargetBitmap(320, 200, 96, 96, PixelFormats.Pbgra32);
+        bitmap.Render(visual);
+        bitmap.Freeze();
+        return bitmap;
+    }
+
+    private static Color HsvToColor(double h, double s, double v)
+    {
+        var c = v * s;
+        var x = c * (1 - Math.Abs(h / 60 % 2 - 1));
+        var m = v - c;
+        var (r, g, b) = h switch
+        {
+            < 60 => (c, x, 0.0),
+            < 120 => (x, c, 0.0),
+            < 180 => (0.0, c, x),
+            < 240 => (0.0, x, c),
+            < 300 => (x, 0.0, c),
+            _ => (c, 0.0, x)
+        };
+        return Color.FromRgb((byte)((r + m) * 255), (byte)((g + m) * 255), (byte)((b + m) * 255));
+    }
+#endif
 
     /// <summary>
     /// เรียกจาก UI-thread continuation เสมอ (AddCellToGrid ไม่ผ่าน Task.Run) - เหมือน Step 4d
@@ -2832,7 +3354,34 @@ public partial class DashboardWindow : UserControl
         bitmap.WritePixels(area, rect.PixelData, rect.Width * 4, 0);
     }
 
-    /// <summary>สร้าง UI ของ cell หนึ่งช่องใน grid แบบ code-behind (เหมือน pattern เดียวกับ VncPoolTestWindow) - layer ซ้อนกันใน Grid เดียว: ภาพ -> ข้อความสถานะกลางจอ -> ป้ายชื่อเครื่องมุมล่าง -> ปุ่ม X มุมบน คลิกที่ไหนก็ได้ใน Border (ยกเว้นปุ่ม X) เพื่อขยายเต็มจอ</summary>
+    /// <summary>ป้ายเล็กมุมบนของ cell (ยกมือ/สอบ) - พื้นหลัง/ข้อความกำหนดเองต่อป้าย เรียก Visibility.Collapsed ไว้ก่อนเสมอ (UpdateLiveViewCellAppearance/AddCellToGrid เป็นคนเปิด)</summary>
+    private static Border CreateLiveViewBadge(string text, Color background)
+    {
+        return new Border
+        {
+            Background = new SolidColorBrush(background),
+            CornerRadius = new CornerRadius(4),
+            Padding = new Thickness(6, 2, 6, 2),
+            Margin = new Thickness(4, 0, 0, 0),
+            Visibility = Visibility.Collapsed,
+            Child = new TextBlock
+            {
+                Text = text,
+                FontSize = 10,
+                FontWeight = FontWeights.Bold,
+                Foreground = Brushes.White
+            }
+        };
+    }
+
+    /// <summary>
+    /// สร้าง UI ของ cell หนึ่งช่องใน grid แบบ code-behind - layer ซ้อนกันใน Grid เดียว: ภาพ -> ข้อความ
+    /// สถานะกลางจอ -> overlay "ออฟไลน์" -> ป้ายชื่อเครื่อง/นักเรียนมุมล่าง -> ป้ายยกมือ/สอบมุมบน ->
+    /// ปุ่มล็อก/ข้อความ (hover เท่านั้น) -> กรอบไฮไลต์ตอนถูกเลือก (บนสุด ไม่รับคลิกเอง - IsHitTestVisible=False)
+    ///
+    /// UI-5 (2026-11-04): ไม่มีปุ่ม X ลบออกจาก grid แบบ Step 4f เดิมอีกแล้ว - grid นี้ขับด้วยห้อง/ตัวกรอง
+    /// ที่เลือกเท่านั้น (ดู SyncLiveViewGrid) เอาเครื่องออกคือเปลี่ยนห้อง/ตัวกรอง ไม่ใช่ปิดทีละเครื่อง
+    /// </summary>
     private LiveViewCell CreateLiveViewCell(ClientMachineDto client)
     {
         var image = new Image { Stretch = Stretch.Uniform };
@@ -2849,43 +3398,98 @@ public partial class DashboardWindow : UserControl
             MaxWidth = 200
         };
 
+        var titleText = new TextBlock
+        {
+            Text = client.MachineName,
+            Foreground = Brushes.White,
+            FontSize = 11,
+            FontWeight = FontWeights.SemiBold,
+            Margin = new Thickness(6, 3, 6, 3),
+            TextTrimming = TextTrimming.CharacterEllipsis
+        };
         var nameLabel = new Border
         {
             Background = new SolidColorBrush(Color.FromArgb(160, 0, 0, 0)),
             VerticalAlignment = VerticalAlignment.Bottom,
             HorizontalAlignment = HorizontalAlignment.Stretch,
+            Child = titleText
+        };
+
+        // สีเดียวกับไฮไลต์แถวยกมือของแท็บ Clients (#FDF3E7 คือพื้นหลังจาง - ที่นี่ใช้สีเข้มเป็นพื้นป้ายแทน) /
+        // "สอบ" ใช้สีเน้นของแอป (Brush.Accent.Default) แต่ป้ายต้องเป็นค่าคงที่ (ไม่ DynamicResource) เพราะ
+        // สร้างจาก code-behind ครั้งเดียวตอน cell ถูกสร้าง - ธีมสลับได้โดยไม่ต้องสร้าง cell ใหม่จึงต้อง
+        // เป็นสีที่ "ใช้ได้ทั้งสองธีม" อยู่แล้ว (ไม่ใช่ปัญหาจริงเพราะพื้นหลัง cell เป็น Black ตายตัวเหมือนกัน)
+        var handBadge = CreateLiveViewBadge("ยกมือ", Color.FromRgb(0xE8, 0x8C, 0x1F));
+        var examBadge = CreateLiveViewBadge("สอบ", Color.FromRgb(0x2A, 0x6F, 0xD6));
+        var badgeRow = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            HorizontalAlignment = HorizontalAlignment.Right,
+            VerticalAlignment = VerticalAlignment.Top,
+            Margin = new Thickness(0, 6, 6, 0)
+        };
+        badgeRow.Children.Add(handBadge);
+        badgeRow.Children.Add(examBadge);
+
+        var offlineOverlay = new Border
+        {
+            Background = new SolidColorBrush(Color.FromArgb(210, 20, 20, 20)),
+            Visibility = Visibility.Collapsed,
             Child = new TextBlock
             {
-                Text = client.MachineName,
+                Text = "ออฟไลน์",
                 Foreground = Brushes.White,
-                FontSize = 11,
+                FontSize = 13,
                 FontWeight = FontWeights.SemiBold,
-                Margin = new Thickness(6, 3, 6, 3),
-                TextTrimming = TextTrimming.CharacterEllipsis
+                HorizontalAlignment = HorizontalAlignment.Center,
+                VerticalAlignment = VerticalAlignment.Center
             }
         };
 
-        var removeButton = new Button
+        // ปุ่มล็อก/ข้อความ (hover) - ข้อความธรรมดาแบบเดียวกับ "ล็อกหน้าจอ" ของ ActionPanelWindow ไม่ใช้
+        // IconPresenter เพราะชุดไอคอนที่มี (Icons.xaml) ไม่มี "lock"/"message" ให้ใช้
+        var lockButton = new Button
         {
-            // IconPresenter ไม่ใช่ตัวอักษร "✕": ตัวอักษรจะขึ้นกับ font ที่ระบบ fallback มาให้ ซึ่ง
-            // ขนาดและน้ำหนักเส้นไม่ตรงกับไอคอนตัวอื่นในแอปเลย - ชุดเดียวกันทั้งหมดดีกว่า
-            Content = new IconPresenter { Icon = "x", IconSize = 12 },
-            Width = 22,
-            Height = 22,
-            Padding = new Thickness(0),
-            FontSize = 11,
-            HorizontalAlignment = HorizontalAlignment.Right,
-            VerticalAlignment = VerticalAlignment.Top,
-            Margin = new Thickness(0, 4, 4, 0),
-            Tag = client.ClientGuid
+            Content = "ล็อก", FontSize = 11, Padding = new Thickness(8, 4, 8, 4),
+            Background = new SolidColorBrush(Color.FromArgb(200, 0, 0, 0)), Foreground = Brushes.White,
+            BorderThickness = new Thickness(0), Tag = client.ClientGuid
         };
-        removeButton.Click += RemoveGridCellButton_Click;
+        lockButton.Click += LiveViewLockButton_Click;
+
+        var messageButton = new Button
+        {
+            Content = "ข้อความ", FontSize = 11, Padding = new Thickness(8, 4, 8, 4), Margin = new Thickness(6, 0, 0, 0),
+            Background = new SolidColorBrush(Color.FromArgb(200, 0, 0, 0)), Foreground = Brushes.White,
+            BorderThickness = new Thickness(0), Tag = client.ClientGuid
+        };
+        messageButton.Click += LiveViewMessageButton_Click;
+
+        var hoverPanel = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center,
+            Visibility = Visibility.Collapsed
+        };
+        hoverPanel.Children.Add(lockButton);
+        hoverPanel.Children.Add(messageButton);
+
+        var selectionOverlay = new Border
+        {
+            BorderBrush = new SolidColorBrush(Color.FromRgb(0x2A, 0x6F, 0xD6)),
+            BorderThickness = new Thickness(3),
+            Visibility = Visibility.Collapsed,
+            IsHitTestVisible = false
+        };
 
         var overlayGrid = new Grid();
         overlayGrid.Children.Add(image);
         overlayGrid.Children.Add(statusText);
+        overlayGrid.Children.Add(offlineOverlay);
         overlayGrid.Children.Add(nameLabel);
-        overlayGrid.Children.Add(removeButton);
+        overlayGrid.Children.Add(badgeRow);
+        overlayGrid.Children.Add(hoverPanel);
+        overlayGrid.Children.Add(selectionOverlay);
 
         var border = new Border
         {
@@ -2893,24 +3497,159 @@ public partial class DashboardWindow : UserControl
             // อยู่ข้างใน เหมือนขอบดำของจอทีวี - มันไม่ใช่ surface ของแอปและไม่ควรเปลี่ยนตามธีม เช่นเดียวกับ
             // ข้อความสีขาวที่ทับอยู่บนภาพด้านบน มีแต่ "ขอบ" เท่านั้นที่เป็นส่วนของ UI จริงจึงผูกกับธีม
             Background = Brushes.Black,
-            BorderThickness = new Thickness(1),
-            Margin = new Thickness(3),
+            BorderThickness = new Thickness(2),
+            Margin = new Thickness(4),
             Child = overlayGrid,
             Cursor = Cursors.Hand
         };
         border.SetResourceReference(Border.BorderBrushProperty, "Brush.Border.Default");
 
-        // Button.Click กิน MouseLeftButtonUp ที่ trigger มันไปแล้ว (ButtonBase mark e.Handled ให้เอง) เลย
-        // ไม่ bubble มาถึง handler นี้ตอนกดปุ่ม X - คลิกที่ไหนอื่นใน cell จะ trigger ขยายเต็มจอ
-        border.MouseLeftButtonUp += (_, _) => ExpandLiveViewCell(client.ClientGuid);
+        // hover แสดงปุ่มล็อก/ข้อความ (ไม่แสดงถ้ากำลังหุบ - MouseLeave ของ Border ครอบคลุม child ทั้งหมดแล้ว
+        // เพราะไม่ได้ใช้ Popup/ToolTip ที่มี hit-test แยกต่างหาก)
+        border.MouseEnter += (_, _) => hoverPanel.Visibility = Visibility.Visible;
+        border.MouseLeave += (_, _) => hoverPanel.Visibility = Visibility.Collapsed;
+
+        // Button.Click กิน MouseLeftButtonDown/Up ที่ trigger มันไปแล้ว (ButtonBase mark e.Handled ให้เอง)
+        // เลยไม่ bubble มาถึง handler นี้ตอนกดปุ่มล็อก/ข้อความ - คลิกที่ไหนอื่นใน cell ตกไปที่นี่แทน
+        border.MouseLeftButtonDown += (_, e) => OnLiveViewCellMouseDown(client.ClientGuid, e);
 
         return new LiveViewCell
         {
             Border = border,
             Image = image,
             StatusOverlayText = statusText,
-            Client = client
+            Client = client,
+            TitleText = titleText,
+            HandBadge = handBadge,
+            ExamBadge = examBadge,
+            OfflineOverlay = offlineOverlay,
+            SelectionOverlay = selectionOverlay,
+            HoverPanel = hoverPanel
         };
+    }
+
+    /// <summary>
+    /// คลิกใน cell หนึ่งช่อง - Ctrl+คลิก = toggle multi-select (ไม่ขยาย) · ดับเบิลคลิก = เปิดแท็บ
+    /// "Screen View" เต็ม (ShowVncViewAsync เดิม) · คลิกเดียวธรรมดา = ขยายเป็น fullscreen overlay ในแท็บ
+    /// Live View เอง (ExpandLiveViewCell เดิม) - ดับเบิลคลิกจะเห็น "คลิกเดียว" trigger ก่อนสั้นๆ ด้วย (WPF
+    /// ไม่มีทางแยกจังหวะคลิกแรกของดับเบิลคลิกออกจากคลิกเดียวจริงได้ล่วงหน้า) ยอมรับผลข้างเคียงนี้ไว้ - ไม่
+    /// กระทบ session (RequestModeSwitch เรียกซ้ำได้ปลอดภัย) แค่เห็น fullscreen วาบขึ้นก่อนสลับแท็บ
+    /// </summary>
+    private void OnLiveViewCellMouseDown(string clientGuid, MouseButtonEventArgs e)
+    {
+        if (Keyboard.Modifiers.HasFlag(ModifierKeys.Control))
+        {
+            ToggleLiveViewSelection(clientGuid);
+            return;
+        }
+
+        if (e.ClickCount >= 2)
+        {
+            var client = _allClients.FirstOrDefault(c => c.ClientGuid == clientGuid);
+            if (client is not null)
+            {
+                _ = ShowVncViewAsync(client);
+            }
+            return;
+        }
+
+        ExpandLiveViewCell(clientGuid);
+    }
+
+    private void ToggleLiveViewSelection(string clientGuid)
+    {
+        if (!_liveViewCells.TryGetValue(clientGuid, out var cell))
+        {
+            return;
+        }
+
+        if (_liveViewSelectedGuids.Remove(clientGuid))
+        {
+            cell.SelectionOverlay.Visibility = Visibility.Collapsed;
+        }
+        else
+        {
+            _liveViewSelectedGuids.Add(clientGuid);
+            cell.SelectionOverlay.Visibility = Visibility.Visible;
+        }
+
+        UpdateLiveViewBulkActionsButton();
+    }
+
+    private void UpdateLiveViewBulkActionsButton()
+    {
+        LiveViewBulkActionsButton.IsEnabled = _liveViewSelectedGuids.Count > 0;
+        LiveViewBulkActionsButton.Content = _liveViewSelectedGuids.Count > 0
+            ? $"คำสั่ง... ({_liveViewSelectedGuids.Count})"
+            : "คำสั่ง...";
+    }
+
+    /// <summary>ปุ่มล็อก (hover) ของ cell เดียว - ใช้ dialog เดิม LockScreenMessageWindow (ตามที่ roadmap ระบุ "hover มีปุ่มล็อก/ส่งข้อความ (ใช้ dialog เดิม)") ไม่ใช่ quick-lock แบบไม่ถามข้อความ</summary>
+    private async void LiveViewLockButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button { Tag: string clientGuid } || _allClients.FirstOrDefault(c => c.ClientGuid == clientGuid) is not { } client)
+        {
+            return;
+        }
+
+        var mainWindow = (MainWindow)Window.GetWindow(this)!;
+        var dialog = new LockScreenMessageWindow();
+        dialog.ResultChosen += r => mainWindow.DialogHost.CloseTop(r);
+        var confirmed = await mainWindow.DialogHost.ShowAsync<bool>(dialog);
+        if (!confirmed)
+        {
+            return;
+        }
+
+        var success = await _apiClient.SendCommandAsync(client.ClientGuid, "LockWorkstation", new { message = dialog.Message });
+        if (success)
+        {
+            ToastService.Success($"ล็อกจอ {client.MachineName} แล้ว");
+        }
+        else
+        {
+            ToastService.Error($"ล็อกจอ {client.MachineName} ไม่สำเร็จ - เครื่องอาจออฟไลน์");
+        }
+    }
+
+    /// <summary>ปุ่มข้อความ (hover) ของ cell เดียว - ใช้ dialog เดิม BroadcastMessageWindow เหมือนปุ่ม "ส่งข้อความ" ของแท็บ Clients แต่ default เป้าหมายเป็นเครื่องนี้เครื่องเดียว (เลือก "ส่งให้ทุกเครื่อง" ในตัว dialog ได้เหมือนกัน)</summary>
+    private async void LiveViewMessageButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button { Tag: string clientGuid } || _allClients.FirstOrDefault(c => c.ClientGuid == clientGuid) is not { } client)
+        {
+            return;
+        }
+
+        var mainWindow = (MainWindow)Window.GetWindow(this)!;
+        var dialog = new BroadcastMessageWindow(1);
+        dialog.ResultChosen += r => mainWindow.DialogHost.CloseTop(r);
+        var confirmed = await mainWindow.DialogHost.ShowAsync<bool>(dialog);
+        if (!confirmed)
+        {
+            return;
+        }
+
+        var targets = dialog.SendToAll ? _allClients : [client];
+        var payload = new
+        {
+            message = dialog.MessageText,
+            title = string.IsNullOrEmpty(dialog.MessageTitle) ? null : dialog.MessageTitle
+        };
+
+        var successCount = 0;
+        foreach (var target in targets)
+        {
+            if (await _apiClient.SendCommandAsync(target.ClientGuid, "BroadcastMessage", payload)) successCount++;
+        }
+
+        if (successCount == targets.Count)
+        {
+            ToastService.Success($"ส่งข้อความแล้ว {successCount} เครื่อง");
+        }
+        else
+        {
+            ToastService.Error($"ส่งข้อความสำเร็จ {successCount}/{targets.Count} เครื่อง - เครื่องที่เหลืออาจออฟไลน์");
+        }
     }
 
     /// <summary>คลิกที่ thumbnail ใน grid - สลับ session นั้นเป็น FullRes mode (ไม่ reconnect) แล้วแสดง full-screen overlay ทับทั้งหน้า Dashboard - session อื่นใน grid ยังรันเบื้องหลังต่อปกติ ไม่ pause/reconnect (ตามที่ตกลง)</summary>
@@ -3073,7 +3812,7 @@ public partial class DashboardWindow : UserControl
         // เพราะเป็น cleanup ตอนกำลังจะออกจาก fullscreen แล้ว ไม่ควร block UI รอผลลัพธ์ - ยังมี failsafe
         // ฝั่ง AgentTray (VncProcessManager.Stopped ตอน RequestModeSwitch(Thumbnail) ไม่ได้ปิด VNC session
         // จริงๆ ก็จริง แต่ path หลักที่ปิด VNC session จริงคือ CloseAsync/CloseAllAsync ซึ่งเรียกหลัง
-        // ReleaseFullscreenInputState เสมอ - ดู RemoveGridCellButton_Click/CloseAllLiveViewSessionsAsync)
+        // ReleaseFullscreenInputState เสมอ - ดู RemoveLiveViewCellInternal/CloseAllLiveViewSessionsAsync)
         // เผื่อ command นี้ส่งไม่ถึงจริงๆ
         if (_targetInputBlocked && _liveViewFullscreenClientGuid is not null)
         {
@@ -3084,32 +3823,11 @@ public partial class DashboardWindow : UserControl
         SetToggleTargetInputButtonVisual(blocked: false);
     }
 
-    /// <summary>ปุ่ม X บน cell - เอาออกจาก grid + dispose session นั้นทิ้ง ไม่กระทบ session อื่นเลย (ตามที่ตกลงใน Step 4e)</summary>
-    private async void RemoveGridCellButton_Click(object sender, RoutedEventArgs e)
-    {
-        if (sender is not Button { Tag: string clientGuid })
-        {
-            return;
-        }
-
-        if (_liveViewFullscreenClientGuid == clientGuid)
-        {
-            BackToGridButton_Click(sender, e); // กำลังขยายเครื่องนี้อยู่พอดี - กลับ grid ก่อนเอาออก
-        }
-
-        if (_liveViewCells.Remove(clientGuid, out var cell))
-        {
-            LiveViewGrid.Children.Remove(cell.Border);
-        }
-
-        await _liveViewPool.CloseAsync(clientGuid);
-        UpdateLiveViewStatusAndButtonState();
-    }
-
+    /// <summary>UI-5 (2026-11-04): เหลือแค่สถานะ "เปิดอยู่ N/cap เครื่อง" - ปุ่มเพิ่มเครื่องแบบเดิม (AddSelectedToGridButton) หายไปแล้ว เพราะ grid นี้ขับด้วยห้อง/ตัวกรองอัตโนมัติ (ดู SyncLiveViewGrid)</summary>
     private void UpdateLiveViewStatusAndButtonState()
     {
-        LiveViewStatusText.Text = $"เปิดอยู่ {_liveViewCells.Count}/{VncSessionPool.MaxConcurrentSessions} เครื่อง";
-        AddSelectedToGridButton.IsEnabled = _liveViewCells.Count < VncSessionPool.MaxConcurrentSessions;
+        var onlineOpenCount = _liveViewCells.Values.Count(c => c.Client.IsOnline);
+        LiveViewStatusText.Text = $"แสดง {_liveViewCells.Count} เครื่อง (เปิดจอ {onlineOpenCount}/{VncSessionPool.MaxConcurrentSessions})";
     }
 
     /// <summary>เรียกตอนออกจากแท็บ LIVE VIEW หรือปิด Dashboard - dispose ทุก session ใน grid ให้ครบ (ตามที่ตกลง) รวมถึงปิด full-screen overlay ถ้ากำลังเปิดอยู่พอดี</summary>
@@ -3127,9 +3845,61 @@ public partial class DashboardWindow : UserControl
 
         LiveViewGrid.Children.Clear();
         _liveViewCells.Clear();
+        _liveViewSelectedGuids.Clear();
+        UpdateLiveViewBulkActionsButton();
 
         await _liveViewPool.CloseAllAsync();
         UpdateLiveViewStatusAndButtonState();
+    }
+
+    /// <summary>
+    /// เรียกตอนเข้าแท็บ Live View ครั้งแรก/ทุกรอบ auto-refresh ที่แท็บนี้กำลังแสดงอยู่ - โหลดข้อมูลเสริม
+    /// (เหตุการณ์ล่าสุดสำหรับขอบแดง/ตัวกรอง "มีเหตุการณ์") แล้ว sync grid ตามห้อง/ตัวกรองปัจจุบัน
+    /// _liveViewActiveExamRoomIds ไม่ได้โหลดที่นี่ (มาจาก LoadAllDataAsync อยู่แล้วทุกรอบ auto-refresh)
+    /// </summary>
+    private async Task RefreshLiveViewAsync()
+    {
+        try
+        {
+            await RefreshLiveViewRecentEventsAsync();
+        }
+        catch (Exception ex)
+        {
+            // ไม่ critical - sync grid ต่อได้แม้ไม่มีข้อมูล "มีเหตุการณ์" รอบนี้ (แค่ขอบแดง/ตัวกรองนี้จะไม่ทันสมัย)
+            ConsoleDiagnostics.WriteLine($"RefreshLiveViewAsync: โหลดเหตุการณ์ล่าสุดไม่สำเร็จ - {ex.GetType().Name}: {ex.Message}");
+        }
+
+        SyncLiveViewGrid();
+    }
+
+    /// <summary>รวม "มีเหตุการณ์" จาก 3 แหล่งเดียวกับ DashboardHomePage.BuildRecentEventsAsync (ปิดโปรแกรม/บล็อกเว็บ/เครื่องหลุด) แต่เก็บแค่เวลาล่าสุดต่อเครื่องแทนรายการเต็ม (ใช้แค่ตัดสินขอบแดง/ตัวกรอง)</summary>
+    private async Task RefreshLiveViewRecentEventsAsync()
+    {
+        var logs = await _apiClient.GetLogsAsync(take: 30);
+        foreach (var log in logs.Where(l => !string.Equals(l.ActionTaken, "Allowed", StringComparison.OrdinalIgnoreCase)))
+        {
+            MarkLiveViewEvent(log.MachineName, log.Timestamp);
+        }
+
+        var blockedVisits = await _apiClient.GetWebVisitsAsync(blockedOnly: true, pageSize: 10);
+        foreach (var visit in blockedVisits.Items)
+        {
+            MarkLiveViewEvent(visit.MachineName, visit.VisitedAt);
+        }
+
+        var connectivity = await _apiClient.GetActivityLogAsync(category: "AgentConnectivity", pageSize: 10);
+        foreach (var entry in connectivity.Items.Where(a => a.TargetMachineName is not null))
+        {
+            MarkLiveViewEvent(entry.TargetMachineName!, entry.Timestamp);
+        }
+    }
+
+    private void MarkLiveViewEvent(string machineName, DateTime at)
+    {
+        if (!_liveViewRecentEventAt.TryGetValue(machineName, out var existing) || at > existing)
+        {
+            _liveViewRecentEventAt[machineName] = at;
+        }
     }
 
     // ==================== Step 4h: Live View full-screen input capture ====================

@@ -347,7 +347,11 @@ public partial class App : Application
                 PreviewUsers = e.Args.Contains("--users-sample"),
                 PreviewAsTeacher = e.Args.Contains("--as-teacher"),
                 // WP4-2 (2026-11-01)
-                PreviewRaiseHand = e.Args.Contains("--raisehand-sample")
+                PreviewRaiseHand = e.Args.Contains("--raisehand-sample"),
+                // UI-5 (2026-11-04)
+                PreviewLiveView = e.Args.Contains("--liveview-sample"),
+                PreviewLiveViewHover = e.Args.Contains("--liveview-hover"),
+                PreviewLiveViewSelect = e.Args.Contains("--liveview-select")
             };
 
             // --tab=<ชื่อแท็บ> เลือกแท็บก่อนถ่ายภาพ ใช้ไล่ตรวจทุกหน้าจอในโหมดมืดรอบเดียว
@@ -355,6 +359,20 @@ public partial class App : Application
             if (tab is not null)
             {
                 preview.PreviewTab = tab["--tab=".Length..];
+            }
+
+            // UI-5 (2026-11-04): --liveview-filter=hand|online|event ตั้งตัวกรองเริ่มต้นตรงๆ (ไม่ต้องคลิกจริง)
+            var liveViewFilter = e.Args.FirstOrDefault(a => a.StartsWith("--liveview-filter=", StringComparison.Ordinal));
+            if (liveViewFilter is not null)
+            {
+                preview.PreviewLiveViewFilter = liveViewFilter["--liveview-filter=".Length..];
+            }
+
+            // UI-5 (2026-11-04): --liveview-size=NNN ตั้งขนาดภาพย่อเริ่มต้นตรงๆ (ถ่ายภาพปลายสไลเดอร์ต่ำสุด/สูงสุดโดยไม่ต้องลากสไลเดอร์จริง)
+            var liveViewSize = e.Args.FirstOrDefault(a => a.StartsWith("--liveview-size=", StringComparison.Ordinal));
+            if (liveViewSize is not null && int.TryParse(liveViewSize["--liveview-size=".Length..], out var sizeValue))
+            {
+                preview.PreviewLiveViewSize = sizeValue;
             }
 
             // --subview=<ชื่อ> (orchestrator review 2026-11-04) - เปิด sub-view ทับ ClientInspector ใน SidePanel
