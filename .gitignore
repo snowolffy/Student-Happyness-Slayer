@@ -87,3 +87,4 @@ firmware/**/secrets.h
 # arduino-cli.exe (downloaded straight into the firmware folder for local compile-checking) - a
 # binary tool, not source, never belongs in git
 firmware/**/arduino-cli.exe
+scratchpad/
