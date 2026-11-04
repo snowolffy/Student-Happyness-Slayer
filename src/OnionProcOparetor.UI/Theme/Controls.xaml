@@ -15,6 +15,45 @@
          เครื่องตรงๆ) จึงยังประกาศ key "DisplayTimeConverter" เองในไฟล์ App.xaml ของแต่ละแอป (หลัง merge
          Controls.xaml นี้) คอลัมน์เวลาด้านล่างอ้าง StaticResource key นี้เหมือนเดิมทุกจุด ไม่ต้องแก้ -->
 
+    <!-- ==================== SpinningLoaderIcon (UI-4, 2026-11-04) ====================
+         ไอคอน "loader-circle" หมุนตลอดเวลาที่แสดงอยู่ - ใช้แทนข้อความ "กำลังโหลด..." เฉยๆ ทั่วทั้งแอป
+         (MainWindow.xaml LoadingOverlay ใช้ pattern เดียวกันแต่ผูกกับ DispatcherTimer ของตัวเองเพราะ
+         ต้อง Start/StopSpinner ตรงจังหวะ fade - ตัวนี้สำหรับจุดที่แค่ "โชว์/ซ่อนตามการโหลด" เฉยๆ เช่น
+         ป้าย "กำลังโหลด..." ในหน้าต่างย่อยต่างๆ)
+
+         ไม่ต้องมี code-behind เลย: Trigger บน Visibility เริ่ม Storyboard ตอนโผล่ (Visible) และ
+         สั่งหยุดตอนหาย (Collapsed/Hidden) ด้วย EnterActions/ExitActions ของ Trigger เอง (ต่างจาก
+         EventTrigger ซึ่งไม่มี "ExitActions" ให้ผูกกับการหายไป) - ผู้ใช้ style นี้แค่ toggle
+         Visibility ของ IconPresenter ตามปกติ (เหมือนป้าย "กำลังโหลด..." เดิมที่ toggle ข้อความ) -->
+    <Style x:Key="SpinningLoaderIcon" TargetType="controls:IconPresenter">
+        <Setter Property="Icon" Value="loader-circle"/>
+        <Setter Property="IconSize" Value="14"/>
+        <Setter Property="Foreground" Value="{DynamicResource Brush.Accent.Default}"/>
+        <Setter Property="RenderTransformOrigin" Value="0.5,0.5"/>
+        <Setter Property="RenderTransform">
+            <Setter.Value>
+                <RotateTransform Angle="0"/>
+            </Setter.Value>
+        </Setter>
+        <Style.Triggers>
+            <Trigger Property="Visibility" Value="Visible">
+                <Trigger.EnterActions>
+                    <BeginStoryboard x:Name="SpinLoaderStoryboard">
+                        <Storyboard>
+                            <DoubleAnimation
+                                Storyboard.TargetProperty="RenderTransform.Angle"
+                                From="0" To="360" Duration="0:0:0.9"
+                                RepeatBehavior="Forever"/>
+                        </Storyboard>
+                    </BeginStoryboard>
+                </Trigger.EnterActions>
+                <Trigger.ExitActions>
+                    <StopStoryboard BeginStoryboardName="SpinLoaderStoryboard"/>
+                </Trigger.ExitActions>
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+
     <!-- ==================== GhostIconButton (WP6) ====================
          ปุ่มไอคอนอย่างเดียวไม่มีกรอบ สำหรับ ✕ ปิด / หุบ-กาง ในแผงข้อมูลเครื่องและ toast
          ใส่ IconPresenter เป็น Content แล้วผูก Foreground กับปุ่ม เพื่อให้ไอคอนเข้มขึ้นตอนชี้ -->

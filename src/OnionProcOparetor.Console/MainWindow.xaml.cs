@@ -459,4 +459,32 @@ public partial class MainWindow : Window
         };
         element.BeginAnimation(UIElement.OpacityProperty, animation);
     }
+
+#if DEBUG
+    /// <summary>
+    /// orchestrator review 2026-11-04: --ui-preview เคยห่อ DashboardWindow ด้วย Window เปล่าๆ
+    /// (App.xaml.cs CreateDashboardPreviewHost) ซึ่งไม่มี SidePanelHost/DialogHost จริง - ตั้งแต่ UI-4
+    /// ย้าย ClientInspector ไปแสดงผ่าน MainWindow.SidePanel แล้ว (ดู DashboardWindow.
+    /// ShowClientInspectorInSidePanel ที่ cast `Window.GetWindow(this) is MainWindow`) ภาพตรวจ UI ของ
+    /// แท็บ Clients ที่เลือกเครื่องไว้ (--select --tab=clients) จึงไม่เห็นแผงอีกต่อไป - ใช้ MainWindow
+    /// จริงเป็น preview host แทน Window เปล่า (ข้าม login flow ทั้งหมด แค่สลับไป DashboardHost ตรงๆ
+    /// แบบเดียวกับท้าย ShowDashboardAsync แต่ไม่มี spinner/fade/delay เพราะภาพนิ่งไม่ต้องรอ) ได้
+    /// SidePanel/DialogHost จริงมาใช้ฟรีโดยไม่ต้องสร้างคลาส preview host แยกอีกตัว
+    /// </summary>
+    public void ShowPreviewDashboard(DashboardWindow dashboard)
+    {
+        _dashboard = dashboard;
+        dashboard.LogoutRequested += () => _ = ReturnToLoginAsync();
+
+        DashboardHost.Content = dashboard;
+        DashboardHost.Opacity = 1;
+        DashboardHost.Visibility = Visibility.Visible;
+        LoginRoot.Visibility = Visibility.Collapsed;
+
+        ResizeMode = ResizeMode.CanResize;
+        MinWidth = 1000;
+        MinHeight = 560;
+        Title = "Onion ProcOparetor Console - Dashboard";
+    }
+#endif
 }

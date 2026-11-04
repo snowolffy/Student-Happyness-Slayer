@@ -264,4 +264,19 @@
         <RectangleGeometry Rect="3,3,18,18" RadiusX="2" RadiusY="2"/>
     </GeometryGroup>
 
+    <!-- UI-4 (2026-11-04): ไอคอน "layout-dashboard" ของ Lucide - ใช้กับแท็บ "หน้าแรก" ใน sidebar ของ
+         Console (DashboardWindow.xaml HomeTabItem) แทน "activity" เดิมที่ยืมมาใช้ชั่วคราว -->
+    <GeometryGroup x:Key="Icon.LayoutDashboard" FillRule="Nonzero">
+        <RectangleGeometry Rect="3,3,7,9" RadiusX="1" RadiusY="1"/>
+        <RectangleGeometry Rect="14,3,7,5" RadiusX="1" RadiusY="1"/>
+        <RectangleGeometry Rect="14,12,7,9" RadiusX="1" RadiusY="1"/>
+        <RectangleGeometry Rect="3,16,7,5" RadiusX="1" RadiusY="1"/>
+    </GeometryGroup>
+
+    <!-- UI-4 (2026-11-04): ไอคอน "loader-circle" ของ Lucide - วงแหวนตัวหมุนโหลด (ใช้แทน Path arc
+         แบบวาดเองเดิมใน MainWindow.xaml LoadingOverlay - ดู Controls/LoadingSpinner.xaml) -->
+    <GeometryGroup x:Key="Icon.LoaderCircle" FillRule="Nonzero">
+        <PathGeometry Figures="M21 12a9 9 0 1 1-6.219-8.56"/>
+    </GeometryGroup>
+
 </ResourceDictionary>

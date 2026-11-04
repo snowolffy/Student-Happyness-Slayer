@@ -164,6 +164,8 @@ public partial class SettingsPage : UserControl
     {
         try
         {
+            // UI-4 (2026-11-04): ไอคอนหมุนคู่กับข้อความ "กำลังโหลด..." - ปิดเสมอใน finally
+            LaunchableProgramLoadingIcon.Visibility = Visibility.Visible;
             var programs = await _apiClient!.GetLaunchableProgramsAsync();
             LaunchableProgramCountText.Text = programs.Count == 0
                 ? "ยังไม่มีโปรแกรมในรายการ - Teacher จะยังเลือกเปิดโปรแกรมไม่ได้จนกว่าจะเพิ่ม"
@@ -172,6 +174,10 @@ public partial class SettingsPage : UserControl
         catch (Exception)
         {
             LaunchableProgramCountText.Text = "โหลดจำนวนโปรแกรมไม่สำเร็จ";
+        }
+        finally
+        {
+            LaunchableProgramLoadingIcon.Visibility = Visibility.Collapsed;
         }
     }
 
@@ -271,22 +277,31 @@ public partial class SettingsPage : UserControl
 
     private async Task LoadEmergencyCodeSettingsAsync()
     {
-        _emergencyCodeSettings = await _apiClient!.GetEmergencyCodeSettingsAsync();
-        if (_emergencyCodeSettings is null)
+        // UI-4 (2026-11-04): ไอคอนหมุนคู่กับข้อความ "กำลังโหลด..." - ปิดเสมอใน finally ด้านล่าง
+        EmergencyCodeLoadingIcon.Visibility = Visibility.Visible;
+        try
         {
-            EmergencyCodeStatusText.Text = "โหลดสถานะรหัสฉุกเฉินไม่สำเร็จ";
-            return;
+            _emergencyCodeSettings = await _apiClient!.GetEmergencyCodeSettingsAsync();
+            if (_emergencyCodeSettings is null)
+            {
+                EmergencyCodeStatusText.Text = "โหลดสถานะรหัสฉุกเฉินไม่สำเร็จ";
+                return;
+            }
+
+            var rotated = _emergencyCodeSettings.RotatedAt is { } rotatedAt
+                ? $"เปลี่ยนล่าสุด {TimeDisplay.Text(rotatedAt)} โดย {_emergencyCodeSettings.RotatedByUsername}"
+                : $"สร้างตอนติดตั้งระบบ {TimeDisplay.Text(_emergencyCodeSettings.CreatedAt)} (ยังไม่เคยเปลี่ยน)";
+
+            var usage = _emergencyCodeSettings.LastUsageAt is { } lastUsageAt
+                ? $"ใช้แล้ว {_emergencyCodeSettings.UsageCount} ครั้ง - ล่าสุด: {_emergencyCodeSettings.LastUsageMachineName} · {TimeDisplay.Text(lastUsageAt)}"
+                : "ยังไม่เคยถูกใช้";
+
+            EmergencyCodeStatusText.Text = $"{rotated}\n{usage}";
         }
-
-        var rotated = _emergencyCodeSettings.RotatedAt is { } rotatedAt
-            ? $"เปลี่ยนล่าสุด {TimeDisplay.Text(rotatedAt)} โดย {_emergencyCodeSettings.RotatedByUsername}"
-            : $"สร้างตอนติดตั้งระบบ {TimeDisplay.Text(_emergencyCodeSettings.CreatedAt)} (ยังไม่เคยเปลี่ยน)";
-
-        var usage = _emergencyCodeSettings.LastUsageAt is { } lastUsageAt
-            ? $"ใช้แล้ว {_emergencyCodeSettings.UsageCount} ครั้ง - ล่าสุด: {_emergencyCodeSettings.LastUsageMachineName} · {TimeDisplay.Text(lastUsageAt)}"
-            : "ยังไม่เคยถูกใช้";
-
-        EmergencyCodeStatusText.Text = $"{rotated}\n{usage}";
+        finally
+        {
+            EmergencyCodeLoadingIcon.Visibility = Visibility.Collapsed;
+        }
     }
 
     private async void ShowEmergencyCodeQrButton_Click(object sender, RoutedEventArgs e)
@@ -367,10 +382,19 @@ public partial class SettingsPage : UserControl
 
     private async Task LoadCertificateThumbprintAsync()
     {
-        var thumbprint = await _apiClient!.GetCertificateThumbprintAsync();
-        CertificateThumbprintText.Text = string.IsNullOrWhiteSpace(thumbprint)
-            ? "อ่านไม่ได้ (Server อาจยังไม่พร้อม)"
-            : thumbprint;
+        // UI-4 (2026-11-04): ไอคอนหมุนคู่กับข้อความ "กำลังโหลด..." - ปิดเสมอใน finally
+        CertificateLoadingIcon.Visibility = Visibility.Visible;
+        try
+        {
+            var thumbprint = await _apiClient!.GetCertificateThumbprintAsync();
+            CertificateThumbprintText.Text = string.IsNullOrWhiteSpace(thumbprint)
+                ? "อ่านไม่ได้ (Server อาจยังไม่พร้อม)"
+                : thumbprint;
+        }
+        finally
+        {
+            CertificateLoadingIcon.Visibility = Visibility.Collapsed;
+        }
     }
 
     private async void ExportCertificateButton_Click(object sender, RoutedEventArgs e)

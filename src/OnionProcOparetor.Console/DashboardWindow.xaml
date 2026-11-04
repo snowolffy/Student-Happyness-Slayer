@@ -26,6 +26,34 @@
         MinWidth/MinHeight are set to keep the toolbar buttons and the 6 tab headers from overlapping/
         wrapping at small sizes - re-check these if a tab's content changes materially later.
     -->
+    <UserControl.Resources>
+        <!-- ==================== GhostMenuButton (UI-4, 2026-11-04) ====================
+             ปุ่มเต็มความกว้าง ชิดซ้าย ไม่มีกรอบ - ใช้ในเมนู "คำสั่งอื่นๆ" ของแถบคำสั่ง Clients
+             (ClientsMoreActionsPopup) ไม่ใช้ MenuItem/ContextMenu มาตรฐานของ WPF ตรงๆ เพราะไม่มี
+             Style ธีมมืด/สว่างให้เลยในไลบรารีนี้ (ดู Theme/Controls.xaml) - ยืมโครงจาก GhostIconButton
+             แต่ปรับ ContentPresenter ให้ชิดซ้ายแทนกึ่งกลาง -->
+        <Style x:Key="GhostMenuButton" TargetType="Button">
+            <Setter Property="Foreground" Value="{DynamicResource Brush.Text.Primary}"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="HorizontalContentAlignment" Value="Left"/>
+            <Setter Property="Padding" Value="10,8"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bd" CornerRadius="6" Padding="{TemplateBinding Padding}" Background="Transparent">
+                            <ContentPresenter HorizontalAlignment="Left" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource Brush.Row.Hover}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </UserControl.Resources>
     <Grid>
         <!-- ==================== โครงหน้าจอ: sidebar ซ้าย + เนื้อหาขวา (2026-09-09) ====================
              เดิมเป็น "แถบเครื่องมือบน + แท็บเรียงแนวนอน" เปลี่ยนมาเป็น sidebar ให้ตรงกับ OnlineConsole
@@ -221,6 +249,14 @@
                 </ControlTemplate>
             </TabControl.Template>
 
+                <!-- ========== Home tab (UI-4, 2026-11-04) ==========
+                     หน้าแรกหลังล็อกอิน (roadmap WP UI-4) - อยู่ก่อน ClientsTabItem เสมอ จึงเป็นแท็บที่ถูก
+                     เลือกอยู่ก่อนตามพฤติกรรม default ของ TabControl (ไม่มี TabItem ไหนตั้ง IsSelected ไว้)
+                     เนื้อหาทั้งหมดอยู่ใน DashboardHomePage.xaml(.cs) แยกไฟล์ (ตามที่ roadmap ระบุชื่อไว้) -->
+                <TabItem x:Name="HomeTabItem" Header="หน้าแรก" controls:Nav.Icon="layout-dashboard" controls:Nav.Group="ภาพรวม">
+                    <local:DashboardHomePage x:Name="HomePage"/>
+                </TabItem>
+
                 <!-- ========== Clients tab ========== -->
                 <TabItem x:Name="ClientsTabItem" Header="Clients" controls:Nav.Icon="monitor" controls:Nav.Group="ห้องเรียน">
                     <Grid Margin="0,12,0,0">
@@ -311,27 +347,39 @@
                                         Padding="12,6" FontSize="11" Margin="8,0,0,0"
                                         ToolTip="ส่งข้อความขึ้นจอนักเรียน - เลือกได้ว่าทุกเครื่องหรือเฉพาะที่เลือกไว้"
                                         Click="BroadcastMessageButton_Click" VerticalAlignment="Center"/>
-                                <!-- "เปิดโหมดสอบ" (WP2-2, 2026-10-31) - บล็อกทุกเว็บยกเว้น allow-list ชั่วคราว
-                                     ดู wireframe nf-exam.dc.html + ExamModeWindow -->
-                                <Button Content="เปิดโหมดสอบ" Style="{StaticResource ButtonSecondary}"
+                                <!-- UI-4 (2026-11-04): 7 ปุ่มเดิมเต็มแถวจนล้นในจอเล็ก (ค้างมาตั้งแต่ WP4) - เหลือ
+                                     3 ปุ่มที่ใช้บ่อยสุดแสดงตรง (toggle/คำสั่งทั้งห้อง/ส่งข้อความ) ที่เหลือ 4 ปุ่ม
+                                     ย้ายเข้าเมนู "คำสั่งอื่นๆ" (Popup ธีมเดียวกับการ์ด ไม่ใช้ ContextMenu ของ WPF
+                                     ตรงๆ เพราะไม่มี Style ธีมมืด/สว่างให้เลย - ดู ClientsMoreActionsButton_Click) -->
+                                <Button x:Name="ClientsMoreActionsButton" Content="คำสั่งอื่นๆ ▾"
+                                        Style="{StaticResource ButtonSecondary}"
                                         Padding="12,6" FontSize="11" Margin="8,0,0,0"
-                                        ToolTip="allow-list ชั่วคราวสำหรับสอบ - เลือกได้ว่าทั้งห้องหรือเฉพาะที่เลือกไว้"
-                                        Click="OpenExamModeButton_Click" VerticalAlignment="Center"/>
-                                <!-- "เปิด URL/โปรแกรมทั้งห้อง" (WP4-1, 2026-11-01) - ดู wireframe tc-openurl.dc.html + OpenUrlWindow -->
-                                <Button Content="เปิด URL/โปรแกรม" Style="{StaticResource ButtonSecondary}"
-                                        Padding="12,6" FontSize="11" Margin="8,0,0,0"
-                                        ToolTip="เปิดเว็บหรือโปรแกรมจากรายการที่ Admin ตั้งไว้ - เลือกได้ว่าทั้งห้องหรือเฉพาะที่เลือกไว้"
-                                        Click="OpenUrlProgramButton_Click" VerticalAlignment="Center"/>
-                                <!-- "แจก/เก็บไฟล์" (WP4-3, 2026-11-01) - ดู wireframe tc-files.dc.html + FilesWindow -->
-                                <Button Content="แจก/เก็บไฟล์" Style="{StaticResource ButtonSecondary}"
-                                        Padding="12,6" FontSize="11" Margin="8,0,0,0"
-                                        ToolTip="แจกไฟล์ให้นักเรียน หรือเก็บงานจากนักเรียน - เลือกได้ว่าทั้งห้องหรือเฉพาะที่เลือกไว้"
-                                        Click="FilesButton_Click" VerticalAlignment="Center"/>
-                                <!-- "ส่งจอครู" (WP4-4, 2026-11-01) - ดู wireframe tc-broadcast.dc.html + ScreenBroadcastSetupWindow -->
-                                <Button Content="ส่งจอครู" Style="{StaticResource ButtonSecondary}"
-                                        Padding="12,6" FontSize="11" Margin="8,0,0,0"
-                                        ToolTip="ส่งจอของเครื่องนี้ให้นักเรียนดู - เลือกได้ว่าทั้งห้องหรือเฉพาะที่เลือกไว้"
-                                        Click="ScreenBroadcastButton_Click" VerticalAlignment="Center"/>
+                                        ToolTip="เปิดโหมดสอบ / เปิด URL หรือโปรแกรม / แจก-เก็บไฟล์ / ส่งจอครู"
+                                        Click="ClientsMoreActionsButton_Click" VerticalAlignment="Center"/>
+                                <Popup x:Name="ClientsMoreActionsPopup" PlacementTarget="{Binding ElementName=ClientsMoreActionsButton}"
+                                       Placement="Bottom" StaysOpen="False" AllowsTransparency="True">
+                                    <Border Style="{StaticResource Card}" Padding="6" MinWidth="200">
+                                        <StackPanel>
+                                            <!-- "เปิดโหมดสอบ" (WP2-2, 2026-10-31) - บล็อกทุกเว็บยกเว้น allow-list ชั่วคราว
+                                                 ดู wireframe nf-exam.dc.html + ExamModeWindow -->
+                                            <Button Content="เปิดโหมดสอบ" Style="{StaticResource GhostMenuButton}"
+                                                    ToolTip="allow-list ชั่วคราวสำหรับสอบ - เลือกได้ว่าทั้งห้องหรือเฉพาะที่เลือกไว้"
+                                                    Click="MoreActions_OpenExamMode_Click"/>
+                                            <!-- "เปิด URL/โปรแกรมทั้งห้อง" (WP4-1, 2026-11-01) - ดู wireframe tc-openurl.dc.html + OpenUrlWindow -->
+                                            <Button Content="เปิด URL/โปรแกรม" Style="{StaticResource GhostMenuButton}"
+                                                    ToolTip="เปิดเว็บหรือโปรแกรมจากรายการที่ Admin ตั้งไว้ - เลือกได้ว่าทั้งห้องหรือเฉพาะที่เลือกไว้"
+                                                    Click="MoreActions_OpenUrlProgram_Click"/>
+                                            <!-- "แจก/เก็บไฟล์" (WP4-3, 2026-11-01) - ดู wireframe tc-files.dc.html + FilesWindow -->
+                                            <Button Content="แจก/เก็บไฟล์" Style="{StaticResource GhostMenuButton}"
+                                                    ToolTip="แจกไฟล์ให้นักเรียน หรือเก็บงานจากนักเรียน - เลือกได้ว่าทั้งห้องหรือเฉพาะที่เลือกไว้"
+                                                    Click="MoreActions_Files_Click"/>
+                                            <!-- "ส่งจอครู" (WP4-4, 2026-11-01) - ดู wireframe tc-broadcast.dc.html + ScreenBroadcastSetupWindow -->
+                                            <Button Content="ส่งจอครู" Style="{StaticResource GhostMenuButton}"
+                                                    ToolTip="ส่งจอของเครื่องนี้ให้นักเรียนดู - เลือกได้ว่าทั้งห้องหรือเฉพาะที่เลือกไว้"
+                                                    Click="MoreActions_ScreenBroadcast_Click"/>
+                                        </StackPanel>
+                                    </Border>
+                                </Popup>
                             </StackPanel>
 
                             <Border Grid.Column="1" x:Name="ClientsSelectionBar" Style="{StaticResource SelectionBar}"
@@ -534,6 +582,13 @@
                                             Content="ยังไม่มีเครื่องในระบบ" Tag="เครื่องจะขึ้นมาเองเมื่อ Agent ติดตั้งแล้ว poll เข้ามาครั้งแรก"
                                             Visibility="Collapsed"/>
 
+                            <!-- UI-4 (2026-11-04): ที่จอด ClientInspector เวลาไม่ได้แสดง - ย้ายไปแสดงผ่าน
+                                 MainWindow.SidePanel แทนการวาดอยู่ใน cell นี้เหมือนเดิม (ตามที่ผู้ใช้สั่งให้
+                                 แผงขวาวิ่งเต็มความสูงหน้าต่างเหมือน SidePanelHost ตัวอื่นๆ - ดู
+                                 ShowClientInspectorInSidePanel/UpdateClientInspector) ContentControl นี้ตั้ง
+                                 Collapsed ค้างตลอด (ไม่มีโค้ดไหนเปลี่ยนค่านี้) มีไว้แค่ให้ x:Name="ClientInspector"
+                                 ข้างในมีที่อยู่ใน visual tree ให้ InitializeComponent สร้างได้ตอนเปิดหน้าต่าง -->
+                            <ContentControl Visibility="Collapsed" Focusable="False">
                             <Border x:Name="ClientInspector" Width="284" HorizontalAlignment="Right"
                                     Visibility="Collapsed" CornerRadius="12"
                                     Background="{DynamicResource Brush.Background.CardRaised}"
@@ -682,6 +737,7 @@
                                     </StackPanel>
                                 </Grid>
                             </Border>
+                            </ContentControl>
                         </Grid>
                     </Grid>
                 </TabItem>

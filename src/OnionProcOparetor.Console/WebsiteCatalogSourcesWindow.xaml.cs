@@ -30,6 +30,8 @@ public partial class WebsiteCatalogSourcesWindow : UserControl
     {
         try
         {
+            // UI-4 (2026-11-04): ไอคอนหมุนคู่กับข้อความ "กำลังโหลด..." - ปิดเสมอใน finally
+            StatusLoadingIcon.Visibility = Visibility.Visible;
             StatusText.Text = "กำลังโหลด...";
             _sources = await _apiClient.GetWebsiteCatalogSourcesAsync();
             SourcesGrid.ItemsSource = _sources;
@@ -39,6 +41,10 @@ public partial class WebsiteCatalogSourcesWindow : UserControl
         catch (System.Exception ex)
         {
             StatusText.Text = $"โหลดข้อมูลไม่สำเร็จ: {ex.Message}";
+        }
+        finally
+        {
+            StatusLoadingIcon.Visibility = Visibility.Collapsed;
         }
     }
 

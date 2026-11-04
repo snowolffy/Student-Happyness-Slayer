@@ -357,14 +357,42 @@ public partial class App : Application
                 preview.PreviewTab = tab["--tab=".Length..];
             }
 
+            // --subview=<ชื่อ> (orchestrator review 2026-11-04) - เปิด sub-view ทับ ClientInspector ใน SidePanel
+            var subView = e.Args.FirstOrDefault(a => a.StartsWith("--subview=", StringComparison.Ordinal));
+            if (subView is not null)
+            {
+                preview.PreviewSubView = subView["--subview=".Length..];
+            }
+
+            // --dialog-preview=<ชื่อ> (orchestrator review 2026-11-04) - เปิด dialog ผ่าน DialogHost จริง
+            var dialogPreview = e.Args.FirstOrDefault(a => a.StartsWith("--dialog-preview=", StringComparison.Ordinal));
+            if (dialogPreview is not null)
+            {
+                preview.PreviewDialog = dialogPreview["--dialog-preview=".Length..];
+            }
+
             // UI-2 (2026-11-03): DashboardWindow เป็น UserControl แล้ว (ฝังใน MainWindow ตอนใช้งานจริง)
             // - เครื่องมือ --ui-preview นี้ยังต้องเห็นมันเป็นหน้าต่างลอยแยกเพื่อถ่ายภาพ/ทดสอบโดยไม่ต้อง
-            // ผ่าน login จริง จึงห่อด้วย Window เปล่าๆ ขนาด/สไตล์เดียวกับที่ DashboardWindow เคยตั้งบน
-            // ตัวเอง (ดู CreateDashboardPreviewHost)
-            var previewHost = CreateDashboardPreviewHost(preview);
+            // ผ่าน login จริง
+            //
+            // orchestrator review 2026-11-04: เดิมห่อด้วย Window เปล่าๆ (CreateDashboardPreviewHost)
+            // ซึ่งไม่มี SidePanelHost/DialogHost จริง - ตั้งแต่ ClientInspector ย้ายไปแสดงผ่าน
+            // MainWindow.SidePanel แล้ว (UI-4) ภาพตรวจ --select --tab=clients จึงไม่เห็นแผงข้อมูลเครื่อง
+            // อีกต่อไป เปลี่ยนมาใช้ MainWindow จริงเป็น preview host แทน (ดู ShowPreviewDashboard - ข้าม
+            // login flow ทั้งหมด สลับไป DashboardHost ตรงๆ) ได้ SidePanel/DialogHost จริงมาใช้ฟรี
+            var previewHost = new MainWindow();
+            previewHost.ShowPreviewDashboard(preview);
+
+            // --maximize (orchestrator review 2026-11-04) - ตรวจแผงเต็มความสูงตอนหน้าต่างขยายเต็มจอด้วย
+            // ตั้งใจ "ไม่" ใช้ trick ย้ายไปนอกจอ (Left=-32000) คู่กับโหมดนี้ - เจอจริงว่า WPF คำนวณจอที่
+            // จะ maximize ไปจากตำแหน่งตอน Show() ถ้าตำแหน่งนั้นไม่ตรงกับจอไหนเลย ขนาดที่ maximize ได้จะ
+            // ผิดเพี้ยน (ActualWidth/Height ไม่ถูกต้อง) ทำให้ RenderTargetBitmap ด้านล่าง throw แล้วค้าง
+            // รอ MessageBox ของ DispatcherUnhandledException ที่มองไม่เห็น (อยู่นอกจอเหมือนกัน) - ยอมให้
+            // หน้าต่างโผล่บนจอจริงสั้นๆ ตอน --maximize แทน
+            var isMaximizePreview = e.Args.Contains("--maximize");
 
             // ถ่ายภาพอย่างเดียว: อย่าไปแย่ง focus และอย่าโผล่กลางจอที่ผู้ใช้กำลังทำงานอยู่
-            if (e.Args.Any(a => a.StartsWith("--shot=", StringComparison.Ordinal)))
+            if (!isMaximizePreview && e.Args.Any(a => a.StartsWith("--shot=", StringComparison.Ordinal)))
             {
                 previewHost.ShowActivated = false;
                 previewHost.WindowStartupLocation = WindowStartupLocation.Manual;
@@ -373,6 +401,11 @@ public partial class App : Application
             }
 
             previewHost.Show();
+
+            if (isMaximizePreview)
+            {
+                previewHost.WindowState = WindowState.Maximized;
+            }
 
             // --shot=<path> เรนเดอร์หน้าต่างเป็น PNG แล้วปิดโปรแกรม
             //
@@ -385,11 +418,17 @@ public partial class App : Application
             CapturePreview(previewHost, e.Args);
             // StartupUri ถูกประมวลผลหลัง OnStartup คืนค่า (และ set เป็น null จะ throw) เลยต้องปิด
             // หน้าต่าง login ที่มันเปิดให้ ทีหลังแทน - BeginInvoke จึงจำเป็น ไม่ใช่แค่สไตล์
+            //
+            // orchestrator review 2026-11-04: previewHost เองเป็น MainWindow แล้ว (ดูด้านบน) - ต้อง
+            // กันไม่ให้ลูปนี้ปิด previewHost ผิดตัวแทนหน้าต่าง login เดิมจาก StartupUri (ReferenceEquals
+            // ไม่ใช่แค่ "is MainWindow" เฉยๆ เหมือนเดิม ไม่งั้นลำดับ enumerate ของ Windows ไม่แน่นอนว่า
+            // จะเจอตัวไหนก่อน - ถ้าปิด previewHost ไปก่อน CapturePreview's ApplicationIdle callback
+            // จะ render หน้าต่างที่ปิดไปแล้ว)
             Dispatcher.BeginInvoke(() =>
             {
                 foreach (Window window in Windows)
                 {
-                    if (window is MainWindow login)
+                    if (window is MainWindow login && !ReferenceEquals(login, previewHost))
                     {
                         login.Close();
                         break;

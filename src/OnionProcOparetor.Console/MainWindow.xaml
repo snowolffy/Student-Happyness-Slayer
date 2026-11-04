@@ -164,18 +164,26 @@
 
         <!-- ==================== ตัวหมุนโหลด (spinner) ====================
              แสดงสั้นๆ ระหว่าง login เสร็จ -> เปิดหน้าหลัก (และตอนย้อนกลับ) ตามที่ roadmap WP UI-2 สั่ง
-             ("แสดงตัวหมุนโหลดสั้นๆ แล้ว fade เข้าหน้าหลัก") - อยู่บนสุดของ Grid เสมอ (ประกาศหลังสุด) -->
+             ("แสดงตัวหมุนโหลดสั้นๆ แล้ว fade เข้าหน้าหลัก") - อยู่บนสุดของ Grid เสมอ (ประกาศหลังสุด)
+
+             UI-4 (2026-11-04): เปลี่ยนจาก Path วาดเส้นโค้งเองมาเป็นไอคอน "loader-circle" (Lucide) ชุด
+             เดียวกับไอคอนอื่นทั้งแอป (ผู้ใช้สั่งแก้ - รอบแรกลองใช้โลโก้หัวหอมแล้วไม่ใช่สิ่งที่ต้องการ) ยังใช้
+             RotateTransform x:Name="SpinnerRotate" ตัวเดิมเป๊ะ (MainWindow.xaml.cs StartSpinner/StopSpinner
+             ไม่ต้องแก้เลย - หมุนตอน LoadingOverlay โชว์ หยุดตอนซ่อน) รูปแบบนี้ (IconPresenter Icon=
+             "loader-circle" + RotateTransform ชื่อเดียวกับที่ Start/StopSpinner เรียก) คือ pattern ที่
+             หน้าอื่นที่มี "กำลังโหลด..." ของตัวเอง (SettingsPage/RuleOverridesWindow/PendingCommandsWindow/
+             WebsiteCatalogSourcesWindow/ProgramReviewPage) ทำซ้ำได้ - ยังไม่ได้แก้หน้าพวกนั้นในรอบนี้
+             (นอกขอบเขตเวลาที่เหลือของ WP นี้ - ดูรายงาน) -->
         <Grid x:Name="LoadingOverlay" Visibility="Collapsed" Opacity="0"
               Background="{DynamicResource Brush.Background.Primary}">
             <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
-                <Path Width="40" Height="40" Stretch="Fill"
-                      Stroke="{DynamicResource Brush.Accent.Default}" StrokeThickness="4"
-                      StrokeStartLineCap="Round" StrokeEndLineCap="Round"
-                      Data="M 20,2 A 18,18 0 0 1 38,20">
-                    <Path.RenderTransform>
-                        <RotateTransform x:Name="SpinnerRotate" CenterX="20" CenterY="20"/>
-                    </Path.RenderTransform>
-                </Path>
+                <controls:IconPresenter Icon="loader-circle" IconSize="44" Width="44" Height="44"
+                                        Foreground="{DynamicResource Brush.Accent.Default}"
+                                        RenderTransformOrigin="0.5,0.5">
+                    <controls:IconPresenter.RenderTransform>
+                        <RotateTransform x:Name="SpinnerRotate"/>
+                    </controls:IconPresenter.RenderTransform>
+                </controls:IconPresenter>
                 <TextBlock x:Name="LoadingOverlayText" Text="กำลังเข้าสู่ระบบ..." Style="{StaticResource Caption}"
                            Margin="0,12,0,0" HorizontalAlignment="Center"/>
             </StackPanel>
