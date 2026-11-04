@@ -46,8 +46,38 @@ public sealed class ScreenCaptureService : IDisposable
     /// </summary>
     public volatile bool ZoomEnabled;
 
-    /// <summary>ซูม 3 เท่า (crop พื้นที่ 1/3 ของความกว้าง/สูงจอจริง แล้วขยายให้เท่า TargetWidth เดิม) - ค่าคงที่ ไม่ให้ครูปรับเอง รอบนี้</summary>
-    private const double ZoomFactor = 3.0;
+    /// <summary>UI-9 (2026-11-04): ระดับซูม 1-5 เท่า ปรับได้จาก slider/ช่องกรอกตัวเลขในกล่องเครื่องมือ (เดิมคงที่ 3 เท่า) - อ่าน/เขียนได้จากเทรดอื่น (toolbox UI thread) double เป็น volatile ไม่ได้ จึงใช้ Interlocked.Exchange ผ่าน bit-pattern แทน</summary>
+    private long _zoomLevelBits = BitConverter.DoubleToInt64Bits(3.0);
+
+    public double ZoomLevel
+    {
+        get => BitConverter.Int64BitsToDouble(Interlocked.Read(ref _zoomLevelBits));
+        set => Interlocked.Exchange(ref _zoomLevelBits, BitConverter.DoubleToInt64Bits(Math.Clamp(value, 1.0, 5.0)));
+    }
+
+    /// <summary>
+    /// UI-9 (2026-11-04): ตำแหน่ง (พิกัดจอจริง) ที่ครูลากกรอบในหน้าต่างแผนที่เล็กไปปักหมุดไว้ - ถ้าไม่ null
+    /// จะใช้แทนตำแหน่งเมาส์ปัจจุบัน (GetCursorPos) เป็นจุดกึ่งกลางของพื้นที่ซูม จนกว่าจะถูกเคลียร์
+    /// (ClearManualPan) หรือตั้งค่าใหม่ - ให้ครูลากดูมุมอื่นของจอได้โดยไม่ต้องขยับเมาส์จริงทับเนื้อหา
+    /// </summary>
+    private (int X, int Y)? _manualPanCenter;
+    private readonly object _manualPanGate = new();
+
+    public void SetManualPanCenter(int x, int y)
+    {
+        lock (_manualPanGate)
+        {
+            _manualPanCenter = (x, y);
+        }
+    }
+
+    public void ClearManualPan()
+    {
+        lock (_manualPanGate)
+        {
+            _manualPanCenter = null;
+        }
+    }
 
     /// <summary>เรียกทุกครั้งที่ capture+encode เฟรมใหม่สำเร็จ - เรียกจาก timer thread ไม่ใช่ UI thread</summary>
     public event Action<byte[]>? FrameCaptured;
@@ -87,6 +117,7 @@ public sealed class ScreenCaptureService : IDisposable
         try
         {
             var cropRegion = ZoomEnabled ? ComputeZoomCropRegion() : (RECT?)null;
+            LastCropRegion = cropRegion;
             var jpeg = CapturePrimaryScreenJpeg(cropRegion);
             if (jpeg is not null)
             {
@@ -106,25 +137,53 @@ public sealed class ScreenCaptureService : IDisposable
         }
     }
 
+    /// <summary>UI-9 (2026-11-04): พื้นที่ crop ของเฟรมล่าสุด (null = ไม่ได้อยู่โหมดซูม หรือยังไม่เคย capture) - ให้หน้าต่างแผนที่เล็ก (TeacherZoomMinimapWindow) อ่านไปวาดกรอบทับภาพรวมจอ</summary>
+    public RECT? LastCropRegion { get; private set; }
+
     /// <summary>
-    /// คำนวณพื้นที่ crop รอบตำแหน่งเมาส์ปัจจุบันของครู (GetCursorPos) สำหรับโหมด zoom - ขนาด crop
-    /// = ความกว้าง/สูงจอจริงหารด้วย ZoomFactor แปะกึ่งกลางที่เมาส์ แล้ว clamp ไม่ให้เกินขอบจอ (ไม่งั้น
-    /// BitBlt จากพื้นที่นอกจอจะได้ภาพเพี้ยน/ดำ) คืน null ถ้าอ่านตำแหน่งเมาส์ไม่สำเร็จ (ใช้จับภาพทั้งจอแทน)
+    /// คำนวณพื้นที่ crop สำหรับโหมด zoom - ปกติใช้ตำแหน่งเมาส์ปัจจุบันของครู (GetCursorPos) เป็นจุดกึ่งกลาง
+    /// แต่ถ้าครูลากกรอบในแผนที่เล็กปักหมุดตำแหน่งไว้ (SetManualPanCenter) จะใช้จุดนั้นแทนจนกว่าจะเคลียร์
+    /// (UI-9 คำขอ "ลากกรอบในแผนที่เพื่อย้ายตำแหน่งได้") ขนาด crop = ความกว้าง/สูงจอจริงหารด้วย ZoomLevel
+    /// (ปรับได้ 1-5 เท่า ต่างจากเดิมที่ตายตัว 3 เท่า) แล้ว clamp ไม่ให้เกินขอบจอ (ไม่งั้น BitBlt จากพื้นที่
+    /// นอกจอจะได้ภาพเพี้ยน/ดำ) คืน null ถ้าอ่านตำแหน่งเมาส์ไม่สำเร็จและไม่มีจุดปักหมุด (ใช้จับภาพทั้งจอแทน)
     /// </summary>
-    private static RECT? ComputeZoomCropRegion()
+    private RECT? ComputeZoomCropRegion()
     {
         var screenWidth = GetSystemMetrics(SM_CXSCREEN);
         var screenHeight = GetSystemMetrics(SM_CYSCREEN);
-        if (screenWidth <= 0 || screenHeight <= 0 || !GetCursorPos(out var cursor))
+        if (screenWidth <= 0 || screenHeight <= 0)
         {
             return null;
         }
 
-        var cropWidth = Math.Max(1, (int)Math.Round(screenWidth / ZoomFactor));
-        var cropHeight = Math.Max(1, (int)Math.Round(screenHeight / ZoomFactor));
+        int centerX, centerY;
+        (int X, int Y)? manualPan;
+        lock (_manualPanGate)
+        {
+            manualPan = _manualPanCenter;
+        }
 
-        var left = Math.Clamp(cursor.X - cropWidth / 2, 0, Math.Max(0, screenWidth - cropWidth));
-        var top = Math.Clamp(cursor.Y - cropHeight / 2, 0, Math.Max(0, screenHeight - cropHeight));
+        if (manualPan is { } pinned)
+        {
+            centerX = pinned.X;
+            centerY = pinned.Y;
+        }
+        else if (GetCursorPos(out var cursor))
+        {
+            centerX = cursor.X;
+            centerY = cursor.Y;
+        }
+        else
+        {
+            return null;
+        }
+
+        var zoomLevel = ZoomLevel;
+        var cropWidth = Math.Max(1, (int)Math.Round(screenWidth / zoomLevel));
+        var cropHeight = Math.Max(1, (int)Math.Round(screenHeight / zoomLevel));
+
+        var left = Math.Clamp(centerX - cropWidth / 2, 0, Math.Max(0, screenWidth - cropWidth));
+        var top = Math.Clamp(centerY - cropHeight / 2, 0, Math.Max(0, screenHeight - cropHeight));
 
         return new RECT { Left = left, Top = top, Right = left + cropWidth, Bottom = top + cropHeight };
     }

@@ -279,4 +279,50 @@
         <PathGeometry Figures="M21 12a9 9 0 1 1-6.219-8.56"/>
     </GeometryGroup>
 
+    <!-- UI-9 (2026-11-04): ไอคอน "square-pen" ของ Lucide - ปุ่มเปิด/ปิดกล่องเครื่องมือเขียนบนแถบส่งจอครู -->
+    <GeometryGroup x:Key="Icon.SquarePen" FillRule="Nonzero">
+        <PathGeometry Figures="M12 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+        <PathGeometry Figures="M18.375 2.625a1 1 0 0 1 3 3l-9.013 9.014a2 2 0 0 1-.853.505l-2.873.84a.5.5 0 0 1-.62-.62l.84-2.873a2 2 0 0 1 .506-.852z"/>
+    </GeometryGroup>
+
+    <!-- UI-9 (2026-11-04): ไอคอน "maximize-2" ของ Lucide - ปุ่มกางแถบส่งจอครูจากสถานะหุบ -->
+    <GeometryGroup x:Key="Icon.Maximize2" FillRule="Nonzero">
+        <PathGeometry Figures="M15 3h6v6"/>
+        <PathGeometry Figures="M21 3 14 10"/>
+        <PathGeometry Figures="M9 21H3v-6"/>
+        <PathGeometry Figures="M3 21l7-7"/>
+    </GeometryGroup>
+
+    <!-- UI-9 (2026-11-04): ไอคอน "minimize-2" ของ Lucide - ปุ่มหุบแถบส่งจอครู -->
+    <GeometryGroup x:Key="Icon.Minimize2" FillRule="Nonzero">
+        <PathGeometry Figures="M14 10 21 3"/>
+        <PathGeometry Figures="M20 10h-6V4"/>
+        <PathGeometry Figures="M3 21l7-7"/>
+        <PathGeometry Figures="M4 14h6v6"/>
+    </GeometryGroup>
+
+    <!-- UI-9 (2026-11-04): ไอคอน "pencil" ของ Lucide - เครื่องมือปากกาในกล่องเครื่องมือเขียนบนจอครู -->
+    <GeometryGroup x:Key="Icon.Pencil" FillRule="Nonzero">
+        <PathGeometry Figures="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"/>
+        <PathGeometry Figures="m15 5 4 4"/>
+    </GeometryGroup>
+
+    <!-- UI-9 (2026-11-04): ไอคอน "mouse-pointer-2" ของ Lucide - เครื่องมือ "เมาส์ปกติ" (คลิกทะลุ ไม่วาด) -->
+    <GeometryGroup x:Key="Icon.MousePointer2" FillRule="Nonzero">
+        <PathGeometry Figures="M4.037 4.688a.495.495 0 0 1 .651-.651l16 6.5a.5.5 0 0 1-.063.947l-6.124 1.58a2 2 0 0 0-1.438 1.435l-1.579 6.126a.5.5 0 0 1-.947.063z"/>
+    </GeometryGroup>
+
+    <!-- UI-9 (2026-11-04): ไอคอน "highlighter" ของ Lucide - เครื่องมือไฮไลต์ในกล่องเครื่องมือเขียนบนจอครู -->
+    <GeometryGroup x:Key="Icon.Highlighter" FillRule="Nonzero">
+        <PathGeometry Figures="m9 11-6 6v3h9l3-3"/>
+        <PathGeometry Figures="m22 12-4.6 4.6a2 2 0 0 1-2.8 0l-5.2-5.2a2 2 0 0 1 0-2.8L14 4"/>
+    </GeometryGroup>
+
+    <!-- UI-9 (2026-11-04): ไอคอน "eraser" ของ Lucide - เครื่องมือยางลบในกล่องเครื่องมือเขียนบนจอครู -->
+    <GeometryGroup x:Key="Icon.Eraser" FillRule="Nonzero">
+        <PathGeometry Figures="m7 21-4.3-4.3c-1-1-1-2.5 0-3.4l9.6-9.6c1-1 2.5-1 3.4 0l5.6 5.6c1 1 1 2.5 0 3.4L13 21"/>
+        <PathGeometry Figures="M22 21H7"/>
+        <PathGeometry Figures="m5 11 9 9"/>
+    </GeometryGroup>
+
 </ResourceDictionary>
