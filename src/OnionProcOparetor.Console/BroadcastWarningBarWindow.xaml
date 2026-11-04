@@ -1,48 +1,74 @@
 <Window x:Class="OnionProcOparetor.Console.BroadcastWarningBarWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:controls="clr-namespace:OnionProcOparetor.UI.Controls;assembly=OnionProcOparetor.UI"
         Title="กำลังส่งจอครู"
         WindowStyle="None"
         Topmost="True"
         ShowInTaskbar="False"
         ResizeMode="NoResize"
-        SizeToContent="WidthAndHeight"
+        SizeToContent="Width"
         WindowStartupLocation="Manual"
         Background="#B42318"
         Icon="/Theme/icon.ico">
-    <!-- "ส่งจอครู" (WP4-4, 2026-11-01 / แก้ตามคำขอเพิ่ม 3 พ.ย. 2569) - แถบแดงลอยบนจอครูตลอดเวลาที่ส่ง
-         (ขั้นตอน 2 ของ wireframe tc-broadcast.dc.html คอลัมน์ขวา) ตอนนี้หุบเหลือแค่ปุ่มกลมได้ (ตัดสินแล้ว
-         3 พ.ย.: "เหลือปุ่มกลมแดงเล็กลากย้ายได้ กดแล้วกางกลับเป็นแถบเต็ม") - สองสถานะอยู่ใน Window เดียวกัน
-         สลับ Visibility ใน code-behind (ไม่ใช้ 2 หน้าต่างแยก เพราะต้องคง HWND เดียวไว้ให้ SetWindowDisplayAffinity
-         ที่ตั้งไว้ครั้งเดียวตอน SourceInitialized ยังมีผลอยู่ทั้งสองสถานะ)
+    <!-- UI-9 (2026-11-04) redesign "ส่งจอครู" (ของเดิมจากคำขอเพิ่ม 3 พ.ย. 2569 / WP4-4) ตามที่ตัดสินไว้ใน
+         roadmap UI-9:
+         - ตอนกาง (FullBar): 4 ปุ่ม กล่องเครื่องมือ(square-pen)/ขยาย(maximize-2)/หุบ(minimize-2)/หยุดส่งจอ
+           (square, ปุ่มแดงคำว่า "หยุด")
+         - ตอนหุบ (CollapsedBar): เลิกเป็นปุ่มกลมลากย้ายได้แบบเดิม เปลี่ยนเป็นแถบบางชิดขอบบนจอ แสดง
+           "● กำลังส่งจอ · ห้อง · N เครื่อง" + ปุ่มขยาย(maximize-2) เท่านั้น (ไม่ลากย้ายแล้ว - ตำแหน่งคงที่
+           ชิดกลางบนจอเสมอ)
+         - สไลด์ขึ้น/ลงตอนสลับสถานะ (ดู code-behind AnimateTopTo) - Height คงที่ต่อสถานะ (ไม่ใช้
+           SizeToContent="WidthAndHeight" แบบเดิมเพราะต้อง animate Top ระหว่างสถานะที่ขนาดต่างกัน)
 
-         ของที่ไม่ได้ทำตาม wireframe รอบนี้: ตัวเลข "X/Y เครื่องรับได้" เป็นค่าตอนเริ่มเท่านั้น ไม่ใช่ตัวเลข
-         สดที่อัปเดตตามจริง (เหมือนเดิมจาก WIP ก่อนหน้า) -->
+         ของที่ตัดสินใจเองเพราะ roadmap ไม่ได้ระบุไว้ชัด (ดูรายงาน WP UI-9): ปุ่ม "ขยาย"(maximize-2) ในแถบ
+         ตอนกาง (ไม่ใช่ตัวเดียวกับปุ่มขยายตอนหุบ - อันนั้นคือกางกลับจากหุบ) ทำหน้าที่ "เรียกคืน" กล่องเครื่องมือ/
+         แผนที่ซูมที่อาจถูกหน้าต่างอื่นบังอยู่ (Activate กลับมาข้างหน้า) เพราะไม่มีสถานะอื่นให้ "ขยาย" ทำตอน
+         แถบเต็มอยู่แล้ว -->
     <Grid>
-        <!-- สถานะหุบ: ปุ่มกลมแดงเล็ก ลากย้ายตำแหน่งได้ (DragMove ใน code-behind) -->
-        <Border x:Name="CollapsedPill" Width="48" Height="48" CornerRadius="24" Background="#B42318"
-                MouseLeftButtonDown="CollapsedPill_MouseLeftButtonDown" Cursor="Hand">
-            <TextBlock Text="REC" Foreground="White" FontSize="11" FontWeight="Bold"
-                       HorizontalAlignment="Center" VerticalAlignment="Center"/>
+        <!-- สถานะหุบ: แถบบางชิดกลางขอบบนจอ -->
+        <Border x:Name="CollapsedBar" Background="#B42318" CornerRadius="0,0,10,10" Padding="16,8"
+                Visibility="Collapsed">
+            <StackPanel Orientation="Horizontal">
+                <TextBlock Text="●" Foreground="#FFFFFF" FontSize="13" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                <TextBlock x:Name="CollapsedStatusText" Foreground="White" FontSize="13" FontWeight="SemiBold"
+                           VerticalAlignment="Center"/>
+                <Button x:Name="ExpandButton" Width="28" Height="28" Margin="12,0,0,0" Padding="0"
+                        Background="#8E2419" BorderThickness="0" Click="ExpandButton_Click" ToolTip="กางแถบ">
+                    <controls:IconPresenter Icon="maximize-2" IconSize="16" Foreground="White"/>
+                </Button>
+            </StackPanel>
         </Border>
 
-        <!-- สถานะเต็ม: แถบสถานะ + ปุ่มหุบ/เครื่องมือเขียน/ซูม/หยุดส่ง -->
+        <!-- สถานะเต็ม: แถบสถานะ + 4 ปุ่ม (กล่องเครื่องมือ/ขยาย/หุบ/หยุดส่งจอ) -->
         <Border x:Name="FullBar" Background="#B42318" CornerRadius="10" Padding="16,10" Visibility="Collapsed">
             <StackPanel Orientation="Horizontal">
                 <TextBlock x:Name="StatusText" Foreground="White" FontSize="13" FontWeight="SemiBold"
                            VerticalAlignment="Center" Text="กำลังส่งจอ"/>
-                <ToggleButton x:Name="DrawToolButton" Content="เครื่องมือเขียน" Margin="14,0,0,0" Padding="12,4"
-                              Background="White" Foreground="#B42318" BorderThickness="0" FontSize="12"
-                              VerticalAlignment="Center" Click="DrawToolButton_Click"/>
-                <ToggleButton x:Name="ZoomButton" Content="ซูม" Margin="8,0,0,0" Padding="12,4"
-                              Background="White" Foreground="#B42318" BorderThickness="0" FontSize="12"
-                              VerticalAlignment="Center" Click="ZoomButton_Click"/>
-                <Button x:Name="CollapseButton" Content="หุบ" Margin="8,0,0,0" Padding="12,4"
-                        Background="#8E2419" Foreground="White" BorderThickness="0" FontSize="12"
-                        VerticalAlignment="Center" Click="CollapseButton_Click"/>
-                <Button x:Name="StopButton" Content="หยุดส่ง" Margin="8,0,0,0" Padding="12,4"
-                        Background="White" Foreground="#B42318" BorderThickness="0" FontSize="12"
-                        VerticalAlignment="Center" Click="StopButton_Click"/>
+
+                <ToggleButton x:Name="ToolboxButton" Width="32" Height="32" Margin="14,0,0,0" Padding="0"
+                              Background="White" Foreground="#B42318" BorderThickness="0"
+                              Click="ToolboxButton_Click" ToolTip="กล่องเครื่องมือ">
+                    <controls:IconPresenter Icon="square-pen" IconSize="17"/>
+                </ToggleButton>
+                <Button x:Name="RestoreToolsButton" Width="32" Height="32" Margin="8,0,0,0" Padding="0"
+                        Background="#8E2419" Foreground="White" BorderThickness="0"
+                        Click="RestoreToolsButton_Click" ToolTip="เรียกกล่องเครื่องมือ/แผนที่คืนมาข้างหน้า">
+                    <controls:IconPresenter Icon="maximize-2" IconSize="17"/>
+                </Button>
+                <Button x:Name="CollapseButton" Width="32" Height="32" Margin="8,0,0,0" Padding="0"
+                        Background="#8E2419" Foreground="White" BorderThickness="0"
+                        Click="CollapseButton_Click" ToolTip="หุบแถบ">
+                    <controls:IconPresenter Icon="minimize-2" IconSize="17"/>
+                </Button>
+                <Button x:Name="StopButton" Margin="8,0,0,0" Padding="10,4"
+                        Background="White" Foreground="#B42318" BorderThickness="0"
+                        Click="StopButton_Click">
+                    <StackPanel Orientation="Horizontal">
+                        <controls:IconPresenter Icon="square" IconSize="14" VerticalAlignment="Center"/>
+                        <TextBlock Text="หยุด" FontSize="12" Margin="6,0,0,0" VerticalAlignment="Center"/>
+                    </StackPanel>
+                </Button>
             </StackPanel>
         </Border>
     </Grid>

@@ -2,24 +2,25 @@ using System.ComponentModel;
 using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Interop;
+using System.Windows.Media.Animation;
 using OnionProcOparetor.Console.Services;
 
 namespace OnionProcOparetor.Console;
 
 /// <summary>
-/// "ส่งจอครู" (WP4-4, 2026-11-01 / แก้ตามคำขอเพิ่ม 3 พ.ย. 2569) - แถบแดงเตือนที่ค้างอยู่บนจอครูตลอดเวลาที่
-/// กำลังส่ง เป็นเจ้าของอายุของ ScreenCaptureService ตัวจริง (เริ่ม capture ตอน Loaded, หยุดตอนกด "หยุดส่ง"
-/// หรือถูกปิดด้วยเหตุผลใดก็ตาม) และเป็นเจ้าของอายุของหน้าต่างควบคุมอื่นๆ ที่เพิ่มมาตามคำขอ 3 พ.ย.: กรอบแดง
-/// รอบจอ (TeacherBroadcastBorderWindow), แผ่นใสเขียนบนจอ (TeacherDrawCanvasWindow + TeacherDrawToolbarWindow)
+/// "ส่งจอครู" (WP4-4, 2026-11-01 / แก้ตามคำขอเพิ่ม 3 พ.ย. 2569 / redesign UI-9 4 พ.ย. 2569) - แถบแดงเตือน
+/// ที่ค้างอยู่บนจอครูตลอดเวลาที่กำลังส่ง เป็นเจ้าของอายุของ ScreenCaptureService ตัวจริง (เริ่ม capture ตอน
+/// Loaded, หยุดตอนกด "หยุดส่ง" หรือถูกปิดด้วยเหตุผลใดก็ตาม) และเป็นเจ้าของอายุของหน้าต่างควบคุมอื่นๆ ที่
+/// เพิ่มมาตามคำขอ 3 พ.ย.: กรอบแดงรอบจอ (TeacherBroadcastBorderWindow), กล่องเครื่องมือเขียน+ซูม
+/// (TeacherDrawCanvasWindow + TeacherDrawToolbarWindow ซึ่งเป็นเจ้าของ TeacherZoomMinimapWindow ต่ออีกชั้น)
 ///
 /// ต่างจาก TeacherScreenViewWindow ฝั่งนักเรียน (ที่ปิดไม่ได้เลยจนกว่าครูสั่ง) - หน้าต่างนี้เป็นของครูเอง
-/// ปิดได้ทุกทาง (ปุ่ม "หยุดส่ง" หรือ Alt-F4/ปิดโปรแกรม) เพราะถ้าเกิดอะไรผิดพลาดครูต้องหยุดส่งได้เสมอ
+/// ปิดได้ทุกทาง (ปุ่ม "หยุด" หรือ Alt-F4/ปิดโปรแกรม) เพราะถ้าเกิดอะไรผิดพลาดครูต้องหยุดส่งได้เสมอ
 /// ไม่ถูกขังเหมือนจอนักเรียน - ทุกทางที่ปิดเดินผ่าน StopBroadcastingAsync เดียวกันเพื่อให้แน่ใจว่า
 /// ส่ง StopScreenBroadcast ไปหาทุกเครื่องเป้าหมายเสมอ ไม่ปล่อยให้ Agent/AgentTray ค้างรอภาพที่ไม่มีอีกแล้ว
 ///
-/// ตัวเองก็ต้อง SetWindowDisplayAffinity(WDA_EXCLUDEFROMCAPTURE) เหมือนกรอบแดง (ตัดสินแล้ว: "ใช้
-/// SetWindowDisplayAffinity(WDA_EXCLUDEFROMCAPTURE) กับหน้าต่างกรอบและแถบ") ทั้งสองสถานะ (เต็ม/หุบ) เพราะ
-/// เป็น HWND เดียวกันตลอด (สลับ Visibility ภายใน ไม่สร้างหน้าต่างใหม่)
+/// ตัวเองก็ต้อง SetWindowDisplayAffinity(WDA_EXCLUDEFROMCAPTURE) เหมือนกรอบแดง ทั้งสองสถานะ (เต็ม/หุบ)
+/// เพราะเป็น HWND เดียวกันตลอด (สลับ Visibility ภายใน ไม่สร้างหน้าต่างใหม่)
 /// </summary>
 public partial class BroadcastWarningBarWindow : Window
 {
@@ -32,6 +33,16 @@ public partial class BroadcastWarningBarWindow : Window
     private const int WM_HOTKEY = 0x0312;
     private const int HotkeyId = 0xBF44; // ค่าเฉพาะโปรแกรมนี้ กันชนกับ hotkey อื่นที่ Console อาจลงทะเบียนในอนาคต
 
+    /// <summary>ความสูงคงที่ของแต่ละสถานะ (DIP) - UI-9: ต้องเป็นค่าคงที่ (ไม่ใช่ SizeToContent="WidthAndHeight" แบบเดิม) เพื่อให้ animate Window.Top ระหว่างสลับสถานะได้แบบลื่น (ดู AnimateTopTo)</summary>
+    private const double CollapsedHeight = 44;
+    private const double FullHeight = 56;
+
+    /// <summary>Top ของแต่ละสถานะ (DIP) - ตอนหุบชิดขอบบนจอจริงๆ (ตัดสินแล้ว "เลื่อนขึ้นไปชิดขอบบนจอ") ตอนกางเว้นระยะจากขอบ 16px เหมือนเดิม</summary>
+    private const double CollapsedTop = 0;
+    private const double FullTop = 16;
+
+    private const int SlideAnimationMs = 220;
+
     [DllImport("user32.dll")]
     private static extern bool RegisterHotKey(IntPtr hWnd, int id, int fsModifiers, int vk);
 
@@ -43,6 +54,7 @@ public partial class BroadcastWarningBarWindow : Window
     private readonly ScreenBroadcastSession _session;
     private readonly ScreenCaptureService _captureService = new();
     private bool _stopped;
+    private bool _isExpanded;
 
     /// <summary>ใช้เฉพาะโหมดถ่ายภาพ UI (--dialog=broadcast-warning-bar-collapsed) - เริ่มที่สถานะหุบแทนแถบเต็ม</summary>
     public bool PreviewStartCollapsed { get; set; }
@@ -61,30 +73,29 @@ public partial class BroadcastWarningBarWindow : Window
         _session = session;
 
         Left = 16;
-        Top = 16;
+        Top = FullTop;
+        Height = FullHeight;
 
-        StatusText.Text = session.FailCount > 0
-            ? $"กำลังส่งจอ · เริ่มสำเร็จ {session.SuccessCount}/{session.Targets.Count} เครื่อง"
-            : $"กำลังส่งจอ · {session.SuccessCount} เครื่อง";
+        var roomPart = string.IsNullOrWhiteSpace(session.RoomName) ? string.Empty : $" · {session.RoomName}";
+        var statusMessage = session.FailCount > 0
+            ? $"กำลังส่งจอ{roomPart} · เริ่มสำเร็จ {session.SuccessCount}/{session.Targets.Count} เครื่อง"
+            : $"กำลังส่งจอ{roomPart} · {session.SuccessCount} เครื่อง";
+        StatusText.Text = statusMessage;
+        CollapsedStatusText.Text = statusMessage;
 
         SourceInitialized += (_, _) =>
         {
             var excluded = TeacherOnlyWindowHelper.ExcludeFromCapture(this);
             ConsoleDiagnostics.WriteLine($"[broadcast-warning-bar] SetWindowDisplayAffinity(WDA_EXCLUDEFROMCAPTURE) = {excluded}");
 
-            // หน้าต่างทึบ (ไม่ใช้ AllowsTransparency เพราะทำให้ exclude ล้ม) มุมโค้งจึงมาจาก window region:
-            // ปุ่มกลมตอนหุบ = วงกลม (48x48 รัศมี 24) แถบเต็ม = มุมโค้ง 10 ตาม CornerRadius ใน .xaml
-            //
-            // บั๊กจริงที่เจอ 3 พ.ย. (harness ลากปุ่มกลมไปมุมขวาล่างจอแล้วกดกางคืน): Left/Top ของหน้าต่าง
-            // ไม่เปลี่ยนตอนสลับหุบ/กาง (คงตำแหน่งมุมบนซ้ายเดิมไว้เสมอ) แต่ขนาดเปลี่ยนจาก 48x48 เป็น ~400x44
-            // ถ้าปุ่มกลมถูกลากไปใกล้ขอบจอก่อนกด แถบเต็มที่กางออกมาจะล้นขอบจอ (วัดจริงได้ล้นขวา 316px -
-            // กดปุ่ม "หยุดส่ง" ที่อยู่ขวาสุดของแถบไม่ได้เลย) จึงต้องง้างตำแหน่งกลับเข้าขอบจอทำงาน (WorkArea)
-            // ทุกครั้งที่ขนาดเปลี่ยน (ครอบคลุมทั้งตอนหุบและตอนกาง)
+            // หน้าต่างทึบ (ไม่ใช้ AllowsTransparency เพราะทำให้ exclude ล้ม) มุมโค้งจึงมาจาก window region
+            // (ดู TeacherOnlyWindowHelper.ApplyRoundedRegion) - ตอนหุบมุมโค้งแค่ล่าง (ดู CornerRadius ใน .xaml
+            // ของ CollapsedBar) แต่ window region เป็นสี่เหลี่ยมมุมโค้งทุกมุมเหมือนกันทั้งคู่ (ความต่างเล็กน้อย
+            // ที่มุมบนของแถบหุบมองไม่เห็นอยู่แล้วเพราะชิดขอบจอพอดี)
             SizeChanged += (_, _) =>
             {
-                TeacherOnlyWindowHelper.ApplyRoundedRegion(
-                    this, FullBar.Visibility == Visibility.Visible ? 10 : 24);
-                ClampToWorkArea();
+                TeacherOnlyWindowHelper.ApplyRoundedRegion(this, _isExpanded ? 10 : 10);
+                RecenterHorizontally();
             };
 
             _hwndSource = (HwndSource)PresentationSource.FromVisual(this)!;
@@ -94,9 +105,8 @@ public partial class BroadcastWarningBarWindow : Window
 
         Loaded += (_, _) =>
         {
-            // เริ่มที่สถานะเต็ม (เหมือนพฤติกรรมเดิมก่อนมีปุ่มหุบ) - จัดกึ่งกลางด้านบนจอหลัก ต้องรอ Loaded
-            // เพราะ SizeToContent ทำให้ ActualWidth รู้ค่าจริงก็ตอนนี้เท่านั้น (ก่อนหน้านี้เป็น 0 เสมอ)
-            SetExpanded(!PreviewStartCollapsed);
+            // เริ่มที่สถานะเต็ม (เหมือนพฤติกรรมเดิมก่อนมีปุ่มหุบ) จัดกึ่งกลางด้านบนจอหลัก
+            SetExpandedImmediate(!PreviewStartCollapsed);
 
             _borderWindow = new TeacherBroadcastBorderWindow();
             _borderWindow.Show();
@@ -123,102 +133,96 @@ public partial class BroadcastWarningBarWindow : Window
         _ = _labHubClient.SendScreenFrameAsync(jpegBytes);
     }
 
-    // ==================== คำขอเพิ่ม 3 พ.ย. 2569: หุบ/กาง ====================
+    // ==================== UI-9 (2026-11-04): หุบ/กาง + สไลด์ ====================
 
-    /// <summary>
-    /// กดปุ่มกลม - ต้องรองรับทั้ง "ลากย้ายตำแหน่ง" และ "กดครั้งเดียวกางกลับเป็นแถบเต็ม" (ตัดสินแล้วทั้งคู่
-    /// 3 พ.ย.) DragMove() ของ WPF บล็อกจนกว่าจะปล่อยปุ่มเมาส์ - เทียบตำแหน่งหน้าต่างก่อน/หลัง DragMove
-    /// คืนค่า เพื่อแยกว่า "ลากจริง" (ขยับเกิน threshold) หรือ "กดเฉยๆไม่ขยับ" (= ตั้งใจกาง ไม่ใช่ลาก)
-    /// </summary>
-    private void CollapsedPill_MouseLeftButtonDown(object sender, System.Windows.Input.MouseButtonEventArgs e)
+    /// <summary>จัดกลางแนวนอนตามความกว้างปัจจุบันของเนื้อหา (เรียกทุกครั้งที่ขนาดเปลี่ยนเพราะข้อความห้อง/จำนวนเครื่องยาวไม่เท่ากันในแต่ละครั้งที่ส่ง)</summary>
+    private void RecenterHorizontally()
     {
-        var startLeft = Left;
-        var startTop = Top;
+        Left = Math.Max(0, (SystemParameters.PrimaryScreenWidth - ActualWidth) / 2);
+    }
 
-        DragMove();
-
-        var moved = Math.Abs(Left - startLeft) > 3 || Math.Abs(Top - startTop) > 3;
-        if (moved)
-        {
-            // กันลากปุ่มกลมออกนอกขอบจอทำงานจนหาไม่เจอ/กดไม่ถึง (ดู comment เต็มที่ ClampToWorkArea)
-            ClampToWorkArea();
-        }
-        else
-        {
-            SetExpanded(true);
-        }
+    /// <summary>ตั้งสถานะแรกเริ่มโดยไม่มี animation (ตอน Loaded ยังไม่มีอะไรให้สไลด์จาก)</summary>
+    private void SetExpandedImmediate(bool expanded)
+    {
+        _isExpanded = expanded;
+        CollapsedBar.Visibility = expanded ? Visibility.Collapsed : Visibility.Visible;
+        FullBar.Visibility = expanded ? Visibility.Visible : Visibility.Collapsed;
+        Height = expanded ? FullHeight : CollapsedHeight;
+        Top = expanded ? FullTop : CollapsedTop;
     }
 
     /// <summary>
-    /// ง้างตำแหน่งหน้าต่าง (Left/Top) ให้อยู่ในขอบเขต WorkArea ของจอหลักเสมอ (ไม่นับ taskbar) - เรียกทั้ง
-    /// ตอนลากปุ่มกลมเสร็จ และทุกครั้งที่ขนาดหน้าต่างเปลี่ยน (หุบ/กาง) ดู comment เต็มใน SourceInitialized
-    /// ว่าทำไมจำเป็น (บั๊กจริง 3 พ.ย.: แถบเต็มล้นขอบจอหลังลากปุ่มกลมไปมุมแล้วกดกางคืน)
+    /// สลับสถานะหุบ/กาง พร้อม animation เลื่อนขึ้น/ลง (ตัดสินแล้วใน roadmap UI-9: "มี animation เลื่อนขึ้น/ลง")
+    /// สลับเนื้อหา (Visibility/Height) ก่อนเริ่ม animate แล้วค่อยเลื่อน Top จากตำแหน่งเดิมไปตำแหน่งใหม่ - ทำให้
+    /// เห็นแถบ "โต/หด" ที่ตำแหน่งเดิมก่อน แล้วไหลขึ้น/ลงไปตำแหน่งสุดท้าย
     /// </summary>
-    private void ClampToWorkArea()
+    private void SetExpanded(bool expanded)
     {
-        var workArea = SystemParameters.WorkArea;
+        if (_isExpanded == expanded)
+        {
+            return;
+        }
 
-        if (Left + ActualWidth > workArea.Right)
+        var fromTop = Top;
+        _isExpanded = expanded;
+
+        CollapsedBar.Visibility = expanded ? Visibility.Collapsed : Visibility.Visible;
+        FullBar.Visibility = expanded ? Visibility.Visible : Visibility.Collapsed;
+        Height = expanded ? FullHeight : CollapsedHeight;
+
+        RecenterHorizontally();
+
+        var toTop = expanded ? FullTop : CollapsedTop;
+        var animation = new DoubleAnimation(fromTop, toTop, TimeSpan.FromMilliseconds(SlideAnimationMs))
         {
-            Left = Math.Max(workArea.Left, workArea.Right - ActualWidth);
-        }
-        if (Top + ActualHeight > workArea.Bottom)
-        {
-            Top = Math.Max(workArea.Top, workArea.Bottom - ActualHeight);
-        }
-        if (Left < workArea.Left)
-        {
-            Left = workArea.Left;
-        }
-        if (Top < workArea.Top)
-        {
-            Top = workArea.Top;
-        }
+            EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseOut }
+        };
+        BeginAnimation(TopProperty, animation);
     }
+
+    private void ExpandButton_Click(object sender, RoutedEventArgs e) => SetExpanded(true);
 
     private void CollapseButton_Click(object sender, RoutedEventArgs e) => SetExpanded(false);
 
-    /// <summary>กดปุ่มกลมครั้งเดียว (ไม่ลาก) ก็กางกลับเป็นแถบเต็ม - ตัดสินแล้ว "กดแล้วกางกลับเป็นแถบเต็ม" (ไม่บังคับต้อง double-click)</summary>
-    private void SetExpanded(bool expanded)
-    {
-        CollapsedPill.Visibility = expanded ? Visibility.Collapsed : Visibility.Visible;
-        FullBar.Visibility = expanded ? Visibility.Visible : Visibility.Collapsed;
+    // ==================== UI-9 (2026-11-04): กล่องเครื่องมือเขียน+ซูม (รวมเป็นที่เดียว) ====================
 
-        if (expanded && !_hasPositionedOnce)
-        {
-            _hasPositionedOnce = true;
-            Left = (SystemParameters.PrimaryScreenWidth - 420) / 2; // ประมาณความกว้างแถบเต็ม - ปรับเข้าที่จริงหลัง layout รอบแรก
-            Top = 16;
-        }
-    }
+    private void ToolboxButton_Click(object sender, RoutedEventArgs e) => ToggleToolbox();
 
-    private bool _hasPositionedOnce;
+    /// <summary>Ctrl+Shift+D ("ยังสลับโหมด" ตามที่ตัดสินไว้) - เปิด/ปิดกล่องเครื่องมือทั้งชุดเหมือนปุ่ม square-pen บนแถบ</summary>
+    private void ToggleDrawMode() => ToggleToolbox();
 
-    // ==================== คำขอเพิ่ม 3 พ.ย. 2569: เครื่องมือเขียน ====================
-
-    private void DrawToolButton_Click(object sender, RoutedEventArgs e) => ToggleDrawMode();
-
-    private void ToggleDrawMode()
+    private void ToggleToolbox()
     {
         if (_drawCanvasWindow is null)
         {
             _drawCanvasWindow = new TeacherDrawCanvasWindow();
             _drawCanvasWindow.Show();
 
-            _drawToolbarWindow = new TeacherDrawToolbarWindow(_drawCanvasWindow);
+            _drawToolbarWindow = new TeacherDrawToolbarWindow(_drawCanvasWindow, _captureService);
             _drawToolbarWindow.Show();
+
+            ToolboxButton.IsChecked = true;
+            return;
         }
 
-        var newDrawMode = !_drawCanvasWindow.IsDrawMode;
-        _drawCanvasWindow.SetDrawMode(newDrawMode);
-        DrawToolButton.IsChecked = newDrawMode;
+        // กล่องเครื่องมือเปิดอยู่แล้ว - ปิดทั้งชุด (แผ่นใสเขียน + แผงเครื่องมือ + แผนที่ซูมถ้าเปิดอยู่)
+        _drawToolbarWindow?.ForceClose();
+        _drawToolbarWindow = null;
+        _drawCanvasWindow.ForceClose();
+        _drawCanvasWindow = null;
+        ToolboxButton.IsChecked = false;
     }
 
-    // ==================== คำขอเพิ่ม 3 พ.ย. 2569: Zoom แว่นขยาย ====================
-
-    private void ZoomButton_Click(object sender, RoutedEventArgs e)
+    /// <summary>
+    /// ปุ่ม "ขยาย" (maximize-2) บนแถบตอนกาง - ต่างจากปุ่มขยายตอนหุบ (ซึ่งกางแถบคืนจากหุบ) เพราะแถบกางอยู่แล้ว
+    /// จึงใช้ทำหน้าที่เรียกกล่องเครื่องมือ/แผนที่ซูมที่อาจถูกหน้าต่างอื่นบังอยู่คืนมาข้างหน้า (roadmap UI-9
+    /// ไม่ได้ระบุไว้ชัดว่าปุ่มนี้ในสถานะกางควรทำอะไร - นี่เป็นการตัดสินใจเองที่ควรให้ผู้ใช้ตรวจอีกรอบ)
+    /// </summary>
+    private void RestoreToolsButton_Click(object sender, RoutedEventArgs e)
     {
-        _captureService.ZoomEnabled = ZoomButton.IsChecked == true;
+        _drawToolbarWindow?.Activate();
+        _drawCanvasWindow?.Activate();
+        _borderWindow?.Activate();
     }
 
     private async void StopButton_Click(object sender, RoutedEventArgs e)
@@ -231,7 +235,7 @@ public partial class BroadcastWarningBarWindow : Window
     {
         base.OnClosing(e);
 
-        // ปิดด้วยเหตุผลอื่น (Alt-F4/ปิด Console) - ยังต้องเก็บกวาดเหมือนกด "หยุดส่ง" เสมอ (ดู doc comment
+        // ปิดด้วยเหตุผลอื่น (Alt-F4/ปิด Console) - ยังต้องเก็บกวาดเหมือนกด "หยุด" เสมอ (ดู doc comment
         // บนคลาส) fire-and-forget เพราะ OnClosing เป็น synchronous ไม่รอ async ได้ - ยอมรับได้ที่นี่
         // เพราะ StopScreenBroadcast เป็น best-effort อยู่แล้ว (ไม่ critical ถ้าช้าไปนิดหน่อย)
         if (!_stopped)
