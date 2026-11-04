@@ -375,6 +375,13 @@ public partial class App : Application
                 preview.PreviewLiveViewSize = sizeValue;
             }
 
+            // UI-5 (2026-11-04): --liveview-room=N เลือกห้องเริ่มต้นตรงๆ (ถ่ายภาพ "เลือกห้องแล้วเห็นเฉพาะห้องนั้น")
+            var liveViewRoom = e.Args.FirstOrDefault(a => a.StartsWith("--liveview-room=", StringComparison.Ordinal));
+            if (liveViewRoom is not null && int.TryParse(liveViewRoom["--liveview-room=".Length..], out var roomIdValue))
+            {
+                preview.PreviewLiveViewRoomId = roomIdValue;
+            }
+
             // --subview=<ชื่อ> (orchestrator review 2026-11-04) - เปิด sub-view ทับ ClientInspector ใน SidePanel
             var subView = e.Args.FirstOrDefault(a => a.StartsWith("--subview=", StringComparison.Ordinal));
             if (subView is not null)

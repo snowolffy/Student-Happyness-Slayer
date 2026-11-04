@@ -215,6 +215,9 @@ public partial class DashboardWindow : UserControl
     /// <summary>ตั้งค่าตัวกรองเริ่มต้นของแท็บ Live View ตรงๆ (--liveview-filter=hand|online|event) สำหรับถ่ายภาพแต่ละตัวกรองแยกกัน</summary>
     public string? PreviewLiveViewFilter { get; set; }
 
+    /// <summary>เลือกห้องเริ่มต้นตรงๆ (--liveview-room=1) สำหรับถ่ายภาพ "เลือกห้องแล้วเห็นเฉพาะห้องนั้น" โดยไม่ต้องคลิก ComboBox จริง</summary>
+    public int? PreviewLiveViewRoomId { get; set; }
+
     /// <summary>ตั้งขนาดภาพย่อเริ่มต้นตรงๆ (--liveview-size=NNN) สำหรับถ่ายภาพปลายสไลเดอร์ (ต่ำสุด/สูงสุด) โดยไม่ต้องลากสไลเดอร์จริง</summary>
     public int? PreviewLiveViewSize { get; set; }
 
@@ -319,6 +322,13 @@ public partial class DashboardWindow : UserControl
             }
 
             MainTabControl.SelectedItem = LiveViewTabItem;
+
+            if (PreviewLiveViewRoomId is { } roomId
+                && (LiveViewRoomCombo.ItemsSource as IEnumerable<RoomFilterOption>)?.FirstOrDefault(o => o.RoomIdOrSentinel == roomId) is { } roomOption)
+            {
+                LiveViewRoomCombo.SelectedItem = roomOption; // ยิง SelectionChanged จริง -> ตั้ง _liveViewRoomFilter + SyncLiveViewGrid เอง (ตอนนี้แท็บถูกเลือกแล้ว)
+            }
+
             SyncLiveViewGrid();
 
             // --liveview-hover/--liveview-select จำลองผลเมาส์ hover/Ctrl+คลิกตรงๆ เพราะ --shot ไม่ได้
@@ -329,9 +339,10 @@ public partial class DashboardWindow : UserControl
                 .Cast<LiveViewCell>()
                 .ToList();
 
-            if (PreviewLiveViewHover && orderedCells.Count > 0)
+            // เลือก cell "ออนไลน์" ตัวแรกมาบังคับ hover (hover panel ซ่อนเองถ้าออฟไลน์ - ดู CreateLiveViewCell) ไม่งั้นภาพที่ได้จะไม่ตรงพฤติกรรมจริง
+            if (PreviewLiveViewHover && orderedCells.FirstOrDefault(c => c.Client.IsOnline) is { } hoverCell)
             {
-                orderedCells[0].HoverPanel.Visibility = Visibility.Visible;
+                hoverCell.HoverPanel.Visibility = Visibility.Visible;
             }
 
             if (PreviewLiveViewSelect)
@@ -3034,8 +3045,13 @@ public partial class DashboardWindow : UserControl
         if (_liveViewFilterOnline) source = source.Where(c => c.IsOnline);
         if (_liveViewFilterEvent) source = source.Where(HasRecentLiveViewEvent);
 
+        // จัดกลุ่มตามห้องก่อนเสมอ (RoomId ?? int.MaxValue ดันเครื่อง "ยังไม่จัดห้อง" ไปท้ายสุด) แล้วค่อย
+        // เรียงตามผังที่นั่งภายในห้องนั้น - สำคัญเฉพาะตอนเลือก "ทุกห้อง": SeatRow/SeatCol มีความหมายแค่
+        // ภายในห้องเดียวกัน ถ้าเรียงข้ามห้องตรงๆ (ไม่กรุ๊ปห้องก่อน) เครื่องแถว 1 คอลัมน์ 1 ของห้อง 1 กับ
+        // ห้อง 2 จะมาติดกันสลับกันไปทั้งกริด ดูสับสนมาก (เจอจริงตอนถ่ายภาพ --liveview-sample)
         return source
-            .OrderBy(c => c.SeatRow ?? int.MaxValue)
+            .OrderBy(c => c.RoomId ?? int.MaxValue)
+            .ThenBy(c => c.SeatRow ?? int.MaxValue)
             .ThenBy(c => c.SeatCol ?? int.MaxValue)
             .ThenBy(c => c.MachineName, StringComparer.OrdinalIgnoreCase)
             .ToList();
@@ -3504,16 +3520,26 @@ public partial class DashboardWindow : UserControl
         };
         border.SetResourceReference(Border.BorderBrushProperty, "Brush.Border.Default");
 
-        // hover แสดงปุ่มล็อก/ข้อความ (ไม่แสดงถ้ากำลังหุบ - MouseLeave ของ Border ครอบคลุม child ทั้งหมดแล้ว
-        // เพราะไม่ได้ใช้ Popup/ToolTip ที่มี hit-test แยกต่างหาก)
-        border.MouseEnter += (_, _) => hoverPanel.Visibility = Visibility.Visible;
+        // hover แสดงปุ่มล็อก/ข้อความ - เฉพาะเครื่องออนไลน์เท่านั้น (เครื่องออฟไลน์ไม่มีอะไรให้ล็อก/ส่งข้อความ
+        // ถึงจริงๆ และปุ่มจะไปทับกับข้อความ "ออฟไลน์" ที่อยู่กลาง cell เดียวกันพอดี - เจอจริงตอนถ่ายภาพ
+        // --liveview-hover) อ่าน cellRef.Client.IsOnline สดทุกครั้งที่ hover ไม่ใช่ client ตัวแปรต้นฉบับ
+        // ตอนสร้าง cell เพราะ UpdateLiveViewCellAppearance จะเปลี่ยน cellRef.Client เป็น DTO ตัวใหม่ทุกรอบ
+        // auto-refresh (ออนไลน์/ออฟไลน์อาจสลับไปมาได้ระหว่างที่ cell เดิมยังอยู่ใน grid)
+        LiveViewCell? cellRef = null;
+        border.MouseEnter += (_, _) =>
+        {
+            if (cellRef?.Client.IsOnline == true)
+            {
+                hoverPanel.Visibility = Visibility.Visible;
+            }
+        };
         border.MouseLeave += (_, _) => hoverPanel.Visibility = Visibility.Collapsed;
 
         // Button.Click กิน MouseLeftButtonDown/Up ที่ trigger มันไปแล้ว (ButtonBase mark e.Handled ให้เอง)
         // เลยไม่ bubble มาถึง handler นี้ตอนกดปุ่มล็อก/ข้อความ - คลิกที่ไหนอื่นใน cell ตกไปที่นี่แทน
         border.MouseLeftButtonDown += (_, e) => OnLiveViewCellMouseDown(client.ClientGuid, e);
 
-        return new LiveViewCell
+        var cell = new LiveViewCell
         {
             Border = border,
             Image = image,
@@ -3526,6 +3552,8 @@ public partial class DashboardWindow : UserControl
             SelectionOverlay = selectionOverlay,
             HoverPanel = hoverPanel
         };
+        cellRef = cell;
+        return cell;
     }
 
     /// <summary>
