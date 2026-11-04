@@ -511,7 +511,9 @@ orchestrator ส่ง WP0, WP5 และ WP6 ออกพร้อมกัน�
   - โลโก้ใน sidebar/การ์ดล็อกอิน (`logo-source.png`) เปลี่ยนเป็นหัวหอมชุดใหม่
   - RosterManager: สีเน้นฟ้า `#2A6FD6` layout/control เดียวกับ Console ผ่าน UI-1 (ไลบรารีต้องให้แต่ละแอปตั้งสีเน้นเองได้)
   - ภาพ LoginHero ของ Console/AgentTray/RosterManager ผู้ใช้ใส่เองแล้ว (`c334df5`, `7b97501`) · **หน้าล็อกอินนักเรียน (sign-in) ผู้ใช้ขอดูก่อนว่าจะออกแบบอย่างไร**
-- **UI-8 แถบบน/ล่างของ Console เป็นชิ้นเดียวชิดขอบ (ผู้ใช้ตัดสิน 4 พ.ย.)** (branch `feat/p1-ui8`)
+- **UI-8 แถบบน/ล่างของ Console เป็นชิ้นเดียวชิดขอบ (ผู้ใช้ตัดสิน 4 พ.ย.)** (branch `feat/p1-ui8`) · **✅ merge แล้ว 4 พ.ย. (`f66b0aa`)**
+  - แก้แค่ `DashboardWindow.xaml` และ `Controls/AnnouncementBar.cs` · ตรวจภาพพรีวิวครบ (Home/Clients/Live View/Settings, ธีมสว่าง/มืด, maximize, sidebar กาง, แถบประกาศ, toast)
+  - **เจอบั๊กเก่าจาก UI-4 ตอนตรวจ:** แผงขวาค้างทับแท็บอื่นหลังสลับแท็บ แก้แล้ว (`b9061f2`) ให้ปิดทุกครั้งที่สลับแท็บ และเปิดกลับเองเมื่อกลับมาแท็บ Clients
   - แถบบน (สถานะการเชื่อมต่อ/ปุ่มรีเฟรช) และแถบล่าง (Server/User/ออกจากระบบ) เลิกเป็นการ์ดลอย ให้ชิดขอบบน/ล่าง เต็มความกว้างตั้งแต่ขอบ sidebar ถึงขอบหน้าต่าง
   - ใช้พื้นระดับเดียวกับการ์ด คั่นด้วยเส้น 1px ไม่มีเงา ไม่มีมุมโค้ง · เนื้อหาตรงกลางยังเป็นการ์ด · แผงขวายังยาวเต็มความสูงทับทั้งสองแถบ
   - แตะได้เฉพาะ `src/OnionProcOparetor.Console/DashboardWindow.xaml(.cs)`, `MainWindow.xaml` และ style ใน `src/OnionProcOparetor.UI/Theme/Controls.xaml` ที่เกี่ยวกับ Nav.TopBar/StatusBar
