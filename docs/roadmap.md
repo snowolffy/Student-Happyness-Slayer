@@ -416,7 +416,10 @@ orchestrator ส่ง WP0, WP5 และ WP6 ออกพร้อมกัน�
       - ย้าย `ConfirmWindow` (ใช้ทั่วโปรแกรม) และ `ForceChangePasswordWindow` มาใช้ DialogHost
       - ทำงาน 401 → `ReturnToLoginAsync` พร้อมข้อความ "เซสชันหมดอายุ"
       - วางแบบแผนที่ UI-3b/3c ทำตามได้ทันที: แปลง Window เป็น UserControl แต่คง logic เดิม
-    - **UI-3b dialog ลอย (ฟอร์มสั้น)** (ทำหลัง 3a)
+    - **UI-3b dialog ลอย (ฟอร์มสั้น)** (ทำหลัง 3a) · **✅ merge แล้ว 4 พ.ย. (`ce70c46`)**
+      - ทดสอบด้วย input จริงแล้ว 11 หน้า (เพิ่ม/แก้กฎ, ส่งข้อความ, โหมดสอบ, เปิด URL + รายงานผลซ้อน, รีเซ็ตรหัส, เปลี่ยนรหัสตัวเอง, กฎเว็บ, QR รหัสฉุกเฉิน, แหล่งรายการเว็บ + dialog ซ้อน, ยกเว้นกฎ) ตรวจผลผ่าน API
+      - ตอน merge กับ 3c git รวม `OpenUrlProgramButton_Click` ผิดโดยไม่ขึ้น conflict worker แก้แล้ว
+      - ยังไม่ได้ทดสอบ: ปุ่ม "สร้างกฎจากโปรแกรมนี้" (ต้องมี Agent จริงส่งรายการโปรแกรม) · ภาพธีมสว่างมีแค่บางหน้า
       - หน้าต่างที่ย้าย: BroadcastMessage, OpenUrl, ExamMode, LockScreenMessage, AddEditRule, ResetPassword, ChangeUserRole, EditDisplayName, ChangeMyPassword, AddEditWebsiteRule, BulkAddWebsiteRules, AddAllowListPreset, AddEditWebsiteCatalogSource, ScreenBroadcastSetup, EmergencyCodeQr, EmergencyCodeUsage
     - **UI-3c แผงขวา + dialog ใหญ่** (ทำหลัง 3a ขนานกับ 3b ได้ แต่แตะคนละไฟล์) · **✅ merge แล้ว 4 พ.ย. (`b93abc9`)**
       - ทดสอบด้วย input จริง: แผงขวา (โปรแกรมที่เปิดอยู่, คำสั่งค้าง, ตั้งค่าเครื่อง, แผงคำสั่ง) เปลี่ยนเครื่องโดยไม่ปิดแผง, Esc, dialog ซ้อน · Files + ActionReport ซ้อนกัน · LaunchablePrograms เพิ่ม/ลบ
@@ -425,6 +428,7 @@ orchestrator ส่ง WP0, WP5 และ WP6 ออกพร้อมกัน�
       - ยังไม่ได้ทดสอบ: แผงคำสั่งแบบหลายเครื่อง/ทั้งห้อง/ตอนเต็มจอ, ปุ่มยกเลิกคำสั่งค้าง, ปุ่มบล็อกในโปรแกรมที่เปิดอยู่
       - แผงขวาของเครื่องเดียว: ClientSettings, RunningProcesses, PendingCommands, RuleOverrides, ActionPanel
       - dialog ใหญ่: ActionReport, Files, LaunchablePrograms, WebsiteCatalogSources
+    - **✅ UI-3 ครบแล้ว (4 พ.ย.)** หน้าต่างแยกที่เหลือใน Console = ตามรายการข้างล่าง + ConfirmWindow (fallback ตอนไม่มี MainWindow)
     - **คงหน้าต่างแยก:** Screen View/VNC, TrustCertificate, TailscaleLogin, About, BroadcastWarningBar และหน้าต่างวาด/กรอบของการส่งจอครู (ต้องลอยบนจอ)
 - **UI-4 หน้า Dashboard (หน้าแรกหลังล็อกอิน):** จำนวนเครื่องออนไลน์/ออฟไลน์ + นักเรียนที่ล็อกอิน · คิวยกมือ · โหมดสอบที่ทำงานอยู่ · เหตุการณ์ล่าสุด (ปิดโปรแกรม, บล็อกเว็บ, เครื่องหลุด) · ปุ่มลัด (ล็อกทั้งห้อง, ส่งข้อความ, โหมดสอบ) · ใช้ API ที่มีอยู่เป็นหลัก
 - **UI-5 Live View ใหม่:**

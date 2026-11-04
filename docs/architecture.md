@@ -641,3 +641,19 @@ WP UI-3a สร้างโครง 2 ตัวใน `src/OnionProcOparetor.UI
 รายละเอียดการพัฒนาแบบ dated log ทั้งหมด (2026-07-16 ถึง 2026-08-02, ทุก session/ทุกฟีเจอร์ตามลำดับเวลา
 ที่ทำจริง รวมบั๊กที่เจอและวิธีแก้) ย้ายไปไว้ที่ [`docs/architecture-log.md`](architecture-log.md) แล้ว —
 อ่านที่นั่นถ้าต้องการ context เชิงประวัติศาสตร์หรือเหตุผลเบื้องหลังการตัดสินใจแต่ละรอบ
+
+### สถานะหลัง UI-3b/3c (4 พ.ย. 2569)
+
+- **ใช้ DialogHost แล้ว:** ฟอร์มสั้น 16 หน้า (UI-3b) และ dialog ใหญ่ ได้แก่ ActionReport, Files, LaunchablePrograms, WebsiteCatalogSources (UI-3c)
+  - ทุกหน้าเปลี่ยนจาก `Window` เป็น `UserControl` แล้ว แต่ยังใช้ชื่อไฟล์ `*Window` เดิม
+  - ผลลัพธ์ส่งผ่าน event `ResultChosen` แทน `DialogResult`
+- **ใช้ SidePanel แล้ว:** ClientSettings, RunningProcesses, PendingCommands, RuleOverrides, ActionPanel
+  - เปิดผ่าน `DashboardWindow.ShowInSidePanel` ซึ่งซ่อน inspector ระหว่างที่แผงเปิด
+  - ถ้าเลือกเครื่องอื่น แผงจะเปิดหน้าเดิมให้เครื่องใหม่
+  - การรอให้การเลือกเครื่องนิ่งก่อน (`ReconcileSidePanelAfterSelectionSettled`) กันไม่ให้ auto-refresh ปิดแผงเอง
+- **หน้าที่เปิดได้จากหลายที่:** AddEditRule, AddEditWebsiteCatalogSource, LockScreenMessage มี `ShowViaHost(Window.GetWindow(this), ...)`
+  - ถ้าหน้าที่เปิดอยู่ใน MainWindow จะใช้ DialogHost
+  - ถ้าไม่ได้อยู่ใน MainWindow จะ fallback ไปห่อด้วย Window
+- **หน้าต่างแยกที่คงไว้:** About, TrustCertificate, TailscaleLogin, BroadcastWarningBar, TeacherBroadcastBorder, TeacherDrawCanvas, TeacherDrawToolbar และ Screen View/VNC
+  - ConfirmWindow ยังเป็นหน้าต่างแยกเฉพาะตอน fallback
+- **Debug harness:** `App.xaml.cs --dialog=<ชื่อ>` ห่อ UserControl ด้วย Window ชั่วคราวผ่าน `WrapAsDialog`/`WrapAsPreviewWindow` เพื่อถ่ายภาพ
