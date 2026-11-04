@@ -122,7 +122,11 @@
                  ข้อความผลลัพธ์ (สำเร็จ/ล้มเหลว) ไม่อยู่ที่แถบนี้อีกแล้ว ย้ายไปเป็น toast มุมขวาล่าง
                  (Services/ToastService) StatusText ที่เหลือบอกแค่ "อัพเดตล่าสุดเมื่อไหร่" -->
             <controls:Nav.TopBar>
-                <appctl:AnnouncementBar x:Name="HeaderBar" Margin="0,0,0,12">
+                <!-- UI-8 (2026-11-04): Margin="0,0,0,12" เดิมเว้นช่องให้การ์ดเนื้อหาด้านล่างลอยแยกจากแถบนี้ -
+                     เอาออกเพราะตอนนี้แถบนี้ชิดขอบบน/ซ้าย/ขวาเต็ม (ดู AnnouncementBar._root) เส้นคั่น 1px
+                     ที่ขอบล่างของแถบทำหน้าที่แยกจากเนื้อหาแทน ระยะห่างจากการ์ดเนื้อหามาจาก Margin ของการ์ด
+                     เนื้อหาเองแล้ว (Row 1 ด้านล่าง) -->
+                <appctl:AnnouncementBar x:Name="HeaderBar">
                     <appctl:AnnouncementBar.NormalContent>
                         <Grid>
                             <Grid.ColumnDefinitions>
@@ -150,11 +154,15 @@
             </controls:Nav.TopBar>
 
             <controls:Nav.StatusBar>
-                <!-- ==================== Footer status bar ==================== -->
-                <Border Height="52" Margin="0,10,0,0" CornerRadius="12"
+                <!-- ==================== Footer status bar ====================
+                     UI-8 (2026-11-04): เลิกเป็นการ์ดลอย (เดิม Margin="0,10,0,0" + CornerRadius="12" ลอยเหนือ
+                     ขอบล่างของหน้าต่าง) ตาม roadmap สั่งให้แถบนี้ "ชิดขอบล่าง เต็มความกว้างตั้งแต่ขอบ sidebar
+                     ถึงขอบหน้าต่าง ใช้พื้นระดับเดียวกับการ์ด คั่นด้วยเส้น 1px ไม่มีเงา ไม่มีมุมโค้ง" - Margin/
+                     CornerRadius ถูกเอาออก BorderThickness เหลือแค่เส้นบน (คั่นจากเนื้อหา) Padding ซ้าย/ขวา
+                     ยังคง 16 ให้ตัวหนังสือ "Server:/User:" เรียงแนวเดียวกับระยะขอบการ์ดเนื้อหาด้านบน -->
+                <Border Height="52" BorderThickness="0,1,0,0" Padding="16,10"
                         Background="{DynamicResource Brush.Background.Card}"
-                        BorderBrush="{DynamicResource Brush.Border.Default}"
-                        BorderThickness="1" Padding="16,10">
+                        BorderBrush="{DynamicResource Brush.Border.Default}">
                     <Grid VerticalAlignment="Center">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="Auto"/>
@@ -250,8 +258,14 @@
                             </Grid>
                         </Border>
 
-                        <!-- ========== เนื้อหา ========== -->
-                        <Grid Grid.Column="1" Margin="16,16,16,10">
+                        <!-- ========== เนื้อหา ==========
+                             UI-8 (2026-11-04): เดิม Grid นี้มี Margin="16,16,16,10" ครอบทั้งแถบบน/ล่างด้วย
+                             ทำให้สองแถบดูเป็น "การ์ดลอย" เหมือนการ์ดเนื้อหา - roadmap สั่งให้แถบบน/ล่างชิดขอบ
+                             บน/ล่าง เต็มความกว้างตั้งแต่ขอบ sidebar ถึงขอบหน้าต่าง ส่วนเนื้อหายังเป็นการ์ดมี
+                             ระยะขอบเหมือนเดิม จึงย้าย Margin ออกจาก Grid แม่ (เหลือ 0 ทุกด้าน) มาไว้ที่การ์ด
+                             เนื้อหาอย่างเดียว (Row 1) - Row 0/2 (ContentPresenter ของ TopBar/StatusBar) ไม่มี
+                             Margin เลยจึงชิดขอบซ้าย (sidebar)/ขวา/บน/ล่างของพื้นที่นี้โดยตรง -->
+                        <Grid Grid.Column="1">
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="Auto"/>
                                 <RowDefinition Height="*"/>
@@ -261,7 +275,7 @@
                             <ContentPresenter Grid.Row="0"
                                               Content="{Binding (controls:Nav.TopBar), RelativeSource={RelativeSource TemplatedParent}}"/>
 
-                            <Border Grid.Row="1" CornerRadius="12" Padding="16"
+                            <Border Grid.Row="1" Margin="16,16,16,16" CornerRadius="12" Padding="16"
                                     Background="{DynamicResource Brush.Background.Card}"
                                     BorderBrush="{DynamicResource Brush.Border.Default}"
                                     BorderThickness="1">

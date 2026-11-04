@@ -150,12 +150,17 @@ public sealed class AnnouncementBar : UserControl
         AddToGrid(layout, trailing, 1);
         layout.Children.Add(_morePopup);
 
+        // UI-8 (2026-11-04): เดิมมีมุมโค้ง (12) + กรอบรอบด้าน ทำให้ดูเป็น "การ์ดลอย" เหนือเนื้อหา - roadmap
+        // สั่งให้แถบนี้ชิดขอบบน/ซ้าย/ขวาของหน้าต่างเต็มแทน ไม่มีมุมโค้ง ไม่มีเงา คั่นจากเนื้อหาด้วยเส้น 1px
+        // อย่างเดียว จึงเหลือ CornerRadius เป็น 0 และ BorderThickness เป็นเฉพาะขอบล่าง (ไม่มี Effect อยู่แล้ว
+        // จึงไม่ต้องแก้เรื่องเงา) - สีของ BorderBrush ตอนปกติ (Render() ด้านล่าง: Brush.Border.Default) คือ
+        // เส้นคั่นที่เห็น ส่วนตอนมีประกาศ (สีพื้นทึบ) BorderBrush ถูกตั้งให้เท่ากับ Background เสมอ เส้นจึง
+        // กลืนไปกับพื้นสีนั้นพอดี ไม่โผล่เป็นเส้นแปลกปลอม
         _root = new Border
         {
             Height = BarHeight,
-            CornerRadius = new CornerRadius(12),
             Padding = new Thickness(16, 0, 16, 0),
-            BorderThickness = new Thickness(1),
+            BorderThickness = new Thickness(0, 0, 0, 1),
             Child = layout
         };
 
