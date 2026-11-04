@@ -1589,6 +1589,13 @@ public partial class DashboardWindow : UserControl
     /// </summary>
     private void UpdateClientInspector()
     {
+        // inspector เป็นของแท็บ Clients เท่านั้น - แท็บอื่น (เช่น Live View ที่ใช้ SidePanel ของตัวเองกับ
+        // แผงคำสั่งหลายเครื่อง) ห้ามไปเปิด/ปิดแผงแทน (MainTabControl_SelectionChanged ปิดให้ตอนออกแท็บแล้ว)
+        if (!ReferenceEquals(MainTabControl.SelectedItem, ClientsTabItem))
+        {
+            return;
+        }
+
         var selected = ClientsGrid.SelectedItems.Cast<ClientMachineDto>().ToList();
         if (selected.Count != 1)
         {
@@ -2857,6 +2864,21 @@ public partial class DashboardWindow : UserControl
         if (!ReferenceEquals(e.OriginalSource, MainTabControl))
         {
             return;
+        }
+
+        // แผงขวา (inspector + หน้าย่อยใน SidePanel) อยู่ระดับ MainWindow ตั้งแต่ UI-4 จึงไม่หายไปเองพร้อม
+        // แท็บเหมือนตอนเป็นส่วนหนึ่งของแท็บ Clients - ปิดทุกครั้งที่สลับแท็บ ไม่อย่างนั้นแผงของเครื่องค้าง
+        // ทับหน้าอื่น (เจอตอนตรวจ UI-8, 2026-11-04) · ไม่ UnselectAll: กลับมาแท็บ Clients แล้วแถวที่เลือก
+        // ยังอยู่ และ inspector เปิดกลับให้เอง
+        if (e.RemovedItems.Count > 0)
+        {
+            _activeSidePanelReopen = null;
+            (Window.GetWindow(this) as MainWindow)?.SidePanel.Close();
+        }
+
+        if (e.AddedItems.Contains(ClientsTabItem))
+        {
+            UpdateClientInspector();
         }
 
         // แผงข้อมูลเครื่องอยู่ในแท็บ Clients เท่านั้น - ออกจากแท็บแล้ว toast ไม่ต้องหลบอะไร
