@@ -13,18 +13,71 @@
         Icon="/Theme/icon.ico">
     <!-- UI-9 (2026-11-04) redesign "ส่งจอครู" (ของเดิมจากคำขอเพิ่ม 3 พ.ย. 2569 / WP4-4) ตามที่ตัดสินไว้ใน
          roadmap UI-9:
-         - ตอนกาง (FullBar): 4 ปุ่ม กล่องเครื่องมือ(square-pen)/ขยาย(maximize-2)/หุบ(minimize-2)/หยุดส่งจอ
-           (square, ปุ่มแดงคำว่า "หยุด")
+         - ตอนกาง (FullBar): 3 ปุ่ม กล่องเครื่องมือ(square-pen)/หุบ(minimize-2)/หยุดส่งจอ (square, ปุ่มแดง
+           คำว่า "หยุด") - "ขยาย"(maximize-2) อยู่แถบหุบเท่านั้นตามคำสั่งผู้ใช้ (ดู orchestrator review ด้านล่าง)
          - ตอนหุบ (CollapsedBar): เลิกเป็นปุ่มกลมลากย้ายได้แบบเดิม เปลี่ยนเป็นแถบบางชิดขอบบนจอ แสดง
            "● กำลังส่งจอ · ห้อง · N เครื่อง" + ปุ่มขยาย(maximize-2) เท่านั้น (ไม่ลากย้ายแล้ว - ตำแหน่งคงที่
            ชิดกลางบนจอเสมอ)
          - สไลด์ขึ้น/ลงตอนสลับสถานะ (ดู code-behind AnimateTopTo) - Height คงที่ต่อสถานะ (ไม่ใช้
            SizeToContent="WidthAndHeight" แบบเดิมเพราะต้อง animate Top ระหว่างสถานะที่ขนาดต่างกัน)
 
-         ของที่ตัดสินใจเองเพราะ roadmap ไม่ได้ระบุไว้ชัด (ดูรายงาน WP UI-9): ปุ่ม "ขยาย"(maximize-2) ในแถบ
-         ตอนกาง (ไม่ใช่ตัวเดียวกับปุ่มขยายตอนหุบ - อันนั้นคือกางกลับจากหุบ) ทำหน้าที่ "เรียกคืน" กล่องเครื่องมือ/
-         แผนที่ซูมที่อาจถูกหน้าต่างอื่นบังอยู่ (Activate กลับมาข้างหน้า) เพราะไม่มีสถานะอื่นให้ "ขยาย" ทำตอน
-         แถบเต็มอยู่แล้ว -->
+         orchestrator review (2026-11-04): ปุ่ม "ขยาย"(maximize-2) ตัดออกจากแถบตอนกางแล้วตามคำสั่งผู้ใช้
+         (ขยายอยู่ที่แถบหุบเท่านั้น) แถบตอนกางเหลือ 3 ปุ่ม: กล่องเครื่องมือ(square-pen)/หุบ(minimize-2)/
+         หยุดส่งจอ(square, "หยุด")
+
+         orchestrator review (2026-11-04): ไอคอนในปุ่มเล็ก (32x32/28x28) เคยถูก clip จนเหลือเป็นเศษ/รูปร่าง
+         ผิด (เช่น search กลายเป็น "C") สาเหตุคือ Button/ToggleButton แบบไม่ตั้ง Style ใช้ template เริ่มต้น
+         ของ Fluent theme ซึ่งมี chrome ภายใน (focus ring/inset) ที่ไม่ได้ผูกกับ Padding ของเราและ clip
+         เนื้อหาเมื่อปุ่มเล็กและ Padding=0 (เจอมาแล้วกับ Border.CornerRadius ของ Fluent ไม่ทำงานตรงไปตรงมา
+         เหมือนกัน - ดู comment เรื่อง ButtonPrimary/ButtonSecondary ใน Controls.xaml) แก้ด้วย
+         ControlTemplate ของตัวเอง (Border + ContentPresenter ธรรมดา ไม่มี chrome แอบแฝง) ใน
+         Window.Resources ด้านล่าง แทนการพึ่ง Fluent default -->
+    <Window.Resources>
+        <!-- ปุ่มไอคอนเดี่ยวทรงเหลี่ยมมุมโค้ง (ไม่ toggle) - ExpandButton/CollapseButton -->
+        <Style x:Key="RoundIconButton" TargetType="Button">
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="HorizontalContentAlignment" Value="Center"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bd" Background="{TemplateBinding Background}" CornerRadius="6">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Opacity" Value="0.85"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- ปุ่มไอคอนเดี่ยวแบบ toggle - ToolboxButton (ขาวเมื่อเปิดกล่องเครื่องมือ) -->
+        <Style x:Key="RoundIconToggleButton" TargetType="ToggleButton">
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="HorizontalContentAlignment" Value="Center"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ToggleButton">
+                        <Border x:Name="Bd" Background="{TemplateBinding Background}" CornerRadius="6">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Opacity" Value="0.85"/>
+                            </Trigger>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="#F0C8C3"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </Window.Resources>
     <Grid>
         <!-- สถานะหุบ: แถบบางชิดกลางขอบบนจอ -->
         <Border x:Name="CollapsedBar" Background="#B42318" CornerRadius="0,0,10,10" Padding="16,8"
@@ -33,31 +86,28 @@
                 <TextBlock Text="●" Foreground="#FFFFFF" FontSize="13" VerticalAlignment="Center" Margin="0,0,6,0"/>
                 <TextBlock x:Name="CollapsedStatusText" Foreground="White" FontSize="13" FontWeight="SemiBold"
                            VerticalAlignment="Center"/>
-                <Button x:Name="ExpandButton" Width="28" Height="28" Margin="12,0,0,0" Padding="0"
-                        Background="#8E2419" BorderThickness="0" Click="ExpandButton_Click" ToolTip="กางแถบ">
+                <Button x:Name="ExpandButton" Width="28" Height="28" Margin="12,0,0,0"
+                        Background="#8E2419" Style="{StaticResource RoundIconButton}"
+                        Click="ExpandButton_Click" ToolTip="กางแถบ">
                     <controls:IconPresenter Icon="maximize-2" IconSize="16" Foreground="White"/>
                 </Button>
             </StackPanel>
         </Border>
 
-        <!-- สถานะเต็ม: แถบสถานะ + 4 ปุ่ม (กล่องเครื่องมือ/ขยาย/หุบ/หยุดส่งจอ) -->
+        <!-- สถานะเต็ม: แถบสถานะ + 3 ปุ่ม (กล่องเครื่องมือ/หุบ/หยุดส่งจอ) - orchestrator review 2026-11-04:
+             "ขยาย" ถูกตัดออกจากที่นี่ (อยู่แถบหุบเท่านั้น) -->
         <Border x:Name="FullBar" Background="#B42318" CornerRadius="10" Padding="16,10" Visibility="Collapsed">
             <StackPanel Orientation="Horizontal">
                 <TextBlock x:Name="StatusText" Foreground="White" FontSize="13" FontWeight="SemiBold"
                            VerticalAlignment="Center" Text="กำลังส่งจอ"/>
 
-                <ToggleButton x:Name="ToolboxButton" Width="32" Height="32" Margin="14,0,0,0" Padding="0"
-                              Background="White" Foreground="#B42318" BorderThickness="0"
+                <ToggleButton x:Name="ToolboxButton" Width="32" Height="32" Margin="14,0,0,0"
+                              Background="White" Foreground="#B42318" Style="{StaticResource RoundIconToggleButton}"
                               Click="ToolboxButton_Click" ToolTip="กล่องเครื่องมือ">
                     <controls:IconPresenter Icon="square-pen" IconSize="17"/>
                 </ToggleButton>
-                <Button x:Name="RestoreToolsButton" Width="32" Height="32" Margin="8,0,0,0" Padding="0"
-                        Background="#8E2419" Foreground="White" BorderThickness="0"
-                        Click="RestoreToolsButton_Click" ToolTip="เรียกกล่องเครื่องมือ/แผนที่คืนมาข้างหน้า">
-                    <controls:IconPresenter Icon="maximize-2" IconSize="17"/>
-                </Button>
-                <Button x:Name="CollapseButton" Width="32" Height="32" Margin="8,0,0,0" Padding="0"
-                        Background="#8E2419" Foreground="White" BorderThickness="0"
+                <Button x:Name="CollapseButton" Width="32" Height="32" Margin="8,0,0,0"
+                        Background="#8E2419" Foreground="White" Style="{StaticResource RoundIconButton}"
                         Click="CollapseButton_Click" ToolTip="หุบแถบ">
                     <controls:IconPresenter Icon="minimize-2" IconSize="17"/>
                 </Button>

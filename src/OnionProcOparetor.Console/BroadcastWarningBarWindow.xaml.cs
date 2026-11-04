@@ -213,18 +213,6 @@ public partial class BroadcastWarningBarWindow : Window
         ToolboxButton.IsChecked = false;
     }
 
-    /// <summary>
-    /// ปุ่ม "ขยาย" (maximize-2) บนแถบตอนกาง - ต่างจากปุ่มขยายตอนหุบ (ซึ่งกางแถบคืนจากหุบ) เพราะแถบกางอยู่แล้ว
-    /// จึงใช้ทำหน้าที่เรียกกล่องเครื่องมือ/แผนที่ซูมที่อาจถูกหน้าต่างอื่นบังอยู่คืนมาข้างหน้า (roadmap UI-9
-    /// ไม่ได้ระบุไว้ชัดว่าปุ่มนี้ในสถานะกางควรทำอะไร - นี่เป็นการตัดสินใจเองที่ควรให้ผู้ใช้ตรวจอีกรอบ)
-    /// </summary>
-    private void RestoreToolsButton_Click(object sender, RoutedEventArgs e)
-    {
-        _drawToolbarWindow?.Activate();
-        _drawCanvasWindow?.Activate();
-        _borderWindow?.Activate();
-    }
-
     private async void StopButton_Click(object sender, RoutedEventArgs e)
     {
         await StopBroadcastingAsync();

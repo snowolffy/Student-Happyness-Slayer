@@ -19,7 +19,60 @@
 
          ต้องห้ามติดไปในภาพที่ส่งให้นักเรียน (เป็น control ของครูเอง เหมือนกรอบแดง/แถบสถานะ) จึงเรียก
          ExcludeFromCapture เสมอ (ดู code-behind) ไม่ตั้ง click-through เลย (ต้องรับคลิกปุ่ม/slider ได้ตลอด
-         เวลาที่เปิดอยู่ ต่างจาก TeacherDrawCanvasWindow) -->
+         เวลาที่เปิดอยู่ ต่างจาก TeacherDrawCanvasWindow)
+
+         orchestrator review (2026-11-04): ไอคอนในปุ่มเครื่องมือ (pencil/mouse-pointer-2/highlighter/eraser/
+         search) เคยดูเป็นเศษ/ผิดรูป 2 สาเหตุรวมกัน: (1) ไม่ได้ตั้ง Foreground ของปุ่ม - ค่า default ของ
+         Button คือดำ ซึ่งแทบมองไม่เห็นบนพื้นหลังเข้ม #1E1E1E ของแผงนี้ (2) ToggleButton ไม่ตั้ง Style เลย
+         ใช้ template เริ่มต้นของ Fluent ซึ่งมี chrome ภายในที่ clip เนื้อหาเมื่อปุ่มเล็ก (ปัญหาเดียวกับที่
+         ButtonPrimary/ButtonSecondary ใน Controls.xaml ต้องเขียน ControlTemplate เองมาก่อนแล้ว) แก้ทั้งคู่:
+         ตั้ง Foreground="White" ชัดเจน + ใช้ ToolIconToggleButton ที่นี่ (Border+ContentPresenter ธรรมดา
+         ไม่มี chrome แอบแฝง เน้นสีด้วย Brush.Accent.Default ตอน checked) -->
+    <Window.Resources>
+        <Style x:Key="ToolIconToggleButton" TargetType="ToggleButton">
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="Background" Value="#2A2A2A"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="HorizontalContentAlignment" Value="Center"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ToggleButton">
+                        <Border x:Name="Bd" Background="{TemplateBinding Background}" CornerRadius="6">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"
+                                              TextElement.Foreground="{TemplateBinding Foreground}"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="#3A3A3A"/>
+                            </Trigger>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource Brush.Accent.Default}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- orchestrator review (2026-11-04): ธีม slider ตาม accent brush ของแอป (ไม่มี style กลางให้ใช้ใน
+             OnionProcOparetor.UI - ทำเองในนี้ตามที่ขอ) ใช้กับ SizeSlider/ZoomSlider
+
+             ลองเขียน ControlTemplate ของ Track/RepeatButton/Thumb เองก่อน (แบบเดียวกับที่ ButtonPrimary/
+             ButtonSecondary ใน Controls.xaml ต้องทำเพราะ Fluent default ไม่น่าเชื่อถือ) แต่ Border ภายใน
+             RepeatButton ไม่ยอมเรนเดอร์เลยแม้ตั้งสีเด่นชัด (#FF00FF) และ Height ใหญ่พอ - ไม่ทันหาสาเหตุราก
+             ในเวลาที่มี จึงใช้วิธีง้ายกว่า: override Foreground/Background/BorderBrush เป็น accent แล้วปล่อย
+             ให้ template เริ่มต้นของ Fluent วาด track/thumb เอง (ยืนยันด้วยภาพจริงแล้วว่าใช้งานได้ ทั้ง track
+             ติดสี accent และลาก thumb ได้ปกติ) - ผลคือ track เป็นสี accent เต็มเส้น (ไม่ใช่ fill แค่ถึงตำแหน่ง
+             thumb) ถ้าต้องการ "filled track ถึงตำแหน่งค่า" แบบเป๊ะในอนาคต ต้องกลับมาหาสาเหตุที่ Track ไม่
+             ยอมวาด RepeatButton ที่นี่ -->
+        <Style x:Key="AccentSlider" TargetType="Slider">
+            <Setter Property="Height" Value="20"/>
+            <Setter Property="Foreground" Value="{DynamicResource Brush.Accent.Default}"/>
+            <Setter Property="Background" Value="{DynamicResource Brush.Accent.Default}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource Brush.Accent.Default}"/>
+        </Style>
+    </Window.Resources>
     <Border Background="#1E1E1E" CornerRadius="10" Padding="10">
         <StackPanel x:Name="RootPanel" Orientation="Vertical" Width="300">
             <!-- ลากที่แถบนี้เพื่อย้ายตำแหน่งหน้าต่าง (ปุ่ม/slider ด้านล่างต้องกดได้ปกติ แยกจากพื้นที่ลาก) -->
@@ -29,22 +82,27 @@
             <!-- แถวเครื่องมือ: ปากกา / เมาส์ปกติ / ไฮไลต์ / ยางลบ -->
             <StackPanel Orientation="Horizontal">
                 <ToggleButton x:Name="PencilButton" Width="34" Height="34" Margin="0,0,4,0"
+                              Style="{StaticResource ToolIconToggleButton}"
                               Click="PencilButton_Click" ToolTip="ปากกา">
                     <controls:IconPresenter Icon="pencil" IconSize="18"/>
                 </ToggleButton>
                 <ToggleButton x:Name="MouseButton" Width="34" Height="34" Margin="0,0,4,0"
+                              Style="{StaticResource ToolIconToggleButton}"
                               Click="MouseButton_Click" ToolTip="เมาส์ปกติ (ไม่วาด)" IsChecked="True">
                     <controls:IconPresenter Icon="mouse-pointer-2" IconSize="18"/>
                 </ToggleButton>
                 <ToggleButton x:Name="HighlighterButton" Width="34" Height="34" Margin="0,0,4,0"
+                              Style="{StaticResource ToolIconToggleButton}"
                               Click="HighlighterButton_Click" ToolTip="ไฮไลต์">
                     <controls:IconPresenter Icon="highlighter" IconSize="18"/>
                 </ToggleButton>
                 <ToggleButton x:Name="EraserButton" Width="34" Height="34" Margin="0,0,10,0"
+                              Style="{StaticResource ToolIconToggleButton}"
                               Click="EraserButton_Click" ToolTip="ยางลบ">
                     <controls:IconPresenter Icon="eraser" IconSize="18"/>
                 </ToggleButton>
                 <Button x:Name="ClearButton" Content="ล้างทั้งหมด" Padding="10,4" FontSize="12"
+                        Foreground="White" Background="#2A2A2A" BorderThickness="0"
                         VerticalAlignment="Center" Click="ClearButton_Click"/>
             </StackPanel>
 
@@ -54,19 +112,20 @@
                 <TextBlock Text="ขนาด" Foreground="#BBBBBB" FontSize="11" Margin="12,0,6,0"
                            VerticalAlignment="Center"/>
                 <Slider x:Name="SizeSlider" Width="110" Minimum="2" Maximum="40" VerticalAlignment="Center"
-                        ValueChanged="SizeSlider_ValueChanged"/>
+                        Style="{StaticResource AccentSlider}" ValueChanged="SizeSlider_ValueChanged"/>
             </StackPanel>
 
             <!-- แถวซูม -->
             <Border BorderBrush="#3A3A3A" BorderThickness="0,1,0,0" Margin="0,10,0,0" Padding="0,8,0,0">
                 <StackPanel Orientation="Horizontal">
                     <ToggleButton x:Name="ZoomButton" Width="34" Height="34" Margin="0,0,8,0"
+                                  Style="{StaticResource ToolIconToggleButton}"
                                   Click="ZoomButton_Click" ToolTip="ซูม">
                         <controls:IconPresenter Icon="search" IconSize="18"/>
                     </ToggleButton>
                     <Slider x:Name="ZoomSlider" Width="100" Minimum="1" Maximum="5" SmallChange="0.5"
                             LargeChange="1" Value="3" IsEnabled="False" VerticalAlignment="Center"
-                            ValueChanged="ZoomSlider_ValueChanged"/>
+                            Style="{StaticResource AccentSlider}" ValueChanged="ZoomSlider_ValueChanged"/>
                     <TextBox x:Name="ZoomNumberBox" Width="40" Margin="8,0,0,0" Text="3.0" IsEnabled="False"
                              VerticalAlignment="Center" HorizontalContentAlignment="Center"
                              LostFocus="ZoomNumberBox_LostFocus" KeyDown="ZoomNumberBox_KeyDown"/>
