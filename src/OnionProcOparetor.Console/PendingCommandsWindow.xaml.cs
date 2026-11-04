@@ -35,6 +35,8 @@ public partial class PendingCommandsWindow : UserControl
     {
         try
         {
+            // UI-4 (2026-11-04): ไอคอนหมุนคู่กับข้อความ "กำลังโหลด..." - ปิดเสมอใน finally ด้านล่าง
+            StatusLoadingIcon.Visibility = Visibility.Visible;
             StatusText.Text = "กำลังโหลดคำสั่งที่ค้างอยู่...";
             CommandsGrid.ItemsSource = null;
             EmptyText.Visibility = Visibility.Collapsed;
@@ -50,6 +52,10 @@ public partial class PendingCommandsWindow : UserControl
         catch (Exception ex)
         {
             StatusText.Text = $"เกิดข้อผิดพลาดขณะโหลดรายการคำสั่ง: {ex.Message}";
+        }
+        finally
+        {
+            StatusLoadingIcon.Visibility = Visibility.Collapsed;
         }
     }
 

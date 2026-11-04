@@ -1,6 +1,7 @@
 <UserControl x:Class="OnionProcOparetor.Console.SettingsPage"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:controls="clr-namespace:OnionProcOparetor.UI.Controls;assembly=OnionProcOparetor.UI">
     <!-- หน้าตั้งค่าใน shell (WP6, 2026-10-30) - เดิมเป็น SettingsWindow ที่เปิดจากเมนูเฟือง + About
          อีกบาน การ์ดและค่าที่ตั้งได้เหมือนเดิมทุกตัว เพิ่ม "การแสดงเวลา" (เวลาไทย/UTC) และย้ายทางเข้า
          หน้า About มาไว้ท้ายหน้านี้แทนเมนูเฟืองที่ถูกเอาออก
@@ -206,8 +207,12 @@
                                 <TextBlock Text="ใช้ตอนติดต่อ Server ไม่ได้เท่านั้น - secret ฝังในเครื่องนักเรียนตอนติดตั้ง Agent (MSI property), Agent ตรวจรหัสเองแบบ offline"
                                            Style="{StaticResource Caption}" TextWrapping="Wrap" Margin="0,0,0,10"/>
 
-                                <TextBlock x:Name="EmergencyCodeStatusText" Text="กำลังโหลด..." Style="{StaticResource Body}"
-                                           TextWrapping="Wrap" Margin="0,0,0,10"/>
+                                <!-- UI-4 (2026-11-04): ไอคอนหมุน (SpinningLoaderIcon) คู่กับข้อความสถานะ -->
+                                <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+                                    <controls:IconPresenter x:Name="EmergencyCodeLoadingIcon" Style="{StaticResource SpinningLoaderIcon}"
+                                                            Visibility="Collapsed" Margin="0,0,6,0"/>
+                                    <TextBlock x:Name="EmergencyCodeStatusText" Text="กำลังโหลด..." Style="{StaticResource Body}" TextWrapping="Wrap"/>
+                                </StackPanel>
 
                                 <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
                                     <Button Content="แสดง QR..." Style="{StaticResource ButtonSecondary}"
@@ -235,8 +240,12 @@
                             <StackPanel>
                                 <TextBlock Text="ความปลอดภัย (HTTPS)" Style="{StaticResource Label}" Margin="0,0,0,8"/>
                                 <TextBlock Text="Thumbprint ของใบรับรอง Server" Style="{StaticResource Caption}" Margin="0,0,0,4"/>
-                                <TextBlock x:Name="CertificateThumbprintText" Text="กำลังโหลด..." Style="{StaticResource Body}"
-                                           TextWrapping="Wrap" FontFamily="Consolas" Margin="0,0,0,10"/>
+                                <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+                                    <controls:IconPresenter x:Name="CertificateLoadingIcon" Style="{StaticResource SpinningLoaderIcon}"
+                                                            Visibility="Collapsed" Margin="0,0,6,0"/>
+                                    <TextBlock x:Name="CertificateThumbprintText" Text="กำลังโหลด..." Style="{StaticResource Body}"
+                                               TextWrapping="Wrap" FontFamily="Consolas"/>
+                                </StackPanel>
                                 <Button Content="ส่งออก .cer..." Style="{StaticResource ButtonSecondary}"
                                         HorizontalAlignment="Left" Click="ExportCertificateButton_Click"/>
                             </StackPanel>
@@ -247,8 +256,11 @@
                         <Border Style="{StaticResource Card}" Margin="0,0,0,12">
                             <StackPanel>
                                 <TextBlock Text="รายการโปรแกรมที่เปิดได้ทั้งห้อง" Style="{StaticResource Label}" Margin="0,0,0,8"/>
-                                <TextBlock x:Name="LaunchableProgramCountText" Text="กำลังโหลด..." Style="{StaticResource Body}"
-                                           TextWrapping="Wrap" Margin="0,0,0,10"/>
+                                <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+                                    <controls:IconPresenter x:Name="LaunchableProgramLoadingIcon" Style="{StaticResource SpinningLoaderIcon}"
+                                                            Visibility="Collapsed" Margin="0,0,6,0"/>
+                                    <TextBlock x:Name="LaunchableProgramCountText" Text="กำลังโหลด..." Style="{StaticResource Body}" TextWrapping="Wrap"/>
+                                </StackPanel>
                                 <Button Content="จัดการรายการโปรแกรม..." HorizontalAlignment="Left"
                                         Style="{StaticResource ButtonSecondary}" Padding="10,9" FontSize="12"
                                         Click="ManageLaunchableProgramsButton_Click"/>

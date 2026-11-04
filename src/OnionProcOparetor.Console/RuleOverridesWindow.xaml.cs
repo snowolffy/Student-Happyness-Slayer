@@ -38,6 +38,9 @@ public partial class RuleOverridesWindow : UserControl
 
     private async Task RefreshAsync()
     {
+        // UI-4 (2026-11-04): ไอคอนหมุน (SpinningLoaderIcon) แทนข้อความ "กำลังโหลด..." เฉยๆ - toggle
+        // คู่กับ StatusText เสมอ (Visible ตอนเริ่มโหลด, Collapsed ทุก return path ด้านล่าง)
+        StatusLoadingIcon.Visibility = Visibility.Visible;
         StatusText.Text = "กำลังโหลด...";
         RulesListPanel.Children.Clear();
 
@@ -47,6 +50,7 @@ public partial class RuleOverridesWindow : UserControl
 
         if (rules.Count == 0)
         {
+            StatusLoadingIcon.Visibility = Visibility.Collapsed;
             StatusText.Text = "ยังไม่มีกฎใดๆ ในระบบ (เพิ่มกฎได้จากแท็บ RULES ก่อน)";
             return;
         }
@@ -57,6 +61,7 @@ public partial class RuleOverridesWindow : UserControl
             RulesListPanel.Children.Add(BuildRow(rule, ruleOverride));
         }
 
+        StatusLoadingIcon.Visibility = Visibility.Collapsed;
         StatusText.Text = "";
     }
 

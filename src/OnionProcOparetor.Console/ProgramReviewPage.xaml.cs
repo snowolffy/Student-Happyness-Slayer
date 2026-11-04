@@ -76,6 +76,8 @@ public partial class ProgramReviewPage : UserControl
 
         try
         {
+            // UI-4 (2026-11-04): ไอคอนหมุนคู่กับข้อความ "กำลังโหลด..." - ปิดเสมอใน finally ด้านล่าง
+            SummaryLoadingIcon.Visibility = Visibility.Visible;
             SummaryText.Text = "กำลังโหลด...";
             VerdictsGrid.ItemsSource = null;
             EmptyText.Visibility = Visibility.Collapsed;
@@ -113,6 +115,10 @@ public partial class ProgramReviewPage : UserControl
         {
             SummaryText.Text = string.Empty;
             ToastService.Error($"โหลดคิว Program Review ไม่สำเร็จ: {ex.Message}");
+        }
+        finally
+        {
+            SummaryLoadingIcon.Visibility = Visibility.Collapsed;
         }
     }
 
