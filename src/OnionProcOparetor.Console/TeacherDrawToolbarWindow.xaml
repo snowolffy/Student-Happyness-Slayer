@@ -66,11 +66,56 @@
              ติดสี accent และลาก thumb ได้ปกติ) - ผลคือ track เป็นสี accent เต็มเส้น (ไม่ใช่ fill แค่ถึงตำแหน่ง
              thumb) ถ้าต้องการ "filled track ถึงตำแหน่งค่า" แบบเป๊ะในอนาคต ต้องกลับมาหาสาเหตุที่ Track ไม่
              ยอมวาด RepeatButton ที่นี่ -->
+        <!-- slider สีเน้น: แถบส่วนที่ "ผ่านมาแล้ว" เป็นสีส้ม ส่วนที่เหลือเป็นเทา + thumb กลม (template เอง
+             ไม่พึ่ง Fluent default เพราะการ override Background ของ default ระบายพื้นทั้งก้อน) -->
+        <Style x:Key="SliderTrackPart" TargetType="RepeatButton">
+            <Setter Property="Focusable" Value="False"/>
+            <Setter Property="IsTabStop" Value="False"/>
+            <Setter Property="OverridesDefaultStyle" Value="True"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="RepeatButton">
+                        <Grid Background="Transparent">
+                            <Border Height="4" CornerRadius="2" VerticalAlignment="Center"
+                                    Background="{TemplateBinding Background}"/>
+                        </Grid>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
         <Style x:Key="AccentSlider" TargetType="Slider">
             <Setter Property="Height" Value="20"/>
-            <Setter Property="Foreground" Value="{DynamicResource Brush.Accent.Default}"/>
-            <Setter Property="Background" Value="{DynamicResource Brush.Accent.Default}"/>
-            <Setter Property="BorderBrush" Value="{DynamicResource Brush.Accent.Default}"/>
+            <Setter Property="OverridesDefaultStyle" Value="True"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Slider">
+                        <Track x:Name="PART_Track" VerticalAlignment="Center">
+                            <Track.DecreaseRepeatButton>
+                                <RepeatButton Style="{StaticResource SliderTrackPart}" Command="Slider.DecreaseLarge"
+                                              Background="{DynamicResource Brush.Accent.Default}"/>
+                            </Track.DecreaseRepeatButton>
+                            <Track.IncreaseRepeatButton>
+                                <RepeatButton Style="{StaticResource SliderTrackPart}" Command="Slider.IncreaseLarge"
+                                              Background="#555555"/>
+                            </Track.IncreaseRepeatButton>
+                            <Track.Thumb>
+                                <Thumb Width="14" Height="14" OverridesDefaultStyle="True">
+                                    <Thumb.Template>
+                                        <ControlTemplate TargetType="Thumb">
+                                            <Ellipse Fill="{DynamicResource Brush.Accent.Default}" Stroke="White" StrokeThickness="2"/>
+                                        </ControlTemplate>
+                                    </Thumb.Template>
+                                </Thumb>
+                            </Track.Thumb>
+                        </Track>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Opacity" Value="0.4"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
         </Style>
     </Window.Resources>
     <Border Background="#1E1E1E" CornerRadius="10" Padding="10">
