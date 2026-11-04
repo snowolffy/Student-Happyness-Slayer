@@ -53,6 +53,42 @@
                 </Setter.Value>
             </Setter>
         </Style>
+
+        <!-- ==================== LiveViewFilterToggle (UI-5, 2026-11-04) ====================
+             ปุ่มตัวกรองยกมือ/ออนไลน์/มีเหตุการณ์ของแท็บ Live View - แยกจาก StatCardFilter (RadioButton,
+             เลือกได้ทีละตัว) เพราะตัวกรองสามตัวนี้ "เปิดพร้อมกันได้" (เช่น ยกมือ+ออนไลน์พร้อมกัน) จึงต้องเป็น
+             ToggleButton อิสระ ไม่ใช่กลุ่ม RadioButton เดียวกัน -->
+        <Style x:Key="LiveViewFilterToggle" TargetType="ToggleButton">
+            <Setter Property="Background" Value="{DynamicResource Brush.Background.Card}"/>
+            <Setter Property="Foreground" Value="{DynamicResource Brush.Text.Primary}"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Padding" Value="12,6"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource Brush.Border.Default}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ToggleButton">
+                        <Border x:Name="Bd" CornerRadius="8" Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource Brush.Background.Primary}"/>
+                            </Trigger>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource Brush.Accent.Default}"/>
+                                <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource Brush.Accent.Default}"/>
+                                <Setter Property="Foreground" Value="{DynamicResource Brush.Accent.OnAccent}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
     </UserControl.Resources>
     <Grid>
         <!-- ==================== โครงหน้าจอ: sidebar ซ้าย + เนื้อหาขวา (2026-09-09) ====================
@@ -863,67 +899,79 @@
                     </Grid>
                 </TabItem>
 
-                <!-- ========== Live View tab (Step 4f) - CCTV-wall grid ========== -->
+                <!-- ========== Live View tab (UI-5, 2026-11-04) - เลือกห้องแล้วเห็นทุกเครื่องทันที
+                     ไม่ต้องติ๊กทีละเครื่องเหมือนเดิม (Step 4f) - ดู SyncLiveViewGrid/ComputeLiveViewTargets
+                     ใน .xaml.cs สำหรับตรรกะเพิ่ม/ลด cell อัตโนมัติตามห้อง+ตัวกรองที่เลือก ========== -->
                 <TabItem x:Name="LiveViewTabItem" Header="Live View" controls:Nav.Icon="grid" controls:Nav.Group="">
                     <Grid Margin="0,12,0,0">
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
                             <RowDefinition Height="*"/>
                         </Grid.RowDefinitions>
 
-                        <TextBlock Grid.Row="0" Text="Live View" Style="{StaticResource Heading2}"/>
-
-                        <Grid Grid.Row="1" Margin="0,10,0,0">
+                        <!-- หัวข้อ + ตัวเลือกห้อง + สถานะ -->
+                        <Grid Grid.Row="0">
                             <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="200"/>
+                                <ColumnDefinition Width="Auto"/>
                                 <ColumnDefinition Width="16"/>
+                                <ColumnDefinition Width="220"/>
                                 <ColumnDefinition Width="*"/>
                             </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0" Text="Live View" Style="{StaticResource Heading2}" VerticalAlignment="Center"/>
+                            <!-- เลือกห้อง = เห็นทุกเครื่องในห้องนั้นทันที (ไม่ต้องกด "เพิ่ม" อีกต่อไป) -
+                                 ตัวเลือกใช้ RoomFilterOption เดียวกับตัวกรองห้องของแท็บ Clients (ดู BuildRoomFilterOptions) -->
+                            <ComboBox Grid.Column="2" x:Name="LiveViewRoomCombo" VerticalAlignment="Center"
+                                      DisplayMemberPath="Label" SelectionChanged="LiveViewRoomCombo_SelectionChanged"/>
+                            <TextBlock Grid.Column="3" x:Name="LiveViewStatusText" Style="{StaticResource Caption}"
+                                       VerticalAlignment="Center" HorizontalAlignment="Right" TextWrapping="Wrap"/>
+                        </Grid>
 
-                            <!-- เลือกเครื่อง - reuse _allClients เดิม ไม่ query ใหม่ (ดู ApplyLiveViewClientList ใน .xaml.cs) -->
-                            <Border Grid.Column="0" CornerRadius="10" Padding="10"
-                                    Background="{DynamicResource Brush.Background.Primary}"
+                        <!-- แถบตัวกรอง + ปุ่มคำสั่งพร้อมกัน + สไลเดอร์ขนาดภาพย่อ -->
+                        <Grid Grid.Row="1" Margin="0,10,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="8"/>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="8"/>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="16"/>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="140"/>
+                            </Grid.ColumnDefinitions>
+
+                            <ToggleButton Grid.Column="0" x:Name="LiveViewFilterHandButton" Content="ยกมือ"
+                                          Style="{StaticResource LiveViewFilterToggle}" Click="LiveViewFilterButton_Click"/>
+                            <ToggleButton Grid.Column="2" x:Name="LiveViewFilterOnlineButton" Content="ออนไลน์"
+                                          Style="{StaticResource LiveViewFilterToggle}" Click="LiveViewFilterButton_Click"/>
+                            <ToggleButton Grid.Column="4" x:Name="LiveViewFilterEventButton" Content="มีเหตุการณ์"
+                                          Style="{StaticResource LiveViewFilterToggle}" Click="LiveViewFilterButton_Click"/>
+
+                            <!-- เปิดเฉพาะมีเครื่องถูกเลือกไว้ (Ctrl+คลิกใน grid) - ใช้ ActionPanelWindow เดิม (bulk mode) -->
+                            <Button Grid.Column="6" x:Name="LiveViewBulkActionsButton" Content="คำสั่ง..."
+                                    Style="{StaticResource ButtonSecondary}" Padding="12,6" IsEnabled="False"
+                                    Click="LiveViewBulkActionsButton_Click"/>
+
+                            <TextBlock Grid.Column="8" Text="ขนาดภาพ" Style="{StaticResource Caption}"
+                                       VerticalAlignment="Center" Margin="0,0,8,0"/>
+                            <Slider Grid.Column="9" x:Name="LiveViewSizeSlider" VerticalAlignment="Center"
+                                    Minimum="140" Maximum="320" Value="220" TickFrequency="20" IsSnapToTickEnabled="True"
+                                    ValueChanged="LiveViewSizeSlider_ValueChanged"/>
+                        </Grid>
+
+                        <!-- Grid area - WrapPanel แทน UniformGrid เดิม เพื่อให้ปรับขนาด cell เองได้ (ไม่ถูกบีบให้เท่ากันหมดทั้งแถว) -->
+                        <Grid Grid.Row="2" Margin="0,10,0,0">
+                            <Border CornerRadius="10" Background="Black"
                                     BorderBrush="{DynamicResource Brush.Border.Default}" BorderThickness="1">
-                                <Grid>
-                                    <Grid.RowDefinitions>
-                                        <RowDefinition Height="Auto"/>
-                                        <RowDefinition Height="*"/>
-                                        <RowDefinition Height="Auto"/>
-                                        <RowDefinition Height="Auto"/>
-                                    </Grid.RowDefinitions>
-
-                                    <TextBlock Grid.Row="0" Text="เลือกเครื่อง"
-                                               Style="{StaticResource Caption}" TextWrapping="Wrap" Margin="0,0,0,6"/>
-
-                                    <ListBox Grid.Row="1" x:Name="LiveViewClientListBox" SelectionMode="Extended"
-                                             Background="Transparent" BorderThickness="0">
-                                        <ListBox.ItemTemplate>
-                                            <DataTemplate>
-                                                <TextBlock Text="{Binding MachineName}" Padding="4,3" TextTrimming="CharacterEllipsis"/>
-                                            </DataTemplate>
-                                        </ListBox.ItemTemplate>
-                                    </ListBox>
-
-                                    <!-- Rebuilt 2026-09-03 - AddSelectedToGridButton/LiveViewStatusText used to both sit in
-                                         Grid.Row="1" (the same row as the ListBox above) with Grid.RowSpan="2" and a
-                                         Margin="0,306,0,10" magic offset trying to push the status text below the button
-                                         by guessing a fixed pixel position - broke as soon as the panel's actual height
-                                         differed from what that guess assumed (confirmed: it grows and covers the
-                                         ListBox). Each now has its own dedicated Auto row below the list instead. -->
-                                    <Button Grid.Row="2" x:Name="AddSelectedToGridButton" Content="เพิ่มเครื่องที่เลือกเข้าจอรวม"
-                                            Style="{StaticResource ButtonPrimary}" Margin="0,10,0,4"
-                                            Click="AddSelectedToGridButton_Click"/>
-
-                                    <TextBlock Grid.Row="3" x:Name="LiveViewStatusText" Style="{StaticResource Caption}"
-                                               TextWrapping="Wrap"/>
-                                </Grid>
+                                <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Padding="8">
+                                    <WrapPanel x:Name="LiveViewGrid"/>
+                                </ScrollViewer>
                             </Border>
-
-                            <!-- Grid area - ช่องขนาดปรับอัตโนมัติตามจำนวนเครื่องผ่าน UniformGrid (auto-compute แถว/คอลัมน์ในตัว) -->
-                            <Border Grid.Column="2" CornerRadius="10"
-                                    Background="Black" BorderBrush="{DynamicResource Brush.Border.Default}" BorderThickness="1">
-                                <UniformGrid x:Name="LiveViewGrid"/>
-                            </Border>
+                            <TextBlock x:Name="LiveViewEmptyText" Style="{StaticResource Caption}" Foreground="White"
+                                       HorizontalAlignment="Center" VerticalAlignment="Center" Visibility="Collapsed"
+                                       Text="ไม่มีเครื่องตรงกับตัวกรอง/ห้องที่เลือก - ลองเปลี่ยนห้องหรือล้างตัวกรอง"/>
                         </Grid>
                     </Grid>
                 </TabItem>
