@@ -1,0 +1,187 @@
+<UserControl x:Class="OnionProcOparetor.Console.DashboardHomePage"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:controls="clr-namespace:OnionProcOparetor.UI.Controls;assembly=OnionProcOparetor.UI">
+    <!--
+        UI-4 (2026-11-04): หน้า Dashboard - หน้าแรกหลังล็อกอิน (roadmap WP UI-4) ต่อเป็นแท็บแรกของ
+        sidebar ใน DashboardWindow.xaml (HomeTabItem) ใช้ API ที่มีอยู่แล้วทั้งหมด ไม่มี endpoint ใหม่:
+        GetClientsAsync (จำนวนออนไลน์/ออฟไลน์/นักเรียนที่ล็อกอิน), GetRaiseHandQueueAsync (คิวยกมือ),
+        GetActiveExamSessionsAsync (โหมดสอบที่ทำงานอยู่), GetLogsAsync (ปิดโปรแกรม), GetWebVisitsAsync
+        blockedOnly=true (บล็อกเว็บ), GetActivityLogAsync category=AgentConnectivity (เครื่องหลุด) - สาม
+        ตัวหลังรวมกันเป็น "เหตุการณ์ล่าสุด" (ดู DashboardHomePage.xaml.cs RefreshAsync/BuildRecentEvents)
+
+        โหลดข้อมูลของตัวเองตอน IsVisibleChanged เหมือน ProgramReviewPage/WebsiteControlPage/SettingsPage
+        (ดู comment ในไฟล์เหล่านั้น) ไม่ได้รับข้อมูลต่อจาก DashboardWindow.LoadAllDataAsync โดยตรง - ยอม
+        ยิง request ซ้ำบางตัว (GetClientsAsync ฯลฯ) เพื่อให้หน้านี้เป็นอิสระ ย้าย/ลบออกได้โดยไม่กระทบแท็บอื่น
+
+        ปุ่มลัด 3 ปุ่มล่าง "ใช้ dialog เดิมจาก UI-3b" ตามที่ roadmap สั่งตรงๆ - ไม่เรียก API เอง แค่ raise
+        event ให้ DashboardWindow (เจ้าของ ApiClient/_allClients/DialogHost ตัวจริง) เป็นคนเปิด dialog เอง
+        (ดู DashboardWindow.xaml.cs: HomePage.LockWholeRoomRequested/SendMessageRequested/ExamModeRequested)
+    -->
+    <UserControl.Resources>
+        <!-- GhostMenuButton (ซ้ำกับใน DashboardWindow.xaml โดยตั้งใจ) - StaticResource lookup ไม่ข้าม
+             UserControl.Resources ของคนละไฟล์กัน (บั๊กจริงที่เจอตอนทดสอบด้วย input จริง 2026-11-04:
+             XamlParseException "Cannot find resource named 'GhostMenuButton'" ทำให้ DashboardWindow
+             สร้างไม่สำเร็จ ติด spinner ค้างตลอดไปหลัง login - ดู console.log) -->
+        <Style x:Key="GhostMenuButton" TargetType="Button">
+            <Setter Property="Foreground" Value="{DynamicResource Brush.Text.Primary}"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="HorizontalContentAlignment" Value="Left"/>
+            <Setter Property="Padding" Value="10,8"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bd" CornerRadius="6" Padding="{TemplateBinding Padding}" Background="Transparent">
+                            <ContentPresenter HorizontalAlignment="Left" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource Brush.Row.Hover}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </UserControl.Resources>
+    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+        <StackPanel Margin="0,12,0,0">
+            <TextBlock Text="ภาพรวม" Style="{StaticResource Heading2}"/>
+            <TextBlock Text="สรุปสถานะห้องเรียนตอนนี้ - กดปุ่มลัดด้านล่างเพื่อสั่งทั้งห้องโดยไม่ต้องเลือกเครื่องก่อน"
+                       Style="{StaticResource Caption}" Margin="0,2,0,0"/>
+
+            <!-- ==================== การ์ดตัวเลขสรุป ==================== -->
+            <StackPanel Orientation="Horizontal" Margin="0,14,0,0">
+                <Border Style="{StaticResource Card}" Padding="14,10" Margin="0,0,10,0" MinWidth="110">
+                    <StackPanel>
+                        <TextBlock Text="เครื่องออนไลน์" Style="{StaticResource Caption}"/>
+                        <TextBlock x:Name="OnlineCountText" Text="0" FontSize="24" FontWeight="Bold"
+                                   Foreground="{DynamicResource Brush.Status.Online}"/>
+                    </StackPanel>
+                </Border>
+                <Border Style="{StaticResource Card}" Padding="14,10" Margin="0,0,10,0" MinWidth="110">
+                    <StackPanel>
+                        <TextBlock Text="เครื่องออฟไลน์" Style="{StaticResource Caption}"/>
+                        <TextBlock x:Name="OfflineCountText" Text="0" FontSize="24" FontWeight="Bold"
+                                   Foreground="{DynamicResource Brush.Status.Offline}"/>
+                    </StackPanel>
+                </Border>
+                <Border Style="{StaticResource Card}" Padding="14,10" Margin="0,0,10,0" MinWidth="140">
+                    <StackPanel>
+                        <TextBlock Text="นักเรียนที่ล็อกอิน" Style="{StaticResource Caption}"/>
+                        <TextBlock x:Name="StudentsLoggedInCountText" Text="0" FontSize="24" FontWeight="Bold"
+                                   Foreground="{DynamicResource Brush.Text.Primary}"/>
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+
+            <!-- ==================== คิวยกมือ + โหมดสอบ (สองคอลัมน์) ==================== -->
+            <Grid Margin="0,14,0,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="12"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+
+                <Border Grid.Column="0" Style="{StaticResource Card}" Padding="14" VerticalAlignment="Top">
+                    <StackPanel>
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock x:Name="RaiseHandHeaderText" Grid.Column="0" Text="คิวยกมือ (0)"
+                                       Style="{StaticResource Body}" FontWeight="Bold" VerticalAlignment="Center"/>
+                            <Button Grid.Column="1" Content="ดูทั้งหมด" Style="{StaticResource GhostMenuButton}"
+                                    Padding="8,4" Click="ViewRaiseHandQueueButton_Click"/>
+                        </Grid>
+                        <ItemsControl x:Name="RaiseHandList" Margin="0,8,0,0">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Border BorderBrush="{DynamicResource Brush.Border.Default}" BorderThickness="0,0,0,1" Padding="0,6">
+                                        <StackPanel>
+                                            <TextBlock Text="{Binding MachineName}" FontWeight="SemiBold" FontSize="12"/>
+                                            <TextBlock Style="{StaticResource Caption}">
+                                                <Run Text="{Binding StudentDisplayText, Mode=OneWay}"/>
+                                                <Run Text=" · "/>
+                                                <Run Text="{Binding Reason, Mode=OneWay}"/>
+                                                <Run Text=" · "/>
+                                                <Run Text="{Binding WaitedText, Mode=OneWay}"/>
+                                            </TextBlock>
+                                        </StackPanel>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                        <TextBlock x:Name="RaiseHandEmptyText" Text="ไม่มีใครยกมืออยู่ตอนนี้" Style="{StaticResource Caption}" Margin="0,8,0,0"/>
+                    </StackPanel>
+                </Border>
+
+                <Border Grid.Column="2" Style="{StaticResource Card}" Padding="14" VerticalAlignment="Top">
+                    <StackPanel>
+                        <TextBlock Text="โหมดสอบที่ทำงานอยู่" Style="{StaticResource Body}" FontWeight="Bold"/>
+                        <ItemsControl x:Name="ExamSessionList" Margin="0,8,0,0">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Border BorderBrush="{DynamicResource Brush.Border.Default}" BorderThickness="0,0,0,1" Padding="0,6">
+                                        <StackPanel>
+                                            <TextBlock Text="{Binding TargetDescription}" FontWeight="SemiBold" FontSize="12"/>
+                                            <TextBlock Text="{Binding ExpiresAtText}" Style="{StaticResource Caption}"/>
+                                        </StackPanel>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                        <TextBlock x:Name="ExamSessionEmptyText" Text="ไม่มีโหมดสอบทำงานอยู่ตอนนี้" Style="{StaticResource Caption}" Margin="0,8,0,0"/>
+                    </StackPanel>
+                </Border>
+            </Grid>
+
+            <!-- ==================== เหตุการณ์ล่าสุด ====================
+                 รวม 3 แหล่ง (ปิดโปรแกรม/บล็อกเว็บ/เครื่องหลุด) เรียงตามเวลาล่าสุดก่อน - ดู BuildRecentEvents -->
+            <Border Style="{StaticResource Card}" Padding="14" Margin="0,14,0,16">
+                <StackPanel>
+                    <TextBlock Text="เหตุการณ์ล่าสุด" Style="{StaticResource Body}" FontWeight="Bold"/>
+                    <TextBlock Text="ปิดโปรแกรมที่ถูกบล็อก · เว็บที่ถูกบล็อก · เครื่องที่หลุดการเชื่อมต่อ"
+                               Style="{StaticResource Caption}" Margin="0,1,0,0"/>
+                    <ItemsControl x:Name="RecentEventsList" Margin="0,8,0,0">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Border BorderBrush="{DynamicResource Brush.Border.Default}" BorderThickness="0,0,0,1" Padding="0,6">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <controls:IconPresenter Grid.Column="0" Icon="{Binding Icon}" IconSize="14"
+                                                                VerticalAlignment="Center" Margin="0,0,8,0"
+                                                                Foreground="{DynamicResource Brush.Text.Secondary}"/>
+                                        <TextBlock Grid.Column="1" Text="{Binding Text}" FontSize="12" TextTrimming="CharacterEllipsis"/>
+                                        <TextBlock Grid.Column="2" Text="{Binding TimeText}" Style="{StaticResource Caption}" Margin="10,0,0,0"/>
+                                    </Grid>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                    <TextBlock x:Name="RecentEventsEmptyText" Text="ยังไม่มีเหตุการณ์" Style="{StaticResource Caption}" Margin="0,8,0,0"/>
+                </StackPanel>
+            </Border>
+
+            <!-- ==================== ปุ่มลัด ====================
+                 ใช้ dialog เดิมจาก UI-3b (ตาม roadmap WP UI-4) - DashboardWindow เป็นคนเปิดจริง (ดู event
+                 3 ตัวด้านบน) หน้านี้แค่ raise สัญญาณขอ ไม่ถือ ApiClient/DialogHost ของตัวเอง -->
+            <TextBlock Text="ปุ่มลัด" Style="{StaticResource Body}" FontWeight="Bold" Margin="0,0,0,8"/>
+            <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                <Button Content="ล็อกทั้งห้อง" Style="{StaticResource ButtonPrimary}" Padding="16,9" Margin="0,0,10,0"
+                        ToolTip="ล็อกหน้าจอทุกเครื่องทันที - ไม่ต้องเลือกเครื่องก่อน"
+                        Click="LockWholeRoomButton_Click"/>
+                <Button Content="ส่งข้อความขึ้นจอ" Style="{StaticResource ButtonSecondary}" Padding="16,9" Margin="0,0,10,0"
+                        Click="SendMessageButton_Click"/>
+                <Button Content="เปิดโหมดสอบ" Style="{StaticResource ButtonSecondary}" Padding="16,9"
+                        Click="ExamModeButton_Click"/>
+            </StackPanel>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

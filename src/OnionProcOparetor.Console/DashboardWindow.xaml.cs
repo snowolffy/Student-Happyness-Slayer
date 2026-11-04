@@ -395,6 +395,16 @@ public partial class DashboardWindow : UserControl
         WebsiteControlPage.Initialize(_apiClient);
         SettingsPage.Initialize(_apiClient);
 
+        // UI-4 (2026-11-04): หน้าแรก - ปุ่มลัด 3 ปุ่มใช้ dialog เดิมจาก UI-3b ตรงๆ (เรียก handler เดิม
+        // ของแถบคำสั่ง Clients ซ้ำ ไม่มี logic ใหม่ - BroadcastMessageButton_Click/OpenExamModeButton_Click
+        // อ่าน ClientsGrid.SelectedItems เอง ถ้าไม่มีเครื่องถูกเลือกไว้ก็ fallback เป็น "ทั้งห้อง" อยู่แล้ว
+        // ตรงกับความหมายของปุ่มลัดบนหน้านี้พอดี)
+        HomePage.Initialize(_apiClient);
+        HomePage.LockWholeRoomRequested += async () => await LockWholeRoomAsync();
+        HomePage.SendMessageRequested += () => BroadcastMessageButton_Click(this, new RoutedEventArgs());
+        HomePage.ExamModeRequested += () => OpenExamModeButton_Click(this, new RoutedEventArgs());
+        HomePage.ViewRaiseHandQueueRequested += () => MainTabControl.SelectedItem = RaiseHandTabItem;
+
         // Esc ปิดแผงข้อมูลเครื่อง - ฟังแบบ handledEventsToo เพราะ DataGrid ที่ถือ focus อยู่อาจ mark
         // Esc ว่าจัดการแล้ว (ดู Window_KeyDown สำหรับกรณีที่ตั้งใจไม่แย่ง)
         AddHandler(KeyDownEvent, new KeyEventHandler(Window_KeyDown), handledEventsToo: true);
@@ -913,6 +923,39 @@ public partial class DashboardWindow : UserControl
     // ทางเข้า About ย้ายไปอยู่ท้ายหน้าตั้งค่า
 
     /// <summary>
+    /// UI-4 (2026-11-04): แถบคำสั่งของ Clients เคยมี 7 ปุ่มเต็มแถว (toggle + 6 action) จนล้นในจอเล็ก -
+    /// เหลือ 3 ปุ่มที่ใช้บ่อยสุดแสดงตรง (toggle enforcement / คำสั่งทั้งเครื่อง / ส่งข้อความ) ที่เหลือ
+    /// 4 ปุ่มย้ายเข้าเมนูนี้ - handler ของแต่ละรายการข้างใน (MoreActions_*_Click) แค่ปิด popup แล้วเรียก
+    /// handler เดิมต่อ (OpenExamModeButton_Click ฯลฯ) ไม่มี logic ใหม่ ลดความเสี่ยง regression
+    /// </summary>
+    private void ClientsMoreActionsButton_Click(object sender, RoutedEventArgs e) =>
+        ClientsMoreActionsPopup.IsOpen = true;
+
+    private void MoreActions_OpenExamMode_Click(object sender, RoutedEventArgs e)
+    {
+        ClientsMoreActionsPopup.IsOpen = false;
+        OpenExamModeButton_Click(sender, e);
+    }
+
+    private void MoreActions_OpenUrlProgram_Click(object sender, RoutedEventArgs e)
+    {
+        ClientsMoreActionsPopup.IsOpen = false;
+        OpenUrlProgramButton_Click(sender, e);
+    }
+
+    private void MoreActions_Files_Click(object sender, RoutedEventArgs e)
+    {
+        ClientsMoreActionsPopup.IsOpen = false;
+        FilesButton_Click(sender, e);
+    }
+
+    private void MoreActions_ScreenBroadcast_Click(object sender, RoutedEventArgs e)
+    {
+        ClientsMoreActionsPopup.IsOpen = false;
+        ScreenBroadcastButton_Click(sender, e);
+    }
+
+    /// <summary>
     /// ปุ่มเดียวใน DataGrid row - เปิด ActionPanelWindow โหมด single-client รวม action ทั้งหมดของ
     /// เครื่องนั้น (toggle/settings/lock-unlock/restart/shutdown/delete) แทนที่ ContextMenu เดิม
     /// เพื่อใช้ panel เดียวกับที่ปุ่ม ACTIONS แบบ bulk บน header เปิด (ดู BulkActionsButton_Click)
@@ -1292,6 +1335,10 @@ public partial class DashboardWindow : UserControl
 
             _inspectedClient = null;
             ClientInspector.Visibility = Visibility.Collapsed;
+            // UI-4 (2026-11-04): ClientInspector ย้ายไปแสดงผ่าน MainWindow.SidePanel (เต็มความสูงหน้าต่าง
+            // เหมือนแผงอื่นๆ แล้ว - ดู ShowClientInspectorInSidePanel) ปิดแผงจริงที่นี่ด้วย ไม่ใช่แค่ซ่อน
+            // Border ของตัวเองเฉยๆ แบบเดิม
+            (Window.GetWindow(this) as MainWindow)?.SidePanel.Close();
             UpdateToastOffset();
             return;
         }
@@ -1307,7 +1354,6 @@ public partial class DashboardWindow : UserControl
             return;
         }
 
-        var wasHidden = ClientInspector.Visibility != Visibility.Visible;
         _inspectedClient = client;
 
         InspectorMachineName.Text = client.MachineName;
@@ -1346,21 +1392,35 @@ public partial class DashboardWindow : UserControl
             : "ตามค่าเริ่มต้นของระบบ";
 
         ApplyInspectorCollapsedVisual();
+        ClientInspector.Visibility = Visibility.Visible;
 
-        if (wasHidden)
-        {
-            ClientInspector.Visibility = Visibility.Visible;
-
-            // สไลด์เข้าจากขวาสั้น ๆ เฉพาะตอนโผล่ครั้งแรก - คลิกเปลี่ยนเครื่องขณะแผงเปิดอยู่แล้ว
-            // แค่เปลี่ยนเนื้อหา ไม่เล่นซ้ำ (แผงที่ขยับทุกคลิกน่ารำคาญกว่ามีประโยชน์)
-            var ease = new CubicEase { EasingMode = EasingMode.EaseOut };
-            InspectorSlide.BeginAnimation(TranslateTransform.XProperty,
-                new DoubleAnimation(32, 0, TimeSpan.FromMilliseconds(180)) { EasingFunction = ease });
-            ClientInspector.BeginAnimation(OpacityProperty,
-                new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(150)));
-        }
+        // UI-4 (2026-11-04): ClientInspector ย้ายไปแสดงผ่าน MainWindow.SidePanel แทนการสไลด์เข้า/fade
+        // เองใน cell ของตาราง (ลบโค้ด animation เดิมที่ขยับ InspectorSlide/Opacity ของตัวเองไปด้วย -
+        // SidePanelHost เล่น slide-in ให้เองอยู่แล้วตอน Show() ครั้งแรก และ "ไม่เล่นซ้ำ" ถ้าสลับเครื่อง
+        // ขณะเปิดอยู่ - ดู SidePanelHost.Show) ผลคือได้แผงที่ยาวเต็มความสูงหน้าต่างเหมือนแผงอื่นๆ ทั้ง 5
+        // ตัว (ClientSettings/RunningProcesses/PendingCommands/RuleOverrides/ActionPanel) แทนที่จะถูกตัด
+        // อยู่แค่ในการ์ดเนื้อหาของแท็บ Clients แบบเดิม
+        ShowClientInspectorInSidePanel();
 
         UpdateToastOffset();
+    }
+
+    /// <summary>
+    /// UI-4 (2026-11-04): เปิด ClientInspector ผ่าน MainWindow.SidePanel (เต็มความสูงหน้าต่าง) - ไม่ใช้
+    /// ShowInSidePanel ตัวกลาง (ซึ่งตั้ง <see cref="_activeSidePanelReopen"/> ด้วย) เพราะ field นั้นมี
+    /// ไว้แทนความหมาย "sub-view ตัวหนึ่งจาก 5 ตัวเปิดอยู่แทน ClientInspector" โดยเฉพาะ - ถ้าตั้งให้
+    /// ClientInspector ด้วย โค้ดข้างบน (if (_activeSidePanelReopen is { } reopen)) จะเข้าใจผิดว่ามี
+    /// sub-view เปิดอยู่ทุกครั้งที่สลับเครื่องตอนแผงนี้แสดงอยู่
+    /// </summary>
+    private void ShowClientInspectorInSidePanel()
+    {
+        if (Window.GetWindow(this) is not MainWindow mainWindow)
+        {
+            return;
+        }
+
+        mainWindow.SidePanel.PanelWidth = ClientInspector.Width;
+        mainWindow.SidePanel.Show(ClientInspector);
     }
 
     private void ApplyInspectorCollapsedVisual()
@@ -1374,6 +1434,17 @@ public partial class DashboardWindow : UserControl
     {
         _inspectorCollapsed = collapsed;
         ApplyInspectorCollapsedVisual();
+
+        // UI-4 (2026-11-04): ความกว้างของ content ต้องตรงกับ PanelWidth ของ SidePanelHost เป๊ะ (ดู
+        // UI3C-FIX comment เดิมใน ShowInSidePanel) - sync ให้ตรงกันทุกครั้งที่หุบ/กาง เฉพาะตอนที่แผงกำลัง
+        // แสดง ClientInspector อยู่จริง (ไม่ใช่ sub-view อื่น ซึ่งไม่มีปุ่มหุบ/กางนี้อยู่แล้วในทางปฏิบัติ)
+        if (_activeSidePanelReopen is null
+            && Window.GetWindow(this) is MainWindow mainWindow
+            && mainWindow.SidePanel.IsOpen)
+        {
+            mainWindow.SidePanel.PanelWidth = ClientInspector.Width;
+        }
+
         UpdateToastOffset();
     }
 
@@ -1568,6 +1639,46 @@ public partial class DashboardWindow : UserControl
         var panel = new ActionPanelWindow(_apiClient, client);
         panel.Closed += () => OnActionPanelClosed(panel);
         ShowInSidePanel(panel, OpenActionPanelInSidePanel, panelWidth: 380);
+    }
+
+    /// <summary>
+    /// ปุ่มลัด "ล็อกทั้งห้อง" ของหน้าแรก (UI-4, 2026-11-04) - ถามข้อความทับก่อนด้วย dialog เดิมจาก UI-3b
+    /// (LockScreenMessageWindow) แล้วส่ง LockWorkstation ให้ "ทุกเครื่อง" ตรงๆ โดยไม่ต้องเลือกเครื่องก่อน
+    /// เหมือนที่ ActionPanelWindow.LockButton_Click ทำกับเครื่องเดียว/เครื่องที่เลือกไว้ - ต่างจากปุ่มนั้น
+    /// ตรงที่ไม่มีแผง ActionPanel มาเป็นตัวกลาง (เป้าหมายคงที่ = ทุกเครื่องเสมอ)
+    /// </summary>
+    private async System.Threading.Tasks.Task LockWholeRoomAsync()
+    {
+        var mainWindow = (MainWindow)Window.GetWindow(this)!;
+        var dialog = new LockScreenMessageWindow();
+        dialog.ResultChosen += r => mainWindow.DialogHost.CloseTop(r);
+        var confirmed = await mainWindow.DialogHost.ShowAsync<bool>(dialog);
+        if (!confirmed)
+        {
+            return;
+        }
+
+        if (_allClients.Count == 0)
+        {
+            ToastService.Error("ไม่มีเครื่องให้ล็อก");
+            return;
+        }
+
+        var successCount = 0;
+        foreach (var client in _allClients)
+        {
+            var success = await _apiClient.SendCommandAsync(client.ClientGuid, "LockWorkstation", new { message = dialog.Message });
+            if (success) successCount++;
+        }
+
+        if (successCount == _allClients.Count)
+        {
+            ToastService.Success($"ล็อกจอแล้ว {successCount} เครื่อง");
+        }
+        else
+        {
+            ToastService.Error($"ล็อกจอสำเร็จ {successCount}/{_allClients.Count} เครื่อง - เครื่องที่เหลืออาจออฟไลน์");
+        }
     }
 
     private async void BroadcastMessageButton_Click(object sender, RoutedEventArgs e)
