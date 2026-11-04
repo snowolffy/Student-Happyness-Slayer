@@ -292,7 +292,8 @@ public partial class App : Application
                 "teacher-broadcast-border" => new TeacherBroadcastBorderWindow(),
                 // แผงเครื่องมือเขียน - สร้าง canvas เปล่าไว้ให้ toolbar อ้างถึง (ไม่โชว์ canvas เองในภาพนี้
                 // เพราะพื้นหลัง transparent ทั้งจอไม่มีอะไรให้ดูต่างจากพื้นหลัง - ถ่ายแค่ toolbar)
-                "teacher-draw-toolbar" => new TeacherDrawToolbarWindow(new TeacherDrawCanvasWindow()),
+                // UI-9 (2026-11-04): constructor เพิ่ม ScreenCaptureService (ส่วนซูม) - harness นี้ไม่ต้อง capture จริงก็สร้างอินสแตนซ์เปล่าได้ (แค่เก็บไว้ให้ toolbox อ่าน/ตั้งค่า ยังไม่ Start())
+                "teacher-draw-toolbar" => new TeacherDrawToolbarWindow(new TeacherDrawCanvasWindow(), new Services.ScreenCaptureService()),
                 _ => null
             };
 

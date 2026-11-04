@@ -28,9 +28,13 @@ public partial class TeacherDrawToolbarWindow : Window
 
     public TeacherDrawToolbarWindow(TeacherDrawCanvasWindow canvas, ScreenCaptureService captureService)
     {
-        InitializeComponent();
+        // ต้องตั้งค่า field ก่อนเรียก InitializeComponent() เสมอ - บั๊กจริงที่เจอตอนทดสอบด้วย harness
+        // input จริง 4 พ.ย.: XAML ตั้ง ZoomSlider Value="3" ตรงๆ ซึ่งทำให้ ZoomSlider_ValueChanged ถูกยิง
+        // แบบ synchronous ขณะ parse XAML (ก่อน InitializeComponent() คืนค่าด้วยซ้ำ) ถ้า _captureService
+        // ยังเป็น null อยู่ตอนนั้นจะได้ NullReferenceException ทันทีที่เปิดกล่องเครื่องมือ
         _canvas = canvas;
         _captureService = captureService;
+        InitializeComponent();
         _toolButtons = new List<ToggleButton> { PencilButton, MouseButton, HighlighterButton, EraserButton };
 
         var insertIndex = 0;
@@ -203,6 +207,15 @@ public partial class TeacherDrawToolbarWindow : Window
     private void ZoomSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
     {
         _captureService.ZoomLevel = e.NewValue;
+
+        // บั๊กจริงที่เจอตอนทดสอบด้วย harness input จริง 4 พ.ย.: XAML ตั้ง ZoomSlider Value="3" ตรงๆ ซึ่ง
+        // ยิง ValueChanged นี้แบบ synchronous ขณะ parse XAML - ตอนนั้น ZoomNumberBox (อยู่ถัดไปใน markup)
+        // ยังไม่ถูกเชื่อม field เลย (เป็น null) ต้องเช็คก่อนใช้
+        if (ZoomNumberBox is null)
+        {
+            return;
+        }
+
         if (!_suppressSliderEvent)
         {
             _suppressSliderEvent = true;
