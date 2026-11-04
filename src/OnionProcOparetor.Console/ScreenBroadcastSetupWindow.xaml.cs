@@ -14,6 +14,9 @@ public sealed class ScreenBroadcastSession
     public required string? TeacherDisplayName { get; init; }
     public int SuccessCount { get; init; }
     public int FailCount { get; init; }
+
+    /// <summary>UI-9 (2026-11-04): ชื่อห้องที่ส่งไป (null = ส่งแบบ "เครื่องที่เลือกไว้" ไม่ใช่ทั้งห้อง) - ใช้แสดงในแถบ "กำลังส่งจอ · ห้อง · N เครื่อง" ตอนหุบ</summary>
+    public string? RoomName { get; init; }
 }
 
 /// <summary>
@@ -164,7 +167,8 @@ public partial class ScreenBroadcastSetupWindow : UserControl
             ViewerMode = viewerMode,
             TeacherDisplayName = teacherDisplayName,
             SuccessCount = successCount,
-            FailCount = targets.Count - successCount
+            FailCount = targets.Count - successCount,
+            RoomName = useRoom && RoomCombo.SelectedItem is RoomDto selectedRoom ? selectedRoom.Name : null
         };
 
         ResultChosen?.Invoke(true);

@@ -7,6 +7,15 @@ using OnionProcOparetor.Console.Services;
 
 namespace OnionProcOparetor.Console;
 
+/// <summary>UI-9 (2026-11-04): เครื่องมือในกล่องเครื่องมือเขียนบนจอครู - ใช้ระบุว่า slider "ปรับขนาดเส้น" กำลังแก้เครื่องมือไหน</summary>
+public enum DrawTool
+{
+    Pen,
+    Mouse,
+    Highlighter,
+    Eraser
+}
+
 /// <summary>
 /// คำขอเพิ่ม 3 พ.ย. 2569 - แผ่นใสเขียนบนจอครู (ดู doc comment ใน .xaml) เจ้าของอายุ:
 /// BroadcastWarningBarWindow (สร้างพร้อมกรอบแดงตอนเริ่มส่ง ปิดตอนหยุดส่ง)
@@ -57,23 +66,81 @@ public partial class TeacherDrawCanvasWindow : Window
         TeacherOnlyWindowHelper.SetClickThrough(this, clickThrough: !drawMode);
     }
 
+    /// <summary>UI-9 (2026-11-04): ขนาดเส้นปากกา/ไฮไลต์ล่าสุดที่ตั้งไว้ (DIP) - toolbox อ่าน/เขียนผ่าน slider "ปรับขนาดเส้นได้" จำค่าไว้คนละชุดกับไฮไลต์เพราะขนาดปกติต่างกันมาก (ปากกาเล็ก/ไฮไลต์หนา)</summary>
+    public double PenWidth { get; private set; } = 4;
+
+    /// <summary>UI-9 (2026-11-04): ขนาดไฮไลต์ล่าสุด แยกจาก PenWidth - ดูเหตุผลที่ PenWidth</summary>
+    public double HighlighterWidth { get; private set; } = 24;
+
+    /// <summary>UI-9 (2026-11-04): ขนาดยางลบล่าสุด - WPF InkCanvas ไม่มี property ปรับขนาด EraseByPoint ตรงๆ จึงจำลองด้วยการสลับไป EraseByStroke (ลบทั้งเส้น) เมื่อตั้งขนาดใหญ่เกิน EraseByStrokeThreshold (ดู ApplyEraserTool)</summary>
+    public double EraserWidth { get; private set; } = 10;
+
+    private const double EraseByStrokeThreshold = 24;
+
+    private bool _isHighlighterTool;
+    private Color _currentColor;
+
     public void ApplyPenTool(Color color, bool isHighlighter)
     {
+        _isHighlighterTool = isHighlighter;
+        _currentColor = color;
+
+        var width = isHighlighter ? HighlighterWidth : PenWidth;
         Canvas.EditingMode = InkCanvasEditingMode.Ink;
         Canvas.DefaultDrawingAttributes = new DrawingAttributes
         {
             Color = color,
-            Width = isHighlighter ? 24 : 4,
-            Height = isHighlighter ? 24 : 4,
+            Width = width,
+            Height = width,
             IsHighlighter = isHighlighter,
             StylusTip = isHighlighter ? StylusTip.Rectangle : StylusTip.Ellipse,
             FitToCurve = true
         };
     }
 
+    /// <summary>
+    /// UI-9 (2026-11-04): ปรับขนาดเส้นของเครื่องมือที่กำลังเลือกอยู่ (ปากกา/ไฮไลต์/ยางลบ) จาก slider
+    /// ในกล่องเครื่องมือ - "ปรับขนาดเส้นได้ (ปากกา/ไฮไลต์/ยางลบ)" ตามที่ตัดสินไว้ใน roadmap UI-9
+    /// </summary>
+    public void SetToolWidth(DrawTool tool, double width)
+    {
+        switch (tool)
+        {
+            case DrawTool.Pen:
+                PenWidth = width;
+                if (!_isHighlighterTool && Canvas.EditingMode == InkCanvasEditingMode.Ink)
+                {
+                    ApplyPenTool(_currentColor, isHighlighter: false);
+                }
+                break;
+            case DrawTool.Highlighter:
+                HighlighterWidth = width;
+                if (_isHighlighterTool && Canvas.EditingMode == InkCanvasEditingMode.Ink)
+                {
+                    ApplyPenTool(_currentColor, isHighlighter: true);
+                }
+                break;
+            case DrawTool.Eraser:
+                EraserWidth = width;
+                if (Canvas.EditingMode is InkCanvasEditingMode.EraseByPoint or InkCanvasEditingMode.EraseByStroke)
+                {
+                    ApplyEraserTool();
+                }
+                break;
+        }
+    }
+
+    /// <summary>
+    /// UI-9 (2026-11-04) - WPF InkCanvas ไม่เปิด public API ให้ปรับขนาดพื้นที่ลบของ EraseByPoint ตรงๆ
+    /// (ขนาดคงที่ตาม default ของ Windows) จึงจำลอง "ยางลบใหญ่ขึ้น" ด้วยการสลับไปโหมด EraseByStroke
+    /// (คลิก/ลากทับเส้นไหนก็ลบทั้งเส้นนั้นเลย) เมื่อตั้งขนาดเกิน EraseByStrokeThreshold - ขนาดเล็กกว่านั้น
+    /// ยังใช้ EraseByPoint (ลบเฉพาะจุดที่ทับ) ตามเดิม
+    /// </summary>
     public void ApplyEraserTool()
     {
-        Canvas.EditingMode = InkCanvasEditingMode.EraseByPoint;
+        Canvas.EditingMode = EraserWidth >= EraseByStrokeThreshold
+            ? InkCanvasEditingMode.EraseByStroke
+            : InkCanvasEditingMode.EraseByPoint;
     }
 
     public void ClearAll()
