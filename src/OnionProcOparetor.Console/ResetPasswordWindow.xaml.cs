@@ -1,10 +1,15 @@
-﻿using System.Windows;
+﻿using System;
+using System.Windows;
+using System.Windows.Controls;
 using OnionProcOparetor.Console.Services;
 
 namespace OnionProcOparetor.Console;
 
-public partial class ResetPasswordWindow : Window
+public partial class ResetPasswordWindow : UserControl
 {
+    /// <summary>UI-3b (2026-11-03): true = ตั้งรหัสผ่านใหม่แล้ว (อ่าน NewPassword ต่อ) false = ยกเลิก</summary>
+    public event Action<bool>? ResultChosen;
+
     public string? NewPassword { get; private set; }
 
     public ResetPasswordWindow(string username)
@@ -26,13 +31,11 @@ public partial class ResetPasswordWindow : Window
         }
 
         NewPassword = password;
-        DialogResult = true;
-        Close();
+        ResultChosen?.Invoke(true);
     }
 
     private void CancelButton_Click(object sender, RoutedEventArgs e)
     {
-        DialogResult = false;
-        Close();
+        ResultChosen?.Invoke(false);
     }
 }

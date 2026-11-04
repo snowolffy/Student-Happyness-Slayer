@@ -172,6 +172,22 @@ public partial class App : Application
                 LastSeenAt = DateTime.UtcNow
             };
 
+            // UI-3b (2026-11-03): BroadcastMessageWindow/AddEditRuleWindow/ChangeMyPasswordWindow/
+            // ResetPasswordWindow/EditDisplayNameWindow/ChangeUserRoleWindow/ExamModeWindow/
+            // OpenUrlWindow/ScreenBroadcastSetupWindow กลายเป็น UserControl ที่ฝังใน DialogHost จริงของ
+            // MainWindow แล้ว - harness นี้แค่ต้องการถ่ายภาพ chrome เฉยๆ เลยห่อด้วย Window เปล่าแบบ
+            // เดียวกับที่ "force-password" ทำกับ ForceChangePasswordWindow (UI-3a) ไม่ต้องพึ่ง
+            // DialogHost จริงสำหรับภาพนิ่งแบบนี้
+            Window WrapAsDialog(string title, FrameworkElement content) => new()
+            {
+                Title = title,
+                SizeToContent = SizeToContent.WidthAndHeight,
+                WindowStartupLocation = WindowStartupLocation.CenterScreen,
+                ResizeMode = ResizeMode.NoResize,
+                Style = (Style)Current.FindResource("AppDialogWindow"),
+                Content = content,
+            };
+
             Window? dialog = dialogArg["--dialog=".Length..] switch
             {
                 // หน้า login เป็นหน้าต่างแรกที่ครูเห็น จึงต้องตรวจเหมือนหน้าต่างอื่น - StartupUri จะ
@@ -181,9 +197,9 @@ public partial class App : Application
                 "confirm" => ConfirmWindow.CreatePreview(typeToConfirm: false),
                 "confirm-type" => ConfirmWindow.CreatePreview(typeToConfirm: true),
                 "about" => new AboutWindow(),
-                "broadcast" => new BroadcastMessageWindow(3),
-                "add-rule" => new AddEditRuleWindow(api),
-                "change-password" => new ChangeMyPasswordWindow(api),
+                "broadcast" => WrapAsDialog("Broadcast Message", new BroadcastMessageWindow(3)),
+                "add-rule" => WrapAsDialog("Rule", new AddEditRuleWindow(api)),
+                "change-password" => WrapAsDialog("Onion ProcOparetor Console - เปลี่ยน Password", new ChangeMyPasswordWindow(api)),
                 // UI-3a (2026-11-03): ForceChangePasswordWindow กลายเป็น UserControl แล้ว (ฝังใน
                 // DialogHost จริงของ MainWindow) - harness นี้แค่ต้องการถ่ายภาพ chrome เฉยๆ เลยห่อด้วย
                 // Window เปล่าแบบเดียวกับที่ ConfirmWindow.xaml ทำกับ ConfirmDialogContent ไม่ต้องพึ่ง
@@ -197,10 +213,10 @@ public partial class App : Application
                     Style = (Style)Current.FindResource("AppDialogWindow"),
                     Content = new ForceChangePasswordWindow(api) { Margin = new Thickness(24) },
                 },
-                "reset-password" => new ResetPasswordWindow("teacher01"),
+                "reset-password" => WrapAsDialog("Reset Password", new ResetPasswordWindow("teacher01")),
                 // WP4b (2026-10-30)
-                "edit-display-name" => new EditDisplayNameWindow("teacher01", "ครูสมชาย"),
-                "change-role" => new ChangeUserRoleWindow("teacher01", "Teacher"),
+                "edit-display-name" => WrapAsDialog("แก้ชื่อที่แสดง", new EditDisplayNameWindow("teacher01", "ครูสมชาย")),
+                "change-role" => WrapAsDialog("เปลี่ยน Role", new ChangeUserRoleWindow("teacher01", "Teacher")),
                 // WP1b (2026-10-30) - thumbprint/subject/issuer ปลอมล้วนๆ แค่ไว้ถ่ายภาพ chrome ของ
                 // หน้าต่าง ไม่ได้ต่อ server จริง
                 "trust-cert" => new TrustCertificateWindow(
@@ -224,13 +240,13 @@ public partial class App : Application
                 "rule-overrides" => WrapAsPreviewWindow(new RuleOverridesWindow(api, sampleClient)),
                 // WP2-2 (2026-10-31) - โหลดชุด Allow-list จาก Server จริง (ApiClient ยังไม่ login ใน
                 // โหมดนี้) แต่ LoadPresetsAsync จับ exception ไว้แล้วไม่พัง (ดู ExamModeWindow.xaml.cs)
-                "exam-mode" => new ExamModeWindow(
-                    api, [sampleClient], [new Models.RoomDto { Id = 1, Name = "ห้องคอม 1", ClientCount = 40 }], currentRoomFilterId: 1),
+                "exam-mode" => WrapAsDialog("เปิดโหมดสอบ", new ExamModeWindow(
+                    api, [sampleClient], [new Models.RoomDto { Id = 1, Name = "ห้องคอม 1", ClientCount = 40 }], currentRoomFilterId: 1)),
                 // WP4-1 (2026-11-01) - เหมือน exam-mode เป๊ะๆ (ดู comment ด้านบน): โหลดรายการโปรแกรมจาก
                 // Server จริงไม่สำเร็จเพราะ ApiClient ยังไม่ login แต่ LoadProgramsAsync จับ exception
                 // ไว้แล้ว ไม่พัง (ดู OpenUrlWindow.xaml.cs)
-                "open-url" => new OpenUrlWindow(
-                    api, [sampleClient], [sampleClient], [new Models.RoomDto { Id = 1, Name = "ห้องคอม 1", ClientCount = 40 }], currentRoomFilterId: 1),
+                "open-url" => WrapAsDialog("เปิดให้ทั้งห้อง", new OpenUrlWindow(
+                    api, [sampleClient], [sampleClient], [new Models.RoomDto { Id = 1, Name = "ห้องคอม 1", ClientCount = 40 }], currentRoomFilterId: 1)),
                 // WP4-3 (2026-11-01) - เหมือน open-url เป๊ะๆ (ดู comment ด้านบน): ApiClient ยังไม่ login
                 // แต่ GetFileTransferSettingsAsync จับ exception ไว้แล้ว ไม่พัง (คืน default 100 MB)
                 "files" => WrapAsPreviewWindow(new FilesWindow(
@@ -256,8 +272,8 @@ public partial class App : Application
                 // "ส่งจอครู" (WP4-4, 2026-11-01) - เหมือน open-url/exam-mode: เรียก API จริงไม่สำเร็จ
                 // เพราะ ApiClient ยังไม่ login แต่ไม่พัง (ไม่มี async load ตอนเปิดหน้าต่างเหมือนสองอันนั้น
                 // อยู่แล้ว - โหลดแค่ room/client ที่ส่งเข้ามาตรงๆ)
-                "screen-broadcast-setup" => new ScreenBroadcastSetupWindow(
-                    api, [sampleClient], [sampleClient], [new Models.RoomDto { Id = 1, Name = "ห้องคอม 1", ClientCount = 40 }], currentRoomFilterId: 1),
+                "screen-broadcast-setup" => WrapAsDialog("ส่งจอครู", new ScreenBroadcastSetupWindow(
+                    api, [sampleClient], [sampleClient], [new Models.RoomDto { Id = 1, Name = "ห้องคอม 1", ClientCount = 40 }], currentRoomFilterId: 1)),
                 // แถบแดง (ขั้นตอน 2) - session ปลอมไม่มีเครื่องจริงให้ส่ง StopScreenBroadcast ถึง (ไม่
                 // เป็นไร - clientGuid ปลอมแค่ได้ 404/timeout จาก Server ปลอม ไม่ throw) Loaded จะเริ่ม
                 // capture จอจริงของเครื่อง dev ตามปกติ แต่ไม่กระทบภาพที่ถ่าย (ถ่ายแค่ chrome ของแถบแดงเอง)

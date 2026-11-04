@@ -1,10 +1,18 @@
-﻿using System.Windows;
+﻿using System;
+using System.Windows;
+using System.Windows.Controls;
 using OnionProcOparetor.Console.Services;
 
 namespace OnionProcOparetor.Console;
 
-public partial class BroadcastMessageWindow : Window
+/// <summary>UI-3b (2026-11-03): แปลงเป็น UserControl ฝังใน DialogHost ของ MainWindow (ดู
+/// DashboardWindow.BroadcastMessageButton_Click) - logic เดิมเหมือนเก่าทุกอย่าง เปลี่ยนแค่วิธีรายงานผล
+/// กลับจาก Window.DialogResult+Close() เป็น event ResultChosen</summary>
+public partial class BroadcastMessageWindow : UserControl
 {
+    /// <summary>true = กดส่งข้อความสำเร็จ (อ่านผลจาก MessageTitle/MessageText/SendToAll ต่อ) false = ยกเลิก</summary>
+    public event Action<bool>? ResultChosen;
+
     public string MessageTitle { get; private set; } = string.Empty;
     public string MessageText { get; private set; } = string.Empty;
     public bool SendToAll { get; private set; }
@@ -41,13 +49,11 @@ public partial class BroadcastMessageWindow : Window
         MessageText = message;
         SendToAll = SendToAllRadio.IsChecked == true;
 
-        DialogResult = true;
-        Close();
+        ResultChosen?.Invoke(true);
     }
 
     private void CancelButton_Click(object sender, RoutedEventArgs e)
     {
-        DialogResult = false;
-        Close();
+        ResultChosen?.Invoke(false);
     }
 }

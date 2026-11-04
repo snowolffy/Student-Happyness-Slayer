@@ -1,17 +1,13 @@
-<Window x:Class="OnionProcOparetor.Console.ExamModeWindow"
+<UserControl x:Class="OnionProcOparetor.Console.ExamModeWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="เปิดโหมดสอบ"
-        Width="640"
-        SizeToContent="Height"
-        WindowStartupLocation="CenterOwner"
-        ResizeMode="NoResize"
-        Icon="/Theme/icon.ico"
-        Style="{StaticResource AppDialogWindow}">
+        xmlns:controls="clr-namespace:OnionProcOparetor.UI.Controls;assembly=OnionProcOparetor.UI">
     <!-- "เปิดโหมดสอบ" (WP2-2, 2026-10-31) - ตาม wireframe nf-exam.dc.html (เลย์เอาต์ปรับเป็นคอลัมน์
          เดียวให้เข้ากับรูปแบบ dialog อื่นๆ ของแอปนี้ ซึ่งเป็น StackPanel แนวตั้งเสมอ ไม่ใช่ grid 2 คอลัมน์
          เหมือนใน wireframe - จุดต่างที่ตั้งใจ ไม่ใช่จุดพลาด) เปิดจากปุ่ม "เปิดโหมดสอบ" บนแถบคำสั่งของ
-         Clients (ดู DashboardWindow.OpenExamModeButton_Click) -->
+         Clients (ดู DashboardWindow.OpenExamModeButton_Click) UI-3b (2026-11-03): แปลงจาก Window
+         เป็น UserControl ฝังใน DialogHost ของ MainWindow -->
+    <Border Style="{StaticResource Card}" Width="640">
     <StackPanel Margin="20" MaxHeight="640">
         <TextBlock Text="เปิดโหมดสอบ" Style="{StaticResource Heading2}"/>
         <TextBlock Text="ทุกเว็บถูกบล็อก ยกเว้นที่เลือกไว้ข้างล่าง · โปรแกรมยังโดนกฎเดิมตามปกติ"
@@ -71,7 +67,8 @@
             <Button Content="ยกเลิก" Style="{StaticResource ButtonSecondary}"
                     Padding="10,5" FontSize="11" HorizontalAlignment="Right" Margin="0,0,120,0" Click="CancelButton_Click"/>
             <Button x:Name="StartButton" Content="เริ่มโหมดสอบ" Style="{StaticResource ButtonPrimary}"
-                    HorizontalAlignment="Right" Click="StartButton_Click"/>
+                    HorizontalAlignment="Right" Click="StartButton_Click" controls:DialogHost.IsDefaultButton="True"/>
         </Grid>
     </StackPanel>
-</Window>
+    </Border>
+</UserControl>

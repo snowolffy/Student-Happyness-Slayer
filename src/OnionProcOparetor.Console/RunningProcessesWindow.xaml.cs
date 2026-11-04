@@ -201,14 +201,19 @@ public partial class RunningProcessesWindow : UserControl
         }
     }
 
-    private void CreateRuleButton_Click(object sender, RoutedEventArgs e)
+    private async void CreateRuleButton_Click(object sender, RoutedEventArgs e)
     {
         try
         {
             if (sender is Button { Tag: RunningProcessDto process })
             {
-                var dialog = new AddEditRuleWindow(_apiClient, process) { Owner = Window.GetWindow(this) };
-                if (dialog.ShowDialog() == true)
+                // UI-3b/3c (2026-11-03): AddEditRuleWindow กลายเป็น UserControl แล้ว (UI-3b) และ
+                // RunningProcessesWindow เองก็กลายเป็น UserControl ที่ฝังใน SidePanelHost ของ
+                // MainWindow แล้ว (UI-3c) - Window.GetWindow(this) จึงแก้ไปที่ MainWindow เสมอ แปลว่า
+                // dialog นี้เปิดทับบน SidePanelHost ได้จริงผ่าน DialogHost (z-order สูงสุด) ไม่ต้องใช้
+                // fallback Window ลอยอีกต่อไป
+                var dialog = new AddEditRuleWindow(_apiClient, process);
+                if (await AddEditRuleWindow.ShowViaHost(Window.GetWindow(this), dialog))
                 {
                     StatusText.Text = $"สร้างกฎจาก '{process.ProcessName}' สำเร็จ - ดูได้ที่แท็บ RULES";
                 }

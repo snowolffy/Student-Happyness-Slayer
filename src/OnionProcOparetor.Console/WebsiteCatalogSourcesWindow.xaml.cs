@@ -44,8 +44,12 @@ public partial class WebsiteCatalogSourcesWindow : UserControl
 
     private async void AddSourceButton_Click(object sender, RoutedEventArgs e)
     {
-        var dialog = new AddEditWebsiteCatalogSourceWindow(_apiClient) { Owner = Window.GetWindow(this) };
-        if (dialog.ShowDialog() == true)
+        // UI-3b/3c (2026-11-03): AddEditWebsiteCatalogSourceWindow กลายเป็น UserControl แล้ว (UI-3b)
+        // และ WebsiteCatalogSourcesWindow เองก็กลายเป็น UserControl ที่ฝังใน DialogHost ของ
+        // MainWindow แล้ว (UI-3c, เป็น "dialog ใหญ่") - Window.GetWindow(this) จึงแก้ไปที่ MainWindow
+        // เสมอ dialog นี้จึงเปิดซ้อนทับผ่าน DialogHost ได้จริง (stack ได้ - ดู DialogHost.Push)
+        var dialog = new AddEditWebsiteCatalogSourceWindow(_apiClient);
+        if (await AddEditWebsiteCatalogSourceWindow.ShowViaHost(Window.GetWindow(this), dialog))
         {
             StatusText.Text = "เพิ่ม source สำเร็จ";
             await RefreshAsync();
@@ -56,8 +60,8 @@ public partial class WebsiteCatalogSourcesWindow : UserControl
     {
         if (sender is Button { Tag: WebsiteCatalogSourceDto source })
         {
-            var dialog = new AddEditWebsiteCatalogSourceWindow(_apiClient, source) { Owner = Window.GetWindow(this) };
-            if (dialog.ShowDialog() == true)
+            var dialog = new AddEditWebsiteCatalogSourceWindow(_apiClient, source);
+            if (await AddEditWebsiteCatalogSourceWindow.ShowViaHost(Window.GetWindow(this), dialog))
             {
                 StatusText.Text = "แก้ไข source สำเร็จ";
                 await RefreshAsync();

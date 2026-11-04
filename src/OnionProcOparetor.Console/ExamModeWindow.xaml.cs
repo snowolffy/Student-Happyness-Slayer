@@ -1,3 +1,4 @@
+using System;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
@@ -21,8 +22,11 @@ public sealed class ExamPresetSelection
 /// ไปสั่งต่อ (ต่างจาก BroadcastMessageWindow) เพราะต้องโหลดชุด Allow-list จาก Server ก่อนแสดงผลอยู่แล้ว
 /// (async ตั้งแต่เปิดหน้าต่าง) เพิ่ม "ยิง start" เข้าไปในที่เดียวกันจึงเป็นธรรมชาติกว่า
 /// </summary>
-public partial class ExamModeWindow : Window
+public partial class ExamModeWindow : UserControl
 {
+    /// <summary>UI-3b (2026-11-03): true = เริ่มโหมดสอบสำเร็จ (อ่าน StartedSession ต่อ) false = ยกเลิก</summary>
+    public event Action<bool>? ResultChosen;
+
     private readonly ApiClient _apiClient;
     private readonly List<ClientMachineDto> _selectedClients;
     private readonly List<RoomDto> _allRooms;
@@ -209,8 +213,7 @@ public partial class ExamModeWindow : Window
             }
 
             StartedSession = result;
-            DialogResult = true;
-            Close();
+            ResultChosen?.Invoke(true);
         }
         catch (Exception)
         {
@@ -227,7 +230,6 @@ public partial class ExamModeWindow : Window
 
     private void CancelButton_Click(object sender, RoutedEventArgs e)
     {
-        DialogResult = false;
-        Close();
+        ResultChosen?.Invoke(false);
     }
 }

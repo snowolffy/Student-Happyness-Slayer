@@ -1,4 +1,6 @@
+using System;
 using System.Windows;
+using System.Windows.Controls;
 using OnionProcOparetor.Console.Models;
 using OnionProcOparetor.Console.Services;
 
@@ -22,8 +24,11 @@ public sealed class ScreenBroadcastSession
 /// แบบ OpenUrlWindow) เพราะต้องรอผล "ส่ง command ถึงกี่เครื่อง" ก่อนตัดสินใจว่าจะเปิดแถบแดง (ขั้นตอน 2)
 /// ต่อไหม - ถ้าส่งไม่ถึงเครื่องไหนเลยก็ไม่ควรเริ่ม capture หน้าจอเปล่าๆ
 /// </summary>
-public partial class ScreenBroadcastSetupWindow : Window
+public partial class ScreenBroadcastSetupWindow : UserControl
 {
+    /// <summary>UI-3b (2026-11-03): true = เริ่มส่งจอสำเร็จอย่างน้อย 1 เครื่อง (อ่าน StartedSession ต่อ) false = ยกเลิก</summary>
+    public event Action<bool>? ResultChosen;
+
     private readonly ApiClient _apiClient;
     private readonly List<ClientMachineDto> _selectedClients;
     private readonly List<ClientMachineDto> _allClients;
@@ -162,8 +167,7 @@ public partial class ScreenBroadcastSetupWindow : Window
             FailCount = targets.Count - successCount
         };
 
-        DialogResult = true;
-        Close();
+        ResultChosen?.Invoke(true);
     }
 
     private void SetStatus(string message, bool isError)
@@ -174,7 +178,6 @@ public partial class ScreenBroadcastSetupWindow : Window
 
     private void CancelButton_Click(object sender, RoutedEventArgs e)
     {
-        DialogResult = false;
-        Close();
+        ResultChosen?.Invoke(false);
     }
 }
