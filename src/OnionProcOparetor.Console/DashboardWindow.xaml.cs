@@ -4210,9 +4210,78 @@ public partial class DashboardWindow : UserControl
         //
         // UI-2 (2026-11-03): Dashboard เป็น UserControl ไม่ใช่ Window แล้ว เลยต้องถาม Window บรรพบุรุษ
         // (MainWindow) ว่า active อยู่ไหมแทนการเช็ค IsActive ของตัวเอง
-        if (Window.GetWindow(this) is not { IsActive: true })
+        if (Window.GetWindow(this) is not { IsActive: true } activeWindow)
         {
             return;
+        }
+
+        // UI-12 (2026-11-05): ทดสอบบน Hyper-V - ปุ่มในแผง "คำสั่ง..." (SidePanelHost) และ dialog (DialogHost)
+        // กดไม่ได้ตอนดูเต็มจอ เพราะทั้งสองอยู่ใน MainWindow "นอก" overlay นี้: คลิกปุ่มในแผง = focus ย้ายเข้าแผง ->
+        // handler นี้ดึง focus กลับ overlay ทันที -> ButtonBase เสีย focus ระหว่างกดค้าง (ยกเลิกการกด) ปุ่มจึงไม่ทำงาน
+        // และถ้าพิมพ์ในช่องของแผง ตัว key จะไหลเข้า overlay แล้วถูกส่งไปเครื่องนักเรียนด้วย (ForwardFullscreenKeyEvent)
+        // => ถ้า focus ไปอยู่ในสองโฮสต์นี้ ห้ามดึงกลับ (keys ไม่ถูกส่งต่อเพราะ PreviewKeyDown ผูกที่ overlay เท่านั้น)
+        // และรอให้ focus ออกจากโฮสต์ (แผง/dialog ปิด) แล้วค่อยคืน focus ให้ overlay
+        if (activeWindow is MainWindow main)
+        {
+            static bool IsInside(DependencyObject? node, DependencyObject host)
+            {
+                while (node is not null)
+                {
+                    if (ReferenceEquals(node, host))
+                    {
+                        return true;
+                    }
+
+                    // popup (เช่น dropdown ของ ComboBox ในแผง) อยู่คนละ visual tree ต้องไต่ต่อผ่าน logical parent
+                    node = (node is Visual or System.Windows.Media.Media3D.Visual3D ? VisualTreeHelper.GetParent(node) : null)
+                        ?? LogicalTreeHelper.GetParent(node);
+                }
+
+                return false;
+            }
+
+            FrameworkElement[] hosts = [main.SidePanel, main.DialogHost];
+            var focused = Keyboard.FocusedElement as DependencyObject;
+            var host = hosts.FirstOrDefault(h => IsInside(focused, h));
+            if (host is not null)
+            {
+                // คืน focus ให้ overlay หลัง focus ออกจากทั้งแผงและ dialog (ปิดแผง/dialog) - ถ้า focus แค่ย้ายจากโฮสต์หนึ่ง
+                // ไปอีกโฮสต์ (เช่น เปิด dialog จากในแผง) ให้เปลี่ยนไปเฝ้าโฮสต์ใหม่แทน ไม่ดึงกลับ
+                void Watch(FrameworkElement watched)
+                {
+                    DependencyPropertyChangedEventHandler? leave = null;
+                    leave = (_, args) =>
+                    {
+                        if (args.NewValue is true)
+                        {
+                            return;
+                        }
+
+                        watched.IsKeyboardFocusWithinChanged -= leave;
+                        Dispatcher.InvokeAsync(() =>
+                        {
+                            if (_liveViewFullscreenClientGuid is null
+                                || LiveViewFullscreenOverlay.IsKeyboardFocusWithin
+                                || !activeWindow.IsActive)
+                            {
+                                return; // ออกจาก fullscreen แล้ว / overlay ได้ focus เองแล้ว / ผู้ใช้ไปหน้าต่างอื่น
+                            }
+
+                            if (hosts.FirstOrDefault(h => h.IsKeyboardFocusWithin) is { } next)
+                            {
+                                Watch(next);
+                                return;
+                            }
+
+                            Keyboard.Focus(LiveViewFullscreenOverlay);
+                        }, DispatcherPriority.Input);
+                    };
+                    watched.IsKeyboardFocusWithinChanged += leave;
+                }
+
+                Watch(host);
+                return;
+            }
         }
 
         Dispatcher.InvokeAsync(() => Keyboard.Focus(LiveViewFullscreenOverlay), DispatcherPriority.Input);
