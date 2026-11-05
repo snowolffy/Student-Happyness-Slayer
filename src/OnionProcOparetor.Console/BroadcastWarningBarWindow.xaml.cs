@@ -72,7 +72,9 @@ public partial class BroadcastWarningBarWindow : Window
         _labHubClient = labHubClient;
         _session = session;
 
-        Left = 16;
+        // UI-11: เริ่มนอกจอ (ไม่ใช่ 16) - ขนาดจริงยังไม่รู้จนกว่า layout แรกจะเสร็จ ถ้าโผล่ที่มุมซ้ายบนก่อนจะเห็นเป็นสี่เหลี่ยมแดง
+        // Loaded จะ force layout + ตัดมุม + จัดกึ่งกลางก่อนย้ายเข้าจอ
+        Left = -32000;
         Top = FullTop;
         Height = FullHeight;
 
@@ -107,6 +109,12 @@ public partial class BroadcastWarningBarWindow : Window
         {
             // เริ่มที่สถานะเต็ม (เหมือนพฤติกรรมเดิมก่อนมีปุ่มหุบ) จัดกึ่งกลางด้านบนจอหลัก
             SetExpandedImmediate(!PreviewStartCollapsed);
+
+            // UI-11: SizeChanged ไม่ยิงแน่นอนสำหรับ layout แรก - บังคับ layout เอง แล้วตัดมุม+จัดกลางทันที
+            InvalidateMeasure();
+            UpdateLayout();
+            TeacherOnlyWindowHelper.ApplyRoundedRegion(this, 10);
+            RecenterHorizontally();
 
             _borderWindow = new TeacherBroadcastBorderWindow();
             _borderWindow.Show();
@@ -197,6 +205,7 @@ public partial class BroadcastWarningBarWindow : Window
         {
             _drawCanvasWindow = new TeacherDrawCanvasWindow();
             _drawCanvasWindow.Show();
+            _drawCanvasWindow.DrawModeEntered += () => { Topmost = false; Topmost = true; }; // UI-11: แถบอยู่เหนือแผ่นใสเสมอ
 
             _drawToolbarWindow = new TeacherDrawToolbarWindow(_drawCanvasWindow, _captureService);
             _drawToolbarWindow.Show();

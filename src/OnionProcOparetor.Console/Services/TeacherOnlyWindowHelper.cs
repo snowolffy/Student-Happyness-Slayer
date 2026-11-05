@@ -22,6 +22,7 @@ internal static class TeacherOnlyWindowHelper
     private const int GWL_EXSTYLE = -20;
     private const int WS_EX_TRANSPARENT = 0x00000020;
     private const int WS_EX_LAYERED = 0x00080000;
+    private const int WS_EX_NOACTIVATE = 0x08000000;
 
     [DllImport("user32.dll", SetLastError = true)]
     private static extern bool SetWindowDisplayAffinity(IntPtr hwnd, uint dwAffinity);
@@ -108,6 +109,22 @@ internal static class TeacherOnlyWindowHelper
         var withLayered = extendedStyle | WS_EX_LAYERED;
         var newStyle = clickThrough ? (withLayered | WS_EX_TRANSPARENT) : (withLayered & ~WS_EX_TRANSPARENT);
         SetWindowLongPtr(hwnd, GWL_EXSTYLE, new IntPtr(newStyle));
+    }
+
+    /// <summary>
+    /// UI-11: หน้าต่างนี้ห้ามถูก activate (คลิกแล้วไม่ยกตัวเองขึ้นบนสุดของกลุ่ม Topmost) - เพิ่ม
+    /// WS_EX_NOACTIVATE โดยคง ex-style เดิมไว้ (SetClickThrough อ่าน-แก้เฉพาะบิตของตัวเอง จึงไม่ลบบิตนี้)
+    /// </summary>
+    public static void SetNoActivate(Window window)
+    {
+        var hwnd = new WindowInteropHelper(window).Handle;
+        if (hwnd == IntPtr.Zero)
+        {
+            return;
+        }
+
+        var extendedStyle = GetWindowLongPtr(hwnd, GWL_EXSTYLE).ToInt64();
+        SetWindowLongPtr(hwnd, GWL_EXSTYLE, new IntPtr(extendedStyle | WS_EX_NOACTIVATE));
     }
 
     /// <summary>

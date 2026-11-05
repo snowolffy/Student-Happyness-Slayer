@@ -6,7 +6,7 @@
          Settings/ConfigRule ที่เปิดจากในแผงนี้ (ซึ่งครอง SidePanelHost อยู่แล้ว) ใช้ DialogHost แทน
          (ลอยทับแผงนี้ได้ - ดู docs/architecture.md หัวข้อ "UI-3a") Screen View/Processes/PendingCommands
          ยังเป็นสัญญาณกลับไปให้ DashboardWindow เปิดต่อเหมือนเดิมทุกประการ ไม่เปลี่ยน -->
-    <Border Style="{StaticResource Card}" Width="380" MaxHeight="680">
+    <Border Background="{DynamicResource Brush.Background.CardRaised}" BorderBrush="{DynamicResource Brush.Border.Strong}" BorderThickness="1,0,0,0" CornerRadius="0">
     <ScrollViewer VerticalScrollBarVisibility="Auto">
     <Grid Margin="20">
         <Grid.RowDefinitions>

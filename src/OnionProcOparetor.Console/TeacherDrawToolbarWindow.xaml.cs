@@ -33,6 +33,7 @@ public partial class TeacherDrawToolbarWindow : Window
         // แบบ synchronous ขณะ parse XAML (ก่อน InitializeComponent() คืนค่าด้วยซ้ำ) ถ้า _captureService
         // ยังเป็น null อยู่ตอนนั้นจะได้ NullReferenceException ทันทีที่เปิดกล่องเครื่องมือ
         _canvas = canvas;
+        _canvas.DrawModeEntered += RaiseAboveCanvas;
         _captureService = captureService;
         InitializeComponent();
         _toolButtons = new List<ToggleButton> { PencilButton, MouseButton, HighlighterButton, EraserButton };
@@ -109,6 +110,18 @@ public partial class TeacherDrawToolbarWindow : Window
         foreach (var button in _toolButtons)
         {
             button.IsChecked = button == selected;
+        }
+    }
+
+    /// <summary>UI-11: ยกตัวเอง (และ minimap) เหนือแผ่นใสเขียน - toggle Topmost เพื่อไปบนสุดของกลุ่ม Topmost</summary>
+    public void RaiseAboveCanvas()
+    {
+        Topmost = false;
+        Topmost = true;
+        if (_minimapWindow is { } mini)
+        {
+            mini.Topmost = false;
+            mini.Topmost = true;
         }
     }
 

@@ -647,7 +647,7 @@ WP UI-3a สร้างโครง 2 ตัวใน `src/OnionProcOparetor.UI
 - **ใช้ DialogHost แล้ว:** ฟอร์มสั้น 16 หน้า (UI-3b) และ dialog ใหญ่ ได้แก่ ActionReport, Files, LaunchablePrograms, WebsiteCatalogSources (UI-3c)
   - ทุกหน้าเปลี่ยนจาก `Window` เป็น `UserControl` แล้ว แต่ยังใช้ชื่อไฟล์ `*Window` เดิม
   - ผลลัพธ์ส่งผ่าน event `ResultChosen` แทน `DialogResult`
-- **ใช้ SidePanel แล้ว:** ClientSettings, RunningProcesses, PendingCommands, RuleOverrides, ActionPanel
+- **ใช้ SidePanel:** ClientInspector, ClientSettings, ActionPanel (UI-11: RunningProcesses, PendingCommands, RuleOverrides ย้ายเป็น dialog ใหญ่ใน DialogHost เพราะ list ยาว; root ของแผงข้างไม่มี Card/MaxHeight/Width ตายตัว สูงเต็มจอ)
   - เปิดผ่าน `DashboardWindow.ShowInSidePanel` ซึ่งซ่อน inspector ระหว่างที่แผงเปิด
   - ถ้าเลือกเครื่องอื่น แผงจะเปิดหน้าเดิมให้เครื่องใหม่
   - การรอให้การเลือกเครื่องนิ่งก่อน (`ReconcileSidePanelAfterSelectionSettled`) กันไม่ให้ auto-refresh ปิดแผงเอง

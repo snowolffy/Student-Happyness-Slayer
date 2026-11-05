@@ -640,9 +640,9 @@
                                  ข้างในมีที่อยู่ใน visual tree ให้ InitializeComponent สร้างได้ตอนเปิดหน้าต่าง -->
                             <ContentControl Visibility="Collapsed" Focusable="False">
                             <Border x:Name="ClientInspector" Width="284" HorizontalAlignment="Right"
-                                    Visibility="Collapsed" CornerRadius="12"
+                                    Visibility="Collapsed" CornerRadius="0" VerticalAlignment="Stretch"
                                     Background="{DynamicResource Brush.Background.CardRaised}"
-                                    BorderBrush="{DynamicResource Brush.Border.Strong}" BorderThickness="1">
+                                    BorderBrush="{DynamicResource Brush.Border.Strong}" BorderThickness="1,0,0,0">
                                 <Border.Effect>
                                     <DropShadowEffect BlurRadius="22" ShadowDepth="0" Opacity="0.28" Color="Black"/>
                                 </Border.Effect>

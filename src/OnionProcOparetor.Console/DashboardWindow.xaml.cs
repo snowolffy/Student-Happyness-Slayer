@@ -423,6 +423,18 @@ public partial class DashboardWindow : UserControl
             OpenClientSettingsInSidePanel(_allClients[0]);
         }
 
+        // UI-11: ภาพตรวจ dialog/แผงที่ย้าย
+        if (_allClients.Count > 0)
+        {
+            switch (PreviewSubView?.ToLowerInvariant())
+            {
+                case "processes": OpenRunningProcessesDialog(_allClients[0]); break;
+                case "pending": OpenPendingCommandsDialog(_allClients[0]); break;
+                case "overrides": OpenRuleOverridesDialog(_allClients[0]); break;
+                case "actions": OpenActionPanelInSidePanel(_allClients[0]); break;
+            }
+        }
+
         // orchestrator review 2026-11-04 - ดู PreviewDialog (Push ไม่ await เพราะแค่ต้องการให้ dialog
         // ลอยอยู่ตอนถ่ายภาพ ไม่ต้องรอปิด)
         if (string.Equals(PreviewDialog, "broadcast", StringComparison.OrdinalIgnoreCase)
@@ -1287,12 +1299,12 @@ public partial class DashboardWindow : UserControl
 
         if (panel.ViewProcessesRequested is not null)
         {
-            OpenRunningProcessesInSidePanel(panel.ViewProcessesRequested);
+            OpenRunningProcessesDialog(panel.ViewProcessesRequested);
         }
 
         if (panel.ViewPendingCommandsRequested is not null)
         {
-            OpenPendingCommandsInSidePanel(panel.ViewPendingCommandsRequested);
+            OpenPendingCommandsDialog(panel.ViewPendingCommandsRequested);
         }
     }
 
@@ -1555,28 +1567,29 @@ public partial class DashboardWindow : UserControl
     /// เลือกจริง) ก็เปิด sub-view เดิมต่อด้วยเครื่องนั้น ไม่ปิดอะไรทั้งนั้น</summary>
     private void ReconcileSidePanelAfterSelectionSettled()
     {
-        if (_activeSidePanelReopen is not { } reopen)
+        // UI-11: ใช้กับทั้ง sub-view และ ClientInspector ธรรมดา (เดิมเฉพาะ sub-view) - selection นิ่งแล้ว
+        // ถ้ายัง 1 เครื่อง = แค่ refresh ผ่านทางเดียวกับปกติ (เครื่องเดิมไม่เปิดซ้ำ ดู UpdateClientInspector)
+        if (!ReferenceEquals(MainTabControl.SelectedItem, ClientsTabItem))
         {
-            return; // ปิดไปแล้วจากทางอื่น (เช่น Esc) ระหว่างที่ callback นี้รอคิวอยู่ - ไม่ต้องทำอะไรต่อ
+            return;
         }
 
         var selected = ClientsGrid.SelectedItems.Cast<ClientMachineDto>().ToList();
         if (selected.Count == 1)
         {
-            _inspectedClient = selected[0];
-            reopen(selected[0]);
+            UpdateClientInspector();
             return;
         }
 
-        // ยังไม่ใช่ 1 เครื่องจริงๆ หลังรอแล้ว (ครูเลิกเลือก/เลือกหลายเครื่องจริง) - ปิด sub-view
+        // ยังไม่ใช่ 1 เครื่องจริงๆ หลังรอแล้ว (ครูเลิกเลือก/เลือกหลายเครื่องจริง) - ปิดแผง
         _activeSidePanelReopen = null;
+        _inspectedClient = null;
+        ClientInspector.Visibility = Visibility.Collapsed;
         if (Window.GetWindow(this) is MainWindow mw)
         {
             mw.SidePanel.Close();
         }
 
-        _inspectedClient = null;
-        ClientInspector.Visibility = Visibility.Collapsed;
         UpdateToastOffset();
     }
 
@@ -1608,19 +1621,9 @@ public partial class DashboardWindow : UserControl
             // reselect ให้เสร็จก่อน ซึ่งเป็น synchronous call เดียวกัน จึงจบก่อนคิวนี้จะได้รันเสมอ) ถึงจะ
             // ตัดสินใจปิดจริง - การเลือก/ยกเลิกเลือกที่ครูทำเองด้วยมือไม่มี "1 แล้วกลับไป 0" ภายในเฟรม
             // เดียวกันแบบนี้ จึงไม่กระทบพฤติกรรมปกติ
-            if (_activeSidePanelReopen is not null)
-            {
-                Dispatcher.BeginInvoke(DispatcherPriority.Background, new Action(ReconcileSidePanelAfterSelectionSettled));
-                return;
-            }
-
-            _inspectedClient = null;
-            ClientInspector.Visibility = Visibility.Collapsed;
-            // UI-4 (2026-11-04): ClientInspector ย้ายไปแสดงผ่าน MainWindow.SidePanel (เต็มความสูงหน้าต่าง
-            // เหมือนแผงอื่นๆ แล้ว - ดู ShowClientInspectorInSidePanel) ปิดแผงจริงที่นี่ด้วย ไม่ใช่แค่ซ่อน
-            // Border ของตัวเองเฉยๆ แบบเดิม
-            (Window.GetWindow(this) as MainWindow)?.SidePanel.Close();
-            UpdateToastOffset();
+            // UI-11: เลื่อนการตัดสินใจปิดเสมอ (รวมถึง inspector ธรรมดา) - ไม่งั้น "0 เลือก" ชั่วคราวตอน
+            // refresh ปิดแผงแล้ว "1 เลือก" เปิดใหม่พร้อม animation ทุกรอบ
+            Dispatcher.BeginInvoke(DispatcherPriority.Background, new Action(ReconcileSidePanelAfterSelectionSettled));
             return;
         }
 
@@ -1630,8 +1633,16 @@ public partial class DashboardWindow : UserControl
         // ด้วยเครื่องใหม่) แทนการกลับไปโชว์ ClientInspector เฉยๆ (ดู ShowInSidePanel)
         if (_activeSidePanelReopen is { } reopen)
         {
+            // UI-11: เครื่องเดิม (ClientGuid เดียวกัน) = ไม่ rebuild sub-view (ไม่งั้นข้อความที่พิมพ์ค้างอยู่
+            // /โฟกัสหายทุก poll) เปิดซ้ำเฉพาะเมื่อเครื่องเปลี่ยนจริง
+            var sameMachine = _inspectedClient is { } shown
+                && string.Equals(shown.ClientGuid, client.ClientGuid, StringComparison.OrdinalIgnoreCase);
             _inspectedClient = client;
-            reopen(client);
+            if (!sameMachine)
+            {
+                reopen(client);
+            }
+
             return;
         }
 
@@ -1807,30 +1818,42 @@ public partial class DashboardWindow : UserControl
     {
         if (_inspectedClient is { } client)
         {
-            OpenRunningProcessesInSidePanel(client);
+            OpenRunningProcessesDialog(client);
         }
     }
 
-    private void OpenRunningProcessesInSidePanel(ClientMachineDto client)
+    private void OpenRunningProcessesDialog(ClientMachineDto client)
     {
+        if (Window.GetWindow(this) is not MainWindow mainWindow)
+        {
+            return;
+        }
+
+        // UI-11: list ยาว -> dialog ใหญ่ (DialogHost) ไม่ใช่แผงข้าง
         var content = new RunningProcessesWindow(_apiClient, _labHubClient, client);
-        content.CloseRequested += () => (Window.GetWindow(this) as MainWindow)?.SidePanel.Close();
-        ShowInSidePanel(content, OpenRunningProcessesInSidePanel, panelWidth: 520);
+        content.CloseRequested += () => mainWindow.DialogHost.CloseTop(null);
+        mainWindow.DialogHost.Push(content, _ => { });
     }
 
     private void InspectorPendingCommandsButton_Click(object sender, RoutedEventArgs e)
     {
         if (_inspectedClient is { } client)
         {
-            OpenPendingCommandsInSidePanel(client);
+            OpenPendingCommandsDialog(client);
         }
     }
 
-    private void OpenPendingCommandsInSidePanel(ClientMachineDto client)
+    private void OpenPendingCommandsDialog(ClientMachineDto client)
     {
+        if (Window.GetWindow(this) is not MainWindow mainWindow)
+        {
+            return;
+        }
+
+        // UI-11: list ยาว -> dialog ใหญ่ (DialogHost) ไม่ใช่แผงข้าง
         var content = new PendingCommandsWindow(_apiClient, client);
-        content.CloseRequested += () => (Window.GetWindow(this) as MainWindow)?.SidePanel.Close();
-        ShowInSidePanel(content, OpenPendingCommandsInSidePanel, panelWidth: 420);
+        content.CloseRequested += () => mainWindow.DialogHost.CloseTop(null);
+        mainWindow.DialogHost.Push(content, _ => { });
     }
 
     private void InspectorClientSettingsButton_Click(object sender, RoutedEventArgs e)
@@ -1892,19 +1915,20 @@ public partial class DashboardWindow : UserControl
     {
         if (_inspectedClient is { } client)
         {
-            OpenRuleOverridesInSidePanel(client);
+            OpenRuleOverridesDialog(client);
         }
     }
 
-    private void OpenRuleOverridesInSidePanel(ClientMachineDto client)
+    private void OpenRuleOverridesDialog(ClientMachineDto client)
     {
-        var content = new RuleOverridesWindow(_apiClient, client);
-        content.CloseRequested += async () =>
+        if (Window.GetWindow(this) is not MainWindow mainWindow)
         {
-            (Window.GetWindow(this) as MainWindow)?.SidePanel.Close();
-            await LoadAllDataAsync();
-        };
-        ShowInSidePanel(content, OpenRuleOverridesInSidePanel, panelWidth: 420);
+            return;
+        }
+
+        var content = new RuleOverridesWindow(_apiClient, client);
+        content.CloseRequested += () => mainWindow.DialogHost.CloseTop(null);
+        mainWindow.DialogHost.Push(content, async _ => await LoadAllDataAsync());
     }
 
     private void InspectorActionsButton_Click(object sender, RoutedEventArgs e)
