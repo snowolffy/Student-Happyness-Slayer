@@ -71,8 +71,10 @@ public partial class TeacherScreenViewWindow : Window
         {
             using var stream = new MemoryStream(jpegBytes);
             var bitmap = new BitmapImage();
-            bitmap.CacheOption = BitmapCacheOption.OnLoad;
             bitmap.BeginInit();
+            // ต้องตั้งหลัง BeginInit เท่านั้น: BeginInit ล้าง CacheOption กลับเป็น Default ทำให้โหลดแบบ lazy หลัง
+            // stream ปิดไปแล้ว ภาพจึงดำโดยไม่มี exception (เจอตอนทดสอบกับ Agent จริงบน Hyper-V 2026-11-05)
+            bitmap.CacheOption = BitmapCacheOption.OnLoad;
             bitmap.StreamSource = stream;
             bitmap.EndInit();
             bitmap.Freeze();
