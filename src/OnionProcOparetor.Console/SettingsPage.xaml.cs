@@ -19,9 +19,33 @@ public partial class SettingsPage : UserControl
 {
     private ApiClient? _apiClient;
 
+    // UI-14: โหมดตรวจ UI เท่านั้น (App.xaml.cs: --settings-sample / --settings-section=<tag> / --settings-teacher)
+    // - เติมข้อมูลตัวอย่างแทนเรียก API จริง เพื่อให้ทุกหัวข้อเรนเดอร์ได้โดยไม่มี Server
+    public static bool PreviewSampleData { get; set; }
+    public static string? PreviewSection { get; set; }
+    public static bool PreviewAsTeacher { get; set; }
+
+    /// <summary>หัวข้อที่เลือกอยู่ - จำไว้แค่ตราบที่หน้านี้ยังเปิดอยู่ (ไม่บันทึกลงไฟล์)</summary>
+    private string _section = "Display";
+
+    private static readonly HashSet<string> AdminSections =
+        new() { "SignIn", "Staff", "Emergency", "Security", "Programs", "Backup" };
+
+    private bool IsAdminView => !PreviewAsTeacher && (_apiClient?.IsAdmin ?? true);
+
     public SettingsPage()
     {
         InitializeComponent();
+
+        var initial = PreviewSection ?? _section;
+        foreach (var menu in new[] { MenuDisplay, MenuConnection, MenuAccount, MenuSignIn, MenuStaff,
+                                     MenuEmergency, MenuSecurity, MenuPrograms, MenuBackup, MenuAbout })
+        {
+            if ((string)menu.Tag == initial)
+            {
+                menu.IsChecked = true;
+            }
+        }
 
         // เติมใหม่จากค่าที่บันทึกไว้จริงทุกครั้งที่สลับมาหน้านี้ - ค่าบางตัว (ธีม/sidebar) ถูกเปลี่ยนจาก
         // ที่อื่นได้ระหว่างที่ไม่ได้อยู่หน้านี้ และของที่พิมพ์ค้างไว้โดยไม่กดบันทึกไม่ควรดูเหมือนถูกบันทึกแล้ว
@@ -35,6 +59,35 @@ public partial class SettingsPage : UserControl
                 _ = LoadAdminSettingsAsync();
             }
         };
+    }
+
+    private void MenuItem_Checked(object sender, RoutedEventArgs e)
+    {
+        _section = (string)((RadioButton)sender).Tag;
+        ApplySection();
+    }
+
+    /// <summary>แสดงเฉพาะหัวข้อที่เลือก - หัวข้อกลุ่ม Admin ของ Teacher แสดง AdminOnlyNoticeCard แทน (เหมือนเดิม)</summary>
+    private void ApplySection()
+    {
+        var isAdminSection = AdminSections.Contains(_section);
+        var admin = IsAdminView;
+
+        SectionDisplay.Visibility = Vis(_section == "Display");
+        SectionConnection.Visibility = Vis(_section == "Connection");
+        SectionAccount.Visibility = Vis(_section == "Account");
+        SectionAbout.Visibility = Vis(_section == "About");
+
+        AdminSettingsPanel.Visibility = Vis(isAdminSection && admin);
+        AdminOnlyNoticeCard.Visibility = Vis(isAdminSection && !admin);
+        SectionSignIn.Visibility = Vis(_section == "SignIn");
+        SectionStaff.Visibility = Vis(_section == "Staff");
+        SectionEmergency.Visibility = Vis(_section == "Emergency");
+        SectionSecurity.Visibility = Vis(_section == "Security");
+        SectionPrograms.Visibility = Vis(_section == "Programs");
+        SectionBackup.Visibility = Vis(_section == "Backup");
+
+        static Visibility Vis(bool on) => on ? Visibility.Visible : Visibility.Collapsed;
     }
 
     /// <summary>เรียกครั้งเดียวจาก DashboardWindow หลัง InitializeComponent</summary>
@@ -142,21 +195,67 @@ public partial class SettingsPage : UserControl
             return;
         }
 
-        if (!_apiClient.IsAdmin)
+        ApplySection();
+        if (!IsAdminView)
         {
-            AdminOnlyNoticeCard.Visibility = Visibility.Visible;
-            AdminSettingsPanel.Visibility = Visibility.Collapsed;
             return;
         }
 
-        AdminOnlyNoticeCard.Visibility = Visibility.Collapsed;
-        AdminSettingsPanel.Visibility = Visibility.Visible;
+        if (PreviewSampleData)
+        {
+            ApplyPreviewSample();
+            return;
+        }
 
         await LoadSignInSettingsAsync();
         await LoadEmergencyCodeSettingsAsync();
         await LoadCertificateThumbprintAsync();
         await LoadBackupSettingsAsync();
         await LoadLaunchableProgramCountAsync();
+    }
+
+    /// <summary>UI-14 (โหมดตรวจ UI เท่านั้น): ข้อมูลตัวอย่างแทนการเรียก API - ไม่ถูกเรียกในการใช้งานจริง</summary>
+    private void ApplyPreviewSample()
+    {
+        _signInSettings = new SignInSettingsDto
+        {
+            RequireLoginMode = 0,
+            GuestModeEnabled = false,
+            EmergencyCodeEnabled = true,
+            PasswordMinLength = 6,
+            ForceChangePasswordOnFirstLogin = true,
+            LockoutFailedAttempts = 5,
+            MultiDeviceMode = 0,
+            AutoLogoutIdleMinutes = 15,
+            LogoutOnShutdown = true,
+            TeacherCanResetPassword = true,
+            ShowStudentNameInConsole = true,
+            LoginScreenMessage = "ยินดีต้อนรับ กรุณาเข้าสู่ระบบ",
+            LockScreenDefaultMessage = "ครูล็อกหน้าจอชั่วคราว"
+        };
+        RequireLoginModeCombo.SelectedIndex = _signInSettings.RequireLoginMode;
+        GuestModeCheckBox.IsChecked = _signInSettings.GuestModeEnabled;
+        EmergencyCodeEnabledCheckBox.IsChecked = _signInSettings.EmergencyCodeEnabled;
+        PasswordMinLengthBox.Text = _signInSettings.PasswordMinLength.ToString();
+        ForceChangePasswordCheckBox.IsChecked = _signInSettings.ForceChangePasswordOnFirstLogin;
+        LockoutFailedAttemptsBox.Text = _signInSettings.LockoutFailedAttempts.ToString();
+        MultiDeviceModeCombo.SelectedIndex = _signInSettings.MultiDeviceMode;
+        AutoLogoutIdleMinutesBox.Text = _signInSettings.AutoLogoutIdleMinutes.ToString();
+        LogoutOnShutdownCheckBox.IsChecked = _signInSettings.LogoutOnShutdown;
+        TeacherCanResetPasswordCheckBox.IsChecked = _signInSettings.TeacherCanResetPassword;
+        ShowStudentNameCheckBox.IsChecked = _signInSettings.ShowStudentNameInConsole;
+        LoginScreenMessageBox.Text = _signInSettings.LoginScreenMessage ?? string.Empty;
+        LockScreenDefaultMessageBox.Text = _signInSettings.LockScreenDefaultMessage;
+
+        EmergencyCodeStatusText.Text = "สร้างตอนติดตั้งระบบ (ยังไม่เคยเปลี่ยน)\nใช้แล้ว 2 ครั้ง - ล่าสุด: COM-12";
+        CertificateThumbprintText.Text = "3F:2A:91:7C:0B:55:E4:D8:12:A9:6E:40:BB:73:C1:08:9D:E2:5A:F6";
+
+        BackupFrequencyCombo.SelectedIndex = 0;
+        BackupRetentionCountBox.Text = "14";
+        BackupStoragePathBox.Text = string.Empty;
+        BackupLastRunText.Text = "ล่าสุด: 4 พ.ย. 2569 18:00 · 3.2 MB";
+
+        LaunchableProgramCountText.Text = "มี 4 โปรแกรมในรายการตอนนี้";
     }
 
     /// <summary>แค่สรุปจำนวนให้เห็นในหน้าตั้งค่า - รายการจริงจัดการใน LaunchableProgramsWindow (WP4-1, 2026-11-01)</summary>

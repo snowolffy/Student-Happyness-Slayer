@@ -334,6 +334,16 @@ public partial class App : Application
 
         if (e.Args.Contains("--ui-preview"))
         {
+            // UI-14: ข้อมูลตัวอย่างหน้าตั้งค่า (ต้องตั้งก่อนสร้าง DashboardWindow เพราะ SettingsPage อ่านตอนสร้าง)
+            // --settings-sample, --settings-section=Display|Connection|Account|SignIn|Staff|Emergency|Security|Programs|Backup|About, --settings-teacher
+            SettingsPage.PreviewSampleData = e.Args.Contains("--settings-sample");
+            SettingsPage.PreviewAsTeacher = e.Args.Contains("--settings-teacher");
+            var settingsSection = e.Args.FirstOrDefault(a => a.StartsWith("--settings-section=", StringComparison.Ordinal));
+            if (settingsSection is not null)
+            {
+                SettingsPage.PreviewSection = settingsSection["--settings-section=".Length..];
+            }
+
             var preview = new DashboardWindow(new Services.ApiClient())
             {
                 PreviewMode = true,
