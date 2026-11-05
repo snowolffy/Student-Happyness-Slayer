@@ -237,7 +237,12 @@ public class BroadcastPipeListener
 
                 if (!string.IsNullOrWhiteSpace(line))
                 {
-                    TrayDiagnostics.Log($"[pipe] รับ message: {line}");
+                    // ไม่ log เฟรมจอครู: แต่ละบรรทัดคือภาพทั้งเฟรมแบบ base64 ราว 8 ครั้งต่อวินาที ไฟล์จะโตเร็วมาก
+                    if (!line.Contains("\"Type\":\"ScreenFrame\"", StringComparison.Ordinal))
+                    {
+                        TrayDiagnostics.Log($"[pipe] รับ message: {line}");
+                    }
+
                     await _messageQueue.Writer.WriteAsync(line, ct);
                 }
             }
