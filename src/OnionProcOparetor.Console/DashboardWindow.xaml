@@ -779,7 +779,7 @@
                      หน้าของตัวเองในกลุ่ม "ห้องเรียน" แทน เพื่อไม่ต้องแก้โครง inspector panel ที่ WP6 สร้างไว้
                      (slide จากขวาทับ grid, ยังไม่รองรับ "โหมดเนื้อหาอื่นที่ไม่ใช่เครื่อง") - รายงานไว้เป็น
                      จุดต่างจาก wireframe ที่ orchestrator/ผู้ใช้ตัดสินได้ว่าจะย้ายเข้า inspector ทีหลังไหม ========== -->
-                <TabItem x:Name="RaiseHandTabItem" Header="คิวยกมือ" controls:Nav.Icon="alert-triangle" controls:Nav.Group="ห้องเรียน">
+                <TabItem x:Name="RaiseHandTabItem" Header="คิวยกมือ" controls:Nav.Icon="alert-triangle" controls:Nav.Group="">
                     <Grid Margin="0,12,0,0">
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto"/>

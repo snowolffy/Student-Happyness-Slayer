@@ -103,7 +103,7 @@
             <!-- ==================== เมนูซ้าย (อยู่กับที่ - เลื่อนเองเฉพาะตอนจอเตี้ยมาก) ==================== -->
             <ScrollViewer Grid.Column="0" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                 <StackPanel Margin="9,0,4,0">
-                    <TextBlock Text="Console เครื่องนี้" Style="{StaticResource SettingsGroupLabel}" Margin="3,0,0,6"/>
+                    <TextBlock Text="Console เครื่องนี้" Style="{StaticResource SettingsGroupLabel}" Margin="12,0,0,6"/>
                     <RadioButton x:Name="MenuDisplay" Tag="Display" GroupName="SettingsMenu" Content="การแสดงผล"
                                  Style="{StaticResource SettingsMenuItem}" Checked="MenuItem_Checked"/>
                     <RadioButton x:Name="MenuConnection" Tag="Connection" GroupName="SettingsMenu" Content="การเชื่อมต่อ"

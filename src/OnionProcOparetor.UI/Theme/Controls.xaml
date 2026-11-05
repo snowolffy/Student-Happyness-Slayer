@@ -276,7 +276,7 @@
         <Setter Property="Background" Value="{DynamicResource Brush.Background.Card}"/>
         <Setter Property="Foreground" Value="{DynamicResource Brush.Text.Primary}"/>
         <Setter Property="CaretBrush" Value="{DynamicResource Brush.Text.Primary}"/>
-        <Setter Property="BorderBrush" Value="{DynamicResource Brush.Border.Default}"/>
+        <Setter Property="BorderBrush" Value="{DynamicResource Brush.Border.Strong}"/>
         <Setter Property="BorderThickness" Value="0.5"/>
         <Setter Property="Padding" Value="10,4.5"/>
         <Setter Property="FontFamily" Value="{StaticResource FontFamily.Primary}"/>
@@ -309,7 +309,7 @@
         <Setter Property="Background" Value="{DynamicResource Brush.Background.Card}"/>
         <Setter Property="Foreground" Value="{DynamicResource Brush.Text.Primary}"/>
         <Setter Property="CaretBrush" Value="{DynamicResource Brush.Text.Primary}"/>
-        <Setter Property="BorderBrush" Value="{DynamicResource Brush.Border.Default}"/>
+        <Setter Property="BorderBrush" Value="{DynamicResource Brush.Border.Strong}"/>
         <Setter Property="BorderThickness" Value="0.5"/>
         <Setter Property="Padding" Value="10,5"/>
         <Setter Property="FontFamily" Value="{StaticResource FontFamily.Primary}"/>
