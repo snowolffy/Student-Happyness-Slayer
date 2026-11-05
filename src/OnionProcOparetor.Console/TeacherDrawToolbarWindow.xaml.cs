@@ -208,6 +208,7 @@ public partial class TeacherDrawToolbarWindow : Window
         {
             _minimapWindow ??= new TeacherZoomMinimapWindow(_captureService);
             _minimapWindow.Show();
+            _canvas.ExcludeInputFrom(_minimapWindow); // UI-12: แผ่นใสห้ามรับ input ทับ minimap
         }
         else
         {
