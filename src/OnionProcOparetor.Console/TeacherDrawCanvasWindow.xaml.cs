@@ -1,7 +1,9 @@
 using System.ComponentModel;
 using System.Windows;
 using System.Windows.Controls;
+using System.Runtime.InteropServices;
 using System.Windows.Ink;
+using System.Windows.Interop;
 using System.Windows.Media;
 using OnionProcOparetor.Console.Services;
 
@@ -56,7 +58,74 @@ public partial class TeacherDrawCanvasWindow : Window
             // กลืนคลิกที่ตั้งใจจะไปปุ่ม "เมาส์" (สลับกลับไม่ได้หลังเขียน)
             TeacherOnlyWindowHelper.SetNoActivate(this);
             TeacherOnlyWindowHelper.SetClickThrough(this, clickThrough: true);
+
+            ((HwndSource)PresentationSource.FromVisual(this)!).AddHook(HitTestHook);
         };
+    }
+
+    // ==================== UI-12: แผ่นใสต้องไม่รับ input เหนือหน้าต่างควบคุมของครู ====================
+
+    private const int WM_NCHITTEST = 0x0084;
+    private const int WM_MOUSEACTIVATE = 0x0021;
+    private const int HTTRANSPARENT = -1;
+    private const int MA_NOACTIVATE = 3;
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct NativeRect { public int Left, Top, Right, Bottom; }
+
+    [DllImport("user32.dll")]
+    private static extern bool GetWindowRect(IntPtr hWnd, out NativeRect rect);
+
+    // หน้าต่างควบคุมที่แผ่นใสต้อง "ปล่อยทะลุ" (กล่องเครื่องมือ/แถบแดง/minimap) - เก็บเป็น Window แล้วอ่านตำแหน่งจริงทุกครั้งที่ hit-test
+    // เพราะลากได้/หุบกางได้/แสดงซ่อนได้ ทุกหน้าต่างอยู่เทรด UI เดียวกัน HTTRANSPARENT จึงส่งต่อให้หน้าต่างข้างใต้ในเทรดเดียวกันได้
+    private readonly List<Window> _passThroughWindows = new();
+
+    /// <summary>
+    /// UI-12: ลงทะเบียนหน้าต่างที่แผ่นใสห้ามรับ input ทับ (คืน HTTRANSPARENT ให้ WM_NCHITTEST ในกรอบหน้าต่างนั้น) - ไม่พึ่ง z-order
+    /// ดังนั้นต่อให้แผ่นใสถูกยกขึ้นบนสุดด้วยเหตุใด ปุ่มบนกล่องเครื่องมือก็ยังกดได้
+    /// </summary>
+    public void ExcludeInputFrom(Window window)
+    {
+        if (!_passThroughWindows.Contains(window))
+        {
+            _passThroughWindows.Add(window);
+        }
+    }
+
+    private IntPtr HitTestHook(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
+    {
+        if (msg == WM_MOUSEACTIVATE)
+        {
+            // คลิกบนแผ่นใสไม่ต้อง activate (กัน foreground/z-order เปลี่ยน)
+            handled = true;
+            return new IntPtr(MA_NOACTIVATE);
+        }
+
+        if (msg != WM_NCHITTEST)
+        {
+            return IntPtr.Zero;
+        }
+
+        // lParam = พิกัดจอจริง (พิกเซล) signed 16 บิตต่อแกน
+        var x = (short)(lParam.ToInt64() & 0xFFFF);
+        var y = (short)((lParam.ToInt64() >> 16) & 0xFFFF);
+        foreach (var window in _passThroughWindows)
+        {
+            if (!window.IsVisible)
+            {
+                continue;
+            }
+
+            var other = new WindowInteropHelper(window).Handle;
+            if (other != IntPtr.Zero && GetWindowRect(other, out var r)
+                && x >= r.Left && x < r.Right && y >= r.Top && y < r.Bottom)
+            {
+                handled = true;
+                return new IntPtr(HTTRANSPARENT);
+            }
+        }
+
+        return IntPtr.Zero;
     }
 
     /// <summary>true = กำลังอยู่ในโหมดเขียน (รับ mouse/pen input วาดเส้นได้) - BroadcastWarningBarWindow อ่านค่านี้ไปอัปเดตปุ่มบนแถบ</summary>

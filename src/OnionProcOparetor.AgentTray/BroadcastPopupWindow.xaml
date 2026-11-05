@@ -33,10 +33,22 @@
                     <RowDefinition Height="Auto"/>
                 </Grid.RowDefinitions>
 
-                <TextBlock Grid.Row="0" x:Name="MessageText" TextWrapping="Wrap" FontSize="14" MaxWidth="380"/>
+                <!-- UI-12: เลือก/คัดลอกข้อความได้ (เดิมเป็น TextBlock) - TextBox อ่านอย่างเดียว ไม่มีกรอบ/พื้น ให้หน้าตาเหมือนข้อความเดิม
+                     ข้อความยาวห่อบรรทัดและเลื่อนดูได้ (MaxHeight) -->
+                <TextBox Grid.Row="0" x:Name="MessageText" IsReadOnly="True" TextWrapping="Wrap"
+                         BorderThickness="0" Background="Transparent" Padding="0" FontSize="14" MaxWidth="380"
+                         FontFamily="{StaticResource FontFamily.Primary}"
+                         Foreground="{DynamicResource Brush.Text.Primary}"
+                         SelectionBrush="{DynamicResource Brush.Accent.Default}"
+                         VerticalScrollBarVisibility="Auto" MaxHeight="240"
+                         PreviewMouseDown="MessageText_PreviewMouseDown"/>
 
-                <Button Grid.Row="2" x:Name="CloseButton" Content="ปิด" HorizontalAlignment="Right"
-                        Style="{StaticResource ButtonPrimary}" Click="CloseButton_Click"/>
+                <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right">
+                    <Button x:Name="CopyButton" Content="คัดลอก" MinWidth="88" Margin="0,0,8,0"
+                            Style="{StaticResource ButtonSecondary}" Click="CopyButton_Click"/>
+                    <Button x:Name="CloseButton" Content="ปิด"
+                            Style="{StaticResource ButtonPrimary}" Click="CloseButton_Click"/>
+                </StackPanel>
             </Grid>
         </Border>
     </Grid>

@@ -10,6 +10,7 @@
         Background="#01000000"
         AllowsTransparency="True"
         ShowActivated="False"
+        Focusable="False"
         Icon="/Theme/icon.ico">
     <!-- คำขอเพิ่ม 3 พ.ย. 2569 - "เขียนบนจอ": แผ่นใสทับจอครูทั้งจอ ใช้ InkCanvas ของ WPF เอง (ไม่ต้องเพิ่ม
          NuGet) เส้นที่เขียนตรงนี้ "ต้อง" ติดไปในภาพที่ส่งให้นักเรียนเห็น (ต่างจาก TeacherBroadcastBorderWindow/
@@ -25,5 +26,6 @@
          MouseDown ให้เริ่มวาดเส้นสักที (ทดสอบจริงด้วย harness จับภาพ+จำลองลากเมาส์ 3 พ.ย.: alpha=0 ไม่มีเส้น
          ติดเลย, alpha=1 วาดได้ปกติ) alpha=1/255 เตี้ยพอที่ตาเปล่า/JPEG มองไม่เห็นความต่างจากโปร่งใสจริง
          แต่สูงพอให้ Windows นับเป็น "มีเนื้อ" รับ mouse hit-test ได้เสมอตอนไม่ได้ตั้ง click-through -->
-    <InkCanvas x:Name="Canvas" Background="#01000000"/>
+    <!-- UI-12: Focusable=False - InkCanvas ที่รับ keyboard focus ทำให้ WPF เรียก Win32 SetFocus ซึ่งทำให้ "แผ่นใสกลายเป็นหน้าต่าง foreground" และกระโดดขึ้นบนสุดของกลุ่ม Topmost แม้มี WS_EX_NOACTIVATE (วัดจริง: หลังลากเส้น foreground = แผ่นใส, z-order แผ่นใสอยู่บนสุด, คลิกปุ่ม toolbox ถูกกลืน) -->
+    <InkCanvas x:Name="Canvas" Background="#01000000" Focusable="False"/>
 </Window>

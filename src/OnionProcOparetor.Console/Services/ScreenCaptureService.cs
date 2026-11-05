@@ -34,6 +34,9 @@ public sealed class ScreenCaptureService : IDisposable
     private const int SRCCOPY = 0x00CC0020;
     private const int SM_CXSCREEN = 0;
     private const int SM_CYSCREEN = 1;
+    private const int SM_CXCURSOR = 13;
+    private const int CURSOR_SHOWING = 0x00000001;
+    private const int DI_NORMAL = 0x0003;
 
     private Timer? _timer;
     private volatile bool _captureInFlight;
@@ -193,7 +196,7 @@ public sealed class ScreenCaptureService : IDisposable
     /// cropRegion (คำขอเพิ่ม 3 พ.ย. 2569 - โหมด zoom): ไม่ null = BitBlt มาจากแค่พื้นที่นี้ของจอจริง แล้ว
     /// สเกลขยายให้เต็ม TargetWidth เท่าเดิม (ภาพเลยดู "ซูมเข้า") null = capture ทั้งจอตามปกติ
     /// </summary>
-    public static byte[]? CapturePrimaryScreenJpeg(RECT? cropRegion = null)
+    public static byte[]? CapturePrimaryScreenJpeg(RECT? cropRegion = null, bool drawCursor = true)
     {
         var fullScreenWidth = GetSystemMetrics(SM_CXSCREEN);
         var fullScreenHeight = GetSystemMetrics(SM_CYSCREEN);
@@ -232,8 +235,21 @@ public sealed class ScreenCaptureService : IDisposable
                 return null;
             }
 
-            var source = Imaging.CreateBitmapSourceFromHBitmap(
-                bitmap, IntPtr.Zero, System.Windows.Int32Rect.Empty, BitmapSizeOptions.FromEmptyOptions());
+            if (drawCursor)
+            {
+                DrawCursorOnto(memDc, srcX, srcY, captureWidth, captureHeight);
+            }
+
+            // UI-12: ไม่ใช้ Imaging.CreateBitmapSourceFromHBitmap อีกแล้ว - DrawIconEx ลง DDB 32 บิตเขียน alpha=0 ในพื้นที่เคอร์เซอร์
+            // (ทดสอบจริง: เคอร์เซอร์ I-beam กลายเป็นกล่องดำ 32x32 เมื่อ WPF ตีความ alpha) จึงดึงพิกเซลดิบด้วย GetDIBits แล้วสร้าง Bgr32 (ไม่สนใจ alpha)
+            // GetDIBits ต้องการ bitmap ที่ "ไม่ได้ถูก select อยู่ใน DC" - คืน bitmap เดิมก่อน
+            SelectObject(memDc, oldBitmap);
+            oldBitmap = IntPtr.Zero;
+            var source = CreateOpaqueBitmapSource(screenDc, bitmap, captureWidth, captureHeight);
+            if (source is null)
+            {
+                return null;
+            }
 
             var targetHeight = Math.Max(1, (int)Math.Round(TargetWidth * ((double)captureHeight / captureWidth)));
             var scaled = new TransformedBitmap(
@@ -264,6 +280,78 @@ public sealed class ScreenCaptureService : IDisposable
             }
 
             ReleaseDC(IntPtr.Zero, screenDc);
+        }
+    }
+
+    private static BitmapSource? CreateOpaqueBitmapSource(IntPtr hdc, IntPtr bitmap, int width, int height)
+    {
+        var header = new BITMAPINFOHEADER
+        {
+            biSize = Marshal.SizeOf<BITMAPINFOHEADER>(),
+            biWidth = width,
+            biHeight = -height, // ลบ = top-down
+            biPlanes = 1,
+            biBitCount = 32,
+            biCompression = 0 // BI_RGB
+        };
+
+        var stride = width * 4;
+        var pixels = new byte[stride * height];
+        if (GetDIBits(hdc, bitmap, 0, (uint)height, pixels, ref header, 0 /* DIB_RGB_COLORS */) == 0)
+        {
+            return null;
+        }
+
+        var result = BitmapSource.Create(width, height, 96, 96, PixelFormats.Bgr32, null, pixels, stride);
+        result.Freeze();
+        return result;
+    }
+
+    /// <summary>
+    /// UI-12 (2026-11-05): BitBlt ไม่เก็บเคอร์เซอร์เมาส์ - นักเรียนเลยไม่เห็นว่าครูชี้อะไรอยู่ จึงวาดเคอร์เซอร์ลง memory DC
+    /// หลัง BitBlt ด้วย GetCursorInfo + DrawIconEx โดยหัก hotspot (GetIconInfo) และหักมุม crop ของโหมดซูม
+    /// (srcX/srcY) - วาดที่ขนาดจริงในพิกัดก่อนย่อ ดังนั้นการสเกลภายหลัง (ย่อเป็น TargetWidth/ขยายตอนซูม) กระทบเคอร์เซอร์เท่ากับภาพ
+    /// ถ้าเคอร์เซอร์ซ่อนอยู่ (CURSOR_SHOWING ไม่ติด) หรืออยู่นอกพื้นที่ที่จับ = ไม่วาด ล้มเหลวเงียบ ๆ (ภาพไร้เคอร์เซอร์ดีกว่าไม่มีภาพ)
+    /// </summary>
+    private static void DrawCursorOnto(IntPtr memDc, int srcX, int srcY, int captureWidth, int captureHeight)
+    {
+        var info = new CURSORINFO { cbSize = Marshal.SizeOf<CURSORINFO>() };
+        if (!GetCursorInfo(ref info) || (info.flags & CURSOR_SHOWING) == 0 || info.hCursor == IntPtr.Zero)
+        {
+            return;
+        }
+
+        if (!GetIconInfo(info.hCursor, out var iconInfo))
+        {
+            return;
+        }
+
+        try
+        {
+            // GetIconInfo สร้าง bitmap ใหม่ 2 ตัว (mask/color) ให้เราเป็นเจ้าของ - ต้องลบเองทั้งคู่ ไม่งั้น GDI object รั่วทุกเฟรม (8 เฟรม/วินาที)
+            var x = info.ptScreenPos.X - (int)iconInfo.xHotspot - srcX;
+            var y = info.ptScreenPos.Y - (int)iconInfo.yHotspot - srcY;
+
+            // ขนาดเคอร์เซอร์: DrawIconEx ขนาด 0 = ขนาดจริงของทรัพยากร - ใช้ SM_CXCURSOR เป็นกรอบหยาบ ๆ ไว้ข้ามตอนอยู่นอกพื้นที่เท่านั้น
+            var cursorSize = Math.Max(GetSystemMetrics(SM_CXCURSOR), 64);
+            if (x >= captureWidth || y >= captureHeight || x + cursorSize <= 0 || y + cursorSize <= 0)
+            {
+                return;
+            }
+
+            DrawIconEx(memDc, x, y, info.hCursor, 0, 0, 0, IntPtr.Zero, DI_NORMAL);
+        }
+        finally
+        {
+            if (iconInfo.hbmMask != IntPtr.Zero)
+            {
+                DeleteObject(iconInfo.hbmMask);
+            }
+
+            if (iconInfo.hbmColor != IntPtr.Zero)
+            {
+                DeleteObject(iconInfo.hbmColor);
+            }
         }
     }
 
@@ -315,6 +403,56 @@ public sealed class ScreenCaptureService : IDisposable
         public int X;
         public int Y;
     }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct CURSORINFO
+    {
+        public int cbSize;
+        public int flags;
+        public IntPtr hCursor;
+        public POINT ptScreenPos;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct ICONINFO
+    {
+        public bool fIcon;
+        public uint xHotspot;
+        public uint yHotspot;
+        public IntPtr hbmMask;
+        public IntPtr hbmColor;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct BITMAPINFOHEADER
+    {
+        public int biSize;
+        public int biWidth;
+        public int biHeight;
+        public short biPlanes;
+        public short biBitCount;
+        public int biCompression;
+        public int biSizeImage;
+        public int biXPelsPerMeter;
+        public int biYPelsPerMeter;
+        public int biClrUsed;
+        public int biClrImportant;
+    }
+
+    [DllImport("gdi32.dll")]
+    private static extern int GetDIBits(
+        IntPtr hdc, IntPtr hbm, uint start, uint cLines, byte[] lpvBits, ref BITMAPINFOHEADER lpbmi, uint usage);
+
+    [DllImport("user32.dll")]
+    private static extern bool GetCursorInfo(ref CURSORINFO pci);
+
+    [DllImport("user32.dll")]
+    private static extern bool GetIconInfo(IntPtr hIcon, out ICONINFO piconinfo);
+
+    [DllImport("user32.dll")]
+    private static extern bool DrawIconEx(
+        IntPtr hdc, int xLeft, int yTop, IntPtr hIcon, int cxWidth, int cyWidth,
+        int istepIfAniCur, IntPtr hbrFlickerFreeDraw, int diFlags);
 }
 
 /// <summary>พื้นที่ crop บนจอจริง (พิกเซล, สัมบูรณ์) - ใช้กับโหมด zoom เท่านั้น (ดู ComputeZoomCropRegion)</summary>

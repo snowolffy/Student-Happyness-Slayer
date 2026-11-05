@@ -210,6 +210,10 @@ public partial class BroadcastWarningBarWindow : Window
             _drawToolbarWindow = new TeacherDrawToolbarWindow(_drawCanvasWindow, _captureService);
             _drawToolbarWindow.Show();
 
+            // UI-12: แผ่นใสต้องไม่รับ input ทับแถบนี้และกล่องเครื่องมือ (ไม่พึ่ง z-order)
+            _drawCanvasWindow.ExcludeInputFrom(this);
+            _drawCanvasWindow.ExcludeInputFrom(_drawToolbarWindow);
+
             ToolboxButton.IsChecked = true;
             return;
         }
