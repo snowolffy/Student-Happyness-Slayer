@@ -106,6 +106,8 @@
          WindowChrome.IsHitTestVisibleInChrome="True" ไม่งั้นการลากจะกินคลิกไปหมด -->
     <Style x:Key="AppDialogWindow" TargetType="Window" BasedOn="{StaticResource AppWindowStyle}">
         <Setter Property="WindowStyle" Value="SingleBorderWindow"/>
+        <!-- UI-12: ซ่อมแถบหัว Windows คลาสสิกโผล่ทับแถบหัวเรา (ดู DialogChrome.RepairSystemCaptionPaint) -->
+        <Setter Property="controls:DialogChrome.RepairSystemCaptionPaint" Value="True"/>
         <Setter Property="WindowChrome.WindowChrome">
             <Setter.Value>
                 <WindowChrome CaptionHeight="38" GlassFrameThickness="0" CornerRadius="0"
