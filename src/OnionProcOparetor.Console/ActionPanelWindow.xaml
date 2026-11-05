@@ -17,7 +17,19 @@
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
-        <TextBlock Grid.Row="0" x:Name="HeaderText" Style="{StaticResource Heading2}" TextWrapping="Wrap" Margin="0,0,0,16"/>
+        <!-- UI-13: โหมดแผง "เลือก N เครื่อง" มีปุ่ม "ล้างการเลือก" ที่หัวแผง (เห็นเสมอแม้แผงยาวจนต้องเลื่อน) -->
+        <Grid Grid.Row="0" Margin="0,0,0,16">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            <TextBlock Grid.Column="0" x:Name="HeaderText" Style="{StaticResource Heading2}" TextWrapping="Wrap"
+                       VerticalAlignment="Center"/>
+            <Button Grid.Column="1" x:Name="ClearSelectionButton" Content="ล้างการเลือก" Visibility="Collapsed"
+                    Style="{StaticResource ButtonSecondary}" Padding="10,5" FontSize="11" Margin="8,0,0,0"
+                    VerticalAlignment="Center" ToolTip="เลิกเลือกทุกเครื่อง (แผงนี้จะปิด)"
+                    Click="CloseButton_Click"/>
+        </Grid>
 
         <!-- Target picker - แสดงเฉพาะ bulk mode (ให้เลือกได้ว่าจะ apply กับ "เครื่องที่เลือกไว้" หรือ "ทุกเครื่อง") -->
         <StackPanel Grid.Row="1" x:Name="TargetPanel" Margin="0,0,0,16">
@@ -116,7 +128,7 @@
 
         <TextBlock Grid.Row="3" x:Name="StatusText" Style="{StaticResource Caption}" TextWrapping="Wrap" TextAlignment="Center" Margin="0,0,0,8"/>
 
-        <Button Grid.Row="4" Content="ปิด" Style="{StaticResource ButtonSecondary}" Width="80"
+        <Button Grid.Row="4" x:Name="CloseOrClearButton" Content="ปิด" Style="{StaticResource ButtonSecondary}" MinWidth="80"
                 Padding="10,5" FontSize="11" HorizontalAlignment="Right" Click="CloseButton_Click"/>
     </Grid>
     </ScrollViewer>

@@ -34,8 +34,18 @@ public partial class ActionPanelWindow : UserControl
     private readonly ApiClient _apiClient;
     private readonly bool _isBulk;
     private readonly ClientMachineDto? _singleClient;
-    private readonly List<ClientMachineDto> _selectedClients;
-    private readonly List<ClientMachineDto> _allClients;
+    private List<ClientMachineDto> _selectedClients;
+    private List<ClientMachineDto> _allClients;
+
+    /// <summary>
+    /// UI-13: true = ใช้เป็นแผงขวา "เลือก N เครื่อง" ของแท็บ Clients (เลือก 2+ เครื่อง) - หัวข้อเป็น
+    /// "เลือก N เครื่อง" คงที่, ปุ่มท้ายเป็น "ล้างการเลือก" (<see cref="ClearSelectionRequested"/>) แทน "ปิด",
+    /// และอัปเดตรายชื่อเครื่องที่เลือกในที่เดิมได้ด้วย <see cref="UpdateSelection"/> โดยไม่สร้างแผงใหม่
+    /// </summary>
+    private readonly bool _selectionPanel;
+
+    /// <summary>UI-13: ครูกด "ล้างการเลือก" (เฉพาะโหมด selectionPanel) - caller เคลียร์การเลือกในตาราง</summary>
+    public event System.Action? ClearSelectionRequested;
 
     /// <summary>true ถ้ามี action ใดๆ ที่แก้ข้อมูลไปแล้ว - DashboardWindow ใช้ตัดสินใจว่าต้อง reload หรือไม่</summary>
     public bool DataChanged { get; private set; }
@@ -116,11 +126,13 @@ public partial class ActionPanelWindow : UserControl
         ApiClient apiClient,
         List<ClientMachineDto> selectedClients,
         List<ClientMachineDto> allClients,
-        bool defaultToAll = false)
+        bool defaultToAll = false,
+        bool selectionPanel = false)
     {
         InitializeComponent();
         _apiClient = apiClient;
         _isBulk = true;
+        _selectionPanel = selectionPanel;
         _selectedClients = selectedClients;
         _allClients = allClients;
 
@@ -134,11 +146,15 @@ public partial class ActionPanelWindow : UserControl
         ApplyToAllRadio.IsChecked = targetAll;
         ApplyToSelectedRadio.IsChecked = !targetAll;
 
-        ApplyToSelectedRadio.Checked += (_, _) => HeaderText.Text = $"Applying to {_selectedClients.Count} selected machines";
-        ApplyToAllRadio.Checked += (_, _) => HeaderText.Text = $"Applying to all {_allClients.Count} machines";
-        HeaderText.Text = targetAll
-            ? $"Applying to all {allClients.Count} machines"
-            : $"Applying to {selectedClients.Count} selected machines";
+        ApplyToSelectedRadio.Checked += (_, _) => RefreshHeader();
+        ApplyToAllRadio.Checked += (_, _) => RefreshHeader();
+        RefreshHeader();
+
+        if (_selectionPanel)
+        {
+            ClearSelectionButton.Visibility = Visibility.Visible;
+            CloseOrClearButton.Visibility = Visibility.Collapsed;
+        }
 
         SettingsButton.Visibility = Visibility.Collapsed;
         ConfigRuleButton.Visibility = Visibility.Collapsed;
@@ -152,6 +168,47 @@ public partial class ActionPanelWindow : UserControl
         ToggleButton.ToolTip = "กลับสถานะของแต่ละเครื่องจากค่าเดิมของเครื่องนั้น - "
             + "เครื่องที่เปิดอยู่จะถูกปิด เครื่องที่ปิดอยู่จะถูกเปิด";
         ApplyTailscaleVisibility();
+    }
+
+    private void RefreshHeader()
+    {
+        // แผงเลือกหลายเครื่อง: หัวข้อคงที่ "เลือก N เครื่อง" - เป้าหมายจริง (ที่เลือก/ทุกเครื่อง) ดูที่ radio ด้านล่าง
+        if (_selectionPanel)
+        {
+            HeaderText.Text = $"เลือก {_selectedClients.Count} เครื่อง";
+            return;
+        }
+
+        HeaderText.Text = ApplyToAllRadio.IsChecked == true
+            ? $"Applying to all {_allClients.Count} machines"
+            : $"Applying to {_selectedClients.Count} selected machines";
+    }
+
+    /// <summary>
+    /// UI-13: อัปเดตรายชื่อเครื่องที่เลือก/ทั้งหมดในที่เดิม (ตอนครูคลิกเพิ่ม-ลดเครื่อง หรือ auto-refresh สร้าง DTO
+    /// ชุดใหม่) - ไม่สร้างแผงใหม่ จึงไม่เสีย focus / ค่าที่พิมพ์ค้างในช่องหน่วงเวลา / radio ที่ครูเลือกไว้
+    /// </summary>
+    public void UpdateSelection(List<ClientMachineDto> selectedClients, List<ClientMachineDto> allClients)
+    {
+        _selectedClients = selectedClients;
+        _allClients = allClients;
+
+        ApplyToSelectedRadio.Content = $"เครื่องที่เลือกไว้ ({selectedClients.Count} เครื่อง)";
+        ApplyToAllRadio.Content = $"ทุกเครื่อง ({allClients.Count} เครื่อง)";
+        ApplyToSelectedRadio.IsEnabled = selectedClients.Count > 0;
+        if (selectedClients.Count == 0)
+        {
+            ApplyToAllRadio.IsChecked = true;
+        }
+
+        RefreshHeader();
+    }
+
+    /// <summary>UI-13: เคลียร์ผลของการสั่งครั้งก่อน (แผงเลือกหลายเครื่องคงเปิดค้างหลังสั่ง ต่างจากโหมดเดิมที่ปิดตัวเอง)</summary>
+    public void ResetResult()
+    {
+        PendingReport = null;
+        DataChanged = false;
     }
 
     /// <summary>
@@ -493,5 +550,14 @@ public partial class ActionPanelWindow : UserControl
         }
     }
 
-    private void CloseButton_Click(object sender, RoutedEventArgs e) => Closed?.Invoke();
+    private void CloseButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_selectionPanel)
+        {
+            ClearSelectionRequested?.Invoke();
+            return;
+        }
+
+        Closed?.Invoke();
+    }
 }

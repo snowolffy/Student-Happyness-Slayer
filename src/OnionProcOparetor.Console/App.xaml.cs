@@ -344,6 +344,7 @@ public partial class App : Application
                 PreviewAnnouncements = e.Args.Contains("--announce"),
                 PreviewInspectorCollapsed = e.Args.Contains("--inspector-collapsed"),
                 PreviewSidebarExpanded = e.Args.Contains("--sidebar-expanded"),
+                PreviewSidebarCollapsed = e.Args.Contains("--sidebar-collapsed"),
                 // WP4b (2026-10-30)
                 PreviewUsers = e.Args.Contains("--users-sample"),
                 PreviewAsTeacher = e.Args.Contains("--as-teacher"),
@@ -354,6 +355,13 @@ public partial class App : Application
                 PreviewLiveViewHover = e.Args.Contains("--liveview-hover"),
                 PreviewLiveViewSelect = e.Args.Contains("--liveview-select")
             };
+
+            // UI-13: --select-count=N เลือกแถวแรก N แถวในตาราง Clients (ตรวจแผงคำสั่งหมู่ "เลือก N เครื่อง")
+            var selectCount = e.Args.FirstOrDefault(a => a.StartsWith("--select-count=", StringComparison.Ordinal));
+            if (selectCount is not null && int.TryParse(selectCount["--select-count=".Length..], out var selectCountValue))
+            {
+                preview.PreviewSelectCount = selectCountValue;
+            }
 
             // --tab=<ชื่อแท็บ> เลือกแท็บก่อนถ่ายภาพ ใช้ไล่ตรวจทุกหน้าจอในโหมดมืดรอบเดียว
             var tab = e.Args.FirstOrDefault(a => a.StartsWith("--tab=", StringComparison.Ordinal));
@@ -408,6 +416,13 @@ public partial class App : Application
             // login flow ทั้งหมด สลับไป DashboardHost ตรงๆ) ได้ SidePanel/DialogHost จริงมาใช้ฟรี
             var previewHost = new MainWindow();
             previewHost.ShowPreviewDashboard(preview);
+
+            // UI-13: --height=N ตั้งความสูงหน้าต่างตรวจ (เช่น 560 = ความสูงขั้นต่ำ) - ไม่ใช้คู่กับ --maximize
+            var heightArg = e.Args.FirstOrDefault(a => a.StartsWith("--height=", StringComparison.Ordinal));
+            if (heightArg is not null && double.TryParse(heightArg["--height=".Length..], out var heightValue))
+            {
+                previewHost.Height = heightValue;
+            }
 
             // --maximize (orchestrator review 2026-11-04) - ตรวจแผงเต็มความสูงตอนหน้าต่างขยายเต็มจอด้วย
             // ตั้งใจ "ไม่" ใช้ trick ย้ายไปนอกจอ (Left=-32000) คู่กับโหมดนี้ - เจอจริงว่า WPF คำนวณจอที่

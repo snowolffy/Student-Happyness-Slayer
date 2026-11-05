@@ -77,4 +77,14 @@ public static class Nav
 
     public static object? GetStatusBar(DependencyObject d) => d.GetValue(StatusBarProperty);
     public static void SetStatusBar(DependencyObject d, object? value) => d.SetValue(StatusBarProperty, value);
+
+    /// <summary>
+    /// UI-13: ชื่อผู้ใช้ที่แสดงในแถวผู้ใช้ท้าย sidebar - ตั้งจาก code-behind ที่ TabControl แล้ว template
+    /// ผูกผ่าน TemplatedParent (element ใน template ไม่มี field ให้ code-behind เรียกตรง ๆ - เหตุผลเดียวกับ TopBar)
+    /// </summary>
+    public static readonly DependencyProperty UserNameProperty = DependencyProperty.RegisterAttached(
+        "UserName", typeof(string), typeof(Nav), new FrameworkPropertyMetadata(string.Empty));
+
+    public static string GetUserName(DependencyObject d) => (string)d.GetValue(UserNameProperty);
+    public static void SetUserName(DependencyObject d, string value) => d.SetValue(UserNameProperty, value);
 }

@@ -140,6 +140,9 @@ public partial class DashboardWindow : UserControl
     /// <summary>เลือกแถวแรกไว้ไหมตอนเปิดในโหมดตรวจ UI - ใช้เทียบภาพ "เลือก/ไม่เลือก" ว่าตารางขยับไหม</summary>
     public bool PreviewSelectFirst { get; set; }
 
+    /// <summary>UI-13 (--select-count=N): เลือกแถวแรก N แถว - ตรวจแผงคำสั่งหมู่ "เลือก N เครื่อง"</summary>
+    public int PreviewSelectCount { get; set; }
+
     /// <summary>ตั้ง gate ทั้งห้องเป็นปิดในโหมดตรวจ UI เพื่อให้แถบเตือนโผล่ขึ้นมาให้ดู</summary>
     public bool PreviewGlobalOff { get; set; }
 
@@ -174,6 +177,9 @@ public partial class DashboardWindow : UserControl
     /// ร่วมกับ Console บนเครื่องนี้ จะถ่ายภาพหัวข้อกลุ่มของ sidebar ก็ต้องไม่ไปแก้ค่าที่ผู้ใช้ตั้งไว้
     /// </summary>
     public bool PreviewSidebarExpanded { get; set; }
+
+    /// <summary>UI-13: หด sidebar โดยไม่บันทึก (--sidebar-collapsed) - ตรวจแถวผู้ใช้/ออกจากระบบตอนเหลือแต่ไอคอน</summary>
+    public bool PreviewSidebarCollapsed { get; set; }
 
     /// <summary>
     /// WP4b (2026-10-30, --users-sample): ใส่ข้อมูลปลอมลงแท็บ "ผู้ใช้" (username/ชื่อที่แสดง/Role/
@@ -380,6 +386,11 @@ public partial class DashboardWindow : UserControl
             ClientsGrid.SelectedIndex = 0;
         }
 
+        for (var i = 0; i < PreviewSelectCount && i < ClientsGrid.Items.Count; i++)
+        {
+            ClientsGrid.SelectedItems.Add(ClientsGrid.Items[i]);
+        }
+
         if (!string.IsNullOrEmpty(PreviewTab))
         {
             var matchedOuterTab = false;
@@ -446,6 +457,11 @@ public partial class DashboardWindow : UserControl
         if (PreviewSidebarExpanded)
         {
             SetSidebarCollapsed(false, persist: false);
+        }
+
+        if (PreviewSidebarCollapsed)
+        {
+            SetSidebarCollapsed(true, persist: false);
         }
 
         if (PreviewAnnouncements)
@@ -666,13 +682,14 @@ public partial class DashboardWindow : UserControl
         // สลับเวลาไทย/UTC ในหน้าตั้งค่า -> ตารางที่เปิดอยู่ต้องเปลี่ยนทันที ไม่ใช่รอรอบ refresh
         TimeDisplay.ModeChanged += OnTimeDisplayModeChanged;
 
-        ServerLabel.Text = $"connected to {_apiClient.BaseUrl}";
-        FooterServerText.Text = _apiClient.BaseUrl ?? "-";
+        // UI-13: แถบสถานะล่างโชว์แค่ปลายทางที่ต่ออยู่ (ไม่ซ้ำคำว่า "Server:" - ไอคอน wifi บอกความหมายอยู่แล้ว)
+        ServerLabel.Text = _apiClient.BaseUrl ?? "-";
         // WP4b (2026-10-30): แถบล่างโชว์ชื่อที่แสดงแทน username ตามที่ roadmap ระบุ (ApiClient.DisplayName
         // fallback เป็น Username เองถ้า login response ไม่มีชื่อที่แสดง - ดู ApiClient.LoginAsync) ค่า "-"
         // เป็น placeholder เดิมของ FooterUserText.Text = _apiClient.Username ?? "-" (ตอนยังไม่ login เช่น
         // โหมดตรวจ UI ที่ไม่ผ่าน LoginAsync เลย DisplayName จึงยังเป็นค่าว่างเปล่าตาม default ของ ApiClient)
-        FooterUserText.Text = string.IsNullOrEmpty(_apiClient.DisplayName) ? "-" : _apiClient.DisplayName;
+        // UI-13: ชื่อผู้ใช้ย้ายจากแถบล่างไป footer ของ sidebar (Nav.UserName - ส่งเข้า template)
+        Nav.SetUserName(MainTabControl, string.IsNullOrEmpty(_apiClient.DisplayName) ? "-" : _apiClient.DisplayName);
         ApplyRolePermissions();
         Loaded += async (_, _) =>
         {
@@ -820,7 +837,16 @@ public partial class DashboardWindow : UserControl
     /// นี้แล้วสลับกลับไปหน้าล็อกอินในหน้าต่างเดิม (ดู ReturnToLoginAsync)</summary>
     public event Action? LogoutRequested;
 
-    private void LogoutButton_Click(object sender, RoutedEventArgs e) => LogoutRequested?.Invoke();
+    /// <summary>UI-13: ถามยืนยันก่อน (กล่องยืนยันมาตรฐานผ่าน DialogHost) แล้วค่อยออกจากระบบ</summary>
+    private void LogoutButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (!ConfirmWindow.Show("จะออกจากระบบและกลับไปหน้าล็อกอิน", "ออกจากระบบ", Window.GetWindow(this), "ออกจากระบบ"))
+        {
+            return;
+        }
+
+        LogoutRequested?.Invoke();
+    }
 
     /// <summary>
     /// เรียกจาก SignalR background thread ตอนคิวยกมือเปลี่ยน (ยกมือใหม่/ครูกด "ไปช่วยแล้ว"/ล้างคิว) -
@@ -1271,9 +1297,14 @@ public partial class DashboardWindow : UserControl
     /// ไปแล้วตอนนี้) ต่างจากเดิมที่เป็น Window แยกที่ย่อ/บังไว้หลัง Dashboard ได้ - ตอนนี้ DialogHost
     /// บังทั้งจอไว้ (modal) จึงไม่มี "ซ่อนอยู่หลัง Dashboard" ให้ toast พาไปหาอีกต่อไป (ตัดทางลัดนั้นออก)
     /// </summary>
-    private async void OnActionPanelClosed(ActionPanelWindow panel)
+    private async void OnActionPanelClosed(ActionPanelWindow panel, bool keepSidePanelOpen = false)
     {
-        (Window.GetWindow(this) as MainWindow)?.SidePanel.Close();
+        // UI-13: แผง "เลือก N เครื่อง" คงเปิดค้างหลังสั่ง (เลือกไว้ต่อ สั่งต่อได้) - เก็บผลไว้ก่อนแล้วเคลียร์ในตัวแผง
+        var dataChanged = panel.DataChanged;
+        if (!keepSidePanelOpen)
+        {
+            (Window.GetWindow(this) as MainWindow)?.SidePanel.Close();
+        }
 
         if (panel.PendingReport is not null && Window.GetWindow(this) is MainWindow mainWindow)
         {
@@ -1287,7 +1318,12 @@ public partial class DashboardWindow : UserControl
             ToastService.Info($"ส่งคำสั่ง \"{request.ActionLabel}\" ไป {request.Rows.Count} เครื่อง");
         }
 
-        if (panel.DataChanged)
+        if (keepSidePanelOpen)
+        {
+            panel.ResetResult();
+        }
+
+        if (dataChanged)
         {
             await LoadAllDataAsync();
         }
@@ -1490,18 +1526,10 @@ public partial class DashboardWindow : UserControl
 
     private void ClientsGrid_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
-        var count = ClientsGrid.SelectedItems.Count;
-        SelectedClientsCountText.Text = $"เลือก {count} เครื่อง";
-
-        // แถบจะโผล่มาเมื่อมีเครื่องถูกเลือกเท่านั้น - เป็นตัวที่ทำให้ "เลือกหลายเครื่องแล้วสั่งทีเดียว"
-        // มองเห็นได้จริง แทนที่จะซ่อนอยู่หลังปุ่ม ACTIONS ที่นิ่งอยู่ตลอดเวลาแบบเดิม
-        // Hidden ไม่ใช่ Collapsed - Hidden ยังกินที่เท่าเดิม ตารางข้างล่างจึงไม่ขยับตอนเลือกเครื่อง
-        // ของเดิมใช้ Collapsed ทำให้แถบนี้แทรกเข้ามาแล้วดันตารางลง คลิกถัดไปเลยไปโดนเครื่องคนละตัว
-        ClientsSelectionBar.Visibility = count > 0 ? Visibility.Visible : Visibility.Hidden;
+        // UI-13: แถบ "เลือก N เครื่อง" ในแถบคำสั่งถูกยุบรวมเข้าแผงขวาแล้ว (เลือก 2+ เครื่อง = แผงคำสั่งหมู่ -
+        // ดู ShowBulkSelectionPanel) แผงลอยทับตาราง ไม่ดันตารางเหมือนแถบเดิมที่เคยทำให้คลิกพลาด
         UpdateClientInspector();
     }
-
-    private void ClearClientSelectionButton_Click(object sender, RoutedEventArgs e) => ClientsGrid.UnselectAll();
 
     // ==================== แผงรายละเอียดเครื่องฝั่งขวา (2026-09-09) ====================
 
@@ -1532,11 +1560,31 @@ public partial class DashboardWindow : UserControl
     private System.Action<ClientMachineDto>? _activeSidePanelReopen;
 
     /// <summary>
+    /// UI-13: ไม่ null = แผงขวากำลังแสดงแผงคำสั่ง "เลือก N เครื่อง" (เลือก 2+ เครื่อง) - instance เดียวที่อัปเดต
+    /// ในที่เดิมตามการเลือก (ActionPanelWindow.UpdateSelection) ไม่ปิด/เปิดใหม่ตอน refresh 2 วิ
+    /// </summary>
+    private ActionPanelWindow? _bulkPanel;
+
+    /// <summary>
+    /// UI-13: true = sub-view ที่เปิดอยู่เป็นแผง "คำสั่ง (ทุกเครื่อง)" ซึ่งไม่ผูกกับการเลือก - เลือก 2+ เครื่อง
+    /// ต้องไม่ไปแทนที่ด้วยแผง "เลือก N เครื่อง"
+    /// </summary>
+    private bool _sidePanelPinned;
+
+    /// <summary>
+    /// UI-13: true ระหว่าง ApplyClientsFilter ผูก ItemsSource ใหม่แล้วเลือกแถวเดิมกลับทีละแถว (ยิง
+    /// SelectionChanged 0,1,2,... ติดกัน) - ข้าม UpdateClientInspector ระหว่างนั้น แล้วเรียกครั้งเดียวตอนจบ
+    /// ไม่งั้นแผงเลือกหลายเครื่องจะสลับเป็น inspector ชั่วขณะทุกรอบ refresh (เสีย focus + กระพริบ)
+    /// </summary>
+    private bool _reloadingSelection;
+
+    /// <summary>
     /// UI-3c (2026-11-03): เปิด sub-view ตัวหนึ่งใน MainWindow.SidePanel แทนที่ ClientInspector
     /// ชั่วคราว (ซ่อน ClientInspector ไว้ก่อน คืนกลับตอนแผงปิด) - <paramref name="reopen"/> ใช้ตอน
     /// สลับเครื่องขณะแผงเปิดอยู่ (เรียกซ้ำด้วยเครื่องใหม่ แทนการปิดแผงแล้วกลับไปโชว์ inspector เฉยๆ)
     /// </summary>
-    private void ShowInSidePanel(FrameworkElement content, System.Action<ClientMachineDto> reopen, double panelWidth = 360)
+    private void ShowInSidePanel(FrameworkElement content, System.Action<ClientMachineDto> reopen, double panelWidth = 360,
+        bool pinned = false)
     {
         if (Window.GetWindow(this) is not MainWindow mainWindow)
         {
@@ -1544,6 +1592,8 @@ public partial class DashboardWindow : UserControl
         }
 
         _activeSidePanelReopen = reopen;
+        _bulkPanel = null;
+        _sidePanelPinned = pinned;
         ClientInspector.Visibility = Visibility.Collapsed;
         // UI3C-FIX (ตรวจด้วย input จริงแล้วพบจริง 2026-11-03): ความกว้างของ content (Border
         // Style="Card" Width=... ในแต่ละ XAML) ต้องตรงกับ PanelWidth ของ SidePanelHost เป๊ะ ไม่งั้น
@@ -1558,6 +1608,19 @@ public partial class DashboardWindow : UserControl
     private void OnSidePanelClosed()
     {
         _activeSidePanelReopen = null;
+        _sidePanelPinned = false;
+
+        // UI-13: แผง "เลือก N เครื่อง" ถูกปิดจากข้างนอก (Esc ในแผง) = เลิกเลือกด้วย ไม่งั้นเปิดกลับมาเองทันที
+        // (ออกจากแท็บ Clients ไม่นับ - เก็บการเลือกไว้ กลับมาแล้วแผงเปิดให้ใหม่)
+        var wasBulk = _bulkPanel is not null;
+        _bulkPanel = null;
+        if (wasBulk && ReferenceEquals(MainTabControl.SelectedItem, ClientsTabItem))
+        {
+            ClientsGrid.UnselectAll();
+            UpdateToastOffset();
+            return;
+        }
+
         UpdateClientInspector();
     }
 
@@ -1575,14 +1638,16 @@ public partial class DashboardWindow : UserControl
         }
 
         var selected = ClientsGrid.SelectedItems.Cast<ClientMachineDto>().ToList();
-        if (selected.Count == 1)
+        if (selected.Count >= 1)
         {
             UpdateClientInspector();
             return;
         }
 
-        // ยังไม่ใช่ 1 เครื่องจริงๆ หลังรอแล้ว (ครูเลิกเลือก/เลือกหลายเครื่องจริง) - ปิดแผง
+        // เลือก 0 เครื่องจริงๆ หลังรอแล้ว (ครูเลิกเลือก) - ปิดแผง
         _activeSidePanelReopen = null;
+        _bulkPanel = null;
+        _sidePanelPinned = false;
         _inspectedClient = null;
         ClientInspector.Visibility = Visibility.Collapsed;
         if (Window.GetWindow(this) is MainWindow mw)
@@ -1604,12 +1669,20 @@ public partial class DashboardWindow : UserControl
     {
         // inspector เป็นของแท็บ Clients เท่านั้น - แท็บอื่น (เช่น Live View ที่ใช้ SidePanel ของตัวเองกับ
         // แผงคำสั่งหลายเครื่อง) ห้ามไปเปิด/ปิดแผงแทน (MainTabControl_SelectionChanged ปิดให้ตอนออกแท็บแล้ว)
-        if (!ReferenceEquals(MainTabControl.SelectedItem, ClientsTabItem))
+        if (!ReferenceEquals(MainTabControl.SelectedItem, ClientsTabItem) || _reloadingSelection)
         {
             return;
         }
 
         var selected = ClientsGrid.SelectedItems.Cast<ClientMachineDto>().ToList();
+
+        // UI-13: เลือก 2+ เครื่อง = แผงคำสั่งหมู่ "เลือก N เครื่อง" (ทับตาราง ตารางยังคลิกเพิ่ม/ลดเครื่องได้)
+        if (selected.Count >= 2)
+        {
+            ShowBulkSelectionPanel(selected);
+            return;
+        }
+
         if (selected.Count != 1)
         {
             // UI3C-FIX (ตรวจด้วย input จริงแล้วพบจริง 2026-11-03): ApplyClientsFilter (auto-refresh
@@ -1698,6 +1771,51 @@ public partial class DashboardWindow : UserControl
     }
 
     /// <summary>
+    /// UI-13: แผงขวา "เลือก N เครื่อง" (เลือก 2+ เครื่อง) - สร้างครั้งเดียวแล้วอัปเดตในที่เดิมตามการเลือก
+    /// (ไม่ปิด/เปิดใหม่ จึงไม่เล่น animation ซ้ำและไม่ย้าย focus ตอน refresh ทุก 2 วิ) · ไม่มี scrim - SidePanelHost
+    /// ไม่บังคลิกนอกตัวแผง ตารางจึงยังคลิกเพิ่ม/ลดเครื่องได้ · ปุ่ม "ล้างการเลือก" ในแผง = UnselectAll แล้วแผงปิดเอง
+    /// </summary>
+    private void ShowBulkSelectionPanel(List<ClientMachineDto> selected)
+    {
+        // "คำสั่ง (ทุกเครื่อง)" เปิดอยู่ - เป้าหมายไม่ผูกกับการเลือก ปล่อยไว้ ไม่แทนที่
+        if (_sidePanelPinned || Window.GetWindow(this) is not MainWindow mainWindow)
+        {
+            return;
+        }
+
+        if (_bulkPanel is { } existing)
+        {
+            existing.UpdateSelection(selected, _allClients);
+            UpdateToastOffset();
+            return;
+        }
+
+        _activeSidePanelReopen = null;
+        _inspectedClient = null;
+        ClientInspector.Visibility = Visibility.Collapsed;
+
+        var panel = new ActionPanelWindow(_apiClient, selected, _allClients, defaultToAll: false, selectionPanel: true);
+        panel.Closed += () => OnActionPanelClosed(panel, keepSidePanelOpen: true);
+        panel.ClearSelectionRequested += () => ClientsGrid.UnselectAll();
+        _bulkPanel = panel;
+
+        mainWindow.SidePanel.PanelWidth = 380;
+        mainWindow.SidePanel.Show(panel);
+
+        // SidePanelHost ย้าย focus เข้าแผงตอนเปิด - ครูกำลังคลิก/ลาก/กด Shift+ลูกศรในตารางเพื่อเลือกเพิ่ม จึงคืน
+        // focus ให้ตารางทันทีที่แผงโหลดเสร็จ (เฉพาะตอน focus อยู่ในแผงที่เพิ่งเปิดจริง)
+        Dispatcher.BeginInvoke(DispatcherPriority.ApplicationIdle, new Action(() =>
+        {
+            if (ReferenceEquals(_bulkPanel, panel) && panel.IsKeyboardFocusWithin)
+            {
+                ClientsGrid.Focus();
+            }
+        }));
+
+        UpdateToastOffset();
+    }
+
+    /// <summary>
     /// UI-4 (2026-11-04): เปิด ClientInspector ผ่าน MainWindow.SidePanel (เต็มความสูงหน้าต่าง) - ไม่ใช้
     /// ShowInSidePanel ตัวกลาง (ซึ่งตั้ง <see cref="_activeSidePanelReopen"/> ด้วย) เพราะ field นั้นมี
     /// ไว้แทนความหมาย "sub-view ตัวหนึ่งจาก 5 ตัวเปิดอยู่แทน ClientInspector" โดยเฉพาะ - ถ้าตั้งให้
@@ -1761,7 +1879,7 @@ public partial class DashboardWindow : UserControl
     {
         if (e.Key != Key.Escape
             || _liveViewFullscreenClientGuid is not null
-            || ClientInspector.Visibility != Visibility.Visible
+            || (ClientInspector.Visibility != Visibility.Visible && _bulkPanel is null)
             || !ReferenceEquals(MainTabControl.SelectedItem, ClientsTabItem))
         {
             return;
@@ -1790,6 +1908,12 @@ public partial class DashboardWindow : UserControl
             && _liveViewFullscreenClientGuid is null)
         {
             right += ClientInspector.Width + 12;
+        }
+        else if (_bulkPanel is not null
+            && ReferenceEquals(MainTabControl.SelectedItem, ClientsTabItem)
+            && _liveViewFullscreenClientGuid is null)
+        {
+            right += 380 + 12;
         }
 
         var target = new Thickness(0, 0, right, 80);
@@ -2058,19 +2182,6 @@ public partial class DashboardWindow : UserControl
     }
 
     /// <summary>
-    /// ปุ่ม ACTIONS เดียวบน header (แทนที่ Toggle/Shutdown/Restart Selected เดิม 3 ปุ่มแยก) - เปิด
-    /// ActionPanelWindow เดียวกับที่ปุ่ม ACTIONS ต่อแถวใช้ (ดู ClientActionsButton_Click) แต่ปรับเป็น
-    /// bulk mode ครอบคลุมทั้ง selected-multiple และ all-clients (เลือกได้ใน panel เอง)
-    /// </summary>
-    private void BulkActionsButton_Click(object sender, RoutedEventArgs e)
-    {
-        var selected = ClientsGrid.SelectedItems.Cast<ClientMachineDto>().ToList();
-        var panel = new ActionPanelWindow(_apiClient, selected, _allClients, defaultToAll: false);
-        panel.Closed += () => OnActionPanelClosed(panel);
-        ShowInSidePanel(panel, _ => { }, panelWidth: 380);
-    }
-
-    /// <summary>
     /// ปุ่ม ACTIONS (ทุกเครื่อง) บนแถบคำสั่งระดับห้อง - แผงเดียวกับปุ่มในแถบเลือก ต่างกันแค่ตั้งเป้า
     /// เริ่มต้นเป็น "ทุกเครื่อง" และ **เปิดได้โดยไม่ต้องเลือกเครื่องก่อน**
     ///
@@ -2083,7 +2194,7 @@ public partial class DashboardWindow : UserControl
         var selected = ClientsGrid.SelectedItems.Cast<ClientMachineDto>().ToList();
         var panel = new ActionPanelWindow(_apiClient, selected, _allClients, defaultToAll: true);
         panel.Closed += () => OnActionPanelClosed(panel);
-        ShowInSidePanel(panel, _ => { }, panelWidth: 380);
+        ShowInSidePanel(panel, _ => { }, panelWidth: 380, pinned: true);
     }
 
     /// <summary>
@@ -2335,6 +2446,9 @@ public partial class DashboardWindow : UserControl
             ? byRoom
             : byRoom.Where(c => c.MachineName.Contains(keyword, StringComparison.OrdinalIgnoreCase))).ToList();
 
+        // UI-13: ผูกใหม่ + เลือกแถวเดิมกลับ ยิง SelectionChanged ติดกันหลายครั้ง - ข้าม UpdateClientInspector
+        // ระหว่างนั้น แล้วเรียกครั้งเดียวตอนท้ายเมธอด (ดู _reloadingSelection)
+        _reloadingSelection = true;
         ClientsGrid.ItemsSource = filtered;
 
         // แยก "ยังไม่มีเครื่องเลย" ออกจาก "กรองแล้วไม่เจอ" - คนละสถานการณ์ และทางออกคนละอย่าง
@@ -2362,10 +2476,19 @@ public partial class DashboardWindow : UserControl
             }
         }
 
-        foreach (var client in filtered.Where(c => selectedIds.Contains(c.Id)))
+        try
         {
-            ClientsGrid.SelectedItems.Add(client);
+            foreach (var client in filtered.Where(c => selectedIds.Contains(c.Id)))
+            {
+                ClientsGrid.SelectedItems.Add(client);
+            }
         }
+        finally
+        {
+            _reloadingSelection = false;
+        }
+
+        UpdateClientInspector();
     }
 
     /// <summary>ตัวกรองสถานะที่การ์ดตัวเลขด้านบนตาราง Clients เลือกอยู่</summary>

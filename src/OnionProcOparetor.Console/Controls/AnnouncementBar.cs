@@ -1,4 +1,4 @@
-using System.Windows;
+﻿using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Data;
@@ -215,6 +215,10 @@ public sealed class AnnouncementBar : UserControl
     private void Render()
     {
         var list = _center?.Ordered ?? [];
+
+        // UI-13: ไม่มีประกาศ = ทั้งแถบ Collapsed (สูง 0 ไม่โชว์อะไร) - ข้อความ Server/เวลา/รีเฟรชย้ายไปแถบสถานะล่างแล้ว
+        // แถบโผล่เฉพาะตอนมีประกาศจริง (เนื้อหาด้านล่างเลื่อนลงตอนโผล่ - ผู้ใช้ยอมรับแล้ว)
+        Visibility = list.Count == 0 ? Visibility.Collapsed : Visibility.Visible;
 
         if (list.Count == 0)
         {

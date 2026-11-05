@@ -25,8 +25,8 @@
     <Color x:Key="Color.Background.Sunken">#E7E9EE</Color>       <!-- css:bg-sunken: table headers / inset strips that must read BELOW the card -->
     <Color x:Key="Color.Background.Card">#FFFFFF</Color>         <!-- css:card -->
     <Color x:Key="Color.Background.CardRaised">#FAFBFC</Color>   <!-- css:card-raised: row hover/stripe that still reads as "the card" -->
-    <Color x:Key="Color.Border.Default">#D7DBE2</Color>          <!-- css:border -->
-    <Color x:Key="Color.Border.Strong">#C3C9D2</Color>           <!-- css:border-strong -->
+    <Color x:Key="Color.Border.Default">#B4BAC5</Color>          <!-- css:border -->
+    <Color x:Key="Color.Border.Strong">#8E96A3</Color>           <!-- css:border-strong -->
 
     <SolidColorBrush x:Key="Brush.Background.Primary" Color="{StaticResource Color.Background.Primary}"/>
     <SolidColorBrush x:Key="Brush.Background.Sunken" Color="{StaticResource Color.Background.Sunken}"/>
