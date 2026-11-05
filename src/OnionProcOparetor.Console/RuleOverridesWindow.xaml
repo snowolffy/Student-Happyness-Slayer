@@ -4,7 +4,7 @@
         xmlns:controls="clr-namespace:OnionProcOparetor.UI.Controls;assembly=OnionProcOparetor.UI">
     <!-- UI-3c (2026-11-03): เดิมเป็น Window ของตัวเอง (ShowDialog) - ย้ายมาเป็น UserControl ตามแบบแผน
          UI-3a ใช้ได้ทั้ง SidePanelHost (จาก Inspector ตรงๆ) และ DialogHost (จาก ActionPanelWindow) -->
-    <Border Style="{StaticResource Card}" Width="420" MaxHeight="620">
+    <Border Style="{StaticResource Card}" Width="640" MaxHeight="620">
         <Grid Margin="20">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto"/>

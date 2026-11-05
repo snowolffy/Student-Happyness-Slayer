@@ -246,7 +246,7 @@ public partial class ActionPanelWindow : UserControl
             return;
         }
 
-        var content = new ClientSettingsWindow(_apiClient, _singleClient);
+        var content = new ClientSettingsWindow(_apiClient, _singleClient) { Width = 360 }; // UI-11: root ไม่มี Width แล้ว
         content.ResultChosen += result => mainWindow.DialogHost.CloseTop(result);
         var saved = await mainWindow.DialogHost.ShowAsync<bool>(content);
 

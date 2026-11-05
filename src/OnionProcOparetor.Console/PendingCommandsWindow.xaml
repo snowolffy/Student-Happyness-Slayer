@@ -5,7 +5,7 @@
     <!-- UI-3c (2026-11-03): เดิมเป็น Window ของตัวเอง (Show แบบไม่ modal, ปิดด้วย chrome ปุ่ม X) -
          ย้ายมาเป็น UserControl ในแผงสไลด์ขวา (SidePanelHost) - เพิ่มปุ่ม "ปิด" เองเพราะไม่มี chrome
          ให้กดปิดแล้ว -->
-    <Border Style="{StaticResource Card}" Width="420" MaxHeight="620">
+    <Border Style="{StaticResource Card}" Width="720" MaxHeight="620">
         <Grid Margin="20">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto"/>

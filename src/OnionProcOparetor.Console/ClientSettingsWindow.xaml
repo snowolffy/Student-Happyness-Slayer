@@ -5,7 +5,8 @@
          UI-3a (ดู docs/architecture.md หัวข้อ "UI-3a") เปิดได้ทั้งใน SidePanelHost (จาก Inspector ตรงๆ)
          และ DialogHost (จาก ActionPanelWindow ที่ครอบ SidePanelHost ไว้แล้ว) - เนื้อหาไม่รู้จัก host
          เลย แค่ raise ResultChosen ให้ caller ปิดเอง -->
-    <Border Style="{StaticResource Card}" Width="320">
+    <Border Background="{DynamicResource Brush.Background.CardRaised}" BorderBrush="{DynamicResource Brush.Border.Strong}" BorderThickness="1,0,0,0" CornerRadius="0">
+        <ScrollViewer VerticalScrollBarVisibility="Auto">
         <StackPanel Margin="20">
             <TextBlock x:Name="MachineNameText" Style="{StaticResource Heading2}" Margin="0,0,0,16"/>
 
@@ -34,5 +35,6 @@
                 <Button Grid.Column="2" Content="บันทึก" Style="{StaticResource ButtonPrimary}" Click="SaveButton_Click"/>
             </Grid>
         </StackPanel>
+        </ScrollViewer>
     </Border>
 </UserControl>

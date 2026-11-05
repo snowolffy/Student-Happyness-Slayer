@@ -72,6 +72,12 @@ public sealed class SidePanelHost : Grid
     /// </summary>
     public void Show(FrameworkElement content)
     {
+        // UI-11: content เดิมที่แสดงอยู่แล้ว (เช่น poll refresh ซ้ำ) = ไม่ทำอะไร ไม่ย้ายโฟกัส ไม่เล่น animation
+        if (IsOpen && ReferenceEquals(_panelSlot.Content, content))
+        {
+            return;
+        }
+
         var alreadyOpen = IsOpen;
         _panelSlot.Content = content;
         IsHitTestVisible = true;

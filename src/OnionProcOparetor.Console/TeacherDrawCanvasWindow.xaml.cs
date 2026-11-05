@@ -52,6 +52,9 @@ public partial class TeacherDrawCanvasWindow : Window
         SourceInitialized += (_, _) =>
         {
             // เริ่มที่โหมด "เมาส์ปกติ" (คลิกทะลุ) เสมอ - ครูต้องกดเปิดโหมดเขียนเองก่อนถึงจะวาดได้
+            // UI-11: ไม่ให้แผ่นใสถูก activate ตอนคลิกวาด - ไม่งั้นมันลอยเหนือ toolbox/แถบ แล้วพื้น #01000000
+            // กลืนคลิกที่ตั้งใจจะไปปุ่ม "เมาส์" (สลับกลับไม่ได้หลังเขียน)
+            TeacherOnlyWindowHelper.SetNoActivate(this);
             TeacherOnlyWindowHelper.SetClickThrough(this, clickThrough: true);
         };
     }
@@ -59,11 +62,19 @@ public partial class TeacherDrawCanvasWindow : Window
     /// <summary>true = กำลังอยู่ในโหมดเขียน (รับ mouse/pen input วาดเส้นได้) - BroadcastWarningBarWindow อ่านค่านี้ไปอัปเดตปุ่มบนแถบ</summary>
     public bool IsDrawMode => _isDrawMode;
 
+    /// <summary>UI-11: ยิงตอนเข้าโหมดเขียน - toolbox/แถบ/minimap ฟังแล้วยกตัวเองเหนือแผ่นใสอีกรอบ</summary>
+    public event Action? DrawModeEntered;
+
     /// <summary>สลับโหมดเขียน/เมาส์ปกติ - เรียกจากปุ่มบนแถบหรือ Ctrl+Shift+D (ดู BroadcastWarningBarWindow)</summary>
     public void SetDrawMode(bool drawMode)
     {
+        var entering = drawMode && !_isDrawMode;
         _isDrawMode = drawMode;
         TeacherOnlyWindowHelper.SetClickThrough(this, clickThrough: !drawMode);
+        if (entering)
+        {
+            DrawModeEntered?.Invoke();
+        }
     }
 
     /// <summary>UI-9 (2026-11-04): ขนาดเส้นปากกา/ไฮไลต์ล่าสุดที่ตั้งไว้ (DIP) - toolbox อ่าน/เขียนผ่าน slider "ปรับขนาดเส้นได้" จำค่าไว้คนละชุดกับไฮไลต์เพราะขนาดปกติต่างกันมาก (ปากกาเล็ก/ไฮไลต์หนา)</summary>
