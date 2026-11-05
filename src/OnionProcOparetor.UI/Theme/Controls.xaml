@@ -10,6 +10,12 @@
         <ResourceDictionary Source="Typography.xaml"/>
     </ResourceDictionary.MergedDictionaries>
 
+    <!-- UI-15: token ของ motion (ตัวเลขชุดเดียวกับ OnionProcOparetor.UI.Services.Motion ในโค้ด - แก้สองที่คู่กัน)
+         ใช้เฉพาะ animation ของ Opacity ในชั้น HoverFill ของปุ่ม/แถวเมนู (ไม่ animate brush ที่แชร์กับธีม) -->
+    <Duration x:Key="Motion.Fast">0:0:0.12</Duration>
+    <Duration x:Key="Motion.Normal">0:0:0.18</Duration>
+    <CubicEase x:Key="Motion.EaseOut" EasingMode="EaseOut"/>
+
     <!-- "DisplayTimeConverter" ไม่ได้ประกาศในไฟล์นี้อีกต่อไป (WP UI-1a, 2026-11-03): แต่ละแอปแปลงเวลา
          ต่างกัน (Console มีโหมดไทย/UTC ผ่าน Services/TimeDisplay.cs, RosterManager แปลงเป็นเวลาท้องถิ่น
          เครื่องตรงๆ) จึงยังประกาศ key "DisplayTimeConverter" เองในไฟล์ App.xaml ของแต่ละแอป (หลัง merge
@@ -353,20 +359,44 @@
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="Button">
-                    <Border x:Name="Bd" CornerRadius="8" Background="{TemplateBinding Background}"
-                            Padding="{TemplateBinding Padding}">
-                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"
+                    <!-- UI-15: hover = ชั้น HoverFill ที่ fade Opacity (Motion.Fast) แทนการสลับ Background ทันที -
+                         ไม่ animate brush (brush ในธีมถูกแชร์/freeze การสลับธีมตอน runtime จึงยังทำงานปกติ) -->
+                    <Grid>
+                        <Border x:Name="Bd" CornerRadius="8" Background="{TemplateBinding Background}"/>
+                        <Border x:Name="HoverFill" CornerRadius="8" Opacity="0" IsHitTestVisible="False"
+                                Background="{DynamicResource Brush.Accent.Light}"/>
+                        <ContentPresenter Margin="{TemplateBinding Padding}"
+                                          HorizontalAlignment="Center" VerticalAlignment="Center"
                                           TextElement.Foreground="{TemplateBinding Foreground}"/>
-                    </Border>
+                    </Grid>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsMouseOver" Value="True">
-                            <Setter TargetName="Bd" Property="Background" Value="{DynamicResource Brush.Accent.Light}"/>
+                            <Trigger.EnterActions>
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <DoubleAnimation Storyboard.TargetName="HoverFill" Storyboard.TargetProperty="Opacity"
+                                                         To="1" Duration="{StaticResource Motion.Fast}"
+                                                         EasingFunction="{StaticResource Motion.EaseOut}"/>
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </Trigger.EnterActions>
+                            <Trigger.ExitActions>
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <DoubleAnimation Storyboard.TargetName="HoverFill" Storyboard.TargetProperty="Opacity"
+                                                         To="0" Duration="{StaticResource Motion.Fast}"
+                                                         EasingFunction="{StaticResource Motion.EaseOut}"/>
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </Trigger.ExitActions>
                         </Trigger>
                         <Trigger Property="IsPressed" Value="True">
                             <Setter TargetName="Bd" Property="Background" Value="{DynamicResource Brush.Accent.Dark}"/>
+                            <Setter TargetName="HoverFill" Property="Visibility" Value="Collapsed"/>
                         </Trigger>
                         <Trigger Property="IsEnabled" Value="False">
                             <Setter TargetName="Bd" Property="Background" Value="{DynamicResource Brush.Status.Offline}"/>
+                            <Setter TargetName="HoverFill" Property="Visibility" Value="Collapsed"/>
                         </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>
@@ -389,17 +419,39 @@
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="Button">
-                    <Border x:Name="Bd" CornerRadius="8"
-                            Background="{TemplateBinding Background}"
-                            BorderBrush="{TemplateBinding BorderBrush}"
-                            BorderThickness="{TemplateBinding BorderThickness}"
-                            Padding="{TemplateBinding Padding}">
-                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"
+                    <!-- UI-15: hover fade ด้วยชั้น HoverFill (Margin = ความหนาเส้นขอบ เพื่อไม่ทับเส้นขอบ) -->
+                    <Grid>
+                        <Border x:Name="Bd" CornerRadius="8"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"/>
+                        <Border x:Name="HoverFill" CornerRadius="7" Opacity="0" IsHitTestVisible="False"
+                                Margin="{TemplateBinding BorderThickness}"
+                                Background="{DynamicResource Brush.Background.Primary}"/>
+                        <ContentPresenter Margin="{TemplateBinding Padding}"
+                                          HorizontalAlignment="Center" VerticalAlignment="Center"
                                           TextElement.Foreground="{TemplateBinding Foreground}"/>
-                    </Border>
+                    </Grid>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsMouseOver" Value="True">
-                            <Setter TargetName="Bd" Property="Background" Value="{DynamicResource Brush.Background.Primary}"/>
+                            <Trigger.EnterActions>
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <DoubleAnimation Storyboard.TargetName="HoverFill" Storyboard.TargetProperty="Opacity"
+                                                         To="1" Duration="{StaticResource Motion.Fast}"
+                                                         EasingFunction="{StaticResource Motion.EaseOut}"/>
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </Trigger.EnterActions>
+                            <Trigger.ExitActions>
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <DoubleAnimation Storyboard.TargetName="HoverFill" Storyboard.TargetProperty="Opacity"
+                                                         To="0" Duration="{StaticResource Motion.Fast}"
+                                                         EasingFunction="{StaticResource Motion.EaseOut}"/>
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </Trigger.ExitActions>
                         </Trigger>
                         <Trigger Property="IsPressed" Value="True">
                             <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource Brush.Accent.Default}"/>
@@ -424,20 +476,43 @@
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="Button">
-                    <Border x:Name="Bd" CornerRadius="8" Background="{TemplateBinding Background}"
-                            Padding="{TemplateBinding Padding}">
-                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"
+                    <!-- UI-15: hover fade ด้วยชั้น HoverFill - เหมือน ButtonPrimary -->
+                    <Grid>
+                        <Border x:Name="Bd" CornerRadius="8" Background="{TemplateBinding Background}"/>
+                        <Border x:Name="HoverFill" CornerRadius="8" Opacity="0" IsHitTestVisible="False"
+                                Background="{DynamicResource Brush.Danger.Light}"/>
+                        <ContentPresenter Margin="{TemplateBinding Padding}"
+                                          HorizontalAlignment="Center" VerticalAlignment="Center"
                                           TextElement.Foreground="{TemplateBinding Foreground}"/>
-                    </Border>
+                    </Grid>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsMouseOver" Value="True">
-                            <Setter TargetName="Bd" Property="Background" Value="{DynamicResource Brush.Danger.Light}"/>
+                            <Trigger.EnterActions>
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <DoubleAnimation Storyboard.TargetName="HoverFill" Storyboard.TargetProperty="Opacity"
+                                                         To="1" Duration="{StaticResource Motion.Fast}"
+                                                         EasingFunction="{StaticResource Motion.EaseOut}"/>
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </Trigger.EnterActions>
+                            <Trigger.ExitActions>
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <DoubleAnimation Storyboard.TargetName="HoverFill" Storyboard.TargetProperty="Opacity"
+                                                         To="0" Duration="{StaticResource Motion.Fast}"
+                                                         EasingFunction="{StaticResource Motion.EaseOut}"/>
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </Trigger.ExitActions>
                         </Trigger>
                         <Trigger Property="IsPressed" Value="True">
                             <Setter TargetName="Bd" Property="Background" Value="{DynamicResource Brush.Danger.Dark}"/>
+                            <Setter TargetName="HoverFill" Property="Visibility" Value="Collapsed"/>
                         </Trigger>
                         <Trigger Property="IsEnabled" Value="False">
                             <Setter TargetName="Bd" Property="Background" Value="{DynamicResource Brush.Status.Offline}"/>
+                            <Setter TargetName="HoverFill" Property="Visibility" Value="Collapsed"/>
                         </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>
@@ -924,6 +999,11 @@
                                     <ColumnDefinition Width="*"/>
                                 </Grid.ColumnDefinitions>
 
+                                <!-- UI-15: hover fade ด้วยชั้นนี้ (Opacity 120ms) แทนการสลับ Background ของ Row ทันที -->
+                                <Border x:Name="HoverFill" Grid.Column="0" Grid.ColumnSpan="2" CornerRadius="8"
+                                        Opacity="0" IsHitTestVisible="False"
+                                        Background="{DynamicResource Brush.Sidebar.BackgroundRaised}"/>
+
                                 <!-- แถบ accent ซ้ายมือบอกแถวที่เลือกอยู่ จำเป็นเพิ่มจากพื้นหลังที่เปลี่ยนสี
                                      เพราะพื้น active เป็นส้มโปร่ง 16% ซึ่งบาง และมันเป็นตัวบอกสถานะตัวเดียว
                                      ที่ยังเห็นชัดตอน sidebar หดเหลือแต่ไอคอน -->
@@ -956,11 +1036,29 @@
                         </Trigger>
 
                         <Trigger Property="IsMouseOver" Value="True">
-                            <Setter TargetName="Row" Property="Background" Value="{DynamicResource Brush.Sidebar.BackgroundRaised}"/>
                             <Setter Property="Foreground" Value="{DynamicResource Brush.Sidebar.Text}"/>
+                            <Trigger.EnterActions>
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <DoubleAnimation Storyboard.TargetName="HoverFill" Storyboard.TargetProperty="Opacity"
+                                                         To="1" Duration="{StaticResource Motion.Fast}"
+                                                         EasingFunction="{StaticResource Motion.EaseOut}"/>
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </Trigger.EnterActions>
+                            <Trigger.ExitActions>
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <DoubleAnimation Storyboard.TargetName="HoverFill" Storyboard.TargetProperty="Opacity"
+                                                         To="0" Duration="{StaticResource Motion.Fast}"
+                                                         EasingFunction="{StaticResource Motion.EaseOut}"/>
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </Trigger.ExitActions>
                         </Trigger>
 
                         <Trigger Property="IsSelected" Value="True">
+                            <Setter TargetName="HoverFill" Property="Visibility" Value="Collapsed"/>
                             <Setter TargetName="Row" Property="Background" Value="{DynamicResource Brush.Sidebar.ActiveBackground}"/>
                             <Setter TargetName="ActiveBar" Property="Visibility" Value="Visible"/>
                             <Setter Property="Foreground" Value="{DynamicResource Brush.Accent.Light}"/>
@@ -1000,6 +1098,10 @@
                                 <ColumnDefinition Width="Auto"/>
                                 <ColumnDefinition Width="*"/>
                             </Grid.ColumnDefinitions>
+                            <!-- UI-15: hover fade (Opacity 120ms) แทนการสลับ Background ของ Row ทันที -->
+                            <Border x:Name="HoverFill" Grid.Column="0" Grid.ColumnSpan="2" CornerRadius="8"
+                                    Opacity="0" IsHitTestVisible="False"
+                                    Background="{DynamicResource Brush.Sidebar.BackgroundRaised}"/>
                             <controls:IconPresenter x:Name="RowIcon" Grid.Column="0"
                                                     Icon="{Binding (controls:Nav.Icon), RelativeSource={RelativeSource TemplatedParent}}"
                                                     IconSize="18" Margin="12,0,0,0"
@@ -1011,8 +1113,25 @@
                     </Border>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsMouseOver" Value="True">
-                            <Setter TargetName="Row" Property="Background" Value="{DynamicResource Brush.Sidebar.BackgroundRaised}"/>
                             <Setter Property="Foreground" Value="{DynamicResource Brush.Sidebar.Text}"/>
+                            <Trigger.EnterActions>
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <DoubleAnimation Storyboard.TargetName="HoverFill" Storyboard.TargetProperty="Opacity"
+                                                         To="1" Duration="{StaticResource Motion.Fast}"
+                                                         EasingFunction="{StaticResource Motion.EaseOut}"/>
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </Trigger.EnterActions>
+                            <Trigger.ExitActions>
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <DoubleAnimation Storyboard.TargetName="HoverFill" Storyboard.TargetProperty="Opacity"
+                                                         To="0" Duration="{StaticResource Motion.Fast}"
+                                                         EasingFunction="{StaticResource Motion.EaseOut}"/>
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </Trigger.ExitActions>
                         </Trigger>
                         <DataTrigger Binding="{Binding (controls:Nav.IsCollapsed), RelativeSource={RelativeSource Self}}" Value="True">
                             <Setter TargetName="RowLabel" Property="Visibility" Value="Collapsed"/>

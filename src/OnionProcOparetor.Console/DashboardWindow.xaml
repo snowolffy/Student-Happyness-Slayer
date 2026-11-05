@@ -281,7 +281,7 @@
                                     Background="{DynamicResource Brush.Background.Card}"
                                     BorderBrush="{DynamicResource Brush.Border.Default}"
                                     BorderThickness="1">
-                                <ContentPresenter ContentSource="SelectedContent"/>
+                                <ContentPresenter x:Name="PageHost" ContentSource="SelectedContent"/>
                             </Border>
 
                             <ContentPresenter Grid.Row="2"
