@@ -4,6 +4,7 @@ using System.Windows.Controls;
 using Microsoft.Win32;
 using OnionProcOparetor.Console.Models;
 using OnionProcOparetor.Console.Services;
+using OnionProcOparetor.UI.Services;
 
 namespace OnionProcOparetor.Console;
 
@@ -65,6 +66,22 @@ public partial class SettingsPage : UserControl
     {
         _section = (string)((RadioButton)sender).Tag;
         ApplySection();
+
+        // UI-15: สลับหัวข้อ = fade 120ms ของหัวข้อที่เพิ่งแสดง (เฉพาะตอนหน้าแสดงอยู่แล้ว - ตอนโหลดหน้าครั้งแรก/
+        // ตั้ง IsChecked จากโค้ดไม่ต้องเล่น เพื่อให้ภาพที่จับตอนเปิดหน้าเป็นเฟรมสุดท้ายเสมอ)
+        if (IsLoaded && IsVisible)
+        {
+            UIElement shown = AdminSettingsPanel.Visibility == Visibility.Visible ? AdminSettingsPanel
+                : AdminOnlyNoticeCard.Visibility == Visibility.Visible ? AdminOnlyNoticeCard
+                : _section switch
+                {
+                    "Display" => SectionDisplay,
+                    "Connection" => SectionConnection,
+                    "Account" => SectionAccount,
+                    _ => SectionAbout,
+                };
+            Motion.FadeIn(shown, Motion.FastMs);
+        }
     }
 
     /// <summary>แสดงเฉพาะหัวข้อที่เลือก - หัวข้อกลุ่ม Admin ของ Teacher แสดง AdminOnlyNoticeCard แทน (เหมือนเดิม)</summary>

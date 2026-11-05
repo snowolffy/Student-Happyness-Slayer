@@ -7,6 +7,7 @@ using System.Windows.Media.Effects;
 using System.Windows.Shapes;
 using OnionProcOparetor.Console.Services;
 using OnionProcOparetor.UI.Controls;
+using OnionProcOparetor.UI.Services;
 
 namespace OnionProcOparetor.Console.Controls;
 
@@ -218,17 +219,45 @@ public sealed class AnnouncementBar : UserControl
 
         // UI-13: ไม่มีประกาศ = ทั้งแถบ Collapsed (สูง 0 ไม่โชว์อะไร) - ข้อความ Server/เวลา/รีเฟรชย้ายไปแถบสถานะล่างแล้ว
         // แถบโผล่เฉพาะตอนมีประกาศจริง (เนื้อหาด้านล่างเลื่อนลงตอนโผล่ - ผู้ใช้ยอมรับแล้ว)
-        Visibility = list.Count == 0 ? Visibility.Collapsed : Visibility.Visible;
-
+        // UI-15: โผล่/หายด้วย height + opacity (Motion.NormalMs) - ระหว่างหายยังคงหน้าตาประกาศเดิมไว้จนจบ ไม่ให้
+        // เห็นแถบขาวว่างวาบก่อนหด · เล่นเฉพาะตอน "สถานะโผล่/หาย" เปลี่ยนจริง การสลับประกาศกันเองไม่เล่นอะไร
         if (list.Count == 0)
         {
             _shownTop = null;
             _morePopup.IsOpen = false;
-            _normalPresenter.Visibility = Visibility.Visible;
-            _announcePanel.Visibility = Visibility.Collapsed;
-            _root.SetResourceReference(Border.BackgroundProperty, "Brush.Background.Card");
-            _root.SetResourceReference(Border.BorderBrushProperty, "Brush.Border.Default");
+
+            // Render ถูกเรียกซ้ำได้ระหว่างกำลังหาย - ปล่อยให้ fade เดิมเล่นต่อจนจบ ไม่ตัดกลางคัน
+            if (_hiding)
+            {
+                return;
+            }
+
+            if (_barShown && Motion.Enabled && IsLoaded)
+            {
+                _barShown = false;
+                HideAnimated();
+                return;
+            }
+
+            _barShown = false;
+            ApplyIdleLook();
+            Visibility = Visibility.Collapsed;
+            ResetBarAnimation();
             return;
+        }
+
+        var wasShown = _barShown;
+        _barShown = true;
+        _hiding = false;
+        _barToken++;
+        Visibility = Visibility.Visible;
+        if (!wasShown && Motion.Enabled && IsLoaded)
+        {
+            ShowAnimated();
+        }
+        else
+        {
+            ResetBarAnimation();
         }
 
         var top = list[0];
@@ -267,6 +296,54 @@ public sealed class AnnouncementBar : UserControl
         {
             BuildMoreList(list);
         }
+    }
+
+    private bool _barShown;
+    private bool _hiding;
+    private int _barToken;
+
+    private void ApplyIdleLook()
+    {
+        _normalPresenter.Visibility = Visibility.Visible;
+        _announcePanel.Visibility = Visibility.Collapsed;
+        _root.SetResourceReference(Border.BackgroundProperty, "Brush.Background.Card");
+        _root.SetResourceReference(Border.BorderBrushProperty, "Brush.Border.Default");
+    }
+
+    /// <summary>ยกเลิก animation ค้าง - Height กลับเป็น BarHeight และ Opacity 1 (ค่าจริงของแถบ)</summary>
+    private void ResetBarAnimation()
+    {
+        _root.BeginAnimation(HeightProperty, null);
+        _root.Height = BarHeight;
+        Motion.ResetOpacity(_root);
+    }
+
+    private void ShowAnimated()
+    {
+        _root.BeginAnimation(HeightProperty, null);
+        _root.Height = BarHeight;
+        _root.BeginAnimation(HeightProperty, Motion.Animation(0, BarHeight));
+        Motion.FadeIn(_root);
+    }
+
+    private void HideAnimated()
+    {
+        var token = ++_barToken;
+        _hiding = true;
+        _root.BeginAnimation(HeightProperty, Motion.Animation(BarHeight, 0, hold: true));
+        Motion.FadeOut(_root, () =>
+        {
+            // ถ้ามีประกาศกลับมาระหว่างหาย (token เปลี่ยน) ห้ามซ่อน/รีเซ็ตทับแถบที่เพิ่งโผล่อีกรอบ
+            if (token != _barToken || _barShown)
+            {
+                return;
+            }
+
+            _hiding = false;
+            ApplyIdleLook();
+            Visibility = Visibility.Collapsed;
+            ResetBarAnimation();
+        });
     }
 
     private void MoreButton_Click(object sender, RoutedEventArgs e)

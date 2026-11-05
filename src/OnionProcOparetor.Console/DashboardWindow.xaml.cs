@@ -3013,6 +3013,15 @@ public partial class DashboardWindow : UserControl
             return;
         }
 
+        // UI-15: เปลี่ยนหน้า = เนื้อหา fade + ยกขึ้น 6px (Motion.NormalMs) · ข้ามตอนเข้า Live View (เซลล์ภาพสดต้องไม่ถูก
+        // ทำให้โปร่ง/เลื่อน) และตอนเลือกแท็บแรกสุดที่ยังไม่มีหน้าก่อนหน้า (RemovedItems ว่าง = เปิด Dashboard)
+        if (e.RemovedItems.Count > 0
+            && !e.AddedItems.Contains(LiveViewTabItem)
+            && MainTabControl.Template.FindName("PageHost", MainTabControl) is FrameworkElement pageHost)
+        {
+            Motion.FadeRise(pageHost, 6);
+        }
+
         // แผงขวา (inspector + หน้าย่อยใน SidePanel) อยู่ระดับ MainWindow ตั้งแต่ UI-4 จึงไม่หายไปเองพร้อม
         // แท็บเหมือนตอนเป็นส่วนหนึ่งของแท็บ Clients - ปิดทุกครั้งที่สลับแท็บ ไม่อย่างนั้นแผงของเครื่องค้าง
         // ทับหน้าอื่น (เจอตอนตรวจ UI-8, 2026-11-04) · ไม่ UnselectAll: กลับมาแท็บ Clients แล้วแถวที่เลือก

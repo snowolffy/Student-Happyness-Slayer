@@ -5,6 +5,7 @@ using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Threading;
+using OnionProcOparetor.UI.Services;
 
 namespace OnionProcOparetor.UI.Controls;
 
@@ -54,6 +55,9 @@ public sealed class DialogHost : Grid
     private readonly Border _overlay;
     private readonly ContentControl _cardSlot;
     private readonly Stack<Entry> _stack = new();
+
+    /// <summary>UI-15: เพิ่มทุกครั้งที่เปิด/ปิด - ให้ callback จบ fade-out ของรอบเก่ารู้ว่าตัวเองหมดอายุแล้ว</summary>
+    private int _closeToken;
 
     /// <summary>true = มี dialog เปิดอยู่ (อย่างน้อยหนึ่งใบในสแต็ก)</summary>
     public bool IsOpen => _stack.Count > 0;
@@ -120,8 +124,18 @@ public sealed class DialogHost : Grid
         _stack.Push(entry);
 
         _cardSlot.Content = content;
+
+        // UI-15: ยกเลิก fade-out ที่ค้างอยู่ (เปิดซ้ำระหว่างกำลังปิด) แล้วเล่น fade-in ของพื้นมืด + การ์ดเฉพาะ
+        // dialog แรก (dialog ซ้อนไม่เล่นซ้ำ - พื้นมืดอยู่แล้ว) · ปลายทางของทุก animation คือ Opacity 1/Scale 1
+        _closeToken++;
+        Motion.ResetOpacity(this);
         Visibility = Visibility.Visible;
         IsHitTestVisible = true;
+        if (_stack.Count == 1)
+        {
+            Motion.FadeIn(_overlay);
+            Motion.FadeScaleIn(_cardSlot);
+        }
 
         if (content.IsLoaded)
         {
@@ -173,9 +187,22 @@ public sealed class DialogHost : Grid
         }
         else
         {
-            _cardSlot.Content = null;
-            Visibility = Visibility.Collapsed;
+            // UI-15: ปิดทันทีในแง่การรับคลิก/ผลลัพธ์ (IsHitTestVisible=false + OnClosed เรียกเหมือนเดิมด้านล่าง) แต่
+            // ภาพ fade-out 150-180ms โดยคงเนื้อหาไว้จนจบ แล้วค่อยซ่อน - token กัน callback ของรอบเก่าไปซ่อน
+            // dialog ที่เพิ่งเปิดใหม่ระหว่างกำลังปิด
             IsHitTestVisible = false;
+            var token = ++_closeToken;
+            Motion.FadeOut(this, () =>
+            {
+                if (token != _closeToken || _stack.Count > 0)
+                {
+                    return;
+                }
+
+                _cardSlot.Content = null;
+                Visibility = Visibility.Collapsed;
+                Motion.ResetOpacity(this);
+            });
         }
 
         try

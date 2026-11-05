@@ -3,6 +3,7 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
+using OnionProcOparetor.UI.Services;
 
 namespace OnionProcOparetor.UI.Controls;
 
@@ -95,12 +96,17 @@ public sealed class SidePanelHost : Grid
 
         if (alreadyOpen)
         {
+            // UI-15: สลับเนื้อหา (inspector <-> แผงเลือกหลายเครื่อง ฯลฯ) ขณะแผงเปิดอยู่ = fade เบา ๆ ด้วยเวลาเดียวกับ
+            // slide เข้า (ไม่ slide ซ้ำ) · ปลายทาง Opacity 1 เสมอ (Motion.FadeIn ใช้ FillBehavior.Stop)
+            Motion.FadeIn(_panelSlot, Motion.PanelMs, 0.3);
             return;
         }
 
+        _panelSlot.BeginAnimation(OpacityProperty, null);
+        _panelSlot.Opacity = 1;
         _slide.BeginAnimation(TranslateTransform.XProperty, null);
         _slide.X = _panelSlot.Width;
-        var animation = new DoubleAnimation(_panelSlot.Width, 0, TimeSpan.FromMilliseconds(220))
+        var animation = new DoubleAnimation(_panelSlot.Width, 0, TimeSpan.FromMilliseconds(Motion.PanelMs))
         {
             EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseOut },
         };
@@ -119,7 +125,7 @@ public sealed class SidePanelHost : Grid
         IsOpen = false;
         IsHitTestVisible = false;
 
-        var animation = new DoubleAnimation(0, _panelSlot.Width, TimeSpan.FromMilliseconds(180))
+        var animation = new DoubleAnimation(0, _panelSlot.Width, TimeSpan.FromMilliseconds(Motion.NormalMs))
         {
             EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseIn },
         };

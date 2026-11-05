@@ -82,6 +82,13 @@ public partial class App : Application
             ThemeService.PreviewOverride(forcedTheme);
         }
 
+        // UI-15: --shot จับภาพทันทีหลัง layout - ปิด animation ทั้งหมดเพื่อให้ได้เฟรมสุดท้ายเสมอ (ไม่ใช่ dialog/แผง
+        // ที่ยัง fade ค้างครึ่งทาง)
+        if (e.Args.Any(a => a.StartsWith("--shot=", StringComparison.Ordinal)))
+        {
+            Motion.ForceDisabled = true;
+        }
+
 
         // เครื่องมือสำหรับตรวจงาน UI เท่านั้น และมีเฉพาะใน build แบบ Debug (installer/publish-all.ps1
         // publish ด้วย -c Release เสมอ ปุ่มนี้จึงไม่มีอยู่จริงในของที่ส่งขึ้นเครื่องครู)
