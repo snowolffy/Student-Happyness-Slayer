@@ -37,9 +37,11 @@
 - 1 work package (WP) = 1 branch `feat/p1-<wp>` ทำใน worktree ของตัวเอง ห้าม commit ตรงเข้า main
 - แตะได้เฉพาะไฟล์ที่ WP ของตัวเองระบุไว้ใน roadmap ถ้าต้องแก้ไฟล์ของ WP อื่น ให้แจ้ง orchestrator ห้ามแก้เอง
 - **`Server/Program.cs` เป็นจุดชนหลัก:** endpoint ใหม่ให้เขียนใน `src/OnionProcOparetor.Server/Endpoints/<Feature>Endpoints.cs` เป็น extension method `MapXxxEndpoints()` แล้วเพิ่มใน Program.cs แค่บรรทัดเดียว
-- **EF migration สร้างได้ทีละ WP เท่านั้น** ตามลำดับใน roadmap ต้องเป็นการเพิ่มคอลัมน์หรือตารางใหม่ (additive) ห้ามลบหรือ rename คอลัมน์ ถ้าเจอ ModelSnapshot ชนกัน ให้ rebase แล้วสร้าง migration ใหม่ ห้ามแก้ snapshot ด้วยมือ
+- **1 โมดูล = 1 DbContext + 1 ไฟล์ .db + โฟลเดอร์ migration ของตัวเอง** (ดู "ขั้น M" ใน roadmap) ข้ามโมดูลอ้างกันด้วย ID ธรรมดา ไม่มี FK ข้ามไฟล์
+- **EF migration ของ context เดียวกันสร้างได้ทีละ WP เท่านั้น** ตามลำดับใน roadmap ถ้าเจอ ModelSnapshot ชนกัน ให้ rebase แล้วสร้าง migration ใหม่ ห้ามแก้ snapshot ด้วยมือ
+- **ก่อนย้ายไปเครื่อง Server จริง DB จะเริ่มใหม่ทั้งหมด** จึงรวม migration และจัดตารางใหม่ได้ (เฉพาะ WP ที่ roadmap ระบุ เช่น M0-1) · **หลังย้ายแล้วต้อง additive เท่านั้น** ห้ามลบหรือ rename คอลัมน์
 - ทุก WP ต้อง build ผ่านทั้ง solution (0 error) ก่อนส่งงาน และมีวิธีทดสอบที่ทำจริงแล้วเขียนไว้ใน PR/commit ถ้ายังไม่ได้ทดสอบ ให้เขียนว่ายังไม่ได้ทดสอบตรงๆ
-- ไม่มีระบบ plugin หรือ hot-load: โมดูลใหม่ = โฟลเดอร์แยก + การเปลี่ยน DB แบบ additive
+- ไม่มีระบบ plugin หรือ hot-load: โมดูลใหม่ = โฟลเดอร์แยก + DbContext/ไฟล์ .db ของตัวเอง + สวิตช์เปิด/ปิดใน Server
 - คอมเมนต์ในโค้ดเขียนภาษาไทยได้ตามสไตล์เดิม ใช้ commit message แบบ conventional (`feat(scope): ...`)
 - รายงานสถานะให้ผู้ใช้เป็นภาษาไทย
 - งานเสร็จแล้วอัปเดตหัวข้อ "สถานะ" ใน `docs/roadmap.md` และส่วนที่เกี่ยวข้องใน `docs/architecture.md`
